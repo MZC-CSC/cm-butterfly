@@ -12,6 +12,8 @@ const NAMESPACE = 'SOURCECONNECTION';
 
 export const useSourceConnectionStore = defineStore(NAMESPACE, () => {
   //key : sourceConnection Id , value : sourceConnection Info
+
+  // TODO: editConnections, withSourceConnection은 현재 store와 성격이 안맞음 -> 다른 상태관리 파일로 분리하거나, props로 넘겨주는 방식으로 변경
   const connections = ref<Record<string, ISourceConnection>>({});
   const editConnections: any[] = [];
   const withSourceConnection = ref(false);
