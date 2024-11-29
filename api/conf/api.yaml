@@ -3,55 +3,60 @@ cliSpecVersion: v1
 services:
   cb-spider: #service name
     version: 0.10.0
-    baseurl: http://cb-spider:1024/spider # baseurl is Scheme + Host + Base Path
+    baseurl: http://localhost:1024/spider  # baseurl is Scheme + Host + Base Path
     auth: #If you need an authentication method, describe the type and username and password in the sub
       type: basic
-      username:
-      password:
-
+      username: 
+      password: 
+  
   cb-tumblebug:
     version: 0.10.0
-    baseurl: http://cb-tumblebug:1323/tumblebug
-    auth:
+    baseurl: https://devcm.onecloudcon.com/tumblebug
+    auth: 
       type: basic
       username: default
       password: default
 
   cm-beetle:
     version: 0.3.0
-    baseurl: http://cm-beetle:8056/beetle
-    auth:
+    baseurl: http://localhost:8056/beetle
+    auth: 
       type: basic
       username: default
       password: default
 
   cm-ant:
     version: 0.3.0
-    baseurl: http://cm-ant:8880/ant
-    auth:
+    baseurl: http://localhost:8880/ant
+    auth:  
 
   cm-honeybee:
     version: 0.3.0
-    baseurl: http://cm-honeybee:8081/honeybee
-    auth:
+    baseurl: http://localhost:8081/honeybee
+    auth: 
 
   cm-cicada:
     version: 0.3.0
-    baseurl: http://cm-cicada:8083/cicada
-    auth:
+    baseurl: http://localhost:8083/cicada
+    auth: 
 
   cm-grasshopper:
     version: 0.3.0
-    baseurl: http://cm-grasshopper:8084/grasshopper
-    auth:
+    baseurl: http://localhost:8084/grasshopper
+    auth: 
 
   cm-damselfly:
     version: 0.3.0
-    baseurl: http://cm-damselfly:8088/damselfly
+    baseurl: http://localhost:8088/damselfly
     auth:
       type: basic
       username: default
       password: default
+
+  cm-butterfly-api:
+    version: 0.3.0
+    baseurl: http://localhost:4000
+    auth: 
 
   # sample: #none authentication method
   #   baseurl: http://localhost:1323/test
@@ -59,16 +64,17 @@ services:
 
   # sample: #basic authentication method
   #   baseurl: http://localhost:1323/test
-  #   auth:
+  #   auth: 
   #     type: "basic"
   #     username: "your-username"
   #     password: "your-password"
 
   # sample: #Bearer authentication method
   #   baseurl: http://localhost:1323/test
-  #   auth:
+  #   auth: 
   #     type: "bearer"
   #     token: "your-bearer-token-here"
+
 
 # Define rest api actions for each of the services defined above.
 # specify the DATA to use for the API in the CLI.

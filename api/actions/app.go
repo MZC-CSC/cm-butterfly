@@ -1,84 +1,69 @@
 package actions
 
 import (
-	"os"
+	"fmt"
+	"net/http"
 	"sync"
 
-	"github.com/gobuffalo/buffalo"
-	"github.com/gobuffalo/buffalo-pop/v3/pop/popmw"
-	contenttype "github.com/gobuffalo/mw-contenttype"
-	"github.com/gobuffalo/x/sessions"
-	"github.com/rs/cors"
+	"github.com/cloud-barista/cm-butterfly/models"
+	v "github.com/cloud-barista/cm-butterfly/variables"
 
-	i18n "github.com/gobuffalo/mw-i18n/v2"
-	paramlogger "github.com/gobuffalo/mw-paramlogger"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 
-	"api/models"
+	_ "github.com/cloud-barista/cm-butterfly/docs"
+	echoSwagger "github.com/swaggo/echo-swagger"
 )
 
 var (
-	app     *buffalo.App
+	app     *echo.Echo
 	appOnce sync.Once
-	T       *i18n.Translator
 )
 
-func App() *buffalo.App {
+// @title cm-butterfly
+// @version 0.2.3+edge
+// @description cloud-barista GUI framework for seamless multi-cloud migration.
+// @host localhost:4000
+// @BasePath /
+func App() *echo.Echo {
 	appOnce.Do(func() {
-		app = buffalo.New(buffalo.Options{
-			SessionStore: sessions.Null{},
-			PreWares: []buffalo.PreWare{
-				cors.AllowAll().Handler, // disable require, when front proxy done.
+		app = echo.New()
+		app.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+			LogStatus: true, LogURI: true, LogMethod: true, LogRemoteIP: true,
+			LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+				fmt.Printf("⇨ %v [%v] %v (%v)\n", v.RemoteIP, v.Method, v.URI, v.Status)
+				return nil
 			},
-			SessionName: "cm-buttergly",
-			Addr:        os.Getenv("API_ADDR") + ":" + os.Getenv("API_PORT"),
-		})
+		}))
 
-		app.Use(paramlogger.ParameterLogger)
-		app.Use(contenttype.Set("application/json"))
-		app.Use(popmw.Transaction(models.DB))
-		app.Use(SetContextMiddleware)
+		app.Use(TransactionMiddleware(models.DB))
+		app.Use(SetContextMiddleware([]string{
+			"/readyz",
+			v.ApiPath + "/auth/login",
+			"/swagger/*",
+		}...))
 
-		app.Middleware.Skip(SetContextMiddleware, readyz)
-		app.ANY("/readyz", readyz)
+		app.Any("/readyz", readyz)
+		if v.SWAGGER {
+			app.GET("/swagger/*", echoSwagger.WrapHandler)
+		}
 
-		apiPath := "/api"
-
-		auth := app.Group(apiPath + "/auth")
-		auth.Middleware.Skip(SetContextMiddleware, AuthLogin)
+		auth := app.Group(v.ApiPath + "/auth")
 		auth.POST("/login", AuthLogin)
 		auth.POST("/refresh", AuthLoginRefresh)
 		auth.POST("/validate", AuthValidate)
 		auth.POST("/logout", AuthLogout)
 		auth.POST("/userinfo", AuthUserinfo)
 
-		api := app.Group(apiPath)
-		api.POST("/disklookup", DiskLookup)
-		api.POST("/availabledisktypebyproviderregion", AvailableDiskTypeByProviderRegion)
+		api := app.Group(v.ApiPath)
 		api.POST("/getmenutree", GetmenuTree)
+		api.POST("/:operationId", AnyController)
+		api.POST("/:subsystemName/:operationId", SubsystemAnyController)
 
-		// Projects Manage
-		api.POST("/createproject", CreateProject)
-		api.POST("/getprojectlist", GetProjectList)
-		api.POST("/getprojectbyid", GetProjectById)
-		api.POST("/updateprojectbyid", UpdateProjectById)
-		api.POST("/deleteprojectbyid", DeleteProjectById)
-
-		// Projects and Workspace Get
-		api.POST("/getwpmappinglistbyworkspaceid", GetWPmappingListByWorkspaceId)
-		api.POST("/getworkspaceuserrolemappinglistbyuserid", GetWorkspaceUserRoleMappingListByUserId)
-
-		// source
-		// api.POST("/agent-and-connection-check", AgentAndConnectionCheck)
-		// api.POST("/register-source-group", RegisterSourceGroup)
-
-		api.POST("/{operationId}", AnyController)
-		api.POST("/{subsystemName}/{operationId}", SubsystemAnyController)
 	})
-
 	return app
-
 }
 
-func readyz(c buffalo.Context) error {
-	return c.Render(200, r.JSON(map[string]interface{}{"status": "OK"}))
+func readyz(c echo.Context) error {
+	return c.JSON(http.StatusOK, map[string]interface{}{"status": "OK"})
 }

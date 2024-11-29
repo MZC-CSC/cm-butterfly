@@ -15,6 +15,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/yaml.v2"
+
+	v "github.com/cloud-barista/cm-butterfly/variables"
 )
 
 const (
@@ -67,15 +69,13 @@ type CmigRefreshtokenClaims struct {
 }
 
 var (
-	user                *CmigUser
-	cmigAuthSetting     CmigAuthSetting
-	encryptionKey       []byte
-	USER_AUTH_CONF_PATH = os.Getenv("USER_AUTH_CONF_PATH")
-	USER_AUTH_DATA_PATH = os.Getenv("USER_AUTH_DATA_PATH")
+	user            *CmigUser
+	cmigAuthSetting CmigAuthSetting
+	encryptionKey   []byte
 )
 
 func init() {
-	data, err := os.ReadFile(USER_AUTH_CONF_PATH)
+	data, err := os.ReadFile(v.USER_AUTH_CONF_PATH)
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
@@ -96,7 +96,7 @@ func init() {
 	user, err = loadUserFromEncryptedFile()
 	if err != nil {
 		log.Printf("Load User From Encrypted File Fail : %v\n", err)
-		log.Printf("Trying to init user from %v\n", USER_AUTH_CONF_PATH)
+		log.Printf("Trying to init user from %v\n", v.USER_AUTH_CONF_PATH)
 
 		password := cmigAuthSetting.User.Password
 		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -128,7 +128,7 @@ func init() {
 }
 
 func loadUserFromEncryptedFile() (*CmigUser, error) {
-	encryptedData, err := os.ReadFile(USER_AUTH_DATA_PATH)
+	encryptedData, err := os.ReadFile(v.USER_AUTH_DATA_PATH)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +183,7 @@ func saveUserToEncryptedFile(user *CmigUser) error {
 
 	encryptedData := gcm.Seal(nonce, nonce, userData, nil)
 
-	return os.WriteFile(USER_AUTH_DATA_PATH, encryptedData, 0644)
+	return os.WriteFile(v.USER_AUTH_DATA_PATH, encryptedData, 0644)
 }
 
 func generateJWT() (*CmigUserLoginResponse, error) {

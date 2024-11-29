@@ -158,7 +158,7 @@ The frontend of cm-butterfly includes a web server, `nginx`. It uses nginx's rev
 
 If the API server is not running in the same container environment but is running remotely, you can modify the web server configuration in `./front/nginx.conf` to specify a reverse proxy for the backend host.
 
-Currently, the container name defined in docker compose is set to DNS using http which is `http://cm-butterfly-api:4000`.
+Currently, the container name defined in docker compose is set to DNS using http which is `http://cm-butterfly:4000`.
 
 ```text
   # other configuration
@@ -167,7 +167,7 @@ Currently, the container name defined in docker compose is set to DNS using http
 
 Here's a simple terminal command for you, just run it from the root of your project.
 ```bash
-sed -i 's|proxy_pass http://cm-butterfly-api:4000;|proxy_pass https://whatever.host.you.want.com|' ./front/nginx.conf
+sed -i 's|proxy_pass http://cm-butterfly:4000;|proxy_pass https://whatever.host.you.want.com|' ./front/nginx.conf
 
 ```
 

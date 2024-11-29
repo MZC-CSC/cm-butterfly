@@ -1,0 +1,142 @@
+basePath: /
+definitions:
+  common.CommonRequest:
+    properties:
+      pathParams:
+        additionalProperties:
+          type: string
+        type: object
+      queryParams:
+        additionalProperties:
+          type: string
+        type: object
+      request: {}
+    type: object
+  common.CommonResponse:
+    properties:
+      responseData: {}
+      status:
+        $ref: '#/definitions/common.WebStatus'
+    type: object
+  common.WebStatus:
+    properties:
+      code:
+        type: integer
+      message:
+        type: string
+    type: object
+host: localhost:4000
+info:
+  contact: {}
+  description: cloud-barista GUI framework for seamless multi-cloud migration.
+  title: cm-butterfly
+  version: 0.2.3+edge
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticates a user using ID and password, generates tokens, and
+        stores the session in the database.
+      parameters:
+      - description: Login Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/common.CommonRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Login Successful, Tokens Returned
+          schema:
+            $ref: '#/definitions/common.CommonResponse'
+        "400":
+          description: Bad Request, Invalid Parameters
+          schema:
+            $ref: '#/definitions/common.CommonResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/common.CommonResponse'
+      summary: User Login
+      tags:
+      - Authentication
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Destroys the user's session and invalidates the tokens.
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Logout Successful
+          schema:
+            $ref: '#/definitions/common.CommonResponse'
+        "400":
+          description: Bad Request, Invalid Parameters
+          schema:
+            $ref: '#/definitions/common.CommonResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/common.CommonResponse'
+      summary: User Logout
+      tags:
+      - Authentication
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Refreshes the access token using a valid refresh token.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Token Refresh Successful
+          schema:
+            $ref: '#/definitions/common.CommonResponse'
+        "400":
+          description: Bad Request, Invalid Parameters
+          schema:
+            $ref: '#/definitions/common.CommonResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/common.CommonResponse'
+      summary: Refresh User Tokens
+      tags:
+      - Authentication
+  /auth/userinfo:
+    get:
+      consumes:
+      - application/json
+      description: Returns the user's information based on the session.
+      produces:
+      - application/json
+      responses: {}
+      summary: User Info
+      tags:
+      - Authentication
+  /auth/validate:
+    get:
+      consumes:
+      - application/json
+      description: Validates the current session to ensure the user is still authenticated.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Session Valid
+          schema:
+            $ref: '#/definitions/common.CommonResponse'
+        "400":
+          description: Bad Request, Invalid Parameters
+          schema:
+            $ref: '#/definitions/common.CommonResponse'
+      summary: Validate User Session
+      tags:
+      - Authentication
+swagger: "2.0"

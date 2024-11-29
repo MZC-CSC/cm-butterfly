@@ -1,4 +1,4 @@
-package handler
+package common
 
 import (
 	"bytes"
@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gobuffalo/buffalo"
+	"github.com/labstack/echo/v4"
 	"github.com/spf13/viper"
 )
 
@@ -65,7 +65,7 @@ type ApiYaml struct {
 // ////////////////////////////////////////////////////////////////
 
 var (
-	ApiYamlSet  ApiYaml
+	ApiYamlSet ApiYaml
 )
 
 func init() {
@@ -82,9 +82,9 @@ func init() {
 	viper.AddConfigPath(filepath.Join(exeDir, "conf"))
 	viper.AddConfigPath("conf")
 
-	log.Println(exePath)
-	log.Println(exeDir)
-	log.Println(filepath.Join(exeDir, "conf"))
+	// log.Println(exePath)
+	// log.Println(exeDir)
+	// log.Println(filepath.Join(exeDir, "conf"))
 
 	if err := viper.ReadInConfig(); err != nil {
 		panic(fmt.Errorf("fatal error reading actions/conf/api.yaml file: %s", err))
@@ -97,7 +97,7 @@ func init() {
 
 // AnyCaller는 buffalo.Context, operationId, commonRequest, auth유무 를 받아 conf/api.yaml 정보를 바탕으로 commonCaller를 호출합니다.
 // 모든 error 는 기본적으로 commonResponse 에 담아져 반환됩니다.
-func AnyCaller(c buffalo.Context, operationId string, commonRequest *CommonRequest, auth bool) (*CommonResponse, error) {
+func AnyCaller(c echo.Context, operationId string, commonRequest *CommonRequest, auth bool) (*CommonResponse, error) {
 	_, targetFrameworkInfo, targetApiSpec, err := GetApiSpec(strings.ToLower(operationId))
 	if (err != nil || targetFrameworkInfo == Service{} || targetApiSpec == Spec{}) {
 		commonResponse := CommonResponseStatusNotFound(operationId + "-" + err.Error())
@@ -138,7 +138,7 @@ func GetApiSpec(requestOpertinoId string) (string, Service, Spec, error) {
 // SubsystemAnyCaller buffalo.Context, subsystemName, operationId, commonRequest, auth유무 를 받아 conf/api.yaml 정보를 바탕으로 commonCaller를 호출합니다.
 // AnyCaller 와 동일한 방식으로 작동하며, subsystemName, operationId 로 호출할 서브시스템의 함수를 특정합니다.
 // 모든 응답과 error 는 commonResponse 내 설정되어 반환됩니다.
-func SubsystemAnyCaller(c buffalo.Context, subsystemName, operationId string, commonRequest *CommonRequest, auth bool) (*CommonResponse, error) {
+func SubsystemAnyCaller(c echo.Context, subsystemName, operationId string, commonRequest *CommonRequest, auth bool) (*CommonResponse, error) {
 	targetFrameworkInfo, targetApiSpec, err := getApiSpecBySubsystem(subsystemName, operationId)
 	if (err != nil || targetFrameworkInfo == Service{} || targetApiSpec == Spec{}) {
 		commonResponse := CommonResponseStatusNotFound(operationId + "-" + err.Error())
@@ -178,7 +178,7 @@ func getApiSpecBySubsystem(subsystemName, requestOpertinoId string) (Service, Sp
 // getAuth는 컨텍스트 및 대상 서비스 정보를 받아, 옳바른 Authorization 값을 반환합니다.
 // 오류의 경우 각 경우, 해당하는 오류가 반환됩니다.
 // Auth 방식이 없을경우, 아무것도 반환되지 않습니다.
-func getAuth(c buffalo.Context, service Service) (string, error) {
+func getAuth(c echo.Context, service Service) (string, error) {
 	switch service.Auth.Type {
 	case "basic":
 		if apiUserInfo := service.Auth.Username + ":" + service.Auth.Password; service.Auth.Username != "" && service.Auth.Password != "" {
@@ -189,7 +189,7 @@ func getAuth(c buffalo.Context, service Service) (string, error) {
 		}
 
 	case "bearer":
-		if authValue, ok := c.Value("Authorization").(string); ok {
+		if authValue, ok := c.Get("Authorization").(string); ok {
 			return authValue, nil
 		} else {
 			return "", fmt.Errorf("authorization key does not exist or is not a string")

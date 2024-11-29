@@ -1,12 +1,13 @@
 package actions
 
 import (
-	"api/handler"
+	"github.com/cloud-barista/cm-butterfly/common"
+	"github.com/cloud-barista/cm-butterfly/handler"
 
-	"github.com/gobuffalo/buffalo"
+	"github.com/labstack/echo/v4"
 )
 
-func GetmenuTree(c buffalo.Context) error {
-	commonResponse := handler.CommonResponseStatusOK(handler.CmigMenuTree.Menus)
-	return c.Render(commonResponse.Status.StatusCode, r.JSON(commonResponse))
+func GetmenuTree(c echo.Context) error {
+	commonResponse := common.CommonResponseStatusOK(handler.CmigMenuTree.Menus)
+	return c.JSON(commonResponse.Status.StatusCode, commonResponse)
 }

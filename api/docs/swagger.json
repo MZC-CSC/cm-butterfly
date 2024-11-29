@@ -1,0 +1,214 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "cloud-barista GUI framework for seamless multi-cloud migration.",
+        "title": "cm-butterfly",
+        "contact": {},
+        "version": "0.2.3+edge"
+    },
+    "host": "localhost:4000",
+    "basePath": "/",
+    "paths": {
+        "/auth/login": {
+            "post": {
+                "description": "Authenticates a user using ID and password, generates tokens, and stores the session in the database.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "User Login",
+                "parameters": [
+                    {
+                        "description": "Login Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/common.CommonRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Login Successful, Tokens Returned",
+                        "schema": {
+                            "$ref": "#/definitions/common.CommonResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request, Invalid Parameters",
+                        "schema": {
+                            "$ref": "#/definitions/common.CommonResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/common.CommonResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "description": "Destroys the user's session and invalidates the tokens.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "User Logout",
+                "responses": {
+                    "204": {
+                        "description": "Logout Successful",
+                        "schema": {
+                            "$ref": "#/definitions/common.CommonResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request, Invalid Parameters",
+                        "schema": {
+                            "$ref": "#/definitions/common.CommonResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/common.CommonResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/refresh": {
+            "post": {
+                "description": "Refreshes the access token using a valid refresh token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Refresh User Tokens",
+                "responses": {
+                    "200": {
+                        "description": "Token Refresh Successful",
+                        "schema": {
+                            "$ref": "#/definitions/common.CommonResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request, Invalid Parameters",
+                        "schema": {
+                            "$ref": "#/definitions/common.CommonResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/common.CommonResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/userinfo": {
+            "get": {
+                "description": "Returns the user's information based on the session.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "User Info",
+                "responses": {}
+            }
+        },
+        "/auth/validate": {
+            "get": {
+                "description": "Validates the current session to ensure the user is still authenticated.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Validate User Session",
+                "responses": {
+                    "200": {
+                        "description": "Session Valid",
+                        "schema": {
+                            "$ref": "#/definitions/common.CommonResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request, Invalid Parameters",
+                        "schema": {
+                            "$ref": "#/definitions/common.CommonResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "common.CommonRequest": {
+            "type": "object",
+            "properties": {
+                "pathParams": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "queryParams": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "request": {}
+            }
+        },
+        "common.CommonResponse": {
+            "type": "object",
+            "properties": {
+                "responseData": {},
+                "status": {
+                    "$ref": "#/definitions/common.WebStatus"
+                }
+            }
+        },
+        "common.WebStatus": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

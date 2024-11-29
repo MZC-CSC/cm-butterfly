@@ -1,13 +1,15 @@
 package handler
 
 import (
-	"api/models"
+	"log"
 
-	"github.com/gobuffalo/pop/v6"
-	"github.com/opentracing/opentracing-go/log"
+	"github.com/cloud-barista/cm-butterfly/common"
+	"github.com/cloud-barista/cm-butterfly/models"
+
+	"gorm.io/gorm"
 )
 
-func CreateUserSessFromResponseData(tx *pop.Connection, r *CommonResponse, userId string) (*models.Usersess, error) {
+func CreateUserSessFromResponseData(tx *gorm.DB, r *common.CommonResponse, userId string) (*models.Usersess, error) {
 	t := r.ResponseData.(map[string]interface{})
 	var s models.Usersess
 	s.UserID = userId
@@ -25,126 +27,128 @@ func CreateUserSessFromResponseData(tx *pop.Connection, r *CommonResponse, userI
 	}
 	sess, err := CreateUserSess(tx, &s)
 	if err != nil {
+		log.Println(err)
 		return nil, err
 	}
 	return sess, nil
 }
 
-func CreateUserSess(tx *pop.Connection, s *models.Usersess) (*models.Usersess, error) {
+func CreateUserSess(tx *gorm.DB, s *models.Usersess) (*models.Usersess, error) {
 	userExist, err := IsUserSessExistByUserId(tx, s.UserID)
 	if err != nil {
-		log.Error(err)
+		log.Println(err)
 		return nil, err
 	}
 	if userExist {
-		orgs, err := GetUserByUserId(tx, s.UserID)
+		existingSess, err := GetUserByUserId(tx, s.UserID)
 		if err != nil {
-			log.Error(err)
+			log.Println(err)
 			return nil, err
 		}
-		s.ID = orgs.ID
+		s.UserID = existingSess.UserID
+
 		update, err := UpdateUserSess(tx, s)
 		if err != nil {
-			log.Error(err)
+			log.Println(err)
 			return nil, err
 		}
 		return update, nil
 	} else {
-		err := tx.Create(s)
-		if err != nil {
-			log.Error(err)
+		if err := tx.Create(s).Error; err != nil {
+			log.Println(err)
 			return nil, err
 		}
 		return s, nil
 	}
 }
 
-func IsUserSessExistByUserId(tx *pop.Connection, userId string) (bool, error) {
-	var cnt int
-	err := tx.RawQuery("SELECT COUNT(*) FROM usersesses WHERE user_id = ?;", userId).First(&cnt)
-	if err != nil {
-		log.Error(err)
+func IsUserSessExistByUserId(tx *gorm.DB, userId string) (bool, error) {
+	var cnt int64
+	if err := tx.Model(&models.Usersess{}).Where("user_id = ?", userId).Count(&cnt).Error; err != nil {
+		log.Println(err)
 		return false, err
 	}
-	if cnt != 0 {
-		return true, nil
-	}
-	return false, nil
+	return cnt > 0, nil
 }
 
-func GetUserByUserId(tx *pop.Connection, userId string) (*models.Usersess, error) {
+func GetUserByUserId(tx *gorm.DB, userId string) (*models.Usersess, error) {
 	var s models.Usersess
-	err := tx.Where("user_id = ?", userId).First(&s)
-	if err != nil {
-		log.Error(err)
+	if err := tx.Where("user_id = ?", userId).First(&s).Error; err != nil {
+		log.Println(err)
 		return nil, err
 	}
 	return &s, nil
 }
 
-func UpdateUserSesssFromResponseData(tx *pop.Connection, r *CommonResponse, userId string) (*models.Usersess, error) {
-
+func UpdateUserSessFromResponseData(tx *gorm.DB, r *common.CommonResponse, userId string) (*models.Usersess, error) {
 	t := r.ResponseData.(map[string]interface{})
 
 	s, err := GetUserByUserId(tx, userId)
 	if err != nil {
-		log.Error(err)
+		log.Println(err)
 		return nil, err
 	}
 
 	if accessToken, ok := t["access_token"]; ok {
 		s.AccessToken = accessToken.(string)
-
 	}
 	if expiresIn, ok := t["expires_in"]; ok {
 		s.ExpiresIn = expiresIn.(float64)
-
 	}
 	if refreshToken, ok := t["refresh_token"]; ok {
 		s.RefreshToken = refreshToken.(string)
-
 	}
 	if refreshExpiresIn, ok := t["refresh_expires_in"]; ok {
 		s.RefreshExpiresIn = refreshExpiresIn.(float64)
 	}
 
-	err = tx.Update(s)
-	if err != nil {
-		log.Error(err)
+	if err := tx.Save(s).Error; err != nil {
+		log.Println(err)
 		return nil, err
 	}
 
 	return s, nil
 }
 
-func UpdateUserSess(tx *pop.Connection, s *models.Usersess) (*models.Usersess, error) {
-	err := tx.Update(s)
-	if err != nil {
-		log.Error(err)
+func UpdateUserSess(tx *gorm.DB, s *models.Usersess) (*models.Usersess, error) {
+	if err := tx.Model(&models.Usersess{}).
+		Where("user_id = ?", s.UserID).
+		Updates(s).Error; err != nil {
+		log.Printf("Failed to update user session: %v", err)
 		return nil, err
 	}
 	return s, nil
 }
 
-func DestroyUserSessByAccesstokenforLogout(tx *pop.Connection, t string) (string, error) {
-	s, err := GetUserByUserId(tx, t)
+func DestroyUserSessByAccessTokenForLogout(tx *gorm.DB, accessToken string) (string, error) {
+	s, err := GetUserByAccessToken(tx, accessToken)
 	if err != nil {
-		log.Error(err)
+		log.Println(err)
 		return "", err
 	}
-	rt := s.RefreshToken
-	err = DestroyUserSess(tx, s)
-	if err != nil {
-		log.Error(err)
+	if err := DestroyUserSess(tx, s); err != nil {
+		log.Println(err)
 		return "", err
 	}
-	return rt, nil
+	return "", nil
 }
 
-func DestroyUserSess(tx *pop.Connection, s *models.Usersess) error {
-	err := tx.Destroy(s)
-	if err != nil {
-		log.Error(err)
+func GetUserByAccessToken(tx *gorm.DB, accessToken string) (*models.Usersess, error) {
+	var s models.Usersess
+	if err := tx.Where("access_token = ?", accessToken).First(&s).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			log.Printf("User session not found for access_token: %s", accessToken)
+			return nil, err
+		}
+		log.Printf("Failed to retrieve user session: %v", err)
+		return nil, err
+	}
+	return &s, nil
+}
+
+func DestroyUserSess(tx *gorm.DB, s *models.Usersess) error {
+	if err := tx.Where("user_id = ?", s.UserID).Delete(&models.Usersess{}).Error; err != nil {
+		log.Printf("Failed to delete user session: %v", err)
 		return err
 	}
 	return nil

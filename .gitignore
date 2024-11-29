@@ -1,3 +1,7 @@
+### refactor
+.old
+.env
+
 # api
 api/vendor/
 api/**/*.log

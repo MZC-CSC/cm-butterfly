@@ -3,14 +3,10 @@ package handler
 import (
 	"log"
 	"os"
-	"strings"
 
-	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
-)
 
-var (
-	MENU_CONF_DATA_PATH = os.Getenv("MENU_CONF_DATA_PATH")
+	v "github.com/cloud-barista/cm-butterfly/variables"
 )
 
 func init() {
@@ -22,10 +18,10 @@ func init() {
 }
 
 type Menu struct {
-	Id          string `json:"id", yaml:"id"` // for routing
+	Id          string `json:"id", yaml:"id"`
 	ParentId    string `json:"parentid", yaml:"parentid"`
-	DisplayName string `json:"displayname", yaml:"displayname"` // for display
-	Restype     string `json:"restype", yaml:"restype"`         // maybe need type assertion..?
+	DisplayName string `json:"displayname", yaml:"displayname"`
+	Restype     string `json:"restype", yaml:"restype"`
 	IsAction    string `json:"isaction", yaml:"isaction"`
 	Priority    string `json:"priority", yaml:"priority"`
 	Menus       Menus  `json:"menus", yaml:"menus"`
@@ -48,7 +44,7 @@ func buildMenuTree(menus Menus, parentID string) Menus {
 }
 
 func createMenuResource() error {
-	data, err := os.ReadFile(MENU_CONF_DATA_PATH)
+	data, err := os.ReadFile(v.MENU_CONF_DATA_PATH)
 	if err != nil {
 		return err
 	}
@@ -67,17 +63,4 @@ func createMenuResource() error {
 func GetMenuTree(menuList Menus) (*Menus, error) {
 	menuTree := buildMenuTree(menuList, "")
 	return &menuTree, nil
-}
-
-func getCreateWebMenuByYamlEndpoint() string {
-	viper.SetConfigName("api")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath("./conf")
-	if err := viper.ReadInConfig(); err != nil {
-		log.Fatalf("Error reading config file, %s", err)
-	}
-	baseUrl := viper.Get("services.mc-iam-manager.baseurl").(string)
-	createwebmenubyyamlUri := viper.Get("serviceActions.mc-iam-manager.Createmenuresourcesbymenuyaml.resourcePath").(string)
-	urlModified := strings.ReplaceAll(baseUrl+createwebmenubyyamlUri, "{framework}", "web")
-	return urlModified
 }
