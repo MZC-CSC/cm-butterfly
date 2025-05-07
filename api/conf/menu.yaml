@@ -122,12 +122,12 @@ menus:
     priority: 0
   
   ################## step3 : menu : migrations > workloadoperations ################
-  - id: cloudcredentials
-    parentid: cloudresources
-    displayname: Cloud Credentials
-    restype: menu
-    isaction: "true"
-    priority: 0
+  # - id: cloudcredentials
+  #   parentid: cloudresources
+  #   displayname: Cloud Credentials
+  #   restype: menu
+  #   isaction: "true"
+  #   priority: 0
 
   ###################### step4 : submenu : migrations > workloadoperations > workloads ################
   - id: mciwls
