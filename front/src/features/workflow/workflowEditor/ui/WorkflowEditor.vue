@@ -32,6 +32,7 @@ interface IProps {
   wftId: string;
   toolType: 'edit' | 'viewer' | 'add';
   targetModel?: ITargetModelResponse;
+  targetModelName?: string;
 }
 
 const props = defineProps<IProps>();
@@ -139,7 +140,7 @@ function loadWorkflow() {
     );
   }
 
-  workflowName.value.value = workflowData.value?.name || '';
+  workflowName.value.value = props.targetModelName || workflowData.value?.name || '';
   workflowDescription.value.value = workflowData.value?.description || '';
 }
 

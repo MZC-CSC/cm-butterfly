@@ -18,6 +18,7 @@ export interface ITaskComponentInfoResponse {
         {
           description: string;
           type: string;
+          default?: string;
         }
       > | null;
     };
@@ -27,6 +28,7 @@ export interface ITaskComponentInfoResponse {
         {
           description: string;
           type: string;
+          default?: string;
         }
       > | null;
     };

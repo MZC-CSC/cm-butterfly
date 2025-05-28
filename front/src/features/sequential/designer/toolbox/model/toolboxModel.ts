@@ -62,7 +62,7 @@ export function useSequentialToolboxModel() {
     const pathParamsKeyValue = task?.data.path_params?.properties
       ? Object.entries(task.data.path_params?.properties).reduce(
           (acc, [key, value]) => {
-            acc[key] = value.description;
+            acc[key] = value.default ?? value.description;
             return acc;
           },
           {},
@@ -72,7 +72,7 @@ export function useSequentialToolboxModel() {
     const queryParamsKeyValue = task?.data.query_params?.properties
       ? Object.entries(task.data.query_params?.properties).reduce(
           (acc, [key, value]) => {
-            acc[key] = value.description;
+            acc[key] = value.default ?? value.description;
             return acc;
           },
           {},
