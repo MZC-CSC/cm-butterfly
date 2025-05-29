@@ -42,7 +42,7 @@ export function useTargetModelDetailModel() {
       data = {
         name: targetModel.userModelName,
         id: targetModel.id,
-        description: targetModel.description,
+        description: targetModel.cloudInfraModel?.description ?? '',
         migrationType: targetModel['migrationType'] ?? '',
         custom: targetModel.isInitUserModel ? 'Basic' : 'Custom',
         modelType: 'Target',
