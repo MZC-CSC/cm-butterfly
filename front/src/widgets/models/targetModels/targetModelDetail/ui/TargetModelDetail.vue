@@ -43,7 +43,7 @@ watchEffect(() => {
 watchEffect(() => {
   targetModelDescription.value = targetModelStore.getTargetModelById(
     props.selectedTargetModelId,
-  )?.description;
+  )?.cloudInfraModel?.description;
 });
 
 watch(
