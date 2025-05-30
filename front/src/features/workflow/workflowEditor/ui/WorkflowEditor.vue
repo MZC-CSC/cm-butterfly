@@ -103,16 +103,28 @@ function mapTargetModelToTaskComponent(
     .defineTaskGroupStep(getRandomId(), 'TaskGroup', 'MCI', { model: {} });
 
   const parseString = parseRequestBody(taskComponent.data.options.request_body);
+
+  const templateVm = { ...parseString['vm'][0] };
+  delete templateVm.connectionName;
+  
+  templateVm.rootDiskSize = '';
+  templateVm.rootDiskType = '';
+  templateVm.vmUserPassword = '';
+
   if (parseString && parseString['vm']) {
     parseString['vm'] = Array(targetModel.cloudInfraModel.vm?.length)
       .fill(undefined)
-      .map(_ => JSON.parse(JSON.stringify(parseString['vm'][0])));
+      .map(_ => JSON.parse(JSON.stringify(templateVm)));
   }
 
   if (targetModel.cloudInfraModel.vm) {
     targetModel.cloudInfraModel.vm.forEach((targetVm, index) => {
+      console.log('targetVm', targetVm);
       parseString['vm'][index]['commonSpec'] = targetVm.commonSpec;
       parseString['vm'][index]['commonImage'] = targetVm.commonImage;
+      parseString['vm'][index]['description'] = targetVm.description;
+      parseString['vm'][index]['name'] = targetVm.name;
+      parseString['vm'][index]['subGroupSize'] = targetVm.subGroupSize;
     });
   }
 
@@ -140,7 +152,8 @@ function loadWorkflow() {
     );
   }
 
-  workflowName.value.value = props.targetModelName || workflowData.value?.name || '';
+  workflowName.value.value =
+    props.targetModelName || workflowData.value?.name || '';
   workflowDescription.value.value = workflowData.value?.description || '';
 }
 
