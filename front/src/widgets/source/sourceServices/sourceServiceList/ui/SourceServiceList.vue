@@ -5,7 +5,8 @@ import {
   PButton,
   PButtonModal,
 } from '@cloudforet-test/mirinae';
-import { onBeforeMount, onMounted, reactive, watch } from 'vue';
+import { onBeforeMount, onMounted, reactive, watch, computed, ref, nextTick } from 'vue';
+import TableLoadingSpinner from '@/shared/ui/LoadingSpinner/TableLoadingSpinner.vue';
 import {
   insertDynamicComponent,
   showErrorMessage,
@@ -14,6 +15,8 @@ import {
 import { useSourceServiceListModel } from '@/widgets/source/sourceServices/sourceServiceList/model/sourceServiceListModel';
 import DynamicTableIconButton from '@/shared/ui/Button/dynamicIconButton/DynamicTableIconButton.vue';
 import { useBulkDeleteSourceGroup } from '@/entities/sourceService/api';
+import { useDynamicTableHeight } from '@/shared/hooks/table/useDynamicTableHeight';
+import { useToolboxTableHeight } from '@/shared/hooks/table/useToolboxTableHeight';
 
 const {
   tableModel,
@@ -21,6 +24,18 @@ const {
   resSourceServiceList,
   initToolBoxTableModel,
 } = useSourceServiceListModel();
+
+const { dynamicHeight, minHeight, maxHeight } = useDynamicTableHeight(
+  computed(() => tableModel.tableState.items.length),
+  computed(() => tableModel.tableOptions.pageSize),
+);
+
+const { toolboxTableRef, adjustedDynamicHeight } = useToolboxTableHeight(
+  computed(() => dynamicHeight.value),
+);
+
+const isDataLoaded = ref(false);
+const tableKey = ref(0); // 컴포넌트 재렌더링을 위한 key
 
 interface IProps {
   addModalState: boolean;
@@ -46,8 +61,15 @@ onBeforeMount(() => {
 });
 
 onMounted(function () {
-  addDeleteIconAtTable.bind(this)();
   getSourceServiceList();
+});
+
+watch(isDataLoaded, (nv) => {
+  if (nv && toolboxTableRef.value) {
+    nextTick(() => {
+      addDeleteIconAtTable.call({ $refs: { toolboxTable: toolboxTableRef.value } });
+    });
+  }
 });
 
 function addDeleteIconAtTable() {
@@ -91,15 +113,24 @@ function handleDeleteSourceServices() {
 }
 
 function getSourceServiceList() {
+  isDataLoaded.value = false;
+  
   resSourceServiceList
     .execute()
     .then(res => {
       if (res.data.responseData) {
         sourceServicesStore.setService(res.data.responseData);
       }
+      
+      nextTick(() => {
+        isDataLoaded.value = true;
+        // 데이터 로드 후 컴포넌트 재렌더링
+        tableKey.value++;
+      });
     })
     .catch(e => {
       if (e.errorMsg.value) showErrorMessage('Error', e.errorMsg.value);
+      isDataLoaded.value = true;
     });
 }
 
@@ -136,10 +167,19 @@ watch(
 
 <template>
   <div>
-    <p-horizontal-layout :height="400" :min-height="400" :max-height="1000">
+    <p-horizontal-layout :key="tableKey" :height="adjustedDynamicHeight">
       <template #container="{ height }">
+        <!-- 로딩 중일 때 스피너 표시 -->
+        <table-loading-spinner
+          :loading="resSourceServiceList.isLoading.value"
+          :height="height"
+          message="Loading source services..."
+        />
+        
+        <!-- 로딩 완료 후 테이블 표시 -->
         <p-toolbox-table
-          ref="toolboxTable"
+          v-if="!resSourceServiceList.isLoading.value"
+          ref="toolboxTableRef"
           :items="tableModel.tableState.displayItems"
           :fields="tableModel.tableState.fields"
           :total-count="tableModel.tableState.tableCount"

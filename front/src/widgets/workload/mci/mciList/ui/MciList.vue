@@ -7,8 +7,11 @@ import {
   PBadge,
   PSelectDropdown,
 } from '@cloudforet-test/mirinae';
-import { onBeforeMount, onMounted, reactive, computed } from 'vue';
+import { onBeforeMount, onMounted, reactive, computed, ref } from 'vue';
 import MciDeleteModal from './MciDeleteModal.vue';
+import TableLoadingSpinner from '@/shared/ui/LoadingSpinner/TableLoadingSpinner.vue';
+import { useDynamicTableHeight } from '@/shared/hooks/table/useDynamicTableHeight';
+import { useToolboxTableHeight } from '@/shared/hooks/table/useToolboxTableHeight';
 
 interface IProps {
   nsId: string;
@@ -19,6 +22,17 @@ const emit = defineEmits(['selectRow']);
 
 const { mciTableModel, initToolBoxTableModel, fetchMciList, loading } =
   useMciListModel(props);
+
+const { dynamicHeight, minHeight, maxHeight } = useDynamicTableHeight(
+  computed(() => mciTableModel.tableState.items.length),
+  computed(() => mciTableModel.tableOptions.pageSize),
+);
+
+const { toolboxTableRef, adjustedDynamicHeight } = useToolboxTableHeight(
+  computed(() => dynamicHeight.value),
+);
+
+const tableKey = ref(0); // 컴포넌트 재렌더링을 위한 key
 
 const mciCreateModalState = reactive({
   open: false,
@@ -54,6 +68,8 @@ function handleDelete(item: string) {
 
 async function handleDeleted() {
   await fetchMciList();
+  // 데이터 로드 후 컴포넌트 재렌더링
+  tableKey.value++;
 }
 
 function handleSelectedIndex(index: number[]) {
@@ -73,18 +89,28 @@ onBeforeMount(() => {
   initToolBoxTableModel();
 });
 
-onMounted(() => {
-  fetchMciList();
+onMounted(async () => {
+  await fetchMciList();
+  // 초기 데이터 로드 후 컴포넌트 재렌더링
+  tableKey.value++;
 });
 </script>
 
 <template>
   <div>
-    <p-horizontal-layout :height="400" :min-height="400" :max-height="1000">
+    <p-horizontal-layout :key="tableKey" :height="adjustedDynamicHeight">
       <template #container="{ height }">
-        <p-toolbox-table
-          ref="toolboxTable"
+        <!-- 로딩 중일 때 스피너 표시 -->
+        <table-loading-spinner
           :loading="loading"
+          :height="height"
+          message="Loading MCI list..."
+        />
+        
+        <!-- 로딩 완료 후 테이블 표시 -->
+        <p-toolbox-table
+          v-if="!loading"
+          ref="toolboxTableRef"
           :items="mciTableModel.tableState.displayItems"
           :fields="mciTableModel.tableState.fields"
           :total-count="mciTableModel.tableState.tableCount"
@@ -143,4 +169,5 @@ onMounted(() => {
   </div>
 </template>
 
-<style scoped lang="postcss"></style>
+<style scoped lang="postcss">
+</style>

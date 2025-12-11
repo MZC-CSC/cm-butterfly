@@ -6,13 +6,28 @@ import {
   PButtonModal,
 } from '@cloudforet-test/mirinae';
 import { useTargetModelListModel } from '@/widgets/models/targetModels/targetModelList/model/targetModelListModel';
+import TableLoadingSpinner from '@/shared/ui/LoadingSpinner/TableLoadingSpinner.vue';
 import { insertDynamicComponent, showErrorMessage, showSuccessMessage } from '@/shared/utils';
 import DynamicTableIconButton from '@/shared/ui/Button/dynamicIconButton/DynamicTableIconButton.vue';
-import { onBeforeMount, onMounted, reactive, watch } from 'vue';
+import { onBeforeMount, onMounted, reactive, watch, computed, ref, nextTick } from 'vue';
 import { useGetTargetModelList, useBulkDeleteTargetModel, useBulkDeleteTargetSoftwareModel, useBulkDeleteTargetOnPremModel } from '@/entities';
+import { useDynamicTableHeight } from '@/shared/hooks/table/useDynamicTableHeight';
+import { useToolboxTableHeight } from '@/shared/hooks/table/useToolboxTableHeight';
 
 const { tableModel, initToolBoxTableModel, targetModelStore } =
   useTargetModelListModel();
+
+const { dynamicHeight, minHeight, maxHeight } = useDynamicTableHeight(
+  computed(() => tableModel.tableState.displayItems?.length ?? 0),
+  computed(() => tableModel.tableOptions.pageSize),
+  {
+    minTableHeight: 193,  // 기본 최소 높이 (1개 row 기준)
+  },
+);
+
+const { toolboxTableRef, adjustedDynamicHeight } = useToolboxTableHeight(
+  computed(() => dynamicHeight.value),
+);
 
 interface IProps {
   trigger: boolean;
@@ -21,6 +36,9 @@ interface IProps {
 const props = defineProps<IProps>();
 
 const emit = defineEmits(['select-row', 'update:trigger']);
+
+const isDataLoaded = ref(false);
+const tableKey = ref(0); // 컴포넌트 재렌더링을 위한 key
 
 const modals = reactive({
   alertModalState: { open: false },
@@ -34,8 +52,15 @@ onBeforeMount(() => {
 });
 
 onMounted(function () {
-  addDeleteIconAtTable.bind(this)();
   getTableList();
+});
+
+watch(isDataLoaded, (nv) => {
+  if (nv && toolboxTableRef.value) {
+    nextTick(() => {
+      addDeleteIconAtTable.call({ $refs: { toolboxTable: toolboxTableRef.value } });
+    });
+  }
 });
 
 watch(
@@ -57,15 +82,8 @@ function addDeleteIconAtTable() {
     },
     {
       click: () => {
-        console.log('🔘 [TargetModelList] 삭제 버튼 클릭');
-        console.log('📊 [TargetModelList] 선택된 항목 수:', tableModel.tableState.selectIndex.length);
-        console.log('📋 [TargetModelList] 선택된 인덱스:', tableModel.tableState.selectIndex);
-        
         if (tableModel.tableState.selectIndex.length > 0) {
-          console.log('✅ [TargetModelList] 삭제 확인 모달 열기');
           modals.alertModalState.open = true;
-        } else {
-          console.log('⚠️ [TargetModelList] 선택된 항목이 없어서 모달을 열지 않음');
         }
       },
     },
@@ -76,10 +94,18 @@ function addDeleteIconAtTable() {
 }
 
 function getTableList() {
+  isDataLoaded.value = false;
   resGetTargetModelList.execute().then(res => {
     if (res.data.responseData) {
       targetModelStore.setTargetModel(res.data.responseData);
     }
+    nextTick(() => {
+      isDataLoaded.value = true;
+      // 데이터 로드 후 컴포넌트 재렌더링
+      tableKey.value++;
+    });
+  }).catch(e => {
+    isDataLoaded.value = true;
   });
 }
 
@@ -307,10 +333,19 @@ function handleDeleteConfirm() {
 
 <template>
   <div>
-    <p-horizontal-layout :height="400" :min-height="400" :max-height="1000">
+    <p-horizontal-layout :key="tableKey" :height="adjustedDynamicHeight">
       <template #container="{ height }">
+        <!-- 로딩 중일 때 스피너 표시 -->
+        <table-loading-spinner
+          :loading="resGetTargetModelList.isLoading.value"
+          :height="height"
+          message="Loading target models..."
+        />
+        
+        <!-- 로딩 완료 후 테이블 표시 -->
         <p-toolbox-table
-          ref="toolboxTable"
+          v-if="!resGetTargetModelList.isLoading.value"
+          ref="toolboxTableRef"
           :items="tableModel.tableState.displayItems"
           :fields="tableModel.tableState.fields"
           :total-count="tableModel.tableState.tableCount"
@@ -325,7 +360,6 @@ function handleDeleteConfirm() {
           :query-tag="tableModel.querySearchState.queryTag"
           :select-index.sync="tableModel.tableState.selectIndex"
           :page-size="tableModel.tableOptions.pageSize"
-          :loading="resGetTargetModelList.isLoading.value"
           @change="tableModel.handleChange"
           @refresh="getTableList"
           @select="handleSelectedIndex"
