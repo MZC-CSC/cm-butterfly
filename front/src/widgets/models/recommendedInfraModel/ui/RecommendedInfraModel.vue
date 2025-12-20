@@ -308,10 +308,9 @@ function handleSave(e: { name: string; description: string }) {
       ].originalData;
 
     // 선택된 Row의 데이터를 가공 없이 그대로 사용
-    const selectedVmIndex = Array.isArray(recommendInfraModel.tableModel.tableState.selectIndex) 
-      ? recommendInfraModel.tableModel.tableState.selectIndex[0] 
-      : recommendInfraModel.tableModel.tableState.selectIndex as number;
-    const selectedVm = selectedModel.targetVmInfra.subGroups[selectedVmIndex];
+    // 주의: selectIndex는 테이블 행의 인덱스이고, 이미 displayItems[selectIndex]에서 해당 모델을 가져왔으므로
+    // subGroups에서는 첫 번째 VM(인덱스 0)을 사용해야 함
+    const selectedVm = selectedModel.targetVmInfra.subGroups[0];
     
     // 기존 targetVmInfra를 그대로 사용 (가공 없이)
     const modifiedTargetVmInfra = {
@@ -332,8 +331,8 @@ function handleSave(e: { name: string; description: string }) {
     };
 
     console.log('=== Save Target Model ===');
-    console.log('Selected VM index:', selectedVmIndex);
-    console.log('Selected VM:', selectedVm);
+    console.log('Selected table row index:', recommendInfraModel.tableModel.tableState.selectIndex);
+    console.log('Selected VM (first in subGroups):', selectedVm);
     console.log('Original targetVmInfra (no modification):', modifiedTargetVmInfra);
     console.log('CloudInfraModel:', cloudInfraModel);
 
