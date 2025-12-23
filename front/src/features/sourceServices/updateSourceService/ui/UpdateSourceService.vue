@@ -46,6 +46,14 @@ const handleLink = () => {
   emit('update:is-connection-modal-opened', true);
 };
 
+const handleDownloadTemplate = () => {
+  // TODO: CSV 템플릿 다운로드 로직 구현
+};
+
+const handleImportSourceConnection = () => {
+  // TODO: Source Connection import 로직 구현
+};
+
 const sourceConnectionNames = ref<string>('');
 
 watchEffect(
@@ -144,7 +152,30 @@ watch(
       >
         Go add Source Connection
       </p-button>
-      <p-field-group label="Source Connection" required>
+      <div class="or-divider">
+        <span>or</span>
+      </div>
+      <div class="import-buttons">
+        <p-button
+          style-type="tertiary"
+          :disabled="!isAddDisabled"
+          @click="handleDownloadTemplate"
+        >
+          Download Source Connection Template
+        </p-button>
+        <p-button
+          style-type="tertiary"
+          :disabled="!isAddDisabled"
+          @click="handleImportSourceConnection"
+        >
+          Import Source Connection
+        </p-button>
+      </div>
+      <p-field-group
+        class="source-connection-result"
+        label="Source Connection"
+        required
+      >
         <p-text-input
           v-model="sourceConnectionNames"
           class="source-connection"
@@ -178,11 +209,34 @@ watch(
   }
   .layout {
     @apply flex flex-col gap-[0.75rem] bg-[#FFF] rounded-[0.375rem] p-[0.75rem] border-none;
+    .or-divider {
+      @apply flex items-center gap-[0.5rem];
+      span {
+        color: #898995;
+        font-size: 0.75rem;
+      }
+      &::before,
+      &::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background-color: #e5e5e5;
+      }
+    }
+    .import-buttons {
+      @apply flex gap-[0.5rem];
+      :deep(.p-button) {
+        flex: 1;
+      }
+    }
     .input-container {
       @apply bg-[#F7F7F7];
     }
     .p-field-group {
       margin-bottom: 0;
+    }
+    .source-connection-result {
+      margin-top: 2rem;
     }
     .toggle {
       /* @apply p-[0.75rem]; */
