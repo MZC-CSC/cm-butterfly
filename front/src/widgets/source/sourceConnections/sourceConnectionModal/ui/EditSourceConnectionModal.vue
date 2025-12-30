@@ -32,7 +32,9 @@ const handleValidChange = (id: number | string, valid: boolean) => {
   validStates.value.set(id, valid);
   // 모든 connection이 유효한지 확인
   const allValid = Array.from(validStates.value.values()).every(v => v);
-  isDisabled.value = allValid && validStates.value.size === uniqueSourceConnectionsByIds.value.length;
+  isDisabled.value =
+    allValid &&
+    validStates.value.size === uniqueSourceConnectionsByIds.value.length;
 };
 
 const connectionInfoData = ref<any[]>([]);
@@ -54,9 +56,10 @@ const handleCancel = () => {
 const saveLoading = ref<boolean>(false);
 
 // Add 모드인지 Edit 모드인지 확인
-const isAddMode = computed(() => 
-  props.multiSelectedConnectionIds.length === 0 && 
-  props.selectedConnectionId.length === 0
+const isAddMode = computed(
+  () =>
+    props.multiSelectedConnectionIds.length === 0 &&
+    props.selectedConnectionId.length === 0,
 );
 
 let connectionIdCounter = 0;
@@ -76,13 +79,17 @@ const addSourceConnection = () => {
 };
 
 const deleteSourceConnection = (id: number | string) => {
-  const index = uniqueSourceConnectionsByIds.value.findIndex((conn: any) => (conn._id || conn.id) === id);
+  const index = uniqueSourceConnectionsByIds.value.findIndex(
+    (conn: any) => (conn._id || conn.id) === id,
+  );
   if (index !== -1) {
     uniqueSourceConnectionsByIds.value.splice(index, 1);
     validStates.value.delete(id);
     // 삭제 후 validation 상태 재계산
     const allValid = Array.from(validStates.value.values()).every(v => v);
-    isDisabled.value = allValid && validStates.value.size === uniqueSourceConnectionsByIds.value.length;
+    isDisabled.value =
+      allValid &&
+      validStates.value.size === uniqueSourceConnectionsByIds.value.length;
   }
 };
 
@@ -115,8 +122,10 @@ watchEffect(() => {
         private_key: '',
       }),
     );
-  } else if (props.multiSelectedConnectionIds.length === 0 && 
-             props.selectedConnectionId.length === 0) {
+  } else if (
+    props.multiSelectedConnectionIds.length === 0 &&
+    props.selectedConnectionId.length === 0
+  ) {
     // 새 Connection 추가인 경우
     sourceConnectionsByIds.value = [
       {
@@ -135,29 +144,40 @@ watchEffect(() => {
 // 중복 제거
 watchEffect(() => {
   uniqueSourceConnectionsByIds.value = Array.from(
-    new Map(sourceConnectionsByIds.value.map((item, index) => [item.id || `new-${index}`, item])).values(),
+    new Map(
+      sourceConnectionsByIds.value.map((item, index) => [
+        item.id || `new-${index}`,
+        item,
+      ]),
+    ).values(),
   );
 });
 
 // connectionInfoData 업데이트 및 validStates 초기화 (한 번만)
-watchEffect(() => {
-  if (uniqueSourceConnectionsByIds.value.length > 0) {
-    // connectionInfoData를 uniqueSourceConnectionsByIds와 동일하게 유지
-    connectionInfoData.value = uniqueSourceConnectionsByIds.value;
-    
-    // validStates가 아직 초기화되지 않았거나 크기가 다를 때만 초기화
-    if (!isInitialized || validStates.value.size !== uniqueSourceConnectionsByIds.value.length) {
-      validStates.value.clear();
-      uniqueSourceConnectionsByIds.value.forEach((conn) => {
-        const connId = conn._id || conn.id;
-        if (!validStates.value.has(connId)) {
-          validStates.value.set(connId, false);
-        }
-      });
-      isInitialized = true;
+watchEffect(
+  () => {
+    if (uniqueSourceConnectionsByIds.value.length > 0) {
+      // connectionInfoData를 uniqueSourceConnectionsByIds와 동일하게 유지
+      connectionInfoData.value = uniqueSourceConnectionsByIds.value;
+
+      // validStates가 아직 초기화되지 않았거나 크기가 다를 때만 초기화
+      if (
+        !isInitialized ||
+        validStates.value.size !== uniqueSourceConnectionsByIds.value.length
+      ) {
+        validStates.value.clear();
+        uniqueSourceConnectionsByIds.value.forEach(conn => {
+          const connId = conn._id || conn.id;
+          if (!validStates.value.has(connId)) {
+            validStates.value.set(connId, false);
+          }
+        });
+        isInitialized = true;
+      }
     }
-  }
-}, { flush: 'sync' });
+  },
+  { flush: 'sync' },
+);
 
 // readonly 필드 계산 - 기존 connection 중 다중 선택 시에만 user, password, private_key readonly
 const getReadonlyFields = (connection: any) => {
@@ -174,12 +194,14 @@ const getReadonlyFields = (connection: any) => {
 
 const handleAddSourceConnection = async () => {
   saveLoading.value = true;
-  
+
   try {
     // connection들을 기존(id 있음)과 신규(id 없음)로 분리
-    const existingConnections = connectionInfoData.value.filter(info => info.id);
+    const existingConnections = connectionInfoData.value.filter(
+      info => info.id,
+    );
     const newConnections = connectionInfoData.value.filter(info => !info.id);
-    
+
     // 기존 connection 업데이트
     for (const info of existingConnections) {
       await updateConnectionInfo.execute({
@@ -197,7 +219,7 @@ const handleAddSourceConnection = async () => {
         },
       });
     }
-    
+
     // 새 connection 생성
     for (const info of newConnections) {
       await createConnectionInfo.execute({
@@ -215,7 +237,7 @@ const handleAddSourceConnection = async () => {
         },
       });
     }
-    
+
     saveLoading.value = false;
     showSuccessMessage('success', 'Connection(s) Saved Successfully');
     emit('update:trigger');
@@ -255,14 +277,19 @@ const handleAddSourceConnection = async () => {
       "
     >
       <template #add-info>
-        <div v-for="(info, i) in uniqueSourceConnectionsByIds" :key="info._id || info.id || i">
+        <div
+          v-for="(info, i) in uniqueSourceConnectionsByIds"
+          :key="info._id || info.id || i"
+        >
           <source-connection-form
             :source-connection="uniqueSourceConnectionsByIds[i]"
             mode="edit"
             :show-delete-button="uniqueSourceConnectionsByIds.length > 1"
             :readonly="getReadonlyFields(info)"
             @delete="deleteSourceConnection(info._id || info.id)"
-            @update:valid="valid => handleValidChange(info._id || info.id, valid)"
+            @update:valid="
+              valid => handleValidChange(info._id || info.id, valid)
+            "
           />
         </div>
       </template>
