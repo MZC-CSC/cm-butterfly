@@ -54,15 +54,18 @@ watchEffect(() => {
     console.log('[SourceConnectionForm] sourceConnection is null/undefined');
     return;
   }
-  
-  console.log('[SourceConnectionForm] watchEffect triggered, sourceConnection:', {
-    name: props.sourceConnection.name,
-    ip_address: props.sourceConnection.ip_address,
-    ssh_port: props.sourceConnection.ssh_port,
-    user: props.sourceConnection.user,
-    password: props.sourceConnection.password,
-  });
-  
+
+  console.log(
+    '[SourceConnectionForm] watchEffect triggered, sourceConnection:',
+    {
+      name: props.sourceConnection.name,
+      ip_address: props.sourceConnection.ip_address,
+      ssh_port: props.sourceConnection.ssh_port,
+      user: props.sourceConnection.user,
+      password: props.sourceConnection.password,
+    },
+  );
+
   invalidState.isIpAddressValid =
     props.sourceConnection.ip_address === '' ||
     !props.sourceConnection.ip_address.match(/^(\d{1,3}\.){3}\d{1,3}$/)
@@ -76,17 +79,20 @@ watchEffect(() => {
         ? true
         : false;
   }
-  
+
   // 전체 validation 상태를 parent에 emit
-  const isValid = 
+  const isValid =
     props.sourceConnection.name &&
     invalidState.isIpAddressValid &&
     invalidState.isPortValid &&
     props.sourceConnection.user &&
     (props.sourceConnection.password || props.sourceConnection.private_key);
-  
-  console.log('[SourceConnectionForm] validation result:', { isValid, invalidState });
-    
+
+  console.log('[SourceConnectionForm] validation result:', {
+    isValid,
+    invalidState,
+  });
+
   emit('update:valid', !!isValid);
 });
 
@@ -198,4 +204,3 @@ button {
   @apply w-[19.25rem];
 }
 </style>
-
