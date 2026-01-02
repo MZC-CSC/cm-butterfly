@@ -47,8 +47,11 @@ const handleSourceServiceInfo = (value: any) => {
 };
 
 const handleConfirm = async () => {
-  console.log('[AddSourceServiceModal] handleConfirm - BEFORE map, editConnections:', JSON.stringify(sourceConnectionStore.editConnections, null, 2));
-  
+  console.log(
+    '[AddSourceServiceModal] handleConfirm - BEFORE map, editConnections:',
+    JSON.stringify(sourceConnectionStore.editConnections, null, 2),
+  );
+
   sourceConnectionStore.editConnections.map(sourceConnection => {
     sourceConnection.ssh_port = String(sourceConnection.ssh_port);
   });
@@ -58,8 +61,11 @@ const handleConfirm = async () => {
     description: state.description,
     connection_info: sourceConnectionStore.editConnections,
   };
-  
-  console.log('[AddSourceServiceModal] handleConfirm - requestData:', JSON.stringify(requestData, null, 2));
+
+  console.log(
+    '[AddSourceServiceModal] handleConfirm - requestData:',
+    JSON.stringify(requestData, null, 2),
+  );
 
   try {
     const { data } = await registerSourceGroup.execute({
@@ -81,12 +87,16 @@ const handleConfirm = async () => {
     }
   } catch (error) {
     if (
-      (error as any).errorMsg.value ===
+      (error as any).errorMsg?.value ===
       'constraint failed: UNIQUE constraint failed: source_groups.name (2067)'
     ) {
       showErrorMessage('failed', 'Service Name Already Exists');
+    } else {
+      showErrorMessage(
+        'failed',
+        (error as any).errorMsg?.value || 'Service Registering Failed',
+      );
     }
-    showErrorMessage('failed', 'Service Registering Failed');
   }
 };
 
@@ -120,6 +130,7 @@ const handleConnectionModal = (value: boolean) => {
       <template #body>
         <update-source-service
           :is-edit="false"
+          :loading="registerSourceGroup.isLoading.value"
           @update:is-connection-modal-opened="handleConnectionModal"
           @update:source-servie-info="handleSourceServiceInfo"
         />

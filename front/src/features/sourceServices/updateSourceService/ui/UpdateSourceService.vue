@@ -12,6 +12,7 @@ import { watchEffect, ref, reactive, computed, watch } from 'vue';
 import { useSourceConnectionStore } from '@/entities/sourceConnection/model/stores';
 import { useSourceServiceStore } from '@/shared/libs';
 import { storeToRefs } from 'pinia';
+import { showErrorMessage } from '@/shared/utils';
 
 const sourceConnectionStore = useSourceConnectionStore();
 const sourceServiceStore = useSourceServiceStore();
@@ -22,6 +23,7 @@ interface iProps {
   sourceServiceName?: string;
   description?: string | null;
   isEdit: boolean;
+  loading?: boolean;
 }
 
 const props = defineProps<iProps>();
@@ -57,8 +59,11 @@ const handleDownloadTemplate = () => {
     'private_key',
   ];
   const csvContent = headers.join(',') + '\n';
+  const bom = '\uFEFF'; // UTF-8 BOM for Excel compatibility
 
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob([bom + csvContent], {
+    type: 'text/csv;charset=utf-8;',
+  });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -73,17 +78,61 @@ const handleImportSourceConnection = () => {
   fileInputRef.value?.click();
 };
 
+const validateConnection = (
+  connection: any,
+  rowIndex: number,
+): string | null => {
+  // name 필수
+  if (!connection.name) {
+    return `Row ${rowIndex}: name is required`;
+  }
+
+  // ip_address 필수 및 포맷 검증 (4개 옥텟)
+  if (!connection.ip_address) {
+    return `Row ${rowIndex}: ip_address is required`;
+  }
+  const ipParts = connection.ip_address.split('.');
+  if (
+    ipParts.length !== 4 ||
+    ipParts.some((part: string) => isNaN(Number(part)))
+  ) {
+    return `Row ${rowIndex}: ip_address format is invalid (expected: ###.###.###.###)`;
+  }
+
+  // ssh_port 필수 및 숫자 검증
+  if (!connection.ssh_port || isNaN(Number(connection.ssh_port))) {
+    return `Row ${rowIndex}: ssh_port is required and must be a number`;
+  }
+
+  // user 필수
+  if (!connection.user) {
+    return `Row ${rowIndex}: user is required`;
+  }
+
+  // password 또는 private_key 중 하나 필수
+  if (!connection.password && !connection.private_key) {
+    return `Row ${rowIndex}: password or private_key is required`;
+  }
+
+  return null;
+};
+
 const handleFileChange = (event: Event) => {
   const target = event.target as HTMLInputElement;
   const file = target.files?.[0];
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = e => {
     const text = e.target?.result as string;
     const lines = text.split('\n').filter(line => line.trim());
 
     if (lines.length < 2) {
+      showErrorMessage(
+        'Import Failed',
+        'CSV file must have at least one data row',
+      );
+      target.value = '';
       return;
     }
 
@@ -103,6 +152,14 @@ const handleFileChange = (event: Event) => {
         connection.ssh_port = '22';
       }
 
+      // validation 체크
+      const error = validateConnection(connection, i + 1);
+      if (error) {
+        showErrorMessage('Import Failed', error);
+        target.value = '';
+        return;
+      }
+
       connections.push(connection);
     }
 
@@ -119,6 +176,7 @@ const sourceConnectionNames = ref<string>('');
 
 watchEffect(
   () => {
+    sourceConnectionNames.value = '';
     sourceConnectionStore.editConnections.forEach(
       (sourceConnection, idx: number) => {
         if (sourceConnection.name.length > 0) {
@@ -200,7 +258,7 @@ watch(
       <div class="toggle">
         <p-toggle-button
           :value="sourceConnectionStore.withSourceConnection"
-          :disabled="!isToggleDisabled"
+          :disabled="!isToggleDisabled || loading"
           @change-toggle="handleCheckSourceConnection"
         />
         <span>With Source Connection</span>
@@ -208,7 +266,7 @@ watch(
       <p-divider />
       <p-button
         style-type="tertiary"
-        :disabled="!isAddDisabled"
+        :disabled="!isAddDisabled || loading"
         @click="handleLink"
       >
         Go add Source Connection
@@ -219,14 +277,14 @@ watch(
       <div class="import-buttons">
         <p-button
           style-type="tertiary"
-          :disabled="!isAddDisabled"
+          :disabled="!isAddDisabled || loading"
           @click="handleDownloadTemplate"
         >
           Download Source Connection Template
         </p-button>
         <p-button
           style-type="tertiary"
-          :disabled="!isAddDisabled"
+          :disabled="!isAddDisabled || loading"
           @click="handleImportSourceConnection"
         >
           Import Source Connection
