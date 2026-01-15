@@ -35,6 +35,19 @@ export const testNamespace = {
 };
 
 /**
+ * 테스트용 EC2 인스턴스 정보
+ */
+export const testEC2 = {
+  instanceId: 'i-06f39c591889058a0',
+  publicIp: '43.201.31.247',
+  privateIp: '172.31.2.118',
+  sshPort: '22',
+  sshUser: 'ec2-user',
+  keyPairName: 'jsyoo-only-seoul',
+  region: 'ap-northeast-2',
+};
+
+/**
  * 페이지 URL 경로
  */
 export const pageUrls = {
