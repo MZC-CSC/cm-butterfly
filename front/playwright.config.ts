@@ -10,10 +10,21 @@ import { defineConfig, devices } from '@playwright/test';
  *   npm run test:debug    - 디버그 모드
  *
  * 환경 변수:
- *   TEST_BASE_URL - 테스트 대상 URL (기본값: http://localhost:5174)
+ *   TEST_BASE_URL    - 테스트 대상 URL (기본값: http://localhost:5174)
+ *   TEST_EC2_IP      - 테스트용 EC2 IP (미설정 시 자동 생성)
+ *   TEST_EC2_USER    - SSH 사용자 (기본값: ec2-user)
+ *   TEST_EC2_SSH_KEY - SSH Private Key
+ *
+ * EC2 자동 생성/삭제:
+ *   TEST_EC2_IP가 설정되지 않으면 테스트 시작 시 EC2 인스턴스를 자동 생성하고
+ *   테스트 종료 시 자동으로 삭제합니다. (KeyPair 포함)
  */
 export default defineConfig({
   testDir: './tests/e2e',
+
+  /* 전역 설정/정리 - EC2 자동 생성/삭제 */
+  globalSetup: './tests/e2e/global-setup.ts',
+  globalTeardown: './tests/e2e/global-teardown.ts',
 
   /* 테스트 전체 타임아웃 */
   timeout: 60 * 1000,

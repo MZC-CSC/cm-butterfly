@@ -1,6 +1,12 @@
 import { test, expect } from '@playwright/test';
 import { captureTestStep, waitForPageLoad, performLogin } from '../utils/test-helpers';
 import { testUser, pageUrls, timeouts } from '../fixtures/test-data';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Phase 2: Source Services 테스트
@@ -10,21 +16,49 @@ import { testUser, pageUrls, timeouts } from '../fixtures/test-data';
  */
 
 /**
- * 테스트용 EC2 정보
+ * EC2 리소스 정보 로드
  *
- * 환경 변수 설정 필요:
- * - TEST_EC2_IP: EC2 Public IP
- * - TEST_EC2_SSH_KEY: SSH Private Key (선택, 파일 경로 또는 직접 입력)
- *
- * 테스트 실행 예시:
- * TEST_EC2_IP=1.2.3.4 TEST_EC2_SSH_KEY="$(cat ~/.ssh/my-key.pem)" npm test
+ * global-setup.ts에서 생성된 EC2 리소스 정보를 파일에서 읽어옵니다.
+ * 환경 변수가 설정된 경우 해당 값을 우선 사용합니다.
  */
-const testEC2 = {
-  ip: process.env.TEST_EC2_IP || '127.0.0.1',
-  port: process.env.TEST_EC2_PORT || '22',
-  user: process.env.TEST_EC2_USER || 'ec2-user',
-  privateKey: process.env.TEST_EC2_SSH_KEY || '',
-};
+function loadEC2Resource() {
+  const resourceFile = path.join(__dirname, '..', '.ec2-resource.json');
+
+  // 환경 변수 우선 사용
+  if (process.env.TEST_EC2_IP && process.env.TEST_EC2_SSH_KEY) {
+    return {
+      ip: process.env.TEST_EC2_IP,
+      port: process.env.TEST_EC2_PORT || '22',
+      user: process.env.TEST_EC2_USER || 'ec2-user',
+      privateKey: process.env.TEST_EC2_SSH_KEY,
+    };
+  }
+
+  // 파일에서 읽기
+  try {
+    if (fs.existsSync(resourceFile)) {
+      const resource = JSON.parse(fs.readFileSync(resourceFile, 'utf-8'));
+      return {
+        ip: resource.publicIp || '127.0.0.1',
+        port: resource.sshPort || '22',
+        user: resource.sshUser || 'ec2-user',
+        privateKey: resource.privateKey || '',
+      };
+    }
+  } catch (error) {
+    console.warn('Failed to load EC2 resource file:', error);
+  }
+
+  // 기본값 반환
+  return {
+    ip: '127.0.0.1',
+    port: '22',
+    user: 'ec2-user',
+    privateKey: '',
+  };
+}
+
+const testEC2 = loadEC2Resource();
 
 test.describe('Phase 2: Source Services 테스트', () => {
   const testServiceName = `e2e-test-service-${Date.now()}`;
