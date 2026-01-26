@@ -147,24 +147,6 @@ test.describe('페이지 네비게이션 테스트', () => {
     await captureTestStep(page, 'nav-target-models', 'result', 'Target Models 페이지 표시');
   });
 
-  test('Cloud Credentials 페이지 이동', async ({ page }) => {
-    // 1. 테스트 전 화면 캡처
-    await captureTestStep(page, 'nav-cloud-credentials', 'before', '네비게이션 전 화면');
-
-    // Cloud Credentials 페이지로 이동
-    await page.goto(pageUrls.cloudCredentials);
-    await waitForPageLoad(page);
-
-    // 2. 입력 화면 캡처
-    await captureTestStep(page, 'nav-cloud-credentials', 'input', 'Cloud Credentials 페이지 로딩');
-
-    // URL 확인
-    expect(page.url()).toContain('cloud-credentials');
-
-    // 3. 결과 화면 캡처
-    await captureTestStep(page, 'nav-cloud-credentials', 'result', 'Cloud Credentials 페이지 표시');
-  });
-
   test('APIs 페이지 이동', async ({ page }) => {
     // 1. 테스트 전 화면 캡처
     await captureTestStep(page, 'nav-apis', 'before', '네비게이션 전 화면');

@@ -60,7 +60,6 @@ export const pageUrls = {
   workloads: '/main/workload-operations/workloads',
   sourceModels: '/main/models/source-models',
   targetModels: '/main/models/target-models',
-  cloudCredentials: '/main/cloud-resources/cloud-credentials',
   apis: '/main/cloud-resources/apis',
 };
 

@@ -22,20 +22,28 @@ function ensureScreenshotDir(): void {
  *
  * @param page - Playwright Page 객체
  * @param testName - 테스트 이름 (파일명에 사용)
- * @param step - 단계 ('before' | 'input' | 'result')
+ * @param step - 단계 (문자열, 예: 'before', '01-source-list', 'result' 등)
  * @param description - 스크린샷 설명 (선택)
  */
 export async function captureTestStep(
   page: Page,
   testName: string,
-  step: 'before' | 'input' | 'result',
+  step: string,
   description?: string
 ): Promise<string> {
   ensureScreenshotDir();
 
-  const stepNumber = { before: '01', input: '02', result: '03' };
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const filename = `${testName}-${stepNumber[step]}-${step}.png`;
+  // 기존 호환성 유지: 'before', 'input', 'result'는 번호로 변환
+  const legacyStepNumber: Record<string, string> = { before: '01', input: '02', result: '03' };
+  let filename: string;
+
+  if (legacyStepNumber[step]) {
+    filename = `${testName}-${legacyStepNumber[step]}-${step}.png`;
+  } else {
+    // 커스텀 스텝 이름 사용
+    filename = `${testName}-${step}.png`;
+  }
+
   const filepath = path.join(SCREENSHOT_DIR, filename);
 
   await page.screenshot({
@@ -60,7 +68,7 @@ export async function waitAndCapture(
   page: Page,
   selector: string,
   testName: string,
-  step: 'before' | 'input' | 'result'
+  step: string
 ): Promise<string> {
   await page.waitForSelector(selector, { state: 'visible', timeout: 10000 });
   return captureTestStep(page, testName, step);
