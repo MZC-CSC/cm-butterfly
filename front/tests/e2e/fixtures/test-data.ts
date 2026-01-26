@@ -36,15 +36,16 @@ export const testNamespace = {
 
 /**
  * 테스트용 EC2 인스턴스 정보
+ * 환경변수로 설정하거나 테스트 실행 시 동적으로 생성
  */
 export const testEC2 = {
-  instanceId: 'i-06f39c591889058a0',
-  publicIp: '43.201.31.247',
-  privateIp: '172.31.2.118',
-  sshPort: '22',
-  sshUser: 'ec2-user',
-  keyPairName: 'jsyoo-only-seoul',
-  region: 'ap-northeast-2',
+  instanceId: process.env.TEST_EC2_INSTANCE_ID || '',
+  publicIp: process.env.TEST_EC2_PUBLIC_IP || '',
+  privateIp: process.env.TEST_EC2_PRIVATE_IP || '',
+  sshPort: process.env.TEST_EC2_SSH_PORT || '22',
+  sshUser: process.env.TEST_EC2_SSH_USER || 'ubuntu',
+  keyPairName: process.env.TEST_EC2_KEY_PAIR_NAME || '',
+  region: process.env.TEST_EC2_REGION || 'ap-northeast-2',
 };
 
 /**

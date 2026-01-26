@@ -81,3 +81,7 @@ bin/.env
 
 #intellij
 .idea
+
+# Playwright 실행 산출물(리포트/결과/트레이스) — 어느 위치든 추적 제외
+playwright-report/
+test-results/
