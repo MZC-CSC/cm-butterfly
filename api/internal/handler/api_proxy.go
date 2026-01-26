@@ -15,69 +15,61 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gobuffalo/buffalo"
+	"api/internal/util/response"
+
+	"github.com/labstack/echo/v4"
 	"github.com/spf13/viper"
 )
 
-// ////////////////////////////////////////////////////////////////
+// Context key for authorization (to avoid import cycle with middleware)
+const contextKeyAuthorization = "Authorization"
+
+// CommonRequest represents the standard request format
 type CommonRequest struct {
 	PathParams  map[string]string `json:"pathParams"`
 	QueryParams map[string]string `json:"queryParams"`
 	Request     interface{}       `json:"request"`
 }
 
-// 모든 응답을 CommonResponse로 한다.
-type CommonResponse struct {
-	ResponseData interface{} `json:"responseData"`
-	Status       WebStatus   `json:"status"`
-}
-
-type WebStatus struct {
-	StatusCode int    `json:"code"`
-	Message    string `json:"message"`
-}
-
-// ////////////////////////////////////////////////////////////////
-
+// Auth represents authentication configuration
 type Auth struct {
 	Type     string `mapstructure:"type"`
 	Username string `mapstructure:"username"`
 	Password string `mapstructure:"password"`
 }
 
+// Service represents a service configuration
 type Service struct {
 	BaseURL string `mapstructure:"baseurl"`
 	Auth    Auth   `mapstructure:"auth"`
 }
 
+// Spec represents an API specification
 type Spec struct {
 	Method       string `mapstructure:"method"`
 	ResourcePath string `mapstructure:"resourcePath"`
 	Description  string `mapstructure:"description"`
 }
 
+// ApiYaml represents the API configuration
 type ApiYaml struct {
 	CLISpecVersion string                     `mapstructure:"cliSpecVersion"`
 	Services       map[string]Service         `mapstructure:"services"`
 	ServiceActions map[string]map[string]Spec `mapstructure:"serviceActions"`
 }
 
-// ////////////////////////////////////////////////////////////////
+var ApiYamlSet ApiYaml
 
-var (
-	ApiYamlSet ApiYaml
-)
-
-func init() {
+// InitAPISpec initializes the API specification from api.yaml
+func InitAPISpec() error {
 	log.Println("DEBUG: Initializing ApiYamlSet...")
 
 	exePath, err := os.Executable()
 	if err != nil {
 		log.Printf("ERROR: Failed to get executable path: %v", err)
-		panic(err)
+		return err
 	}
 
-	// 실행 파일의 경로를 기준으로 conf 경로를 설정
 	exeDir := filepath.Dir(exePath)
 
 	viper.SetConfigName("api")
@@ -91,14 +83,14 @@ func init() {
 
 	if err := viper.ReadInConfig(); err != nil {
 		log.Printf("ERROR: Failed to read config: %v", err)
-		panic(fmt.Errorf("fatal error reading actions/conf/api.yaml file: %s", err))
+		return fmt.Errorf("fatal error reading conf/api.yaml file: %s", err)
 	}
 
 	log.Printf("DEBUG: Config file loaded successfully")
 
 	if err := viper.Unmarshal(&ApiYamlSet); err != nil {
 		log.Printf("ERROR: Failed to unmarshal config: %v", err)
-		panic(fmt.Errorf("unable to decode into struct: %v", err))
+		return fmt.Errorf("unable to decode into struct: %v", err)
 	}
 
 	log.Printf("DEBUG: ApiYamlSet initialized successfully")
@@ -106,54 +98,38 @@ func init() {
 	log.Printf("DEBUG: - Services count: %d", len(ApiYamlSet.Services))
 	log.Printf("DEBUG: - ServiceActions count: %d", len(ApiYamlSet.ServiceActions))
 
-	// 각 서비스와 액션 정보 출력
 	for serviceName, service := range ApiYamlSet.Services {
 		log.Printf("DEBUG: - Service: %s -> %+v", serviceName, service)
 	}
 
-	// for serviceName, actions := range ApiYamlSet.ServiceActions {
-	// 	log.Printf("DEBUG: - ServiceActions: %s -> %d actions", serviceName, len(actions))
-	// 	for actionName, spec := range actions {
-	// 		log.Printf("DEBUG:   - Action: %s -> %+v", actionName, spec)
-	// 	}
-	// }
+	return nil
 }
 
-// AnyCaller는 buffalo.Context, operationId, commonRequest, auth유무 를 받아 conf/api.yaml 정보를 바탕으로 commonCaller를 호출합니다.
-// 모든 error 는 기본적으로 commonResponse 에 담아져 반환됩니다.
-func AnyCaller(c buffalo.Context, operationId string, commonRequest *CommonRequest, auth bool) (*CommonResponse, error) {
+// AnyCaller routes requests to subsystems based on operationId
+func AnyCaller(c echo.Context, operationId string, commonRequest *CommonRequest, auth bool) (*response.CommonResponse, error) {
 	log.Printf("DEBUG: AnyCaller called with operationId: %s", operationId)
 	log.Printf("DEBUG: - commonRequest: %+v", commonRequest)
 	log.Printf("DEBUG: - auth: %v", auth)
 
-	// GetApiSpec 호출 전
-	log.Printf("DEBUG: About to call GetApiSpec with operationId: %s", operationId)
-
 	_, targetFrameworkInfo, targetApiSpec, err := GetApiSpec(strings.ToLower(operationId))
 
-	// GetApiSpec 호출 후 결과 확인
 	if err != nil {
 		log.Printf("ERROR: GetApiSpec failed: %v", err)
-		log.Printf("ERROR: - operationId: %s", operationId)
-		commonResponse := CommonResponseStatusNotFound(operationId + "-" + err.Error())
-		return commonResponse, err
+		return response.CommonResponseStatusNotFound(operationId + "-" + err.Error()), err
 	}
 
 	log.Printf("DEBUG: GetApiSpec succeeded")
 	log.Printf("DEBUG: - targetFrameworkInfo: %+v", targetFrameworkInfo)
 	log.Printf("DEBUG: - targetApiSpec: %+v", targetApiSpec)
 
-	// targetFrameworkInfo와 targetApiSpec이 비어있는지 확인
 	if targetFrameworkInfo == (Service{}) {
 		log.Printf("ERROR: targetFrameworkInfo is empty Service{}")
-		commonResponse := CommonResponseStatusNotFound(operationId + "-" + "targetFrameworkInfo is empty")
-		return commonResponse, fmt.Errorf("targetFrameworkInfo is empty")
+		return response.CommonResponseStatusNotFound(operationId + "-" + "targetFrameworkInfo is empty"), fmt.Errorf("targetFrameworkInfo is empty")
 	}
 
 	if targetApiSpec == (Spec{}) {
 		log.Printf("ERROR: targetApiSpec is empty Spec{}")
-		commonResponse := CommonResponseStatusNotFound(operationId + "-" + "targetApiSpec is empty")
-		return commonResponse, fmt.Errorf("targetApiSpec is empty")
+		return response.CommonResponseStatusNotFound(operationId + "-" + "targetApiSpec is empty"), fmt.Errorf("targetApiSpec is empty")
 	}
 
 	var authString string
@@ -162,8 +138,7 @@ func AnyCaller(c buffalo.Context, operationId string, commonRequest *CommonReque
 		authString, err = getAuth(c, targetFrameworkInfo)
 		if err != nil {
 			log.Printf("ERROR: getAuth failed: %v", err)
-			commonResponse := CommonResponseStatusBadRequest(err.Error())
-			return commonResponse, err
+			return response.CommonResponseStatusBadRequest(err.Error()), err
 		}
 		log.Printf("DEBUG: getAuth succeeded: %s", authString)
 	} else {
@@ -186,51 +161,34 @@ func AnyCaller(c buffalo.Context, operationId string, commonRequest *CommonReque
 	return commonResponse, err
 }
 
-// getApiSpec은 OpertinoId를 받아 conf/api.yaml에 정의된 Service, Spec 을 반환합니다.
-// 없을경우 not found error를 반환합니다.
+// GetApiSpec returns the API spec for a given operationId
 func GetApiSpec(requestOpertinoId string) (string, Service, Spec, error) {
 	log.Printf("DEBUG: GetApiSpec called with requestOpertinoId: %s", requestOpertinoId)
-	//log.Printf("DEBUG: - ApiYamlSet.ServiceActions: %+v", ApiYamlSet.ServiceActions)
 
 	for framework, api := range ApiYamlSet.ServiceActions {
-		// log.Printf("DEBUG: - checking framework: %s", framework)
-		// log.Printf("DEBUG: - framework api: %+v", api)
-
 		for opertinoId, spec := range api {
-			// log.Printf("DEBUG: - checking opertinoId: %s vs request: %s", opertinoId, requestOpertinoId)
-
 			if opertinoId == strings.ToLower(requestOpertinoId) {
-				// log.Printf("DEBUG: - MATCH FOUND!")
-				// log.Printf("DEBUG: - framework: %s", framework)
-				// log.Printf("DEBUG: - service: %+v", ApiYamlSet.Services[framework])
-				// log.Printf("DEBUG: - spec: %+v", spec)
-
 				return framework, ApiYamlSet.Services[framework], spec, nil
 			}
 		}
 	}
 
 	log.Printf("ERROR: No matching API spec found for operationId: %s", requestOpertinoId)
-	log.Printf("ERROR: Available ServiceActions: %+v", ApiYamlSet.ServiceActions)
 	return "", Service{}, Spec{}, fmt.Errorf("getApiSpec not found")
 }
 
-// SubsystemAnyCaller buffalo.Context, subsystemName, operationId, commonRequest, auth유무 를 받아 conf/api.yaml 정보를 바탕으로 commonCaller를 호출합니다.
-// AnyCaller 와 동일한 방식으로 작동하며, subsystemName, operationId 로 호출할 서브시스템의 함수를 특정합니다.
-// 모든 응답과 error 는 commonResponse 내 설정되어 반환됩니다.
-func SubsystemAnyCaller(c buffalo.Context, subsystemName, operationId string, commonRequest *CommonRequest, auth bool) (*CommonResponse, error) {
+// SubsystemAnyCaller routes requests to a specific subsystem
+func SubsystemAnyCaller(c echo.Context, subsystemName, operationId string, commonRequest *CommonRequest, auth bool) (*response.CommonResponse, error) {
 	targetFrameworkInfo, targetApiSpec, err := getApiSpecBySubsystem(subsystemName, operationId)
-	if (err != nil || targetFrameworkInfo == Service{} || targetApiSpec == Spec{}) {
-		commonResponse := CommonResponseStatusNotFound(operationId + "-" + err.Error())
-		return commonResponse, err
+	if err != nil || targetFrameworkInfo == (Service{}) || targetApiSpec == (Spec{}) {
+		return response.CommonResponseStatusNotFound(operationId + "-" + err.Error()), err
 	}
 
 	var authString string
 	if auth {
 		authString, err = getAuth(c, targetFrameworkInfo)
 		if err != nil {
-			commonResponse := CommonResponseStatusBadRequest(err.Error())
-			return commonResponse, err
+			return response.CommonResponseStatusBadRequest(err.Error()), err
 		}
 	} else {
 		authString = ""
@@ -243,8 +201,6 @@ func SubsystemAnyCaller(c buffalo.Context, subsystemName, operationId string, co
 	return commonResponse, err
 }
 
-// getApiSpecBySubsystem 은 subsystemName, OpertinoId 를 받아 conf/api.yaml에 정의된 Service, Spec 을 반환합니다.
-// 없을경우 not found error를 반환합니다.
 func getApiSpecBySubsystem(subsystemName, requestOpertinoId string) (Service, Spec, error) {
 	apis := ApiYamlSet.ServiceActions[strings.ToLower(subsystemName)]
 	for opertinoId, spec := range apis {
@@ -255,13 +211,8 @@ func getApiSpecBySubsystem(subsystemName, requestOpertinoId string) (Service, Sp
 	return Service{}, Spec{}, fmt.Errorf("getApiSpec not found")
 }
 
-// getAuth는 컨텍스트 및 대상 서비스 정보를 받아, 옳바른 Authorization 값을 반환합니다.
-// 오류의 경우 각 경우, 해당하는 오류가 반환됩니다.
-// Auth 방식이 없을경우, 아무것도 반환되지 않습니다.
-func getAuth(c buffalo.Context, service Service) (string, error) {
+func getAuth(c echo.Context, service Service) (string, error) {
 	log.Printf("DEBUG: getAuth called with service.Auth.Type: %s", service.Auth.Type)
-	log.Printf("DEBUG: - service.Auth.Username: %s", service.Auth.Username)
-	log.Printf("DEBUG: - service.Auth.Password: %s", service.Auth.Password)
 
 	switch service.Auth.Type {
 	case "basic":
@@ -269,19 +220,17 @@ func getAuth(c buffalo.Context, service Service) (string, error) {
 			encA := base64.StdEncoding.EncodeToString([]byte(apiUserInfo))
 			log.Printf("DEBUG: Basic auth generated: Basic %s", encA)
 			return "Basic " + encA, nil
-		} else {
-			log.Printf("ERROR: username or password is empty - username: '%s', password: '%s'", service.Auth.Username, service.Auth.Password)
-			return "", fmt.Errorf("username or password is empty")
 		}
+		log.Printf("ERROR: username or password is empty")
+		return "", fmt.Errorf("username or password is empty")
 
 	case "bearer":
-		if authValue, ok := c.Value("Authorization").(string); ok {
+		if authValue, ok := c.Get(contextKeyAuthorization).(string); ok {
 			log.Printf("DEBUG: Bearer auth from context: %s", authValue)
 			return authValue, nil
-		} else {
-			log.Printf("ERROR: authorization key does not exist or is not a string")
-			return "", fmt.Errorf("authorization key does not exist or is not a string")
 		}
+		log.Printf("ERROR: authorization key does not exist or is not a string")
+		return "", fmt.Errorf("authorization key does not exist or is not a string")
 
 	default:
 		log.Printf("DEBUG: No auth required (type: %s)", service.Auth.Type)
@@ -289,9 +238,8 @@ func getAuth(c buffalo.Context, service Service) (string, error) {
 	}
 }
 
-////////////////////////////////////////////////////////////////
-
-func CommonCaller(callMethod string, targetFwUrl string, endPoint string, commonRequest *CommonRequest, auth string) (*CommonResponse, error) {
+// CommonCaller makes HTTP calls to subsystems
+func CommonCaller(callMethod string, targetFwUrl string, endPoint string, commonRequest *CommonRequest, auth string) (*response.CommonResponse, error) {
 	log.Printf("DEBUG: CommonCaller called")
 	log.Printf("DEBUG: - callMethod: %s", callMethod)
 	log.Printf("DEBUG: - targetFwUrl: %s", targetFwUrl)
@@ -317,24 +265,20 @@ func CommonCaller(callMethod string, targetFwUrl string, endPoint string, common
 		log.Printf("DEBUG: CommonHttpToCommonResponse succeeded")
 		if commonResponse != nil {
 			log.Printf("DEBUG: - response status: %+v", commonResponse.Status)
-			log.Printf("DEBUG: - response data: %+v", commonResponse.ResponseData)
-		} else {
-			log.Printf("WARNING: commonResponse is nil")
 		}
 	}
 
 	return commonResponse, err
 }
 
-func CommonCallerWithoutToken(callMethod string, targetFwUrl string, endPoint string, commonRequest *CommonRequest) (*CommonResponse, error) {
+// CommonCallerWithoutToken makes HTTP calls without authentication
+func CommonCallerWithoutToken(callMethod string, targetFwUrl string, endPoint string, commonRequest *CommonRequest) (*response.CommonResponse, error) {
 	pathParamsUrl := mappingUrlPathParams(endPoint, commonRequest)
 	queryParamsUrl := mappingQueryParams(pathParamsUrl, commonRequest)
 	requestUrl := targetFwUrl + queryParamsUrl
 	commonResponse, err := CommonHttpToCommonResponse(requestUrl, commonRequest.Request, callMethod, "")
 	return commonResponse, err
 }
-
-////////////////////////////////////////////////////////////////
 
 func mappingUrlPathParams(endPoint string, commonRequest *CommonRequest) string {
 	u := endPoint
@@ -357,7 +301,8 @@ func mappingQueryParams(targeturl string, commonRequest *CommonRequest) string {
 	return u.String()
 }
 
-func CommonHttpToCommonResponse(url string, s interface{}, httpMethod string, auth string) (*CommonResponse, error) {
+// CommonHttpToCommonResponse makes HTTP request and converts response
+func CommonHttpToCommonResponse(url string, s interface{}, httpMethod string, auth string) (*response.CommonResponse, error) {
 	log.Printf("DEBUG: CommonHttpToCommonResponse called")
 	log.Printf("DEBUG: - METHOD: %s", httpMethod)
 	log.Printf("DEBUG: - URL: %s", url)
@@ -381,11 +326,8 @@ func CommonHttpToCommonResponse(url string, s interface{}, httpMethod string, au
 	if auth != "" {
 		req.Header.Add("Authorization", auth)
 		log.Printf("DEBUG: - Authorization header added: %s", auth)
-	} else {
-		log.Printf("DEBUG: - No authorization header (auth is empty)")
 	}
 
-	// Log all request headers
 	log.Printf("DEBUG: - Request Headers:")
 	for name, values := range req.Header {
 		for _, value := range values {
@@ -400,7 +342,6 @@ func CommonHttpToCommonResponse(url string, s interface{}, httpMethod string, au
 		log.Printf("DEBUG: - Full Request Dump:\n%s", string(requestDump))
 	}
 
-	// TODO : TLSClientConfig InsecureSkipVerify 해제 v0.2.0 이후 작업예정
 	customTransport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
@@ -410,7 +351,7 @@ func CommonHttpToCommonResponse(url string, s interface{}, httpMethod string, au
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("ERROR: HTTP request failed: %v", err)
-		return CommonResponseStatusInternalServerError(err), err
+		return response.CommonResponseStatusInternalServerError(err), err
 	}
 	defer resp.Body.Close()
 
@@ -418,7 +359,6 @@ func CommonHttpToCommonResponse(url string, s interface{}, httpMethod string, au
 	log.Printf("DEBUG: - Response Status: %s", resp.Status)
 	log.Printf("DEBUG: - Response Status Code: %d", resp.StatusCode)
 
-	// Log response headers
 	log.Printf("DEBUG: - Response Headers:")
 	for name, values := range resp.Header {
 		for _, value := range values {
@@ -433,7 +373,7 @@ func CommonHttpToCommonResponse(url string, s interface{}, httpMethod string, au
 		log.Printf("DEBUG: - Response Body: %s", string(respBody))
 	}
 
-	commonResponse := &CommonResponse{}
+	commonResponse := &response.CommonResponse{}
 	commonResponse.Status.Message = resp.Status
 	commonResponse.Status.StatusCode = resp.StatusCode
 
@@ -447,88 +387,4 @@ func CommonHttpToCommonResponse(url string, s interface{}, httpMethod string, au
 
 	log.Printf("DEBUG: - Final CommonResponse: %+v", commonResponse)
 	return commonResponse, nil
-}
-
-func isJSONResponse(body []byte) bool {
-	var js map[string]interface{}
-	return json.Unmarshal(body, &js) == nil
-}
-
-////////////////////////////////////////////////////////////////
-
-func CommonResponseStatusOK(responseData interface{}) *CommonResponse {
-	webStatus := WebStatus{
-		StatusCode: http.StatusOK,
-		Message:    http.StatusText(http.StatusOK),
-	}
-	return &CommonResponse{
-		ResponseData: responseData,
-		Status:       webStatus,
-	}
-}
-
-func CommonResponseStatusNoContent(responseData interface{}) *CommonResponse {
-	webStatus := WebStatus{
-		StatusCode: http.StatusNoContent,
-		Message:    http.StatusText(http.StatusNoContent),
-	}
-	return &CommonResponse{
-		ResponseData: responseData,
-		Status:       webStatus,
-	}
-}
-
-func CommonResponseStatusNotFound(responseData interface{}) *CommonResponse {
-	webStatus := WebStatus{
-		StatusCode: http.StatusNotFound,
-		Message:    http.StatusText(http.StatusNotFound),
-	}
-	return &CommonResponse{
-		ResponseData: responseData,
-		Status:       webStatus,
-	}
-}
-
-func CommonResponseStatusStatusUnauthorized(responseData interface{}) *CommonResponse {
-	webStatus := WebStatus{
-		StatusCode: http.StatusUnauthorized,
-		Message:    http.StatusText(http.StatusUnauthorized),
-	}
-	return &CommonResponse{
-		ResponseData: responseData,
-		Status:       webStatus,
-	}
-}
-
-func CommonResponseStatusBadRequest(responseData interface{}) *CommonResponse {
-	webStatus := WebStatus{
-		StatusCode: http.StatusBadRequest,
-		Message:    http.StatusText(http.StatusBadRequest),
-	}
-	return &CommonResponse{
-		ResponseData: responseData,
-		Status:       webStatus,
-	}
-}
-
-func CommonResponseStatusForbidden(responseData interface{}) *CommonResponse {
-	webStatus := WebStatus{
-		StatusCode: http.StatusForbidden,
-		Message:    http.StatusText(http.StatusForbidden),
-	}
-	return &CommonResponse{
-		ResponseData: responseData,
-		Status:       webStatus,
-	}
-}
-
-func CommonResponseStatusInternalServerError(responseData interface{}) *CommonResponse {
-	webStatus := WebStatus{
-		StatusCode: http.StatusInternalServerError,
-		Message:    http.StatusText(http.StatusInternalServerError),
-	}
-	return &CommonResponse{
-		ResponseData: responseData,
-		Status:       webStatus,
-	}
 }

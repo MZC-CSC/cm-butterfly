@@ -1,26 +1,90 @@
 package handler
 
 import (
+	"net/http"
 	"strings"
 
-	"github.com/gobuffalo/buffalo"
+	"api/internal/util/response"
+
+	"github.com/labstack/echo/v4"
 )
 
-// Disk 정보 조회
-// Provider, connection 에서 사용가능한 DiskType 조회
-// 현재 : spider의 cloudos_meta.yaml 값 사용
-// func DiskLookup(providerId string, connectionName string) ([]LookupDiskInfo, error) {
-func DiskLookup(c buffalo.Context) ([]LookupDiskInfo, error) {
+// LookupDiskInfo represents disk information for lookup
+type LookupDiskInfo struct {
+	ProviderID   string   `json:"providerId"`
+	RootDiskType []string `json:"rootdisktype"`
+	DataDiskType []string `json:"datadisktype"`
+	DiskSize     []string `json:"disksize"`
+}
+
+// AvailableDiskType represents available disk types
+type AvailableDiskType struct {
+	ProviderID   string   `json:"providerId"`
+	RootDiskType []string `json:"rootdisktype"`
+	DataDiskType []string `json:"datadisktype"`
+	DiskSize     []string `json:"disksize"`
+}
+
+// DiskHandler handles disk-related endpoints
+type DiskHandler struct{}
+
+// NewDiskHandler creates a new DiskHandler
+func NewDiskHandler() *DiskHandler {
+	return &DiskHandler{}
+}
+
+// DiskLookup handles disk information lookup
+func (h *DiskHandler) DiskLookup(c echo.Context) error {
 	commonRequest := &CommonRequest{}
-	c.Bind(commonRequest)
+	if err := c.Bind(commonRequest); err != nil {
+		return c.JSON(http.StatusBadRequest, response.CommonResponseStatusBadRequest(err.Error()))
+	}
 
 	providerId := strings.ToUpper(commonRequest.QueryParams["provider"])
 	connectionName := commonRequest.QueryParams["connectionName"]
 
-	//defaultNameSpaceID := loginInfo.DefaultNameSpaceID
+	diskInfoMap := getDiskInfoMap()
+
+	dataDiskInfoList := []LookupDiskInfo{}
+	if providerId != "" {
+		if connectionName != "" {
+			// TODO: filter by connection
+		}
+		providerDisk := diskInfoMap[providerId]
+		dataDiskInfoList = append(dataDiskInfoList, providerDisk)
+	}
+
+	return c.JSON(http.StatusOK, response.CommonResponseStatusOK(dataDiskInfoList))
+}
+
+// AvailableDiskTypeByProviderRegion handles available disk type lookup
+func (h *DiskHandler) AvailableDiskTypeByProviderRegion(c echo.Context) error {
+	commonRequest := &CommonRequest{}
+	if err := c.Bind(commonRequest); err != nil {
+		return c.JSON(http.StatusBadRequest, response.CommonResponseStatusBadRequest(err.Error()))
+	}
+
+	providerId := strings.ToUpper(commonRequest.QueryParams["provider"])
+	regionName := commonRequest.QueryParams["regionName"]
+
+	diskInfoMap := getAvailableDiskInfoMap()
+
+	dataDiskInfoList := []AvailableDiskType{}
+	if providerId != "" {
+		if regionName != "" {
+			// TODO: filter by region if needed
+		}
+		providerDisk := diskInfoMap[strings.ToUpper(providerId)]
+		dataDiskInfoList = append(dataDiskInfoList, providerDisk)
+	}
+
+	return c.JSON(http.StatusOK, response.CommonResponseStatusOK(dataDiskInfoList))
+}
+
+func getDiskInfoMap() map[string]LookupDiskInfo {
 	diskInfoMap := map[string]LookupDiskInfo{}
 
-	// 변환 : 구분자만 빼서 공백 빼고 array로
+	// AWS
 	awsRootdiskType := "standard / gp2 / gp3"
 	awsDiskType := "standard / gp2 / gp3 / io1 / io2 / st1 / sc1"
 	awsDiskSize := "standard|1|1024|GB / gp2|1|16384|GB / gp3|1|16384|GB / io1|4|16384|GB / io2|4|16384|GB / st1|125|16384|GB / sc1|125|16384|GB"
@@ -32,6 +96,7 @@ func DiskLookup(c buffalo.Context) ([]LookupDiskInfo, error) {
 	awsDiskInfo.DiskSize = strings.Split(strings.ReplaceAll(awsDiskSize, " ", ""), "/")
 	diskInfoMap["AWS"] = awsDiskInfo
 
+	// GCP
 	gcpRootdiskType := "pd-standard / pd-balanced / pd-ssd / pd-extreme"
 	gcpDiskType := "pd-standard / pd-balanced / pd-ssd / pd-extreme"
 	gcpDiskSize := "pd-standard|10|65536|GB / pd-balanced|10|65536|GB / pd-ssd|10|65536|GB / pd-extreme|500|65536|GB"
@@ -43,6 +108,7 @@ func DiskLookup(c buffalo.Context) ([]LookupDiskInfo, error) {
 	gcpDiskInfo.DiskSize = strings.Split(strings.ReplaceAll(gcpDiskSize, " ", ""), "/")
 	diskInfoMap["GCP"] = gcpDiskInfo
 
+	// ALIBABA
 	aliRootdiskType := "cloud_essd / cloud_efficiency / cloud / cloud_ssd"
 	aliDiskType := "cloud / cloud_efficiency / cloud_ssd / cloud_essd"
 	aliDiskSize := "cloud|5|2000|GB / cloud_efficiency|20|32768|GB / cloud_ssd|20|32768|GB / cloud_essd_PL0|40|32768|GB / cloud_essd_PL1|20|32768|GB / cloud_essd_PL2|461|32768|GB / cloud_essd_PL3|1261|32768|GB"
@@ -54,6 +120,7 @@ func DiskLookup(c buffalo.Context) ([]LookupDiskInfo, error) {
 	aliDiskInfo.DiskSize = strings.Split(strings.ReplaceAll(aliDiskSize, " ", ""), "/")
 	diskInfoMap["ALIBABA"] = aliDiskInfo
 
+	// TENCENT
 	tencentRootdiskType := "CLOUD_PREMIUM / CLOUD_SSD"
 	tencentDiskType := "CLOUD_PREMIUM / CLOUD_SSD / CLOUD_HSSD / CLOUD_BASIC / CLOUD_TSSD"
 	tencentDiskSize := "CLOUD_PREMIUM|10|32000|GB / CLOUD_SSD|20|32000|GB / CLOUD_HSSD|20|32000|GB / CLOUD_BASIC|10|32000|GB / CLOUD_TSSD|10|32000|GB"
@@ -65,36 +132,13 @@ func DiskLookup(c buffalo.Context) ([]LookupDiskInfo, error) {
 	tencentDiskInfo.DiskSize = strings.Split(strings.ReplaceAll(tencentDiskSize, " ", ""), "/")
 	diskInfoMap["TENCENT"] = tencentDiskInfo
 
-	dataDiskInfoList := []LookupDiskInfo{}
-	if providerId != "" {
-		// TODO : 해당 connection으로 사용가능한 DISK 정보 조회
-		if connectionName != "" { // 현재는 connection으로 filter 하지 않음
-
-		}
-		//providerDisk := LookupDiskInfo{}
-		providerDisk := diskInfoMap[providerId]
-		dataDiskInfoList = append(dataDiskInfoList, providerDisk)
-	} else if connectionName != "" {
-		// 모든 provider의 datadisk 정보 조회...
-		// getConnection 에서 Provider 가져옴
-	}
-
-	return dataDiskInfoList, nil
+	return diskInfoMap
 }
 
-// Provider, Region 에서 사용가능한 DiskType 조회
-// 현재 : spider의 cloudos_meta.yaml 값 사용
-// Region 값에 따라 달라지는게 있으면 추가할 것.c buffalo.Context, commonRequest *CommonRequest
-func AvailableDiskTypeByProviderRegion(c buffalo.Context) ([]AvailableDiskType, error) {
-	commonRequest := &CommonRequest{}
-	c.Bind(commonRequest)
-
-	providerId := strings.ToUpper(commonRequest.QueryParams["provider"])
-	regionName := commonRequest.QueryParams["regionName"]
-
+func getAvailableDiskInfoMap() map[string]AvailableDiskType {
 	diskInfoMap := map[string]AvailableDiskType{}
 
-	// 변환 : 구분자만 빼서 공백 빼고 array로
+	// AWS
 	awsRootdiskType := "standard / gp2 / gp3"
 	awsDiskType := "standard / gp2 / gp3 / io1 / io2 / st1 / sc1"
 	awsDiskSize := "standard|1|1024|GB / gp2|1|16384|GB / gp3|1|16384|GB / io1|4|16384|GB / io2|4|16384|GB / st1|125|16384|GB / sc1|125|16384|GB"
@@ -106,6 +150,7 @@ func AvailableDiskTypeByProviderRegion(c buffalo.Context) ([]AvailableDiskType, 
 	awsDiskInfo.DiskSize = strings.Split(strings.ReplaceAll(awsDiskSize, " ", ""), "/")
 	diskInfoMap["AWS"] = awsDiskInfo
 
+	// GCP
 	gcpRootdiskType := "pd-standard / pd-balanced / pd-ssd / pd-extreme"
 	gcpDiskType := "pd-standard / pd-balanced / pd-ssd / pd-extreme"
 	gcpDiskSize := "pd-standard|10|65536|GB / pd-balanced|10|65536|GB / pd-ssd|10|65536|GB / pd-extreme|500|65536|GB"
@@ -117,6 +162,7 @@ func AvailableDiskTypeByProviderRegion(c buffalo.Context) ([]AvailableDiskType, 
 	gcpDiskInfo.DiskSize = strings.Split(strings.ReplaceAll(gcpDiskSize, " ", ""), "/")
 	diskInfoMap["GCP"] = gcpDiskInfo
 
+	// ALIBABA
 	aliRootdiskType := "cloud_essd / cloud_efficiency / cloud / cloud_ssd"
 	aliDiskType := "cloud / cloud_efficiency / cloud_ssd / cloud_essd"
 	aliDiskSize := "cloud|5|2000|GB / cloud_efficiency|20|32768|GB / cloud_ssd|20|32768|GB / cloud_essd_PL0|40|32768|GB / cloud_essd_PL1|20|32768|GB / cloud_essd_PL2|461|32768|GB / cloud_essd_PL3|1261|32768|GB"
@@ -128,6 +174,7 @@ func AvailableDiskTypeByProviderRegion(c buffalo.Context) ([]AvailableDiskType, 
 	aliDiskInfo.DiskSize = strings.Split(strings.ReplaceAll(aliDiskSize, " ", ""), "/")
 	diskInfoMap["ALIBABA"] = aliDiskInfo
 
+	// TENCENT
 	tencentRootdiskType := "CLOUD_PREMIUM / CLOUD_SSD"
 	tencentDiskType := "CLOUD_PREMIUM / CLOUD_SSD / CLOUD_HSSD / CLOUD_BASIC / CLOUD_TSSD"
 	tencentDiskSize := "CLOUD_PREMIUM|10|32000|GB / CLOUD_SSD|20|32000|GB / CLOUD_HSSD|20|32000|GB / CLOUD_BASIC|10|32000|GB / CLOUD_TSSD|10|32000|GB"
@@ -139,14 +186,5 @@ func AvailableDiskTypeByProviderRegion(c buffalo.Context) ([]AvailableDiskType, 
 	tencentDiskInfo.DiskSize = strings.Split(strings.ReplaceAll(tencentDiskSize, " ", ""), "/")
 	diskInfoMap["TENCENT"] = tencentDiskInfo
 
-	dataDiskInfoList := []AvailableDiskType{}
-	if providerId != "" {
-		if regionName != "" { // TODO : Region에 따라 달라지면 보완할 것
-
-		}
-		providerDisk := diskInfoMap[strings.ToUpper(providerId)]
-		dataDiskInfoList = append(dataDiskInfoList, providerDisk)
-	}
-
-	return dataDiskInfoList, nil
+	return diskInfoMap
 }

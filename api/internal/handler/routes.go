@@ -2,9 +2,60 @@ package handler
 
 import (
 	"log"
+	"net/http"
+	"strings"
 
-	"github.com/gobuffalo/buffalo"
+	"api/internal/util/response"
+
+	"github.com/labstack/echo/v4"
 )
+
+// AnyController handles generic API routing by operationId
+func AnyController(c echo.Context) error {
+	log.Println("#### AnyController")
+	operationId := strings.ToLower(c.Param("operationId"))
+	if operationId == "" {
+		commonResponse := response.CommonResponseStatusNotFound("no operationId is provided")
+		return c.JSON(commonResponse.Status.StatusCode, commonResponse)
+	}
+
+	commonRequest := &CommonRequest{}
+	if err := c.Bind(commonRequest); err != nil {
+		log.Printf("Error binding request: %v", err)
+	}
+
+	log.Printf("== operationId\t:[ %s ]\n== commonRequest\t:\n%+v\n==\n", operationId, commonRequest)
+	commonResponse, _ := AnyCaller(c, operationId, commonRequest, true)
+
+	return c.JSON(commonResponse.Status.StatusCode, commonResponse)
+}
+
+// SubsystemAnyController handles API routing for specific subsystems
+func SubsystemAnyController(c echo.Context) error {
+	log.Println("#### SubsystemAnyController")
+	subsystemName := strings.ToLower(c.Param("subsystemName"))
+	operationId := strings.ToLower(c.Param("operationId"))
+
+	if subsystemName == "" {
+		commonResponse := response.CommonResponseStatusNotFound("no subsystemName is provided")
+		return c.JSON(commonResponse.Status.StatusCode, commonResponse)
+	}
+
+	if operationId == "" {
+		commonResponse := response.CommonResponseStatusNotFound("no operationId is provided")
+		return c.JSON(commonResponse.Status.StatusCode, commonResponse)
+	}
+
+	commonRequest := &CommonRequest{}
+	if err := c.Bind(commonRequest); err != nil {
+		log.Printf("Error binding request: %v", err)
+	}
+
+	log.Printf("==subsystemName\t:[ %s ]\n== operationId\t:[ %s ]\n== commonRequest\t:\n%+v\n==\n", subsystemName, operationId, commonRequest)
+	commonResponse, _ := SubsystemAnyCaller(c, subsystemName, operationId, commonRequest, true)
+
+	return c.JSON(commonResponse.Status.StatusCode, commonResponse)
+}
 
 // ApiTestRequest represents the request structure for API testing
 type ApiTestRequest struct {
@@ -34,50 +85,46 @@ type ApiTestResponse struct {
 }
 
 // ApiTestController handles API testing requests
-func ApiTestController(c buffalo.Context) error {
+func ApiTestController(c echo.Context) error {
 	log.Println("#### ApiTestController")
 
 	var request ApiTestRequest
 	if err := c.Bind(&request); err != nil {
 		log.Printf("ERROR: Failed to bind request: %v", err)
-		response := ApiTestResponse{
+		resp := ApiTestResponse{
 			Success:      false,
 			ErrorMessage: "Failed to parse request: " + err.Error(),
 		}
-		return c.Render(200, r.JSON(response))
+		return c.JSON(http.StatusOK, resp)
 	}
 
 	log.Printf("== ApiTestRequest ==\n%+v\n==\n", request)
 
-	// Validate required fields
 	if request.OperationId == "" {
-		response := ApiTestResponse{
+		resp := ApiTestResponse{
 			Success:      false,
 			ErrorMessage: "operationId is required",
 		}
-		return c.Render(200, r.JSON(response))
+		return c.JSON(http.StatusOK, resp)
 	}
 
 	if request.ServiceName == "" {
-		response := ApiTestResponse{
+		resp := ApiTestResponse{
 			Success:      false,
 			ErrorMessage: "serviceName is required",
 		}
-		return c.Render(200, r.JSON(response))
+		return c.JSON(http.StatusOK, resp)
 	}
 
-	// Create CommonRequest from ApiTestRequest
 	commonRequest := &CommonRequest{
 		PathParams:  request.PathParams,
 		QueryParams: request.QueryParams,
 		Request:     request.Body,
 	}
 
-	// Use existing AnyCaller logic with authentication
 	commonResponse, err := AnyCaller(c, request.OperationId, commonRequest, true)
 
-	// Prepare response
-	response := ApiTestResponse{
+	resp := ApiTestResponse{
 		Success: err == nil && commonResponse.Status.StatusCode < 400,
 		Data:    commonResponse,
 		RequestInfo: struct {
@@ -100,37 +147,35 @@ func ApiTestController(c buffalo.Context) error {
 	}
 
 	if err != nil {
-		response.Success = false
-		response.ErrorMessage = err.Error()
+		resp.Success = false
+		resp.ErrorMessage = err.Error()
 		log.Printf("ERROR: API call failed: %v", err)
-		return c.Render(200, r.JSON(response)) // Return 200 with error in response body
+		return c.JSON(http.StatusOK, resp)
 	}
 
 	if commonResponse.Status.StatusCode >= 400 {
-		response.Success = false
-		response.ErrorMessage = commonResponse.Status.Message
+		resp.Success = false
+		resp.ErrorMessage = commonResponse.Status.Message
 		log.Printf("ERROR: API returned error status: %d - %s", commonResponse.Status.StatusCode, commonResponse.Status.Message)
-		return c.Render(200, r.JSON(response)) // Return 200 with error in response body
+		return c.JSON(http.StatusOK, resp)
 	}
 
 	log.Printf("SUCCESS: API call completed successfully")
-	return c.Render(200, r.JSON(response))
+	return c.JSON(http.StatusOK, resp)
 }
 
-// GetApiListController returns the list of available APIs from api.yaml
-func GetApiListController(c buffalo.Context) error {
+// GetApiListController returns the list of available APIs
+func GetApiListController(c echo.Context) error {
 	log.Println("#### GetApiListController")
 
-	// Check if ApiYamlSet is initialized
 	if ApiYamlSet.ServiceActions == nil {
 		log.Printf("ERROR: ApiYamlSet.ServiceActions is nil")
-		return c.Render(200, r.JSON(map[string]interface{}{
+		return c.JSON(http.StatusOK, map[string]interface{}{
 			"success":      false,
 			"errorMessage": "API configuration not loaded",
-		}))
+		})
 	}
 
-	// Get the API list from the loaded configuration
 	var apiList []struct {
 		ServiceName string `json:"serviceName"`
 		Actions     []struct {
@@ -141,7 +186,6 @@ func GetApiListController(c buffalo.Context) error {
 		} `json:"actions"`
 	}
 
-	// Convert ApiYamlSet.ServiceActions to the response format
 	for serviceName, actions := range ApiYamlSet.ServiceActions {
 		serviceData := struct {
 			ServiceName string `json:"serviceName"`
@@ -180,8 +224,8 @@ func GetApiListController(c buffalo.Context) error {
 	}
 
 	log.Printf("SUCCESS: Returning %d services with total actions", len(apiList))
-	return c.Render(200, r.JSON(map[string]interface{}{
+	return c.JSON(http.StatusOK, map[string]interface{}{
 		"success": true,
 		"data":    apiList,
-	}))
+	})
 }
