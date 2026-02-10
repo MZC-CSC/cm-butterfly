@@ -302,16 +302,25 @@ function handleSave(e: { name: string; description: string }) {
   description.value = e.description;
 
   try {
-    let selectedModel: IRecommendModelResponse =
-      recommendInfraModel.tableModel.tableState.displayItems[
-        (recommendInfraModel.tableModel.tableState.selectIndex as unknown) as number
-      ].originalData;
+    // selectIndex는 배열 형태([0], [1], [2], ...)로 저장되므로 첫 번째 요소를 추출
+    const selectIndex = recommendInfraModel.tableModel.tableState.selectIndex;
+    const rowIndex = Array.isArray(selectIndex) ? selectIndex[0] : selectIndex as number;
+
+    const displayItem = recommendInfraModel.tableModel.tableState.displayItems[rowIndex];
+    if (!displayItem) {
+      throw new Error(`No display item found at index ${rowIndex}`);
+    }
+
+    let selectedModel: IRecommendModelResponse = displayItem.originalData;
+
+    if (!selectedModel?.targetVmInfra?.subGroups || selectedModel.targetVmInfra.subGroups.length === 0) {
+      throw new Error('Selected model has no VM subGroups');
+    }
 
     // 선택된 Row의 데이터를 가공 없이 그대로 사용
-    const selectedVmIndex = Array.isArray(recommendInfraModel.tableModel.tableState.selectIndex) 
-      ? recommendInfraModel.tableModel.tableState.selectIndex[0] 
-      : recommendInfraModel.tableModel.tableState.selectIndex as number;
-    const selectedVm = selectedModel.targetVmInfra.subGroups[selectedVmIndex];
+    // 주의: selectIndex는 테이블 행의 인덱스이고, 이미 displayItems[rowIndex]에서 해당 모델을 가져왔으므로
+    // subGroups에서는 첫 번째 VM(인덱스 0)을 사용해야 함 (CSP/Region 추출용)
+    const selectedVm = selectedModel.targetVmInfra.subGroups[0];
     
     // 기존 targetVmInfra를 그대로 사용 (가공 없이)
     const modifiedTargetVmInfra = {
@@ -330,12 +339,6 @@ function handleSave(e: { name: string; description: string }) {
       targetVmOsImageList: selectedModel.targetVmOsImageList || [],
       targetVmSpecList: selectedModel.targetVmSpecList || []
     };
-
-    console.log('=== Save Target Model ===');
-    console.log('Selected VM index:', selectedVmIndex);
-    console.log('Selected VM:', selectedVm);
-    console.log('Original targetVmInfra (no modification):', modifiedTargetVmInfra);
-    console.log('CloudInfraModel:', cloudInfraModel);
 
     // specId가 빈 문자열이거나 +가 없는 경우 기본값 사용
     let csp = 'default-csp';
