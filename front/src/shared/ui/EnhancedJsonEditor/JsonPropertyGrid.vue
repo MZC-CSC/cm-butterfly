@@ -234,10 +234,16 @@ function cancelEdit() {
           <span class="pg-icon">&#9654;</span> Collapse All
         </button>
         <button class="pg-btn" @click="expandToDepth(2)" title="Depth 2">
-          Depth 2
+          D2
         </button>
         <button class="pg-btn" @click="expandToDepth(3)" title="Depth 3">
-          Depth 3
+          D3
+        </button>
+        <button class="pg-btn" @click="expandToDepth(5)" title="Depth 5">
+          D5
+        </button>
+        <button class="pg-btn" @click="expandToDepth(7)" title="Depth 7">
+          D7
         </button>
       </div>
       <div class="pg-toolbar-right">

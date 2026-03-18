@@ -68,12 +68,22 @@ function toContent(value: string | object | undefined): Content {
 // Convert Content back to string for emit
 function contentToString(content: Content): string {
   if ('json' in content && content.json !== undefined) {
-    return JSON.stringify(content.json, null, 2);
+    const result = JSON.stringify(content.json, null, 2);
+    console.log('[EnhancedJsonEditor] contentToString (JSON mode):', result.substring(0, 50));
+    return result;
   }
   if ('text' in content && content.text !== undefined) {
+    const trimmed = content.text.trim();
+    console.log('[EnhancedJsonEditor] contentToString (Text mode), trimmed:', JSON.stringify(trimmed).substring(0, 50));
+    // 빈 문자열이면 빈 객체 JSON으로 반환
+    if (!trimmed || trimmed === '') {
+      console.log('[EnhancedJsonEditor] Empty text detected, returning "{}"');
+      return '{}';
+    }
     return content.text;
   }
-  return '';
+  console.log('[EnhancedJsonEditor] contentToString fallback, returning "{}"');
+  return '{}';  // 기본값을 빈 문자열 대신 '{}'로
 }
 
 function initEditor() {
@@ -83,14 +93,20 @@ function initEditor() {
     content: toContent(props.modelValue),
     mode: currentMode.value === Mode.table ? Mode.tree : currentMode.value,
     readOnly: props.readOnly,
+    // Force mainMenuBar to show even when readOnly is true
     mainMenuBar: props.mainMenuBar,
     navigationBar: props.navigationBar,
     statusBar: props.statusBar,
     onChange: (content: Content, previousContent: Content, changeStatus: OnChangeStatus) => {
-      if (props.readOnly) return;
+      if (props.readOnly) {
+        console.log('[EnhancedJsonEditor] onChange skipped - readOnly mode');
+        return;
+      }
+      console.log('[EnhancedJsonEditor] onChange triggered, readOnly:', props.readOnly);
       hasError.value = false;
       errorMessage.value = '';
       const strValue = contentToString(content);
+      console.log('[EnhancedJsonEditor] Emitting update:modelValue:', JSON.stringify(strValue).substring(0, 100), 'type:', typeof strValue);
       emit('update:modelValue', strValue);
       emit('change', { content, previousContent, changeStatus });
     },
@@ -121,6 +137,17 @@ function initEditor() {
     target: editorRef.value,
     props: editorProps,
   });
+
+  // Force menu to show after initialization if readOnly and mainMenuBar is true
+  if (props.readOnly && props.mainMenuBar) {
+    setTimeout(() => {
+      // vanilla-jsoneditor hides menu in readOnly mode, so we force it to show
+      const menuElement = editorRef.value?.querySelector('.jse-menu');
+      if (menuElement) {
+        (menuElement as HTMLElement).style.display = 'flex';
+      }
+    }, 100);
+  }
 }
 
 onMounted(() => {
@@ -140,12 +167,18 @@ onBeforeUnmount(() => {
 watch(
   () => props.modelValue,
   (newValue) => {
-    if (!editorInstance) return;
+    console.log('[EnhancedJsonEditor] modelValue changed:', typeof newValue, newValue?.length || Object.keys(newValue || {}).length);
+    if (!editorInstance) {
+      console.warn('[EnhancedJsonEditor] Editor instance not ready');
+      return;
+    }
     try {
       const newContent = toContent(newValue);
+      console.log('[EnhancedJsonEditor] Updating editor with content:', 'json' in newContent ? 'JSON mode' : 'Text mode');
       editorInstance.update(newContent);
+      console.log('[EnhancedJsonEditor] Editor updated successfully');
     } catch (err) {
-      console.warn('Failed to update editor content:', err);
+      console.error('[EnhancedJsonEditor] Failed to update editor content:', err);
     }
   },
 );
@@ -156,6 +189,15 @@ watch(
   (newReadOnly) => {
     if (!editorInstance) return;
     editorInstance.updateProps({ readOnly: newReadOnly });
+    // Force menu to show after readOnly change if mainMenuBar is true
+    if (newReadOnly && props.mainMenuBar) {
+      setTimeout(() => {
+        const menuElement = editorRef.value?.querySelector('.jse-menu');
+        if (menuElement) {
+          (menuElement as HTMLElement).style.display = 'flex';
+        }
+      }, 100);
+    }
   },
 );
 
@@ -174,6 +216,13 @@ function handlePropertyGridUpdate(value: string) {
 function switchToEditor() {
   showPropertyGrid.value = false;
   currentMode.value = Mode.tree;
+
+  // Expand all when switching back to Tree mode
+  nextTick(() => {
+    if (editorInstance) {
+      editorInstance.expand(() => true);
+    }
+  });
 }
 
 // Expose methods for parent component
@@ -183,13 +232,63 @@ defineExpose({
     if (!editorInstance) return;
     editorInstance.update(toContent(props.modelValue));
   },
+  setMode: (mode: 'tree' | 'text' | 'table') => {
+    if (!editorInstance) return;
+    try {
+      // Property Grid는 우리 커스텀 모드
+      if (mode === 'table' || mode === Mode.table) {
+        showPropertyGrid.value = true;
+        editorInstance.updateProps({ mode: Mode.tree });
+      } else {
+        showPropertyGrid.value = false;
+        const editorMode = mode === 'tree' ? Mode.tree : Mode.text;
+        editorInstance.updateProps({ mode: editorMode });
+        currentMode.value = editorMode;
+      }
+    } catch (e) {
+      console.warn('setMode failed:', e.message);
+    }
+  },
   expandAll: () => {
     if (!editorInstance) return;
-    editorInstance.expand(() => true);
+
+    try {
+      // Property Grid 모드에서는 skip
+      if (showPropertyGrid.value) {
+        console.log('expandAll: Skipping - Property Grid mode');
+        return;
+      }
+
+      // tree 모드에서만 expand 가능
+      if (currentMode.value !== Mode.tree) {
+        console.log('expandAll: Skipping - not in tree mode, current mode:', currentMode.value);
+        return;
+      }
+
+      // tree 모드에서만 expand 실행
+      editorInstance.expand(() => true);
+    } catch (e) {
+      console.warn('expandAll failed:', e.message);
+    }
   },
   collapseAll: () => {
     if (!editorInstance) return;
-    editorInstance.expand(() => false);
+
+    try {
+      if (showPropertyGrid.value) {
+        console.log('collapseAll: Skipping - Property Grid mode');
+        return;
+      }
+
+      if (currentMode.value !== Mode.tree) {
+        console.log('collapseAll: Skipping - not in tree mode, current mode:', currentMode.value);
+        return;
+      }
+
+      editorInstance.expand(() => false);
+    } catch (e) {
+      console.warn('collapseAll failed:', e.message);
+    }
   },
 });
 </script>
@@ -250,6 +349,7 @@ defineExpose({
   :deep(.jse-menu) {
     background-color: #f9fafb;
     border-bottom: 1px solid #e5e7eb;
+    display: flex !important; /* Force menu to show even in readOnly mode */
   }
 
   :deep(.jse-contents) {
