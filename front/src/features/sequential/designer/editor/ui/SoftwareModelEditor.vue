@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { PTextInput, PIconButton } from '@cloudforet-test/mirinae';
-import { onBeforeMount, onBeforeUnmount, ref, watch, computed } from 'vue';
+import { onBeforeMount, onBeforeUnmount, ref, watch, computed, nextTick } from 'vue';
 import { useGrasshopperTaskEditorModel } from '@/features/sequential/designer/editor/model/grasshopperTaskEditorModel';
 import SequentialShortCut from '@/features/sequential/designer/shortcut/ui/SequentialShortCut.vue';
-import JsonDataTree from '@/shared/ui/Tree/JsonDataTree.vue';
-import JsonDataFormTree from '@/shared/ui/Tree/JsonDataFormTree.vue';
+import { EnhancedJsonEditor } from '@/shared/ui/EnhancedJsonEditor';
 import { Step } from '@/features/workflow/workflowEditor/model/types';
 
 interface IProps {
@@ -29,7 +28,52 @@ const shortCutModel = ref({
   },
 });
 const editorFormElement = ref(null);
-const jsonDataFormTreeRef = ref(null);
+const jsonEditorRef = ref(null);
+
+// targetSoftwareModel을 JSON string으로 변환
+const softwareModelString = computed(() => {
+  const targetModel = taskEditorModel.formContext.value?.find(
+    ctx => ctx.type === 'targetSoftwareModel'
+  );
+
+  if (!targetModel || !targetModel.context) {
+    return '{}';
+  }
+
+  try {
+    return JSON.stringify(targetModel.context, null, 2);
+  } catch (e) {
+    console.error('Failed to stringify software model:', e);
+    return '{}';
+  }
+});
+
+// JSON Editor 업데이트 핸들러
+function handleModelUpdate(value: string) {
+  try {
+    const parsed = JSON.parse(value);
+    const targetModelIndex = taskEditorModel.formContext.value?.findIndex(
+      ctx => ctx.type === 'targetSoftwareModel'
+    );
+
+    if (targetModelIndex !== -1 && targetModelIndex !== undefined) {
+      taskEditorModel.formContext.value[targetModelIndex].context = parsed;
+    }
+  } catch (e) {
+    console.warn('Invalid JSON, not updating model:', e);
+  }
+}
+
+// 자동 전체 확장
+watch(
+  () => taskEditorModel.formContext.value,
+  () => {
+    nextTick(() => {
+      jsonEditorRef.value?.expandAll();
+    });
+  },
+  { deep: true, immediate: true }
+);
 
 onBeforeMount(() => {
   // softwareModel 데이터 설정
@@ -158,62 +202,7 @@ function getFieldModel(field: any) {
   }
 }
 
-// string[] 패턴을 저장할 변수
-const foundStringArrayPatterns = ref<string[]>([]);
-
-// string[] 패턴 확인 함수
-const checkStringArrayPatterns = () => {
-  console.log('checkStringArrayPatterns called');
-  console.log('Found string[] patterns:', foundStringArrayPatterns.value);
-  alert(`Found string[] patterns: ${foundStringArrayPatterns.value.join(', ')}`);
-  return foundStringArrayPatterns.value;
-};
-
-// JsonDataFormTree에서 패턴을 받는 함수
-const handleStringArrayPatternsFound = (patterns: string[]) => {
-  foundStringArrayPatterns.value = patterns;
-  console.log('Received string[] patterns from JsonDataFormTree:', patterns);
-};
-
-// JsonDataTree 노드 클릭 처리
-function handleNodeClick(node: any) {
-  try {
-    console.log('클릭된 노드:', node);
-    // 필요시 추가 로직 구현
-  } catch (error) {
-    console.error('handleNodeClick error:', error);
-  }
-}
-
-// JsonDataFormTree 필드 업데이트 처리
-function handleFieldUpdate(event: any) {
-  try {
-    console.log('필드 업데이트:', event);
-    // 필요시 추가 로직 구현
-  } catch (error) {
-    console.error('handleFieldUpdate error:', error);
-  }
-}
-
-// JsonDataFormTree 배열 아이템 추가 처리
-function handleArrayItemAdd(node: any) {
-  try {
-    console.log('배열 아이템 추가:', node);
-    // 필요시 추가 로직 구현
-  } catch (error) {
-    console.error('handleArrayItemAdd error:', error);
-  }
-}
-
-// JsonDataFormTree 필드 삭제 처리
-function handleFieldDelete(node: any) {
-  try {
-    console.log('필드 삭제:', node);
-    // 필요시 추가 로직 구현
-  } catch (error) {
-    console.error('handleFieldDelete error:', error);
-  }
-}
+// EnhancedJsonEditor로 전환하여 더 이상 필요 없는 JsonDataFormTree 관련 함수 제거
 
 
 </script>
@@ -294,27 +283,23 @@ function handleFieldDelete(node: any) {
         class="params-box w-full h-full"
       >
         <div class="subject-title border-bottom">
-          {{ currentContext.context.subject }}
-          <button 
-            @click="checkStringArrayPatterns" 
-            style="margin-left: 10px; padding: 4px 8px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"
-          >
-            Check String[] Patterns
-          </button>
+          {{ currentContext.context.subject || 'Target Software Model' }}
         </div>
-        
-        <!-- targetSoftwareModel은 JsonDataFormTree로 표시 -->
-        <JsonDataFormTree
-          ref="jsonDataFormTreeRef"
-          :json-data="currentContext.context"
-          :show-values="true"
-          :max-depth="20"
-          @node-click="handleNodeClick"
-          @field-update="handleFieldUpdate"
-          @array-item-add="handleArrayItemAdd"
-          @field-delete="handleFieldDelete"
-          @string-array-patterns-found="handleStringArrayPatternsFound"
-        />
+
+        <!-- targetSoftwareModel은 EnhancedJsonEditor로 표시 -->
+        <div class="json-editor-wrapper">
+          <EnhancedJsonEditor
+            ref="jsonEditorRef"
+            :model-value="softwareModelString"
+            :mode="'tree'"
+            :read-only="false"
+            :main-menu-bar="true"
+            :navigation-bar="true"
+            :status-bar="false"
+            height="600px"
+            @update:modelValue="handleModelUpdate"
+          />
+        </div>
       </div>
     </div>
 
@@ -457,5 +442,12 @@ function handleFieldDelete(node: any) {
   .item-content.field-group:last-child {
     border-color: inherit;
   }
+}
+
+/* JSON Editor Wrapper */
+.json-editor-wrapper {
+  padding: 16px;
+  background-color: #ffffff;
+  border-radius: 4px;
 }
 </style>
