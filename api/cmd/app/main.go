@@ -2,37 +2,113 @@ package main
 
 import (
 	"log"
+	"net/http"
 
-	"api/actions"
+	"api/internal/config"
+	"api/internal/handler"
+	"api/internal/middleware"
+	"api/internal/model"
+
+	"github.com/labstack/echo/v4"
+	echoMiddleware "github.com/labstack/echo/v4/middleware"
 )
 
-// main is the starting point for your Buffalo application.
-// You can feel free and add to this `main` method, change
-// what it does, etc...
-// All we ask is that, at some point, you make sure to
-// call `app.Serve()`, unless you don't want to start your
-// application that is. :)
 func main() {
-	app := actions.App()
-	if err := app.Serve(); err != nil {
-		log.Fatal(err)
+	// Load configuration
+	cfg := config.Load()
+
+	// Initialize database
+	db, err := model.InitDB(cfg)
+	if err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer model.CloseDB()
+
+	// Initialize authentication
+	if err := handler.InitAuth(cfg.Paths.UserAuthConfPath, cfg.Paths.UserAuthDataPath); err != nil {
+		log.Fatalf("Failed to initialize auth: %v", err)
+	}
+
+	// Initialize API spec
+	if err := handler.InitAPISpec(); err != nil {
+		log.Fatalf("Failed to initialize API spec: %v", err)
+	}
+
+	// Initialize menu
+	if err := handler.InitMenu(cfg.Paths.MenuConfDataPath); err != nil {
+		log.Fatalf("Failed to initialize menu: %v", err)
+	}
+
+	// Create Echo instance
+	e := echo.New()
+
+	// Global middleware
+	e.Use(echoMiddleware.Logger())
+	e.Use(echoMiddleware.Recover())
+	e.Use(middleware.CORSMiddleware())
+	e.Use(echoMiddleware.BodyDump(func(c echo.Context, reqBody, resBody []byte) {
+		// Optional: log request/response bodies
+	}))
+
+	// Health check endpoint (no auth required)
+	e.Any("/readyz", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, map[string]interface{}{"status": "OK"})
+	})
+
+	// Create handlers
+	authHandler := handler.NewAuthHandler(db)
+	diskHandler := handler.NewDiskHandler()
+	menuHandler := handler.NewMenuHandler()
+	workspaceHandler := handler.NewWorkspaceHandler()
+
+	// API routes
+	apiPath := "/api"
+
+	// Auth routes (no auth middleware for login)
+	auth := e.Group(apiPath + "/auth")
+	auth.POST("/login", authHandler.Login)
+	auth.POST("/validate", authHandler.Validate, middleware.AuthMiddleware(db))
+	auth.POST("/logout", authHandler.Logout, middleware.AuthMiddleware(db))
+	auth.POST("/userinfo", authHandler.Userinfo, middleware.AuthMiddleware(db))
+
+	// Refresh token route (uses refresh token middleware)
+	auth.POST("/refresh", authHandler.LoginRefresh, middleware.RefreshTokenMiddleware())
+
+	// API routes (with auth middleware)
+	api := e.Group(apiPath, middleware.AuthMiddleware(db))
+
+	// Disk endpoints
+	api.POST("/disklookup", diskHandler.DiskLookup)
+	api.POST("/availabledisktypebyproviderregion", diskHandler.AvailableDiskTypeByProviderRegion)
+
+	// Menu endpoint
+	api.POST("/getmenutree", menuHandler.GetMenuTree)
+
+	// Project management endpoints
+	api.POST("/createproject", workspaceHandler.CreateProject)
+	api.POST("/getprojectlist", workspaceHandler.GetProjectList)
+	api.POST("/getprojectbyid", workspaceHandler.GetProjectById)
+	api.POST("/updateprojectbyid", workspaceHandler.UpdateProjectById)
+	api.POST("/deleteprojectbyid", workspaceHandler.DeleteProjectById)
+
+	// Workspace endpoints
+	api.POST("/getwpmappinglistbyworkspaceid", workspaceHandler.GetWPmappingListByWorkspaceId)
+	api.POST("/getworkspaceuserrolemappinglistbyuserid", workspaceHandler.GetWorkspaceUserRoleMappingListByUserId)
+
+	// API Test endpoints
+	api.POST("/test", handler.ApiTestController)
+
+	// API list endpoint (no auth required)
+	e.GET(apiPath+"/list", handler.GetApiListController)
+
+	// Generic API routing
+	api.POST("/:operationId", handler.AnyController)
+	api.POST("/:subsystemName/:operationId", handler.SubsystemAnyController)
+
+	// Start server
+	addr := cfg.GetServerAddr()
+	log.Printf("Starting server on %s", addr)
+	if err := e.Start(addr); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("Failed to start server: %v", err)
 	}
 }
-
-/*
-# Notes about `main.go`
-
-## SSL Support
-
-We recommend placing your application behind a proxy, such as
-Apache or Nginx and letting them do the SSL heavy lifting
-for you. https://gobuffalo.io/en/docs/proxy
-
-## Buffalo Build
-
-When `buffalo build` is run to compile your binary, this `main`
-function will be at the heart of that binary. It is expected
-that your `main` function will start your application using
-the `app.Serve()` method.
-
-*/

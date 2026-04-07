@@ -5,19 +5,25 @@ services:
       context: ../api
       dockerfile: Dockerfile
     networks:
-      - cm-butterfly-network
+      # for standalone dev
+      # - cm-butterfly-network
+      # for cm-mayfly integration
+      - cloud-migrator_default
     ports:
       - target: 4000
         published: 4000
         protocol: tcp
-    depends_on:
-      - cm-butterfly-db
+    # depends_on:
+    #   - cm-butterfly-db
     env_file:
       - ../api/.env
     environment:
-      USER_AUTH_DATA_PATH: /app/conf/user.dat 
+      USER_AUTH_DATA_PATH: /app/conf/user.dat
       USER_AUTH_CONF_PATH: /app/conf/authsetting.yaml
       MENU_CONF_DATA_PATH: /app/conf/menu.yaml
+      # for cm-mayfly integration (use existing db)
+      POSTGRES_DATABASE_HOST: cm-butterfly-db
+      POSTGRES_PORT: 5432
     volumes:
       - ../api/conf:/app/conf/
 
@@ -41,10 +47,13 @@ services:
     container_name: cm-butterfly-db
     image: postgres:14-alpine
     networks:
-      - cm-butterfly-network
+      # for standalone dev
+      # - cm-butterfly-network
+      # for cm-mayfly integration
+      - cloud-migrator_default
     ports:
       - target: 5432
-        published: 5432
+        published: 543
         protocol: tcp
     volumes:
       - cm-butterfly-db:/var/lib/postgresql/data
@@ -55,7 +64,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
 networks:
-  cm-butterfly-network:
+  # for standalone dev
+  # cm-butterfly-network:
+  # for cm-mayfly integration
+  cloud-migrator_default:
+    external: true
 
 volumes:
   cm-butterfly-db:

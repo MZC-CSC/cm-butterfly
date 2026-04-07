@@ -1,4 +1,4 @@
-package handler
+package auth
 
 import (
 	"crypto/aes"
@@ -67,40 +67,39 @@ type CmigRefreshtokenClaims struct {
 }
 
 var (
-	user                *CmigUser
-	cmigAuthSetting     CmigAuthSetting
-	encryptionKey       []byte
-	USER_AUTH_CONF_PATH = os.Getenv("USER_AUTH_CONF_PATH")
-	USER_AUTH_DATA_PATH = os.Getenv("USER_AUTH_DATA_PATH")
+	user            *CmigUser
+	cmigAuthSetting CmigAuthSetting
+	encryptionKey   []byte
 )
 
-func init() {
-	data, err := os.ReadFile(USER_AUTH_CONF_PATH)
+// InitAuth initializes the authentication system
+func InitAuth(userAuthConfPath, userAuthDataPath string) error {
+	data, err := os.ReadFile(userAuthConfPath)
 	if err != nil {
-		log.Fatalf("error: %v", err)
+		return fmt.Errorf("failed to read auth config: %v", err)
 	}
-	log.Printf("Load User confing from USER_AUTH_CONF_PATH ")
+	log.Printf("Load User config from USER_AUTH_CONF_PATH")
 
 	err = yaml.Unmarshal(data, &cmigAuthSetting)
 	if err != nil {
-		log.Fatalf("error: %v", err)
+		return fmt.Errorf("failed to unmarshal auth config: %v", err)
 	}
 
 	hash := sha256.New()
 	if cmigAuthSetting.Setting.Encryptionkey == "" {
-		log.Fatalf("error: %v", fmt.Errorf("encryptionkey is not provided"))
+		return fmt.Errorf("encryptionkey is not provided")
 	}
 	hash.Write([]byte(cmigAuthSetting.Setting.Encryptionkey))
 	encryptionKey = hash.Sum(nil)
 
-	user, err = loadUserFromEncryptedFile()
+	user, err = loadUserFromEncryptedFile(userAuthDataPath)
 	if err != nil {
-		log.Printf("Load User From Encrypted File Fail : %v\n", err)
-		log.Printf("Trying to init user from %v\n", USER_AUTH_CONF_PATH)
+		log.Printf("Load User From Encrypted File Fail: %v", err)
+		log.Printf("Trying to init user from config")
 
 		password := cmigAuthSetting.User.Password
 		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-		user := &CmigUser{
+		newUser := &CmigUser{
 			Id:          cmigAuthSetting.User.Id,
 			Password:    string(hashedPassword),
 			FirstName:   cmigAuthSetting.User.FirstName,
@@ -111,24 +110,25 @@ func init() {
 			Company:     cmigAuthSetting.User.Company,
 		}
 
-		err := saveUserToEncryptedFile(user)
+		err := saveUserToEncryptedFile(newUser, userAuthDataPath)
 		if err != nil {
-			log.Fatalf("Error saving user: %v\n", err)
+			return fmt.Errorf("error saving user: %v", err)
 		}
 
-		user, err = loadUserFromEncryptedFile()
+		user, err = loadUserFromEncryptedFile(userAuthDataPath)
 		if err != nil {
-			log.Fatalf("Load User From Encrypted File Fail : %v\n", err)
+			return fmt.Errorf("load User From Encrypted File Fail: %v", err)
 		}
 
 		log.Println("User create success")
 	}
 
 	log.Println("User init success")
+	return nil
 }
 
-func loadUserFromEncryptedFile() (*CmigUser, error) {
-	encryptedData, err := os.ReadFile(USER_AUTH_DATA_PATH)
+func loadUserFromEncryptedFile(userAuthDataPath string) (*CmigUser, error) {
+	encryptedData, err := os.ReadFile(userAuthDataPath)
 	if err != nil {
 		return nil, err
 	}
@@ -151,17 +151,17 @@ func loadUserFromEncryptedFile() (*CmigUser, error) {
 		return nil, err
 	}
 
-	var user CmigUser
-	err = json.Unmarshal(decryptedData, &user)
+	var u CmigUser
+	err = json.Unmarshal(decryptedData, &u)
 	if err != nil {
 		return nil, err
 	}
 
-	return &user, nil
+	return &u, nil
 }
 
-func saveUserToEncryptedFile(user *CmigUser) error {
-	userData, err := json.Marshal(user)
+func saveUserToEncryptedFile(u *CmigUser, userAuthDataPath string) error {
+	userData, err := json.Marshal(u)
 	if err != nil {
 		return err
 	}
@@ -183,7 +183,7 @@ func saveUserToEncryptedFile(user *CmigUser) error {
 
 	encryptedData := gcm.Seal(nonce, nonce, userData, nil)
 
-	return os.WriteFile(USER_AUTH_DATA_PATH, encryptedData, 0644)
+	return os.WriteFile(userAuthDataPath, encryptedData, 0644)
 }
 
 func generateJWT() (*CmigUserLoginResponse, error) {
@@ -250,16 +250,15 @@ func RefreshAccessToken(refreshToken string) (*CmigUserLoginResponse, error) {
 		return encryptionKey, nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("token is invalid : %s", err.Error())
+		return nil, fmt.Errorf("token is invalid: %s", err.Error())
 	}
 	if claims, ok := token.Claims.(*CmigRefreshtokenClaims); ok && token.Valid {
 		if time.Now().Unix() > claims.Exp {
 			return nil, fmt.Errorf("refresh token expired")
 		}
 		return generateJWT()
-	} else {
-		return nil, fmt.Errorf("token is invalid")
 	}
+	return nil, fmt.Errorf("token is invalid")
 }
 
 func GetRefreshTokenClaims(tokenString string) (*CmigRefreshtokenClaims, error) {
@@ -274,9 +273,8 @@ func GetRefreshTokenClaims(tokenString string) (*CmigRefreshtokenClaims, error) 
 	}
 	if claims, ok := token.Claims.(*CmigRefreshtokenClaims); ok && token.Valid {
 		return claims, nil
-	} else {
-		return nil, fmt.Errorf("token is invalid")
 	}
+	return nil, fmt.Errorf("token is invalid")
 }
 
 func GetTokenClaims(tokenString string) (*CmigAccesstokenClaims, error) {
@@ -291,7 +289,6 @@ func GetTokenClaims(tokenString string) (*CmigAccesstokenClaims, error) {
 	}
 	if claims, ok := token.Claims.(*CmigAccesstokenClaims); ok && token.Valid {
 		return claims, nil
-	} else {
-		return nil, fmt.Errorf("token is invalid")
 	}
+	return nil, fmt.Errorf("token is invalid")
 }
