@@ -85,19 +85,6 @@
               />
             </div>
           </div>
-          
-          <!-- vue-json-ui-editor 컴포넌트 (숨김 처리) -->
-          <div style="display: none;">
-        <json-editor 
-              v-if="bodyParamsSchema && bodyParamsSchema.properties"
-          ref="jsonEditor" 
-              :schema="bodyParamsSchema" 
-              v-model="bodyParamsModel"
-        >
-              <button @click="saveConfiguration">Submit</button>
-          <button @click="resetEditor">Reset</button>
-        </json-editor>
-      </div>
     </div>
       </div>
     </div>
@@ -106,7 +93,6 @@
 
 <script lang="ts">
 import { ref, defineComponent, onMounted, computed, watch, nextTick } from 'vue';
-import JsonEditor from 'vue-json-ui-editor';
 import { PButton } from '@cloudforet-test/mirinae';
 import { useCommonTaskEditorModel } from '../model/commonTaskEditorModel';
 import type { Step } from '@/features/workflow/workflowEditor/model/types';
@@ -119,7 +105,6 @@ import { getPropertyOrder, sortPropertiesByOrder } from '../config/taskPropertyO
 export default defineComponent({
   name: 'TaskComponentEditor',
   components: {
-    JsonEditor,
     PButton,
     RecursiveFormField
   },

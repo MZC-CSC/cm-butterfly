@@ -14,6 +14,12 @@ node_modules
 dist
 dist-ssr
 
+# Lock files - use npm (package-lock.json) only
+yarn.lock
+
+# Test results
+test-results/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
