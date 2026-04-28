@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { PButton, PI, PSpinner } from '@cloudforet-test/mirinae';
+import { PButton, PI, PSpinner, PPaneLayout } from '@cloudforet-test/mirinae';
 import { CreateForm, SimpleEditForm } from '@/widgets/layout';
-import { computed, onMounted, ref, reactive } from 'vue';
+import { computed, onMounted, ref, reactive, watch, nextTick } from 'vue';
 import { useRecommendedSoftwareModel } from '@/widgets/models/recommendedSoftwareModel/model/useRecommendedSoftwareModel';
 import { useSourceModelStore } from '@/entities';
-import { collectJsonEditor } from '@/features/sourceServices';
+import { EnhancedJsonEditor } from '@/shared/ui/EnhancedJsonEditor';
 import { createTargetSoftwareModel } from '@/entities/targetModels/api';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 import { useAuthStore } from '@/shared/libs/store/auth';
@@ -22,6 +22,10 @@ const sourceModelStore = useSourceModelStore();
 const authStore = useAuthStore();
 const resCreateTargetSoftwareModel = createTargetSoftwareModel(null);
 
+// Editor refs
+const sourceEditorRef = ref<any>(null);
+const recommendedEditorRef = ref<any>(null);
+
 // 소스 모델 데이터
 const sourceModel = computed(() =>
   sourceModelStore.getSourceModelById(props.sourceModelId),
@@ -35,8 +39,30 @@ const sourceSoftwareModelData = computed(() => {
   return null;
 });
 
+// 소스 모델 JSON string
+const sourceSoftwareModelString = computed(() => {
+  if (!sourceSoftwareModelData.value) return '{}';
+  try {
+    return JSON.stringify(sourceSoftwareModelData.value, null, 2);
+  } catch (e) {
+    console.error('Failed to stringify source software model:', e);
+    return '{}';
+  }
+});
+
 // 추천 모델 결과 데이터 (JSON 표시용)
 const recommendedModelData = ref<any>(null);
+
+// 추천 모델 JSON string
+const recommendedModelString = computed(() => {
+  if (!recommendedModelData.value) return '{}';
+  try {
+    return JSON.stringify(recommendedModelData.value, null, 2);
+  } catch (e) {
+    console.error('Failed to stringify recommended model:', e);
+    return '{}';
+  }
+});
 
 // 로딩 상태
 const isLoading = ref(false);
@@ -53,6 +79,26 @@ const saveTargetModelModal = reactive({
 onMounted(() => {
   recommendSoftwareModel.initToolBoxTableModel();
 });
+
+// Watch for source model changes and expand all
+watch(sourceSoftwareModelData, (newVal) => {
+  if (newVal) {
+    console.log('Source model data changed, expanding...');
+    setTimeout(() => {
+      sourceEditorRef.value?.expandAll();
+    }, 300);
+  }
+}, { immediate: true, deep: true });
+
+// Watch for recommended model changes and expand all
+watch(recommendedModelData, (newVal) => {
+  if (newVal) {
+    console.log('Recommended model data changed, expanding...');
+    setTimeout(() => {
+      recommendedEditorRef.value?.expandAll();
+    }, 300);
+  }
+}, { immediate: true, deep: true });
 
 // Get-Migration-List API 호출 (실패 시 더미 데이터 사용)
 async function handleGetMigrationList() {
@@ -274,14 +320,21 @@ function handleCreateTargetModel(e) {
       <template #add-info>
         <div class="json-viewer-layout">
           <!-- 왼쪽: Source Model JSON Viewer -->
-          <div class="json-editor-layout">
-            <collect-json-editor
-              :form-data="sourceSoftwareModelData"
-              title="Source Software Model"
-              :read-only="true"
-              :schema="{ json: true, properties: {} }"
-            />
-          </div>
+          <p-pane-layout class="json-editor-pane">
+            <p class="editor-title">Source Software Model</p>
+            <div class="editor-wrapper">
+              <EnhancedJsonEditor
+                ref="sourceEditorRef"
+                :model-value="sourceSoftwareModelString"
+                :read-only="true"
+                :mode="'tree'"
+                :main-menu-bar="true"
+                :navigation-bar="true"
+                :status-bar="false"
+                height="600px"
+              />
+            </div>
+          </p-pane-layout>
 
           <!-- 가운데: Recommend Model 버튼 -->
           <button
@@ -303,14 +356,21 @@ function handleCreateTargetModel(e) {
           </button>
 
           <!-- 오른쪽: Recommended Model 결과 JSON Viewer -->
-          <div class="json-editor-layout">
-            <collect-json-editor
-              :form-data="recommendedModelData"
-              title="Migration Recommendations"
-              :read-only="true"
-              :schema="{ json: true, properties: {} }"
-            />
-          </div>
+          <p-pane-layout class="json-editor-pane">
+            <p class="editor-title">Migration Recommendations</p>
+            <div class="editor-wrapper">
+              <EnhancedJsonEditor
+                ref="recommendedEditorRef"
+                :model-value="recommendedModelString"
+                :read-only="true"
+                :mode="'tree'"
+                :main-menu-bar="true"
+                :navigation-bar="true"
+                :status-bar="false"
+                height="600px"
+              />
+            </div>
+          </p-pane-layout>
         </div>
       </template>
 
@@ -360,13 +420,30 @@ function handleCreateTargetModel(e) {
   }
 }
 
-.json-editor-layout {
+.json-editor-pane {
   overflow-y: auto;
   overflow-x: auto;
   min-width: 300px;
   max-width: 100%;
   width: 100%;
-  margin: 0 8px;
+  border-bottom: 1px solid #dddddf;
+
+  .editor-title {
+    font-size: 0.75rem;
+    color: #6b7280;
+    font-weight: 700;
+    background-color: #F7F7F7;
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px 0;
+  }
+
+  .editor-wrapper {
+    background-color: white;
+    padding: 0.5rem;
+    width: 100%;
+    min-width: 280px;
+    min-height: 400px;
+  }
 }
 
 .convert-btn {

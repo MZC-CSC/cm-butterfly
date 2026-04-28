@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { PButton, PTextEditor } from '@cloudforet-test/mirinae';
+import { PButton } from '@cloudforet-test/mirinae';
+import { EnhancedJsonEditor } from '@/shared/ui/EnhancedJsonEditor';
 import { CreateForm } from '@/widgets/layout';
 import { SimpleEditForm } from '@/widgets/layout';
 import { reactive, ref, watch, computed } from 'vue';
@@ -198,11 +199,18 @@ function handleCodeUpdate(value: string) {
       @update:modal-state="$emit('update:close-modal', false)"
     >
       <template #add-info>
-        <p-text-editor
-          :code="cloudInfraModelCode"
-          :read-only="false"
-          @update:code="handleCodeUpdate"
-        />
+        <div class="enhanced-editor-wrapper">
+          <EnhancedJsonEditor
+            :model-value="cloudInfraModelCode"
+            :read-only="false"
+            :mode="'tree'"
+            :main-menu-bar="true"
+            :navigation-bar="true"
+            :status-bar="true"
+            height="600px"
+            @update:model-value="handleCodeUpdate"
+          />
+        </div>
       </template>
       <template #buttons>
         <p-button
@@ -227,4 +235,10 @@ function handleCodeUpdate(value: string) {
   </div>
 </template>
 
-<style scoped lang="postcss"></style>
+<style scoped lang="postcss">
+.enhanced-editor-wrapper {
+  width: 100%;
+  min-height: 500px;
+  padding: 0.5rem;
+}
+</style>

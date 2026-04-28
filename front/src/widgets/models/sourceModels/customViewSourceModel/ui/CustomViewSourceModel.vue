@@ -10,7 +10,7 @@ import {
   useSourceModelStore,
 } from '@/entities';
 import { useCreateSourceSoftwareModel } from '@/entities/sourceModels/api';
-import { PTextEditor } from '@cloudforet-test/mirinae';
+import { EnhancedJsonEditor } from '@/shared/ui/EnhancedJsonEditor';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 import { useAuth } from '@/features/auth/model/useAuth.ts';
 
@@ -210,7 +210,18 @@ function handleCodeUpdate(value: string) {
       @update:modal-state="handleModal"
     >
       <template #add-info>
-        <p-text-editor :code="serverCode" @update:code="handleCodeUpdate" />
+        <div class="enhanced-editor-wrapper">
+          <EnhancedJsonEditor
+            :model-value="serverCode"
+            :read-only="false"
+            :mode="'tree'"
+            :main-menu-bar="true"
+            :navigation-bar="true"
+            :status-bar="true"
+            height="600px"
+            @update:model-value="handleCodeUpdate"
+          />
+        </div>
       </template>
       <template #buttons>
         <p-button style-type="tertiary" @click="handleModal">
@@ -233,4 +244,10 @@ function handleCodeUpdate(value: string) {
   </div>
 </template>
 
-<style scoped lang="postcss"></style>
+<style scoped lang="postcss">
+.enhanced-editor-wrapper {
+  width: 100%;
+  min-height: 500px;
+  padding: 0.5rem;
+}
+</style>

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { PButton } from '@cloudforet-test/mirinae';
 import { CreateForm } from '@/widgets/layout';
-import { JsonEditor } from '@/widgets/layout';
-import { ref, computed, watch } from 'vue';
+import { EnhancedJsonEditor } from '@/shared/ui/EnhancedJsonEditor';
+import { ref, computed, watch, nextTick } from 'vue';
 import { decodeBase64, encodeBase64 } from '@/shared/utils/base64';
 
 interface iProps {
@@ -72,18 +72,48 @@ function processTaskGroups(taskGroups: any[]) {
 
 const updatedData = ref(decodedJson.value);
 const isSaveAble = ref<boolean>(true);
+const jsonEditorRef = ref(null);
 
 // Watch for changes in decodedJson
 watch(decodedJson, (newVal) => {
   updatedData.value = newVal;
 }, { immediate: true });
 
+// Convert updatedData to JSON string for EnhancedJsonEditor
+const updatedDataString = computed(() => {
+  if (!updatedData.value) {
+    return '{}';
+  }
+  try {
+    return JSON.stringify(updatedData.value, null, 2);
+  } catch (e) {
+    console.error('Failed to stringify workflow JSON:', e);
+    return '{}';
+  }
+});
+
+// Auto-expand JSON Editor when data changes
+watch(() => updatedData.value, (newVal) => {
+  if (newVal !== null && newVal !== undefined) {
+    nextTick(() => {
+      setTimeout(() => {
+        jsonEditorRef.value?.expandAll();
+      }, 300);
+    });
+  }
+}, { immediate: true, deep: true });
+
 function handleModal() {
   emit('update:close-modal', false);
 }
 
-function handleSchemaUpdate(data: any) {
-  updatedData.value = data;
+function handleModelUpdate(value: string) {
+  try {
+    const parsed = JSON.parse(value);
+    updatedData.value = parsed;
+  } catch (e) {
+    console.warn('Invalid JSON in WorkflowJsonViewer, not updating:', e);
+  }
 }
 
 async function handleSave() {
@@ -141,15 +171,20 @@ function encodeTaskGroups(taskGroups: any[]) {
     @update:modal-state="handleModal"
   >
     <template #add-info>
-      <json-editor
-        title="Target Model"
-        :read-only="readOnly"
-        :json="schema.json"
-        :shema-properties="schema.properties"
-        :form-data="updatedData"
-        @update:form-data="handleSchemaUpdate"
-        @disable:save-button="isSaveAble = false"
-      />
+      <div class="workflow-json-editor-wrapper">
+        <div class="editor-title">Target Model</div>
+        <EnhancedJsonEditor
+          ref="jsonEditorRef"
+          :model-value="updatedDataString"
+          :mode="'tree'"
+          :read-only="readOnly"
+          :main-menu-bar="true"
+          :navigation-bar="true"
+          :status-bar="false"
+          height="600px"
+          @update:modelValue="handleModelUpdate"
+        />
+      </div>
     </template>
     <template v-if="!readOnly" #buttons>
       <p-button
@@ -162,3 +197,16 @@ function encodeTaskGroups(taskGroups: any[]) {
     </template>
   </create-form>
 </template>
+
+<style scoped lang="postcss">
+.workflow-json-editor-wrapper {
+  width: 100%;
+
+  .editor-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: #1f2937;
+  }
+}
+</style>

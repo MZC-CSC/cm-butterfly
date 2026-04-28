@@ -243,6 +243,7 @@ function handleConvertSoftwareSourceGroup(): (
           :convertedJSON="convertedData"
           :promiseFunc="getConvertFunction"
           :loading="getInfraInfoRefined.isLoading.value || getInfraInfoSourceGroupRefined.isLoading.value || getSoftwareInfoRefined.isLoading.value || getSoftwareInfoSourceGroupRefined.isLoading.value"
+          @update:convertedJSON="convertedData = $event"
         />
       </template>
       <template #buttons>

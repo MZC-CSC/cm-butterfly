@@ -81,3 +81,6 @@ bin/.env
 
 #intellij
 .idea
+
+#for mzc
+.claude/
