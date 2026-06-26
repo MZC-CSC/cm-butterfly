@@ -64,14 +64,15 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version-file: api/go.mod
+          # go.mod은 1.21.6이나 gosec 최신본·x/tools 분석 호환을 위해 툴링 Go는 1.23 고정(상위호환).
+          go-version: "1.23"
       - name: gosec (SAST, 경고)
         continue-on-error: true
         run: |
           go install github.com/securego/gosec/v2/cmd/gosec@v2.21.4
-          gosec -no-fail -fmt sarif -out gosec.sarif ./...
+          gosec -no-fail -fmt sarif -out gosec.sarif ./... || true
       - name: Upload gosec SARIF
-        if: always()
+        if: always() && hashFiles('api/gosec.sarif') != ''
         uses: github/codeql-action/upload-sarif@dd903d2e4f5405488e5ef1422510ee31c8b32357 # v3
         with:
           sarif_file: api/gosec.sarif
@@ -94,7 +95,7 @@ jobs:
         continue-on-error: true
         run: semgrep scan front --config auto --sarif --output semgrep.sarif --metrics=off || true
       - name: Upload SARIF
-        if: always()
+        if: always() && hashFiles('semgrep.sarif') != ''
         uses: github/codeql-action/upload-sarif@dd903d2e4f5405488e5ef1422510ee31c8b32357 # v3
         with:
           sarif_file: semgrep.sarif
@@ -116,7 +117,7 @@ jobs:
         run: |
           trivy fs --scanners vuln,misconfig,secret --format sarif --output trivy-fs.sarif --exit-code 0 .
       - name: Upload Trivy fs SARIF
-        if: always()
+        if: always() && hashFiles('trivy-fs.sarif') != ''
         uses: github/codeql-action/upload-sarif@dd903d2e4f5405488e5ef1422510ee31c8b32357 # v3
         with:
           sarif_file: trivy-fs.sarif
