@@ -17,8 +17,8 @@ export interface IDeleteMciParams {
   option?: string;
 }
 
-const GET_ALL_MCI = 'GetAllMci';
-const GET_MCI_INFO = 'GetMci';
+const GET_ALL_MCI = 'GetAllInfra';
+const GET_MCI_INFO = 'GetInfra';
 const DELETE_INFRA = 'DeleteInfra';
 
 export function useGetMciList(projectId: string | null, option: string | null) {

@@ -1,5 +1,5 @@
 export interface MciResponseData {
-  mci: IMci[];
+  infra: IMci[]; // tb-0.12.9: cb-tumblebug GetAllInfra wrapper mci→infra (소스 확정)
 }
 
 export type McisTableType =
@@ -53,7 +53,7 @@ export interface IVm {
   id: string;
   uid: string;
   name: string;
-  subGroupId: string;
+  nodeGroupId: string;
   location: Location;
   status: string;
   targetStatus: string;
@@ -133,7 +133,8 @@ export interface IMci {
   systemLabel: string;
   systemMessage: string;
   description: string;
-  vm: IVm[];
+  vm: IVm[]; // tb-0.12.9: cb-tumblebug 응답은 node[]로 옴 → store 경계에서 vm으로 어댑트
+  node?: IVm[]; // cb-tumblebug v0.12.19 원응답 필드(infra[].node[])
   newVmList: any; // Assuming newVmList can be any type
 }
 

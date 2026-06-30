@@ -326,13 +326,13 @@ function mapTargetModelToTaskComponent(
 
   const parseString = parseRequestBody(taskComponent.data.options.request_body);
   
-  if (isInfraModel && targetModel?.cloudInfraModel?.targetVmInfra) {
-    // Handle infra model data - use targetVmInfra from cloudInfraModel
-    console.log('Processing infra model with targetVmInfra:', targetModel.cloudInfraModel.targetVmInfra);
+  if (isInfraModel && targetModel?.cloudInfraModel?.targetInfra) {
+    // Handle infra model data - use targetInfra from cloudInfraModel
+    console.log('Processing infra model with targetInfra:', targetModel.cloudInfraModel.targetInfra);
     
     if (parseString) {
-      // Set the targetVmInfra data directly
-      parseString['targetVmInfra'] = targetModel.cloudInfraModel.targetVmInfra;
+      // Set the targetInfra data directly
+      parseString['targetInfra'] = targetModel.cloudInfraModel.targetInfra;
       
       // Also set other related infra data if available
       if (targetModel.cloudInfraModel.targetSecurityGroupList) {
@@ -344,11 +344,11 @@ function mapTargetModelToTaskComponent(
       if (targetModel.cloudInfraModel.targetVNet) {
         parseString['targetVNet'] = targetModel.cloudInfraModel.targetVNet;
       }
-      if (targetModel.cloudInfraModel.targetVmOsImageList) {
-        parseString['targetVmOsImageList'] = targetModel.cloudInfraModel.targetVmOsImageList;
+      if (targetModel.cloudInfraModel.targetOsImageList) {
+        parseString['targetOsImageList'] = targetModel.cloudInfraModel.targetOsImageList;
       }
-      if (targetModel.cloudInfraModel.targetVmSpecList) {
-        parseString['targetVmSpecList'] = targetModel.cloudInfraModel.targetVmSpecList;
+      if (targetModel.cloudInfraModel.targetSpecList) {
+        parseString['targetSpecList'] = targetModel.cloudInfraModel.targetSpecList;
       }
     }
     console.log('Processed infra model data:', parseString);
@@ -365,11 +365,11 @@ function mapTargetModelToTaskComponent(
       if (targetSoftwareModel.softwareList) {
         parseString['softwareList'] = targetSoftwareModel.softwareList;
       }
-      if (targetSoftwareModel.targetVmSpecList) {
-        parseString['targetVmSpecList'] = targetSoftwareModel.targetVmSpecList;
+      if (targetSoftwareModel.targetSpecList) {
+        parseString['targetSpecList'] = targetSoftwareModel.targetSpecList;
       }
-      if (targetSoftwareModel.targetVmOsImageList) {
-        parseString['targetVmOsImageList'] = targetSoftwareModel.targetVmOsImageList;
+      if (targetSoftwareModel.targetOsImageList) {
+        parseString['targetOsImageList'] = targetSoftwareModel.targetOsImageList;
       }
       if (targetSoftwareModel.targetSecurityGroupList) {
         parseString['targetSecurityGroupList'] = targetSoftwareModel.targetSecurityGroupList;
@@ -533,13 +533,13 @@ function createTaskForModel(
 
   const parseString = parseRequestBody(taskComponent.data.options.request_body);
   
-  if (isInfraModel && targetModel?.cloudInfraModel?.targetVmInfra) {
-    // Handle infra model data - use targetVmInfra from cloudInfraModel
-    console.log('Processing infra model with targetVmInfra:', targetModel.cloudInfraModel.targetVmInfra);
+  if (isInfraModel && targetModel?.cloudInfraModel?.targetInfra) {
+    // Handle infra model data - use targetInfra from cloudInfraModel
+    console.log('Processing infra model with targetInfra:', targetModel.cloudInfraModel.targetInfra);
     
     if (parseString) {
-      // Set the targetVmInfra data directly
-      parseString['targetVmInfra'] = targetModel.cloudInfraModel.targetVmInfra;
+      // Set the targetInfra data directly
+      parseString['targetInfra'] = targetModel.cloudInfraModel.targetInfra;
       
       // Also set other related infra data if available
       if (targetModel.cloudInfraModel.targetSecurityGroupList) {
@@ -551,11 +551,11 @@ function createTaskForModel(
       if (targetModel.cloudInfraModel.targetVNet) {
         parseString['targetVNet'] = targetModel.cloudInfraModel.targetVNet;
       }
-      if (targetModel.cloudInfraModel.targetVmOsImageList) {
-        parseString['targetVmOsImageList'] = targetModel.cloudInfraModel.targetVmOsImageList;
+      if (targetModel.cloudInfraModel.targetOsImageList) {
+        parseString['targetOsImageList'] = targetModel.cloudInfraModel.targetOsImageList;
       }
-      if (targetModel.cloudInfraModel.targetVmSpecList) {
-        parseString['targetVmSpecList'] = targetModel.cloudInfraModel.targetVmSpecList;
+      if (targetModel.cloudInfraModel.targetSpecList) {
+        parseString['targetSpecList'] = targetModel.cloudInfraModel.targetSpecList;
       }
     }
     console.log('Processed infra model data:', parseString);
@@ -572,11 +572,11 @@ function createTaskForModel(
       if (targetSoftwareModel.softwareList) {
         parseString['softwareList'] = targetSoftwareModel.softwareList;
       }
-      if (targetSoftwareModel.targetVmSpecList) {
-        parseString['targetVmSpecList'] = targetSoftwareModel.targetVmSpecList;
+      if (targetSoftwareModel.targetSpecList) {
+        parseString['targetSpecList'] = targetSoftwareModel.targetSpecList;
       }
-      if (targetSoftwareModel.targetVmOsImageList) {
-        parseString['targetVmOsImageList'] = targetSoftwareModel.targetVmOsImageList;
+      if (targetSoftwareModel.targetOsImageList) {
+        parseString['targetOsImageList'] = targetSoftwareModel.targetOsImageList;
       }
       if (targetSoftwareModel.targetSecurityGroupList) {
         parseString['targetSecurityGroupList'] = targetSoftwareModel.targetSecurityGroupList;

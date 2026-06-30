@@ -72,10 +72,11 @@ export function useMciListModel(props: IProps) {
       .execute()
       .then(res => {
         if (res.data.responseData) {
-          mciStore.setMcis(res.data.responseData.mci);
+          // tb-0.12.9: cb-tumblebug GetAllInfra 응답 wrapper가 mci→infra 로 변경 (소스 확정: RestGetAllInfraResponse.infra)
+          mciStore.setMcis(res.data.responseData.infra);
 
           const PromiseArr: any = [];
-          res.data.responseData.mci.forEach(mci => {
+          res.data.responseData.infra.forEach(mci => {
             PromiseArr.push(fetchMciById(mci.id)());
           });
 
