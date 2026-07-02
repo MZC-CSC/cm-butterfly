@@ -4,6 +4,7 @@ import {
   IWorkflowResponse,
   ITaskComponent,
 } from '@/entities/workflow/model/types';
+import { normalizeTaskComponentInPlace } from '@/entities/workflow/lib/schemaAdapter';
 import { ref } from 'vue';
 
 const NAMESPACE = 'WORKFLOW';
@@ -52,14 +53,21 @@ export const useWorkflowStore = defineStore(NAMESPACE, () => {
   }
 
   function setTaskComponents(_taskComponents: ITaskComponent[]) {
-    taskComponents.value = _taskComponents.map(taskComponent => ({
-      created_at: taskComponent.created_at,
-      data: taskComponent.data,
-      id: taskComponent.id,
-      name: taskComponent.name,
-      description: '',
-      updated_at: taskComponent.updated_at,
-    }));
+    taskComponents.value = _taskComponents.map(taskComponent => {
+      // cm-cicada Type/Spec 응답을 legacy `data` 형태로 정규화 (idempotent).
+      // 정규화하지 않으면 `.data` 가 undefined 라 상세 JSON 뷰가 비어 보인다.
+      normalizeTaskComponentInPlace(taskComponent);
+      return {
+        created_at: taskComponent.created_at,
+        data: taskComponent.data,
+        id: taskComponent.id,
+        name: taskComponent.name,
+        description: '',
+        updated_at: taskComponent.updated_at,
+        type: (taskComponent as any).type,
+        spec: (taskComponent as any).spec,
+      };
+    });
     
     // 각 task component의 model 정보를 콘솔에 출력
     console.log('=== Task Components Model Information ===');

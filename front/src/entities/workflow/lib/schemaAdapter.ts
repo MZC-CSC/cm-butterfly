@@ -30,6 +30,22 @@ export const CUSTOM_EDITOR_TASK_TYPES: TaskType[] = [
 ];
 
 /**
+ * sequential-workflow-designer requires a step `type` matching
+ * /^[a-zA-Z][a-zA-Z0-9_-]+$/ (must start with a letter). Task component names
+ * like `_v2_bash_delay` (leading underscore) are rejected and break the whole
+ * designer/toolbox. This maps a task component name to a valid step type while
+ * the real name is kept on step.name / properties.originalData.task_component.
+ */
+export function toDesignerStepType(name: string): string {
+  const s = String(name ?? '');
+  if (/^[a-zA-Z][a-zA-Z0-9_-]+$/.test(s)) return s; // already valid — keep as-is
+  let t = s.replace(/[^a-zA-Z0-9_-]/g, '-');
+  if (!/^[a-zA-Z]/.test(t)) t = 'x' + t; // ensure it starts with a letter
+  if (t.length < 2) t += '0';
+  return t;
+}
+
+/**
  * Build the default legacy `options.request_body` string (parsed later into
  * step.properties.model) for a component of the given type.
  */

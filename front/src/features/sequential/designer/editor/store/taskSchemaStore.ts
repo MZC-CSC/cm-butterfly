@@ -88,7 +88,9 @@ class TaskSchemaStore {
         this.isLoaded.value = true;
         console.log(`Successfully loaded ${this.taskSchemas.value.size} task schemas`);
       } else {
-        throw new Error('No responseData found in API response');
+        // 데이터가 아직 없으면(비동기 로드 전) 조용히 반환 — 이후 watch 경로에서 다시 로드됨
+        console.warn('Task schemas: responseData not ready yet, skipping');
+        return;
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Unknown error occurred';

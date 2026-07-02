@@ -22,6 +22,7 @@ import {
   buildStepModelFromTaskSpec,
   buildTaskSpecFromStep,
   normalizeWorkflowTaskInPlace,
+  toDesignerStepType,
 } from '@/entities/workflow/lib/schemaAdapter';
 
 type dropDownType = {
@@ -232,7 +233,7 @@ export function useWorkflowToolModel() {
     return defineBettleTaskStep(
       getRandomId(),
       task.name,
-      task.task_component,
+      toDesignerStepType(task.task_component),
       stepProperties,
     );
   }

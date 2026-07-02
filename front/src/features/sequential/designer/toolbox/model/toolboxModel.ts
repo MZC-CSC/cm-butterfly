@@ -7,6 +7,7 @@ import {
 } from '@/features/workflow/workflowEditor/model/types';
 import { toolboxSteps } from '@/features/sequential/designer/toolbox/model/toolboxSteps';
 import { ITaskResponse } from '@/entities';
+import { toDesignerStepType } from '@/entities/workflow/lib/schemaAdapter';
 
 export function useSequentialToolboxModel() {
   const loadStepsFunc = toolboxSteps();
@@ -59,7 +60,7 @@ export function useSequentialToolboxModel() {
         loadStepsFunc.defineBettleTaskStep(
           getRandomId(),
           res.name ?? 'undefined',  // name: toolbox에서는 원본 이름 표시, canvas 드롭 시 자동으로 고유 이름 생성
-          res.name,                  // type: task component 식별자
+          toDesignerStepType(res.name), // type: swd 유효 형식으로 정규화(실제 이름은 name/originalData 보존)
           {
             model: modelData,
             originalData: mappingTaskInfoResponseITaskResponse(res),
