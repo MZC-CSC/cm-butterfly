@@ -37,7 +37,10 @@ onMounted(function () {
 watch(
   () => props.sequence,
   () => {
-    const designer: Designer = sequentialDesignerModel.value.getDesigner();
+    const designer: Designer | null =
+      sequentialDesignerModel.value?.getDesigner();
+    // 디자이너가 아직 생성되지 않았으면(초기 마운트 전) 건너뜀
+    if (!designer) return;
     const definition: Definition = {
       properties: designer.getDefinition().properties,
       sequence: props.sequence,
