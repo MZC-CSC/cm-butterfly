@@ -40,6 +40,29 @@ export class ModelsPage {
       .first();
   }
 
+  /**
+   * 모델 목록도 PToolboxTable 클라이언트 페이징이라 누적 모델이 많으면 대상 행이 1페이지 밖에
+   * 있을 수 있다. 행이 보일 때까지 다음 페이지(ic_chevron-right)로 넘긴다.
+   */
+  private async revealModel(name: string): Promise<void> {
+    const nextButton = this.page
+      .locator('.text-pagination')
+      .first()
+      .locator('button')
+      .last();
+    for (let i = 0; i < 20; i++) {
+      if (await this.modelRow(name).isVisible().catch(() => false)) return;
+      if (
+        (await nextButton.count()) === 0 ||
+        (await nextButton.isDisabled().catch(() => true))
+      ) {
+        break;
+      }
+      await nextButton.click();
+      await this.page.waitForTimeout(500);
+    }
+  }
+
   /** 소스 모델 상세 — "Custom & View Source Model"(온프렘 정보 편집·저장 진입) */
   private get customViewSourceLink(): Locator {
     return this.page
@@ -142,11 +165,13 @@ export class ModelsPage {
   }
 
   async expectModelInList(name: string): Promise<void> {
+    await this.revealModel(name);
     await expect(this.modelRow(name)).toBeVisible({ timeout: 15_000 });
   }
 
   /** 목록에서 모델 행을 선택(상세 탭 노출) */
   async selectModel(name: string): Promise<void> {
+    await this.revealModel(name);
     await this.modelRow(name).click();
   }
 
