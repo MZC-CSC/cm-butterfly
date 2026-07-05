@@ -2,6 +2,7 @@ import { createBdd } from 'playwright-bdd';
 import { test, expect } from '../support/fixtures';
 import { ModelsPage, isSpecWithinClass } from '../pages/models.page';
 import { sourceServer, targetSpec } from '../fixtures/test-data';
+import { uniqueName } from '../support/naming';
 
 const { Given, When, Then } = createBdd(test);
 
@@ -64,8 +65,9 @@ Given('수집된 정보를 소스 모델로 저장한다', async ({ page }) => {
   const models = new ModelsPage(page);
   await models.gotoSourceModels();
   await models.selectFirstModel();
-  await models.saveAsSourceModel(sourceServer.name);
-  lastSourceModelName = sourceServer.name;
+  const name = uniqueName(sourceServer.name);
+  await models.saveAsSourceModel(name);
+  lastSourceModelName = name;
 });
 
 /** 유닛(파라미터) — "수집된 정보를 {string} 소스 모델로 저장하면" */
@@ -137,7 +139,7 @@ When(
       isSpecWithinClass(chosen.spec, targetSpec.maxClass),
       `추천 최저가 스펙 "${chosen.spec}" 이(가) "${targetSpec.maxClass}" 급 이하가 아님`,
     ).toBeTruthy();
-    const targetName = process.env.TEST_TARGET_MODEL_NAME || 'e2e-lowcost-target';
+    const targetName = uniqueName(process.env.TEST_TARGET_MODEL_NAME || 'e2e-lowcost-target');
     await models.saveAsTargetModel(targetName);
   },
 );

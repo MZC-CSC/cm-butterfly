@@ -2,6 +2,7 @@ import { createBdd } from 'playwright-bdd';
 import { test } from '../support/fixtures';
 import { SourceServicesPage, Connection } from '../pages/sourceServices.page';
 import { sourceServer } from '../fixtures/test-data';
+import { uniqueName } from '../support/naming';
 
 const { Given, When, Then } = createBdd(test);
 
@@ -13,14 +14,16 @@ const { Given, When, Then } = createBdd(test);
  *   재사용 가능한 상위 스텝으로 제공하고, 그 아래 유닛 스텝도 함께 둔다.
  */
 
-/** fixtures/test-data.ts의 sourceServer + 환경변수(키/비밀번호)로 연결정보 조립 */
+/** fixtures/test-data.ts의 sourceServer + 환경변수(키/비밀번호)로 연결정보 조립.
+ *  연결 이름도 honeybee에서 UNIQUE 제약이라 런별 고유 접미사를 붙인다. */
 function connectionFromFixture(name: string): Connection {
   return {
-    name,
+    name: uniqueName(name),
     ip: sourceServer.ip,
     sshPort: sourceServer.sshPort,
     user: sourceServer.sshUser,
-    password: sourceServer.password || undefined,
+    // privateKey가 있으면 key 인증을 우선(둘 다 채우면 인증 방식이 모호해짐)
+    password: sourceServer.privateKey ? undefined : sourceServer.password || undefined,
     privateKey: sourceServer.privateKey || undefined,
   };
 }
@@ -35,17 +38,17 @@ function connectionFromFixture(name: string): Connection {
 Given('소스 서비스에 {string} 소스서버를 등록한다', async ({ page }, name: string) => {
   const source = new SourceServicesPage(page);
   await source.goto();
-  await source.createSourceGroupWithConnection(name, connectionFromFixture(name));
+  await source.createSourceGroupWithConnection(uniqueName(name), connectionFromFixture(name));
 });
 
 /**
  * "그리고 소스 인프라를 수집한다"
- * → 직전에 등록한 소스그룹/연결정보를 선택해 인프라 수집(import-infra)을 실행하고 결과를 확인한다.
- *   (연결정보명은 소스그룹명과 동일하게 등록되므로 sourceServer.name 기준으로 재선택)
+ * → 등록한 소스그룹을 선택하면 하단 상세가 열리고, 상세의 Refresh로 연결 상태를 점검한 뒤
+ *   Collect Infra(그룹단위 import-infra)를 실행해 결과(View Infra Meta 링크)를 확인한다.
  */
 Given('소스 인프라를 수집한다', async ({ page }) => {
   const source = new SourceServicesPage(page);
-  await source.openConnection(sourceServer.name);
+  await source.selectGroup(uniqueName(sourceServer.name));
   await source.collectInfra();
   await source.expectInfraCollected();
 });
@@ -59,7 +62,7 @@ Given('소스 서비스 화면을 연다', async ({ page }) => {
 
 /** "만약 \"e2e-src\" 이름으로 소스그룹을 생성하면" — 연결정보 없이 그룹만 */
 When('{string} 이름으로 소스그룹을 생성하면', async ({ page }, name: string) => {
-  await new SourceServicesPage(page).createSourceGroup(name);
+  await new SourceServicesPage(page).createSourceGroup(uniqueName(name));
 });
 
 /** "만약 \"e2e-src\" 소스그룹에 \"e2e-conn\" 연결정보를 등록하면" — 그룹+연결정보 동시 등록 */
@@ -68,18 +71,18 @@ When(
   async ({ page }, groupName: string, connName: string) => {
     const source = new SourceServicesPage(page);
     await source.goto();
-    await source.createSourceGroupWithConnection(groupName, connectionFromFixture(connName));
+    await source.createSourceGroupWithConnection(uniqueName(groupName), connectionFromFixture(connName));
   },
 );
 
 /** "그리고 \"e2e-src\" 소스그룹을 선택한다" */
 Given('{string} 소스그룹을 선택한다', async ({ page }, name: string) => {
-  await new SourceServicesPage(page).selectGroup(name);
+  await new SourceServicesPage(page).selectGroup(uniqueName(name));
 });
 
 /** "그리고 \"e2e-conn\" 연결정보를 선택한다" (연결 탭 진입 포함) */
 Given('{string} 연결정보를 선택한다', async ({ page }, connName: string) => {
-  await new SourceServicesPage(page).openConnection(connName);
+  await new SourceServicesPage(page).openConnection(uniqueName(connName));
 });
 
 /** "만약 인프라 수집을 실행하면" (현재 선택된 연결정보 기준) */
