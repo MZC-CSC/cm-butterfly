@@ -248,17 +248,17 @@ export class ModelsPage {
       const price = priceMatch ? parseFloat(priceMatch[1]) : Number.POSITIVE_INFINITY;
       const spec = this.parseSpecToken(text);
 
-      // 값 완전성: 비용(월) 있음 + spec 토큰 있음 + 빈 셀 없음.
-      // ★ 프론트는 빈 specId/imageId를 리터럴 "empty"(빨간 글씨)로 렌더하므로 이를 불완전으로 취급한다
-      //   (RecommendedInfraModel.getRecommendModelList → formatEmptyValue).
-      const hasEmptyCell = cellTexts.some(
-        t => t === '' || t === '-' || /^n\/?a$/i.test(t) || /^empty$/i.test(t),
-      );
-      const complete = Number.isFinite(price) && !!spec && !hasEmptyCell;
+      // 값 완전성 판정 — cm-beetle 실측(2026-07-05)상 specId/imageId는 nano에서도 채워지고,
+      // 프론트는 *specId/imageId가 빈* 후보에만 리터럴 "empty"(빨간 글씨)를 렌더한다
+      // (RecommendedInfraModel.getRecommendModelList → formatEmptyValue). 따라서 "모든 셀 비었나"가
+      // 아니라 *spec 토큰 존재 + "empty" 미포함*으로 판정한다(정상적으로 비는 다른 컬럼에 오판 방지).
+      const hasEmptyPlaceholder = /\bempty\b/i.test(text);
+      const complete = !!spec && !hasEmptyPlaceholder;
       if (!complete) continue;
 
       completeCount++;
-      if (price < minPrice) {
+      // 완전한 후보 중 최저가. 월비용이 없으면(급 정보만) 첫 완전 후보를 채택.
+      if (minIndex < 0 || (Number.isFinite(price) && price < minPrice)) {
         minPrice = price;
         minIndex = i;
         minSpec = spec;
