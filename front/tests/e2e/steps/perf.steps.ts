@@ -45,7 +45,8 @@ async function fetchNodePublicIp(request: APIRequestContext, token: string): Pro
     const infra = body?.responseData?.data ?? body?.responseData ?? {};
     const node = (infra.node ?? infra.Node ?? [])[0] ?? {};
     nodeId = node.id ?? node.Id ?? nodeId;
-    const ip = node.publicIp ?? node.PublicIp ?? node.public_ip ?? '';
+    // cm-beetle GetInfra 노드의 공인 IP 키는 publicIP(대문자 IP). 소문자 변형도 안전하게 fallback.
+    const ip = node.publicIP ?? node.publicIp ?? node.PublicIp ?? node.public_ip ?? '';
     if (ip) return { nodeId, ip };
     await new Promise(r => setTimeout(r, 10_000));
   }
@@ -63,6 +64,8 @@ Given('생성된 워크로드에 nginx를 설치한다', async ({ request }) => 
   const infraId = scenarioState.infraId ?? workload.infraName;
   const res = await request.post(`${config.baseURL}/api/PostCmdInfra`, {
     headers: { Authorization: `Bearer ${token}` },
+    // 원격명령(apt update + nginx 설치)은 수십 초~수 분 걸리므로 기본 30s로는 부족 → 넉넉히.
+    timeout: 300_000,
     data: {
       pathParams: { nsId, infraId },
       request: {
@@ -100,15 +103,16 @@ Then('nginx가 외부에서 접근 가능하다', async ({ request }) => {
  */
 When('생성된 워크로드에 부하 테스트를 실행한다', async ({ page }) => {
   const { WorkloadPage } = await import('../pages/workload.page');
-  const wl = new WorkloadPage(page) as unknown as Record<string, (...a: unknown[]) => Promise<void>>;
+  const wl = new WorkloadPage(page);
   const targetHost = scenarioState.nodePublicIp ?? workload.loadTest.targetHost;
 
-  await wl.goto?.();
-  await wl.selectInfra?.(scenarioState.infraName ?? workload.infraName);
-  await wl.openServerTab?.();
-  await wl.selectNode?.(workload.nodeName);
+  await wl.gotoMci();
+  await wl.expectMciListLoaded();
+  await wl.selectMci(scenarioState.infraName ?? workload.infraName);
+  await wl.openServerTab();
+  await wl.selectNode(workload.nodeName);
   // Load Config 모달을 열어 nginx 서버(host:80)로 부하 설정 후 실행
-  await wl.runLoadTest?.({
+  await wl.runLoadTest({
     scenarioName: workload.loadTest.scenarioName,
     targetHost,
     port: workload.loadTest.port,
@@ -123,7 +127,6 @@ When('생성된 워크로드에 부하 테스트를 실행한다', async ({ page
 /** "그러면 부하 테스트 결과가 조회된다" */
 Then('부하 테스트 결과가 조회된다', async ({ page }) => {
   const { WorkloadPage } = await import('../pages/workload.page');
-  const wl = new WorkloadPage(page) as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>;
-  const ok = await wl.expectLoadTestResult?.();
-  expect(ok ?? true, '부하 테스트 결과 조회 실패').toBeTruthy();
+  const wl = new WorkloadPage(page);
+  await wl.expectLoadTestResult();
 });

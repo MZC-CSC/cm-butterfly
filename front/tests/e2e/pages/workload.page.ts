@@ -224,10 +224,19 @@ export class WorkloadPage {
     await this.evaluatePerfTab.click();
   }
 
-  /** Load Config 모달 열기 */
+  /** 부하설정 모달의 확인(Confirm/Run) 버튼 — PButtonModal 기본 confirm 버튼(.confirm-button) */
+  private get loadConfigConfirmButton(): Locator {
+    return this.page.locator('.p-button-modal .confirm-button');
+  }
+
+  /** Load Config 모달 열기. PButtonModal 래퍼 testid는 가시 요소로 안 잡히므로 첫 입력 필드로 확인. */
   async openLoadConfig(): Promise<void> {
     await this.loadConfigButton.click();
-    await expect(this.loadConfigModal).toBeVisible();
+    await expect(
+      this.page.locator(
+        'input[data-testid="load-config-scenario-name"], textarea[data-testid="load-config-scenario-name"]',
+      ),
+    ).toBeVisible({ timeout: 15_000 });
   }
 
   /** 부하 설정 입력 — 비용 보호를 위해 가벼운 값(vu/duration 등)만 채운다 */
@@ -246,10 +255,16 @@ export class WorkloadPage {
       .locator('input[data-testid="load-config-scenario-name"], textarea[data-testid="load-config-scenario-name"]')
       .or(m.getByPlaceholder('Test Scenario Name'))
       .fill(cfg.scenarioName);
-    await m
+    // 대상 호스트(target-host)는 tumblebug이 선택된 VM(노드)의 IP를 자동으로 채워주므로 덮어쓰지 않는다.
+    // 자동값이 비어 있는 예외 상황에서만 보조로 채운다.
+    const targetHostInput = m
       .locator('input[data-testid="load-config-target-host"], textarea[data-testid="load-config-target-host"]')
       .or(m.getByPlaceholder('Host Name'))
-      .fill(cfg.targetHost);
+      .first();
+    const autoHost = await targetHostInput.inputValue().catch(() => '');
+    if (!autoHost && cfg.targetHost) {
+      await targetHostInput.fill(cfg.targetHost);
+    }
     await m
       .locator('input[data-testid="load-config-port"], textarea[data-testid="load-config-port"]')
       .or(m.getByPlaceholder('1~65535'))
@@ -276,12 +291,29 @@ export class WorkloadPage {
       .fill(cfg.rampUpSteps);
   }
 
-  /** 부하테스트 실행(Runloadtest) — 모달 confirm */
+  /** 부하테스트 실행(Runloadtest) — PButtonModal 기본 confirm 버튼 클릭 */
   async submitLoadConfig(): Promise<void> {
-    await this.loadConfigModal
-      .getByTestId('load-config-confirm')
-      .or(this.loadConfigModal.getByRole('button', { name: /confirm|run|실행/i }))
-      .click();
+    await this.loadConfigConfirmButton.last().click();
+  }
+
+  /**
+   * 노드 상세에서 부하테스트 한 번에 실행: Evaluate Perf 탭 → Load Config 모달 → 설정 입력 → 실행.
+   * (perf.steps의 시나리오 스텝이 호출) 노드는 호출 전에 selectNode로 선택돼 있어야 한다.
+   */
+  async runLoadTest(cfg: {
+    scenarioName: string;
+    targetHost: string;
+    port: string;
+    path: string;
+    virtualUsers: string;
+    duration: string;
+    rampUpTime: string;
+    rampUpSteps: string;
+  }): Promise<void> {
+    await this.openEvaluatePerfTab();
+    await this.openLoadConfig();
+    await this.fillLoadConfig(cfg);
+    await this.submitLoadConfig();
   }
 
   // ─────────────────────────────────────────────────────────────
