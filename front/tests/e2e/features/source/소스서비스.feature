@@ -27,6 +27,5 @@
     먼저 소스 서비스 화면을 연다
     만약 "e2e-collect-group" 소스그룹에 "e2e-collect-conn" 연결정보를 등록하면
     그리고 "e2e-collect-group" 소스그룹을 선택한다
-    그리고 "e2e-collect-conn" 연결정보를 선택한다
     그리고 인프라 수집을 실행하면
     그러면 인프라 수집 결과가 조회된다

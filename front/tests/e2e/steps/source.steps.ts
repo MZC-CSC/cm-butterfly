@@ -53,6 +53,16 @@ Given('소스 인프라를 수집한다', async ({ page }) => {
   await source.expectInfraCollected();
 });
 
+/**
+ * "그리고 수집된 정보를 소스 모델로 저장한다"
+ * → 수집 결과 팝업(Refine)에서 Convert → Save → 이름 입력 → 확인으로 인프라 소스모델(OnPremiseModel, "Basic")을 저장한다.
+ *   이름은 소스그룹명(uniqueName)과 동일하게 해 이후 추천 단계에서 그 모델을 선택한다.
+ */
+Given('수집된 정보를 소스 모델로 저장한다', async ({ page }) => {
+  const source = new SourceServicesPage(page);
+  await source.saveCollectedInfraAsSourceModel(uniqueName(sourceServer.name));
+});
+
 // ───────────────────────── 유닛 스텝 ─────────────────────────
 
 /** "먼저 소스 서비스 화면을 연다" */

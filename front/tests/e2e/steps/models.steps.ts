@@ -61,14 +61,7 @@ Given('{string} 소스 모델을 선택한다', async ({ page }, name: string) =
  * 수집 직후 목록의 최신 소스를 선택해 온프렘 정보를 소스 모델로 저장한다.
  * 이름은 test-data.sourceServer.name 기준.
  */
-Given('수집된 정보를 소스 모델로 저장한다', async ({ page }) => {
-  const models = new ModelsPage(page);
-  await models.gotoSourceModels();
-  await models.selectFirstModel();
-  const name = uniqueName(sourceServer.name);
-  await models.saveAsSourceModel(name);
-  lastSourceModelName = name;
-});
+// "수집된 정보를 소스 모델로 저장한다"는 소스 서비스 화면(수집 결과 Refine 팝업) 흐름이라 source.steps.ts에 정의한다.
 
 /** 유닛(파라미터) — "수집된 정보를 {string} 소스 모델로 저장하면" */
 When('수집된 정보를 {string} 소스 모델로 저장하면', async ({ page }, name: string) => {
@@ -125,9 +118,9 @@ When(
   '타깃 인프라를 {string} 저비용으로 추천받아 타깃 모델로 저장하면',
   async ({ page }, _label: string) => {
     const models = new ModelsPage(page);
-    // 방금 저장한 소스 모델을 선택한 상태에서 추천 모달 진입
+    // 수집 결과로 저장한 인프라 소스모델(OnPremiseModel)을 선택한 뒤 추천 모달 진입
     await models.gotoSourceModels();
-    await models.selectModel(lastSourceModelName || sourceServer.name);
+    await models.selectModel(lastSourceModelName || uniqueName(sourceServer.name));
     await models.openRecommend();
     await models.selectProvider(targetSpec.csp);
     await models.selectRegion(targetSpec.region);

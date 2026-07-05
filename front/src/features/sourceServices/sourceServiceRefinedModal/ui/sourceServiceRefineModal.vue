@@ -253,7 +253,7 @@ function handleConvertSoftwareSourceGroup(): (
         >
           {{ i18n.t('COMPONENT.BUTTON_MODAL.CANCEL') }}
         </p-button>
-        <p-button :disabled="!isConverted" @click="handleSave">
+        <p-button data-testid="source-refine-save" :disabled="!isConverted" @click="handleSave">
           {{ i18n.t('COMPONENT.BUTTON_MODAL.SAVE') }}
         </p-button>
       </template>

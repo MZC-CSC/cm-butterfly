@@ -17,6 +17,8 @@ const testDir = defineBddConfig({
 export default defineConfig({
   testDir,
   fullyParallel: false,
+  // @unit/@scenario는 실 라인업 상태를 공유하므로 직렬 실행(병렬 시 데이터 충돌). @mock도 소수라 직렬로 통일.
+  workers: 1,
   timeout: 90_000,
   expect: { timeout: 15_000 },
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],

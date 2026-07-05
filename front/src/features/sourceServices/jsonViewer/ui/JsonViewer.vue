@@ -137,7 +137,7 @@ function handleModelUpdate(value: string) {
     </p-pane-layout>
 
     <!-- 중앙: 변환 버튼 -->
-    <button class="convert-btn" @click="handleConvertJson">
+    <button data-testid="source-refine-convert" class="convert-btn" @click="handleConvertJson">
       <div class="flex flex-row">
         <p-i
           class="icon"

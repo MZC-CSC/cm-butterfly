@@ -147,24 +147,47 @@ export class SourceServicesPage {
   private get softwareCollectTab(): Locator {
     return this.tab(/Software Collect/i);
   }
-  /** "Collect Infra" 버튼 (import-infra) */
+  // 그룹(서비스) 상세 하단 — Refresh(연결 상태 확인) 후 Collect Infra/SW 활성화 (SourceServiceDetail)
+  /** 상세 하단 "Refresh" — 연결 상태 점검(정상이면 Collect 버튼 활성화) */
+  private get groupRefreshButton(): Locator {
+    return this.page.getByTestId('source-group-refresh');
+  }
+  /** 상세 하단 "Collect Infra" (그룹단위 import-infra — honeybee가 실제 SSH 수집) */
   private get collectInfraButton(): Locator {
-    return this.page
-      .getByTestId('collect-infra');
+    return this.page.getByTestId('source-group-collect-infra');
   }
-  /** "Collect SW" 버튼 (import-software) */
+  /** 상세 하단 "Collect SW" (그룹단위 import-software) */
   private get collectSwButton(): Locator {
-    return this.page
-      .getByTestId('collect-software');
+    return this.page.getByTestId('source-group-collect-sw');
   }
-  /** 인프라 수집·정제 결과 진입 링크 "View Infra(Meta) ->" (수집 성공 시 노출) */
+  /** 수집 성공 시 노출되는 "View Infra(Meta) ->" 링크 */
   private get viewInfraLink(): Locator {
-    return this.page
-      .getByTestId('view-infra-meta');
+    return this.page.getByTestId('source-group-view-infra-meta');
   }
   private get viewSwLink(): Locator {
-    return this.page
-      .getByTestId('view-software-meta');
+    return this.page.getByTestId('source-group-view-sw-meta');
+  }
+
+  // ── 수집 결과 팝업(refine) → damselfly 소스모델 저장 ─────────────────
+  /** 팝업 중앙 "Convert" 버튼(좌측 수집정보 → 우측 정제정보) */
+  private get refineConvertButton(): Locator {
+    return this.page.getByTestId('source-refine-convert');
+  }
+  /** 팝업 "Save" 버튼(Convert 후 활성화) */
+  private get refineSaveButton(): Locator {
+    return this.page.getByTestId('source-refine-save');
+  }
+  /** 저장 모달(SimpleEditForm) 모델명 입력 */
+  private get refineModelNameInput(): Locator {
+    return this.page.locator(
+      'input[data-testid="model-name-input"], textarea[data-testid="model-name-input"]',
+    );
+  }
+  /** 저장 모달 확정(model-name-save span을 감싸는 버튼) */
+  private get refineModelNameConfirm(): Locator {
+    return this.page.locator('button', {
+      has: this.page.getByTestId('model-name-save'),
+    });
   }
 
   /** 삭제 확인 모달의 확정 버튼 */
@@ -227,16 +250,43 @@ export class SourceServicesPage {
     await this.connectionRow(connName).first().click();
   }
 
-  /** 인프라 수집 실행 (import-infra) */
+  /** 연결 상태 점검(Refresh) — 정상이어야 Collect 버튼 활성화. 상세가 열린 상태에서 호출. */
+  async refreshGroupStatus(): Promise<void> {
+    await this.groupRefreshButton.click();
+    // 상태 반영(로딩 종료) 대기 후 Collect가 활성화됨
+    await expect(this.collectInfraButton).toBeEnabled({ timeout: 30_000 });
+  }
+
+  /** 인프라 수집 실행 (그룹단위 import-infra) — 선택된 그룹 상세에서 Refresh 후 Collect Infra */
   async collectInfra(): Promise<void> {
-    await this.infraCollectTab.click();
+    await this.refreshGroupStatus();
     await this.collectInfraButton.click();
   }
 
-  /** 소프트웨어 수집 실행 (import-software) */
+  /** 소프트웨어 수집 실행 (그룹단위 import-software) — Refresh 후 Collect SW */
   async collectSoftware(): Promise<void> {
-    await this.softwareCollectTab.click();
+    await this.refreshGroupStatus();
     await this.collectSwButton.click();
+  }
+
+  /**
+   * 수집된 인프라를 damselfly 소스모델(OnPremiseModel, "Basic")로 저장.
+   * ★ Collect Infra 버튼이 수집 후 Refine 팝업을 *자동으로* 연다(SourceServiceDetail getSourceGroupInfras).
+   *   따라서 팝업이 열린 상태에서 Convert(좌 수집→우 정제) → Save(활성화) → 모델명 입력 → 확인.
+   */
+  async saveCollectedInfraAsSourceModel(name: string): Promise<void> {
+    await this.refineConvertButton.click();
+    await this.refineSaveButton.click(); // Convert 후 활성화(자동 대기)
+    await this.refineModelNameInput.fill(name);
+    await this.refineModelNameConfirm.click();
+  }
+
+  /** 수집된 소프트웨어를 damselfly 소스모델(SoftwareModel, "Basic")로 저장(인프라와 동일 팝업 흐름). */
+  async saveCollectedSwAsSourceModel(name: string): Promise<void> {
+    await this.refineConvertButton.click();
+    await this.refineSaveButton.click();
+    await this.refineModelNameInput.fill(name);
+    await this.refineModelNameConfirm.click();
   }
 
   /** 선택된 소스그룹 삭제 (delete-source-group) */
@@ -264,13 +314,14 @@ export class SourceServicesPage {
     await expect(this.connectionRow(name).first()).toBeVisible({ timeout: 15_000 });
   }
 
-  /** 인프라 수집 결과가 조회 가능한 상태(정제 결과 링크 노출)인지 확인 */
+  /** 인프라 수집 결과 조회 확인 — Collect Infra가 수집 후 Refine 팝업을 자동으로 열어
+   *  Convert 버튼이 노출되면 수집 결과가 조회 가능한 상태다. 실 honeybee SSH 수집이라 최대 120s. */
   async expectInfraCollected(): Promise<void> {
-    await expect(this.viewInfraLink).toBeVisible({ timeout: 60_000 });
+    await expect(this.refineConvertButton).toBeVisible({ timeout: 120_000 });
   }
 
   async expectSoftwareCollected(): Promise<void> {
-    await expect(this.viewSwLink).toBeVisible({ timeout: 60_000 });
+    await expect(this.refineConvertButton).toBeVisible({ timeout: 120_000 });
   }
 }
 
