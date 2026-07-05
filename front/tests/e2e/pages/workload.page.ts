@@ -58,9 +58,19 @@ export class WorkloadPage {
   }
 
   /** 특정 인프라가 목록에 보이는지 확인. 워크플로우 실행→DAG→cm-beetle 마이그레이션이
-   *  tumblebug에 MCI를 만들기까지 시간이 걸리므로 넉넉히 대기(최대 180s). */
+   *  tumblebug에 MCI를 만들기까지 시간이 걸리는데, 목록은 자동 재조회하지 않으므로 MCI가
+   *  목록 로드 이후에 생기면 그냥 기다려도 나타나지 않는다. 페이지를 주기적으로 새로고침하며
+   *  행이 나타날 때까지 확인한다(프로비저닝 지연 대비 최대 ~10분). */
   async expectMciVisible(infraName: string): Promise<void> {
-    await expect(this.mciRow(infraName)).toBeVisible({ timeout: 180_000 });
+    const deadline = Date.now() + 600_000;
+    for (;;) {
+      if (await this.mciRow(infraName).isVisible().catch(() => false)) return;
+      if (Date.now() > deadline) break;
+      await this.page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+      await this.expectMciListLoaded().catch(() => {});
+      await this.page.waitForTimeout(10_000);
+    }
+    await expect(this.mciRow(infraName)).toBeVisible({ timeout: 20_000 });
   }
 
   /** 인프라 행 선택(체크박스) — 선택 시 상세/서버 탭이 활성화됨. 행 내 단일 체크박스로 한정. */
