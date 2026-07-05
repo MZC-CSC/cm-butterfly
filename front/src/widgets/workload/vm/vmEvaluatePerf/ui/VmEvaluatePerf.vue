@@ -157,7 +157,8 @@ function handleManageRerun() {
       @close="manageModalOpen = false"
       @update:visible="v => (manageModalOpen = v)"
     >
-      <div class="load-manage-body">
+      <template #body>
+        <div class="load-manage-body">
         <p>
           Current status:
           <strong>{{ props.loadTestStatus || '—' }}</strong>
@@ -188,7 +189,8 @@ function handleManageRerun() {
             Re-run
           </p-button>
         </div>
-      </div>
+        </div>
+      </template>
     </PButtonModal>
   </div>
 </template>
