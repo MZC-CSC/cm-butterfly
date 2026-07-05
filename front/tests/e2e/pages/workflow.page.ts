@@ -158,13 +158,9 @@ export class WorkflowPage {
     await runBtn.click();
   }
 
-  /** Details/History 탭 전환 */
+  /** Details/History 탭 전환 — mirinae PTab는 ARIA role(tab)로 단일 선택(text fallback은 span과 중복 매칭) */
   async openHistoryTab(): Promise<void> {
-    await this.page
-      .getByTestId('workflow-history-tab')
-      .or(this.page.getByRole('tab', { name: /History/i }))
-      .or(this.page.getByText('History', { exact: true }).first())
-      .click();
+    await this.page.getByRole('tab', { name: /History/i }).click();
     await expect(
       this.page.getByText('Workflow History', { exact: false }).first(),
     ).toBeVisible({ timeout: 10_000 });
