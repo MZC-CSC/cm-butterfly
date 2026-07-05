@@ -227,7 +227,7 @@ function handleCodeUpdate(value: string) {
         <p-button style-type="tertiary" @click="handleModal">
           {{ i18n.t('COMPONENT.BUTTON_MODAL.CANCEL') }}
         </p-button>
-        <p-button @click="handleSave">
+        <p-button data-testid="create-form-save" @click="handleSave">
           {{ i18n.t('COMPONENT.BUTTON_MODAL.SAVE') }}
         </p-button>
       </template>

@@ -171,6 +171,7 @@ watch(
         <p-toolbox-table
           v-if="!getTaskComponentList.isLoading.value"
           ref="toolboxTableRef"
+          data-testid="workflow-list-table"
           :items="tableModel.tableState.displayItems"
           :fields="tableModel.tableState.fields"
           :total-count="tableModel.tableState.tableCount"

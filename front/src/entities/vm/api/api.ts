@@ -50,11 +50,11 @@ interface ILastloadtestStateResponseWrapper {
 }
 
 export function useGetLastLoadTestState(
-  params: IMciRequestParams | { vmId: string } | null,
+  params: IMciRequestParams | { nodeId: string } | null,
 ) {
   const requestBodyWrapper: Required<
     Pick<
-      RequestBodyWrapper<IMciRequestParams | { vmId: string } | null>,
+      RequestBodyWrapper<IMciRequestParams | { nodeId: string } | null>,
       'request'
     >
   > = {
@@ -65,7 +65,7 @@ export function useGetLastLoadTestState(
     IAxiosResponse<ILastloadtestStateResponseWrapper>,
     Required<
       Pick<
-        RequestBodyWrapper<IMciRequestParams | { vmId: string } | null>,
+        RequestBodyWrapper<IMciRequestParams | { nodeId: string } | null>,
         'request'
       >
     >
@@ -73,12 +73,12 @@ export function useGetLastLoadTestState(
 }
 
 interface IMetricParams extends IMciRequestParams {
-  vmId: string;
+  nodeId: string;
   format: 'normal';
 }
 
 interface IMetricParamsBase extends IMciRequestParams {
-  vmId: string;
+  nodeId: string;
 }
 
 type FormatType = 'normal' | 'aggregate';

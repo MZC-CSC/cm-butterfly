@@ -76,7 +76,9 @@ watch(_name, () => {}, { immediate: true });
       <span>{{ i18n.t('COMPONENT.BUTTON_MODAL.CANCEL') }}</span>
     </template>
     <template #confirm-button>
-      <span>{{ i18n.t('COMPONENT.BUTTON_MODAL.SAVE') }}</span>
+      <span data-testid="model-name-save">{{
+        i18n.t('COMPONENT.BUTTON_MODAL.SAVE')
+      }}</span>
     </template>
   </p-button-modal>
 </template>

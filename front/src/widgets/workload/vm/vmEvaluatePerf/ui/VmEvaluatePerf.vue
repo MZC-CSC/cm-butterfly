@@ -26,6 +26,7 @@ const emit = defineEmits(['openLoadconfig', 'openTemplateManager']);
       </h5>
       <div class="flex gap-1.5">
         <p-button
+          data-testid="vm-scenario-templates-open"
           style-type="tertiary"
           icon-left="ic_service_bookmark"
           @click="emit('openTemplateManager')"
@@ -39,6 +40,7 @@ const emit = defineEmits(['openLoadconfig', 'openTemplateManager']);
       </h5>
       <div class="flex gap-1.5">
         <p-button
+          data-testid="vm-load-config-open"
           style-type="secondary"
           icon-left="ic_settings"
           @click="emit('openLoadconfig')"
@@ -48,7 +50,7 @@ const emit = defineEmits(['openLoadconfig', 'openTemplateManager']);
       </div>
     </div>
     <div class="flex flex-col gap-4">
-      <div class="font-bold text-2xl">
+      <div class="font-bold text-2xl" data-testid="load-test-aggregation-table">
         Aggregation Table
         <LoadTestAggregationTable
           :mci-id="props.mciId"
@@ -56,7 +58,7 @@ const emit = defineEmits(['openLoadconfig', 'openTemplateManager']);
           :vm-id="props.vmId"
         />
       </div>
-      <div class="chart w-full">
+      <div class="chart w-full" data-testid="load-test-result-metric">
         <div class="font-bold text-2xl">Result metric</div>
         <div class="h-[calc(100%-2rem)]">
           <LoadTestEvaluationMetric
@@ -66,7 +68,10 @@ const emit = defineEmits(['openLoadconfig', 'openTemplateManager']);
           />
         </div>
       </div>
-      <div class="chart w-full font-bold text-2xl">
+      <div
+        class="chart w-full font-bold text-2xl"
+        data-testid="load-test-resource-metric"
+      >
         <div class="font-bold text-2xl">Resource Metric</div>
         <div class="h-[calc(100%-2rem)]">
           <LoadTestResourceMetric

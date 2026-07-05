@@ -139,7 +139,9 @@ const handleConnectionModal = (value: boolean) => {
         <span>{{ i18n.t('COMPONENT.BUTTON_MODAL.CANCEL') }}</span>
       </template>
       <template #confirm-button>
-        <span>{{ i18n.t('COMPONENT.BUTTON_MODAL.ADD') }}</span>
+        <span data-testid="source-service-confirm">{{
+          i18n.t('COMPONENT.BUTTON_MODAL.ADD')
+        }}</span>
       </template>
     </p-button-modal>
   </div>

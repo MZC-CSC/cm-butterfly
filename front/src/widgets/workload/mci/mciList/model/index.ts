@@ -99,7 +99,7 @@ export function useMciListModel(props: IProps) {
   }
 
   function fetchMciById(mciId: string) {
-    const resGetMciById = useGetMciInfo({ nsId: props.nsId, mciId });
+    const resGetMciById = useGetMciInfo({ nsId: props.nsId, infraId: mciId });
 
     return resGetMciById.execute;
   }

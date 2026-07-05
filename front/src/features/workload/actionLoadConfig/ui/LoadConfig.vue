@@ -137,9 +137,9 @@ async function handleConfirm() {
           duration: loadConfigModel.inputModels.testDuration.value,
           rampUpTime: loadConfigModel.inputModels.rampUpTime.value,
           rampUpSteps: loadConfigModel.inputModels.rampUpSteps.value,
-          mciId: props.mciId,
+          infraId: props.mciId,
           nsId: props.nsId,
-          vmId: props.vmId,
+          nodeId: props.vmId,
         },
       })
       .then(res => {
@@ -177,6 +177,7 @@ function handelClose() {
 
 <template>
   <PButtonModal
+    data-testid="load-config-modal"
     :visible="isOpen"
     :v-model="isOpen"
     size="sm"
@@ -197,6 +198,7 @@ function handelClose() {
             <template #default="{ invalid }">
               <p-text-input
                 v-model="loadConfigModel.inputModels.scenarioName.value"
+                data-testid="load-config-scenario-name"
                 :invalid="invalid"
                 :placeholder="'Test Scenario Name'"
                 block
@@ -214,6 +216,7 @@ function handelClose() {
             <template #default="{ invalid }">
               <p-text-input
                 v-model="loadConfigModel.inputModels.targetHostName.value"
+                data-testid="load-config-target-host"
                 :invalid="invalid"
                 :placeholder="'Host Name'"
                 block
@@ -228,6 +231,7 @@ function handelClose() {
             <template #default="{ invalid }">
               <p-text-input
                 v-model="loadConfigModel.inputModels.port.value"
+                data-testid="load-config-port"
                 :invalid="invalid"
                 :type="'number'"
                 :placeholder="'1~65535'"
@@ -251,6 +255,7 @@ function handelClose() {
                 />
                 <p-text-input
                   v-model="loadConfigModel.inputModels.path.value"
+                  data-testid="load-config-path"
                   :invalid="invalid"
                   class="flex-2"
                   :placeholder="'Path'"
@@ -305,6 +310,7 @@ function handelClose() {
             <template #default="{ invalid }">
               <p-text-input
                 v-model="loadConfigModel.inputModels.virtualUsers.value"
+                data-testid="load-config-virtual-users"
                 :invalid="invalid"
                 :type="'number'"
                 :placeholder="'Number of virtual users'"
@@ -320,6 +326,7 @@ function handelClose() {
             <template #default="{ invalid }">
               <p-text-input
                 v-model="loadConfigModel.inputModels.testDuration.value"
+                data-testid="load-config-duration"
                 :invalid="invalid"
                 :type="'number'"
                 :placeholder="'Test Run Time'"
@@ -339,6 +346,7 @@ function handelClose() {
               <template #default="{ invalid }">
                 <p-text-input
                   v-model="loadConfigModel.inputModels.rampUpTime.value"
+                  data-testid="load-config-rampup-time"
                   :invalid="invalid"
                   :placeholder="'Time'"
                   :type="'number'"
@@ -355,6 +363,7 @@ function handelClose() {
               <template #default="{ invalid }">
                 <p-text-input
                   v-model="loadConfigModel.inputModels.rampUpSteps.value"
+                  data-testid="load-config-rampup-steps"
                   :invalid="invalid"
                   :placeholder="'Number of steps'"
                   :type="'number'"

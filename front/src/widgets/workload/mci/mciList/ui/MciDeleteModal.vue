@@ -51,7 +51,7 @@ async function handleConfirm() {
     const deletePromises = props.selectedMciList.map(mci => {
       const params: any = {
         nsId: props.nsId,
-        mciId: mci.name,
+        infraId: mci.name,
       };
       // Set option based on delete method
       if (state.deleteMethod === 'force') {
@@ -105,6 +105,7 @@ watch(
 
 <template>
   <p-button-modal
+    data-testid="mci-delete-modal"
     :visible="visible"
     header-title="Delete Workloads"
     size="sm"
@@ -147,6 +148,9 @@ watch(
               :key="option.key"
               v-model="state.deleteMethod"
               :value="option.key"
+              :data-testid="
+                option.key === 'force' ? 'mci-delete-method-force' : undefined
+              "
               :disabled="state.isDeleting"
             >
               <span>{{ option.label }}</span>
@@ -162,6 +166,7 @@ watch(
             >
             <p-text-input
               v-model="state.confirmKeyword"
+              data-testid="mci-delete-confirm-keyword"
               :placeholder="checkKeyword"
               :disabled="state.isDeleting"
             />

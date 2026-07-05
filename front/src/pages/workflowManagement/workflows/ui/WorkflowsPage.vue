@@ -151,7 +151,7 @@ async function handleUpdateWorkflow(updatedData: object) {
 <template>
   <div :class="`${pageName}-page page`">
     <header>
-      <p>{{ pageName }}</p>
+      <p data-testid="workflow-page-header">{{ pageName }}</p>
     </header>
     <section :class="`${pageName}-page-body`">
       <workflow-list

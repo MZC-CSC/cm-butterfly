@@ -124,6 +124,7 @@ const handleConfirm = async () => {
       :visible="true"
       header-title="Add Credential"
       size="md"
+      data-testid="credential-modal"
       :loading="resCreateCredential.isLoading.value"
       @close="handleCancel"
       @cancel="handleCancel"
@@ -152,7 +153,9 @@ const handleConfirm = async () => {
         <span>{{ i18n.t('COMPONENT.BUTTON_MODAL.CANCEL') }}</span>
       </template>
       <template #confirm-button>
-        <span>{{ i18n.t('COMPONENT.BUTTON_MODAL.ADD') }}</span>
+        <span data-testid="credential-modal-confirm">{{
+          i18n.t('COMPONENT.BUTTON_MODAL.ADD')
+        }}</span>
       </template>
     </p-button-modal>
   </div>

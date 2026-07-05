@@ -220,6 +220,7 @@ function handleSourceConnectionList() {
           >
             <template #toolbox-left>
               <p-button
+                data-testid="source-connection-add-edit"
                 style-type="secondary"
                 icon-left="ic_plus_bold"
                 @click="handleSourceConnectionList"

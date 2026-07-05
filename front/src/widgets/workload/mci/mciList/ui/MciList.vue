@@ -111,6 +111,7 @@ onMounted(async () => {
         <p-toolbox-table
           v-if="!loading"
           ref="toolboxTableRef"
+          data-testid="mci-list-table"
           :items="mciTableModel.tableState.displayItems"
           :fields="mciTableModel.tableState.fields"
           :total-count="mciTableModel.tableState.tableCount"
@@ -131,6 +132,7 @@ onMounted(async () => {
         >
           <template #toolbox-left>
             <p-select-dropdown
+              data-testid="mci-action-dropdown"
               placeholder="Action"
               :menu="actionState.actionMenus"
               :selected.sync="actionState.selectedActionItem"

@@ -117,7 +117,7 @@ async function getMciInfo() {
     .execute({
       pathParams: {
         nsId: props.nsId,
-        mciId: props.mciId,
+        infraId: props.mciId,
       },
     })
     .then(res => {
@@ -146,8 +146,8 @@ function setVmLoadTestResult() {
     .execute({
       request: {
         nsId: props.nsId,
-        mciId: props.mciId,
-        vmId: selectedVm.value.id,
+        infraId: props.mciId,
+        nodeId: selectedVm.value.id,
       },
     })
     .then(res => {

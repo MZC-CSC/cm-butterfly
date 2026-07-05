@@ -73,6 +73,7 @@ function handleClickCollectSW() {
       </template>
       <template #data-viewSW="{ data }">
         <p
+          data-testid="view-software-meta"
           class="text-blue-700 cursor-pointer"
           @click="emit('update:metaViewerModalState', true)"
         >
@@ -82,6 +83,7 @@ function handleClickCollectSW() {
       <template #extra="{ name }">
         <div v-if="name === 'collectSwStatus'">
           <p-button
+            data-testid="collect-software"
             style-type="tertiary"
             size="sm"
             :loading="resCollectSW.isLoading.value"

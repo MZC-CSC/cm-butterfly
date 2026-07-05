@@ -63,7 +63,11 @@ watchEffect(() => {
       block
     >
       <template #data-workflowTool>
-        <p class="link-button-text" @click="handleWorkflowTool">
+        <p
+          data-testid="workflow-create"
+          class="link-button-text"
+          @click="handleWorkflowTool"
+        >
           View Workflow Tool
         </p>
       </template>

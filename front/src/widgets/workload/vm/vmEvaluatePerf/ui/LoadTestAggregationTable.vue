@@ -78,8 +78,8 @@ watch(
       .execute({
         queryParams: {
           nsId: nv.nsId,
-          mciId: nv.mciId,
-          vmId: nv.vmId,
+          infraId: nv.mciId,
+          nodeId: nv.vmId,
           format: 'aggregate',
         },
       })

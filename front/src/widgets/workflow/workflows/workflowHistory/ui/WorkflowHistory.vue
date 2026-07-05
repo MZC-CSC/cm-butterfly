@@ -149,6 +149,9 @@ const handleCloseSwOverlay = () => {
       :items="tableModel.tableState.items"
       :loading="tableModel.tableState.loading"
     >
+      <template #col-state-format="{ item }">
+        <span data-testid="workflow-run-state">{{ item.state }}</span>
+      </template>
       <template #col-tasks-format="{ item }">
         <p-button
           style-type="tertiary"

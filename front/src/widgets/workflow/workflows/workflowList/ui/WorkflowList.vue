@@ -207,6 +207,7 @@ watch(
         <p-toolbox-table
           v-if="!getWorkflowList.isLoading.value && !tableModel.tableState.loading"
           ref="toolboxTableRef"
+          data-testid="workflow-list-table"
           :items="tableModel.tableState.displayItems"
           :fields="tableModel.tableState.fields"
           :total-count="tableModel.tableState.tableCount"
@@ -231,6 +232,7 @@ watch(
           <template #th-run> &nbsp; </template>
           <template #col-run-format>
             <p-button
+              data-testid="workflow-run-btn"
               style-type="tertiary"
               size="sm"
               @click="handleRunWorkflow"

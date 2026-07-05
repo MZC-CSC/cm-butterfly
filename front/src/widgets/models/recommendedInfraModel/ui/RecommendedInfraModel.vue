@@ -382,6 +382,7 @@ function handleSave(e: { name: string; description: string }) {
   <div>
     <create-form
       class="page-modal-layout"
+      data-testid="recommend-modal"
       title="Recommend Model"
       :need-widget-layout="true"
       :badge-title="sourceModelName"
@@ -394,6 +395,7 @@ function handleSave(e: { name: string; description: string }) {
           <section class="select-service-box flex w-full items-center gap-4">
             <p class="text-label-lg font-bold">Provider</p>
             <p-select-dropdown
+              data-testid="recommend-provider-select"
               :menu="provider.menu"
               :loading="provider.loading"
               @update:visible-menu="handleProviderMenuClick"
@@ -406,6 +408,7 @@ function handleSave(e: { name: string; description: string }) {
             ></p-select-dropdown>
             <p class="text-label-lg font-bold">Region</p>
             <p-select-dropdown
+              data-testid="recommend-region-select"
               :menu="region.menu"
               :loading="region.loading"
               :disabled="provider.selected === ''"
@@ -420,6 +423,7 @@ function handleSave(e: { name: string; description: string }) {
             <!-- Search 버튼을 오른쪽 끝으로 -->
             <div class="flex-grow"></div>
             <p-button
+              data-testid="recommend-search"
               :disabled="!provider.selected || !region.selected"
               @click="getRecommendModelList"
             >
@@ -432,6 +436,7 @@ function handleSave(e: { name: string; description: string }) {
             <p class="text-label-lg font-bold" title="Maximum number of recommended infrastructures to return (default: 3)">Candidate Limit</p>
             <input
               v-model.number="candidateLimit"
+              data-testid="recommend-candidate-limit"
               type="number"
               :min="1"
               :max="10"
@@ -469,6 +474,7 @@ function handleSave(e: { name: string; description: string }) {
           </section>
           <p-toolbox-table
             ref="toolboxTable"
+            data-testid="recommend-result-table"
             :items="recommendInfraModel.tableModel.tableState.displayItems"
             :fields="recommendInfraModel.tableModel.tableState.fields"
             :total-count="recommendInfraModel.tableModel.tableState.tableCount"
@@ -496,7 +502,10 @@ function handleSave(e: { name: string; description: string }) {
       </template>
       <template #buttons>
         <p-button style-type="tertiary" @click="handleModal">cancel</p-button>
-        <p-button @click="modalState.targetModal = true">
+        <p-button
+          data-testid="recommend-save-target"
+          @click="modalState.targetModal = true"
+        >
           Save as a Target Model
         </p-button>
       </template>

@@ -37,7 +37,10 @@ onMounted(function () {
 watch(
   () => props.sequence,
   () => {
-    const designer: Designer = sequentialDesignerModel.value.getDesigner();
+    const designer: Designer | null =
+      sequentialDesignerModel.value?.getDesigner();
+    // 디자이너가 아직 생성되지 않았으면(초기 마운트 전) 건너뜀
+    if (!designer) return;
     const definition: Definition = {
       properties: designer.getDefinition().properties,
       sequence: props.sequence,
@@ -56,7 +59,10 @@ watch(
 </script>
 
 <template>
-  <div class="w-[100%] h-[100%] source-template-workflow-edit-container">
+  <div
+    data-testid="workflow-designer"
+    class="w-[100%] h-[100%] source-template-workflow-edit-container"
+  >
     <section class="w-[100%] h-[100%] workflow-box">
       <div ref="placeholder" class="w-[100%] h-[100%]"></div>
     </section>
