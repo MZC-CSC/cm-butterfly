@@ -51,28 +51,28 @@ export class SourceServicesPage {
       .or(this.page.getByText(name, { exact: true }));
   }
 
+  /** 목록 상단 검색창(PToolboxTable plain search) */
+  private get listSearchInput(): Locator {
+    return this.page
+      .getByRole('textbox', { name: 'Search' })
+      .or(this.page.getByPlaceholder('Search'))
+      .first();
+  }
+
   /**
-   * 소스그룹 목록은 PToolboxTable 클라이언트 페이징이고 검색창이 없다(searchable=false).
-   * 누적 데이터가 많으면 대상 그룹 행이 1페이지 밖에 있을 수 있으므로, 행이 보일 때까지
-   * 다음 페이지 버튼(ic_chevron-right = 페이지네이션의 마지막 버튼)으로 넘겨 노출시킨다.
+   * 소스그룹 목록은 PToolboxTable 클라이언트 페이징(pageSize 15)이라, 누적 데이터가 많으면
+   * 대상 그룹 행이 1페이지 밖에 있을 수 있다. 목록 상단 검색창에 고유 이름을 입력해 해당 행만
+   * 남도록 필터링하면 목록 크기·페이지와 무관하게 행을 노출시킬 수 있다.
    */
   private async revealGroup(name: string): Promise<void> {
-    const nextButton = this.page
-      .locator('.text-pagination')
-      .first()
-      .locator('button')
-      .last();
-    for (let i = 0; i < 20; i++) {
-      if (await this.groupRow(name).first().isVisible().catch(() => false)) return;
-      if (
-        (await nextButton.count()) === 0 ||
-        (await nextButton.isDisabled().catch(() => true))
-      ) {
-        break;
-      }
-      await nextButton.click();
-      await this.page.waitForTimeout(500);
-    }
+    const search = this.listSearchInput;
+    if ((await search.count()) === 0) return; // 검색창이 없으면 그대로 진행(호출부 assert가 처리)
+    await search.click();
+    await search.fill('');
+    await search.fill(name);
+    await search.press('Enter');
+    // 클라이언트 필터 반영 대기
+    await this.page.waitForTimeout(800);
   }
 
   // ───────────────────────── 소스그룹 등록 모달 (register-source-group) ─────────────────────────
