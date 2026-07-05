@@ -122,40 +122,30 @@ export class SourceServicesPage {
 
   // ───────────────────────── 상세 / 연결 목록 / 수집 탭 ─────────────────────────
 
+  /** mirinae PTab 탭 선택 — 탭은 testid 전파가 어려워 ARIA role(tab)+접근명으로 안정 선택한다.
+   *  프레임워크 렌더 탭의 표준 셀렉터 컨벤션(단일 매칭, 텍스트/nth 취약성 회피). */
+  private tab(name: RegExp): Locator {
+    return this.page.getByRole('tab', { name });
+  }
+
   private get connectionsTab(): Locator {
-    return this.page
-      .getByTestId('tab-connections')
-      .or(this.page.getByRole('tab', { name: /Connections/i }))
-      .or(this.page.getByText('Connections', { exact: true }));
+    return this.tab(/Connections/i);
   }
   /** 연결 목록의 "Add / Edit" 버튼(연결정보 추가·수정 모달) */
   private get addEditConnectionButton(): Locator {
-    return this.page
-      .getByTestId('source-connection-add-edit');
+    return this.page.getByTestId('source-connection-add-edit');
   }
   private connectionRow(name: string): Locator {
-    return this.page
-      .getByTestId(`source-connection-row-${name}`)
-      .or(this.page.getByRole('row', { name: new RegExp(name) }))
-      .or(this.page.getByText(name, { exact: true }));
+    return this.page.getByRole('row', { name: new RegExp(name) });
   }
   private get infoTab(): Locator {
-    return this.page
-      .getByTestId('tab-information')
-      .or(this.page.getByRole('tab', { name: /Information/i }))
-      .or(this.page.getByText('Information', { exact: true }));
+    return this.tab(/Information/i);
   }
   private get infraCollectTab(): Locator {
-    return this.page
-      .getByTestId('tab-infra-collect')
-      .or(this.page.getByRole('tab', { name: /Infra Collect/i }))
-      .or(this.page.getByText('Infra Collect', { exact: true }));
+    return this.tab(/Infra Collect/i);
   }
   private get softwareCollectTab(): Locator {
-    return this.page
-      .getByTestId('tab-software-collect')
-      .or(this.page.getByRole('tab', { name: /Software Collect/i }))
-      .or(this.page.getByText('Software Collect', { exact: true }));
+    return this.tab(/Software Collect/i);
   }
   /** "Collect Infra" 버튼 (import-infra) */
   private get collectInfraButton(): Locator {

@@ -20,8 +20,8 @@ function connectionFromFixture(name: string): Connection {
     ip: sourceServer.ip,
     sshPort: sourceServer.sshPort,
     user: sourceServer.sshUser,
-    password: process.env.TEST_SOURCE_PASSWORD || undefined,
-    privateKey: process.env.TEST_SOURCE_PRIVATE_KEY || undefined,
+    password: sourceServer.password || undefined,
+    privateKey: sourceServer.privateKey || undefined,
   };
 }
 

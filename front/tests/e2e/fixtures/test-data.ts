@@ -24,10 +24,14 @@ export const testNamespace = {
 /** 소스 서버(온프렘 대체 nano EC2) — 마이그레이션 시나리오용 */
 export const sourceServer = {
   name: process.env.TEST_SOURCE_NAME || 'e2e-nano-source',
-  ip: process.env.TEST_SOURCE_IP || '',
+  // @unit은 백엔드 mock이라 실제 접속 안 함 → 더미 기본값(문서용 TEST-NET-3). @scenario는 env로 실제값 주입.
+  ip: process.env.TEST_SOURCE_IP || '203.0.113.10',
   privateIp: process.env.TEST_SOURCE_PRIVATE_IP || '',
   sshPort: process.env.TEST_SOURCE_SSH_PORT || '22',
   sshUser: process.env.TEST_SOURCE_SSH_USER || 'ubuntu',
+  // 연결정보 폼은 password 또는 privateKey가 있어야 등록 가능. @unit 기본은 더미 password.
+  password: process.env.TEST_SOURCE_PASSWORD || 'e2e-dummy-pass',
+  privateKey: process.env.TEST_SOURCE_PRIVATE_KEY || '',
 };
 
 /** 타깃 추천 — 저비용(nano/small급) 강제 */
