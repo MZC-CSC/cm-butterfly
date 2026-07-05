@@ -141,9 +141,15 @@ When('마이그레이션 워크플로우를 생성하고 실행하면', async ({
   // 자동 구성하므로 템플릿을 수동 선택하지 않는다(수동 선택은 자동 구성을 방해해 저장 실패).
   await wf.saveWorkflow();
 
-  // 2) 목록에서 생성된 워크플로우 실행(run)
+  // cm-cicada는 생성 시 DAG YAML을 디스크에 기록만 하고, airflow가 이를 파싱해 등록하는 데
+  // ~5~15초(실측 ~11s, min_file_process_interval=5s)가 걸린다. 이 지연 창 안에 run을 쏘면
+  // "provided dag_id is not exist"로 거부되므로, run 전에 DAG 등록 시간을 준다.
+  // (다중 run=다중 EC2 프로비저닝을 피하려고 재시도가 아닌 단일 대기를 쓴다.)
   await wf.gotoWorkflows();
   await wf.expectWorkflowVisible(name);
+  await new Promise(r => setTimeout(r, 20_000));
+
+  // 2) 목록에서 생성된 워크플로우 실행(run)
   await wf.runWorkflow(name);
 
   // 3) 실행 이력이 생성될 때까지 대기 (완료 여부는 후속 EC2 확인 스텝에서 검증)
