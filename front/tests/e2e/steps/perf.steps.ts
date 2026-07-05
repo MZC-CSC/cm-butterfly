@@ -27,18 +27,29 @@ async function loginToken(request: APIRequestContext): Promise<string> {
   return body?.responseData?.access_token ?? body?.access_token ?? '';
 }
 
-/** 생성된 인프라의 첫 노드 공인 IP 조회 (cm-beetle/GetInfra 경유) */
+/**
+ * 생성된 인프라의 첫 노드 공인 IP 조회 (cm-beetle/GetInfra 경유).
+ * 마이그레이션 직후 노드가 Creating이라 공인 IP가 아직 비어 있을 수 있으므로,
+ * 채워질 때까지 폴링한다(최대 ~5분). IP가 있으면 SSH·원격명령이 가능한 상태로 본다.
+ */
 async function fetchNodePublicIp(request: APIRequestContext, token: string): Promise<{ nodeId: string; ip: string }> {
   const nsId = testNamespace.id;
   const infraId = scenarioState.infraId ?? workload.infraName;
-  const res = await request.post(`${config.baseURL}/api/cm-beetle/GetInfra`, {
-    headers: { Authorization: `Bearer ${token}` },
-    data: { pathParams: { nsId, infraId } },
-  });
-  const body = await res.json();
-  const infra = body?.responseData?.data ?? body?.responseData ?? {};
-  const node = (infra.node ?? infra.Node ?? [])[0] ?? {};
-  return { nodeId: node.id ?? node.Id ?? '', ip: node.publicIp ?? node.PublicIp ?? node.public_ip ?? '' };
+  let nodeId = '';
+  for (let i = 0; i < 30; i++) {
+    const res = await request.post(`${config.baseURL}/api/cm-beetle/GetInfra`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { pathParams: { nsId, infraId } },
+    });
+    const body = await res.json().catch(() => ({}));
+    const infra = body?.responseData?.data ?? body?.responseData ?? {};
+    const node = (infra.node ?? infra.Node ?? [])[0] ?? {};
+    nodeId = node.id ?? node.Id ?? nodeId;
+    const ip = node.publicIp ?? node.PublicIp ?? node.public_ip ?? '';
+    if (ip) return { nodeId, ip };
+    await new Promise(r => setTimeout(r, 10_000));
+  }
+  return { nodeId, ip: '' };
 }
 
 /** "그리고 생성된 워크로드에 nginx를 설치한다" — cb-tumblebug 원격명령으로 nginx 설치 */

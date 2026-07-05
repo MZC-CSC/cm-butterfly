@@ -109,18 +109,27 @@ export class WorkloadPage {
   nodeCard(nodeName: string): Locator {
     return this.page
       .getByTestId(`vm-card-${nodeName}`)
-      .or(this.page.locator('.vmList-card', { hasText: nodeName }))
-      .or(this.page.getByText(nodeName, { exact: false }));
+      .or(this.page.locator('.vmList-card', { hasText: nodeName }));
   }
 
-  /** 특정 노드가 서버 목록에 보이는지 확인 */
+  /** 서버 목록의 노드 카드(이름 무관) — 마이그레이션이 만든 노드는 생성 이름(vm-...)이라 이름을 모른다. */
+  private get anyNodeCard(): Locator {
+    return this.page.locator('.vmList-card');
+  }
+
+  /**
+   * 노드가 서버 목록에 보이는지 확인. 마이그레이션이 만드는 노드 이름은 cm-beetle/tumblebug이
+   * 생성(vm-...)해 사전에 알 수 없으므로, 지정 이름 카드가 없으면 "노드 카드가 존재"로 확인한다.
+   */
   async expectNodeVisible(nodeName: string): Promise<void> {
-    await expect(this.nodeCard(nodeName)).toBeVisible({ timeout: 20_000 });
+    await expect(this.nodeCard(nodeName).or(this.anyNodeCard).first()).toBeVisible({
+      timeout: 20_000,
+    });
   }
 
-  /** 노드 선택(카드 클릭) — 정보/부하테스트 탭 활성화 */
+  /** 노드 선택(카드 클릭). 지정 이름 카드가 없으면 첫 노드 카드를 선택. */
   async selectNode(nodeName: string): Promise<void> {
-    await this.nodeCard(nodeName).click();
+    await this.nodeCard(nodeName).or(this.anyNodeCard).first().click();
   }
 
   // ─────────────────────────────────────────────────────────────
