@@ -1,7 +1,9 @@
 import { createBdd } from 'playwright-bdd';
 import { test, expect } from '../support/fixtures';
 import { WorkflowPage } from '../pages/workflow.page';
+import { ModelsPage } from '../pages/models.page';
 import { workflowData } from '../fixtures/test-data';
+import { uniqueName } from '../support/naming';
 
 const { Given, When, Then } = createBdd(test);
 
@@ -124,15 +126,19 @@ Then('워크플로우 실행이 정상 완료된다', async ({ page }) => {
  * 저장(생성) 후 목록에서 실행(run). 실제 EC2 프로비저닝이 트리거되므로 시나리오 종료 시 정리 필수.
  */
 When('마이그레이션 워크플로우를 생성하고 실행하면', async ({ page }) => {
+  const models = new ModelsPage(page);
   const wf = new WorkflowPage(page);
   const name = `${workflowData.createNamePrefix}-migrate-${Date.now()}`;
 
-  // 1) add-mode 디자이너 열기 → 인프라 템플릿 선택 → 저장(생성)
-  await wf.gotoWorkflows();
-  await wf.openDesigner();
+  // 1) 타깃 모델 상세 "Make Workflow" → 워크플로우 에디터 → 이름/템플릿 → 저장(생성)
+  //    (Workflows 목록의 Add는 disabled — 생성은 타깃 모델에서 시작)
+  await models.openWorkflowEditorFromTarget(
+    uniqueName(process.env.TEST_TARGET_MODEL_NAME || 'e2e-lowcost-target'),
+  );
+  await wf.expectDesignerOpen();
   await wf.fillWorkflowName(name);
   await wf.selectTemplate(workflowData.infraTemplateName).catch(() => {
-    /* add-mode에서 템플릿이 이미 자동 선택된 경우 무시 */
+    /* 에디터에서 템플릿이 이미 자동 선택된 경우 무시 */
   });
   await wf.saveWorkflow();
 

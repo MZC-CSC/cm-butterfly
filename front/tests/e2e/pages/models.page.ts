@@ -286,6 +286,14 @@ export class ModelsPage {
     await this.successConfirmButton.click();
   }
 
+  /** 타깃 모델 상세의 "Make Workflow"로 워크플로우 에디터를 연다(워크플로우 생성 진입점).
+   *  Workflows 목록의 Add는 disabled이며, 생성은 타깃 모델에서 시작한다. */
+  async openWorkflowEditorFromTarget(targetName: string): Promise<void> {
+    await this.gotoTargetModels();
+    await this.selectModel(targetName);
+    await this.page.getByTestId('target-make-workflow').click();
+  }
+
   // ── SW(소프트웨어) 모델 추천 (인프라와 동일 과정: 소스 SW 모델 → 추천 → 타깃 SW 모델 저장) ──
 
   private get swRecommendModal(): Locator {
