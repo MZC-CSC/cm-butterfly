@@ -137,9 +137,8 @@ When('마이그레이션 워크플로우를 생성하고 실행하면', async ({
   );
   await wf.expectDesignerOpen();
   await wf.fillWorkflowName(name);
-  await wf.selectTemplate(workflowData.infraTemplateName).catch(() => {
-    /* 에디터에서 템플릿이 이미 자동 선택된 경우 무시 */
-  });
+  // add-mode 에디터는 타깃 모델의 migrationType으로 템플릿·task(beetle_task_infra_migration)를
+  // 자동 구성하므로 템플릿을 수동 선택하지 않는다(수동 선택은 자동 구성을 방해해 저장 실패).
   await wf.saveWorkflow();
 
   // 2) 목록에서 생성된 워크플로우 실행(run)
