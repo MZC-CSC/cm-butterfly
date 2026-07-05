@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { PButton } from '@cloudforet-test/mirinae';
-import { Ref } from 'vue';
+import { computed, Ref } from 'vue';
 import LoadTestEvaluationMetric from '@/widgets/workload/vm/vmEvaluatePerf/ui/LoadTestEvaluationMetric.vue';
 import LoadTestResourceMetric from '@/widgets/workload/vm/vmEvaluatePerf/ui/LoadTestResourceMetric.vue';
 import LoadTestAggregationTable from '@/widgets/workload/vm/vmEvaluatePerf/ui/LoadTestAggregationTable.vue';
@@ -10,10 +10,21 @@ interface IProps {
   nsId: string;
   vmId: string;
   loading: Ref<boolean>;
+  // 현재/마지막 부하테스트 상태 라벨(Running/Collecting results/Completed/Failed). 비어 있으면 미실행.
+  loadTestStatus?: string;
 }
 
 const props = defineProps<IProps>();
-const emit = defineEmits(['openLoadconfig', 'openTemplateManager']);
+const emit = defineEmits([
+  'openLoadconfig',
+  'openTemplateManager',
+  'checkLoadStatus',
+]);
+
+// 진행 중(실행/수집)인지 여부 — 배지 색/문구용.
+const isLoadTestRunning = computed(() =>
+  ['Running', 'Collecting results'].includes(props.loadTestStatus ?? ''),
+);
 </script>
 
 <template>
@@ -38,7 +49,7 @@ const emit = defineEmits(['openLoadconfig', 'openTemplateManager']);
         when you complete the load configuration, you will see the result data.
         Please configure the load.
       </h5>
-      <div class="flex gap-1.5">
+      <div class="flex gap-1.5 items-center">
         <p-button
           data-testid="vm-load-config-open"
           style-type="secondary"
@@ -47,6 +58,23 @@ const emit = defineEmits(['openLoadconfig', 'openTemplateManager']);
         >
           Load Config
         </p-button>
+        <p-button
+          data-testid="vm-load-manage"
+          style-type="tertiary"
+          icon-left="ic_refresh"
+          :disabled="!props.loadTestStatus"
+          @click="emit('checkLoadStatus')"
+        >
+          Load Manage
+        </p-button>
+        <span
+          v-if="props.loadTestStatus"
+          class="load-test-status-badge"
+          :class="{ running: isLoadTestRunning }"
+          data-testid="vm-load-test-status"
+        >
+          Load Test: {{ props.loadTestStatus }}
+        </span>
       </div>
     </div>
     <div class="flex flex-col gap-4">
@@ -104,6 +132,21 @@ const emit = defineEmits(['openLoadconfig', 'openTemplateManager']);
       margin: 16px 0 8px 0;
     }
   }
+}
+
+.load-test-status-badge {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background-color: #f1f3f5;
+  color: #495057;
+  white-space: nowrap;
+}
+
+.load-test-status-badge.running {
+  background-color: #e7f5ff;
+  color: #1971c2;
 }
 
 .chart {

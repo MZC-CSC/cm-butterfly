@@ -8,7 +8,14 @@ import {
 } from '@cloudforet-test/mirinae';
 import { useVmListModel } from '@/widgets/workload/vm/vmList/model';
 import TableLoadingSpinner from '@/shared/ui/LoadingSpinner/TableLoadingSpinner.vue';
-import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+} from 'vue';
 import SuccessfullyLoadConfigModal from '@/features/workload/successfullyModal/ui/SuccessfullyLoadConfigModal.vue';
 import LoadConfig from '@/features/workload/actionLoadConfig/ui/LoadConfig.vue';
 import { showErrorMessage } from '@/shared/utils';
@@ -34,6 +41,18 @@ const loadConfigRef = ref();
 
 // 부하테스트 진행 상태 폴링(FR-M7-WL-003-07). cm-ant 상태: on_processing→on_fetching→successed/test_failed.
 const LOADTEST_TERMINAL_STATUS = ['successed', 'test_failed'];
+const LOADTEST_STATUS_LABEL: Record<string, string> = {
+  on_processing: 'Running',
+  on_fetching: 'Collecting results',
+  successed: 'Completed',
+  test_failed: 'Failed',
+};
+// Evaluate Perf 헤더(Load Config 옆)에 노출할 현재 부하테스트 상태 라벨. 폴링 시마다 갱신.
+const currentLoadTestStatusLabel = computed(() => {
+  const status = (resLoadStatus as any).data?.value?.responseData?.result
+    ?.executionStatus as string | undefined;
+  return status ? LOADTEST_STATUS_LABEL[status] ?? status : '';
+});
 let loadStatusPollTimer: ReturnType<typeof setTimeout> | null = null;
 // 완료 감지 시 결과 컴포넌트(집계·결과·리소스)를 강제 재조회하기 위한 key.
 const loadTestResultKey = ref(0);
@@ -324,8 +343,10 @@ function handleTemplateManagerClose() {
             :ns-id="props.nsId"
             :vm-id="selectedVm.id"
             :ip="selectedVm.publicIP"
+            :load-test-status="currentLoadTestStatusLabel"
             @openLoadconfig="handleLoadStatus"
             @openTemplateManager="handleTemplateManagerOpen"
+            @checkLoadStatus="setVmLoadTestResult"
           />
         </template>
         <template #estimateCost>
