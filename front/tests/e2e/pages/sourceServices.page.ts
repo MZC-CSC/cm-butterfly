@@ -43,12 +43,15 @@ export class SourceServicesPage {
       .getByTestId('source-group-delete');
   }
 
-  /** 이름으로 소스그룹 행 찾기(선택·상세 진입용) */
+  /**
+   * 이름으로 소스그룹 행 찾기(선택·상세 진입용).
+   * 검색창 필터를 켜면 검색어 칩에도 동일 텍스트가 생기므로 getByText fallback은 쓰지 않고
+   * 반드시 테이블 행(role=row)만 매칭한다(칩을 잘못 클릭하면 상세가 열리지 않음).
+   */
   private groupRow(name: string): Locator {
     return this.page
       .getByTestId(`source-group-row-${name}`)
-      .or(this.page.getByRole('row', { name: new RegExp(name) }))
-      .or(this.page.getByText(name, { exact: true }));
+      .or(this.page.getByRole('row', { name: new RegExp(name) }));
   }
 
   /** 목록 상단 검색창(PToolboxTable plain search) */
