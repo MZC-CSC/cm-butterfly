@@ -399,12 +399,14 @@ function mapTargetModelToTaskComponent(
     console.log('Processed software model data:', parseString);
   }
 
-  // Set path_params and query_params from task component with nsId default value
-  // Extract actual values from task component properties (similar to getFixedModel in toolboxModel.ts)
+  // Set path_params and query_params from task component with nsId default value.
+  // ★ 스키마 properties의 description은 *설명(placeholder)*이지 값이 아니다. 값은 비워 두어
+  //   자동 생성 task가 백엔드 기본값을 쓰거나(선택 파라미터) 사용자가 채우게 한다.
+  //   (과거 description을 값으로 넣어 예: cm-beetle 마이그레이션 nameSeed=<설명문>이 되어 400 — BAR-1393)
   const pathParamsKeyValue = taskComponent?.data.path_params?.properties
     ? Object.entries(taskComponent.data.path_params.properties).reduce(
-        (acc, [key, value]) => {
-          acc[key] = value.description;
+        (acc, [key]) => {
+          acc[key] = '';
           return acc;
         },
         {} as Record<string, string>,
@@ -413,8 +415,8 @@ function mapTargetModelToTaskComponent(
 
   const queryParamsKeyValue = taskComponent?.data.query_params?.properties
     ? Object.entries(taskComponent.data.query_params.properties).reduce(
-        (acc, [key, value]) => {
-          acc[key] = value.description;
+        (acc, [key]) => {
+          acc[key] = '';
           return acc;
         },
         {} as Record<string, string>,
@@ -606,12 +608,14 @@ function createTaskForModel(
     console.log('Processed software model data:', parseString);
   }
 
-  // Set path_params and query_params from task component with nsId default value
-  // Extract actual values from task component properties (similar to getFixedModel in toolboxModel.ts)
+  // Set path_params and query_params from task component with nsId default value.
+  // ★ 스키마 properties의 description은 *설명(placeholder)*이지 값이 아니다. 값은 비워 두어
+  //   자동 생성 task가 백엔드 기본값을 쓰거나(선택 파라미터) 사용자가 채우게 한다.
+  //   (과거 description을 값으로 넣어 예: cm-beetle 마이그레이션 nameSeed=<설명문>이 되어 400 — BAR-1393)
   const pathParamsKeyValue = taskComponent?.data.path_params?.properties
     ? Object.entries(taskComponent.data.path_params.properties).reduce(
-        (acc, [key, value]) => {
-          acc[key] = value.description;
+        (acc, [key]) => {
+          acc[key] = '';
           return acc;
         },
         {} as Record<string, string>,
@@ -620,8 +624,8 @@ function createTaskForModel(
 
   const queryParamsKeyValue = taskComponent?.data.query_params?.properties
     ? Object.entries(taskComponent.data.query_params.properties).reduce(
-        (acc, [key, value]) => {
-          acc[key] = value.description;
+        (acc, [key]) => {
+          acc[key] = '';
           return acc;
         },
         {} as Record<string, string>,
