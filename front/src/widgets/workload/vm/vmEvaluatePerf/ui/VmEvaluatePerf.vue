@@ -77,7 +77,25 @@ const isLoadTestRunning = computed(() =>
         </span>
       </div>
     </div>
-    <div class="flex flex-col gap-4">
+    <!-- 결과 영역: 부하측정이 없으면 안내(그래프 숨김), 진행 중이면 로딩, 완료면 결과 표시 -->
+    <div
+      v-if="!props.loadTestStatus"
+      class="load-test-empty"
+      data-testid="load-test-empty"
+    >
+      No load test has been run for this server yet.<br />
+      Use <strong>Load Config</strong> to start a load test — the results will
+      appear here.
+    </div>
+    <div
+      v-else-if="isLoadTestRunning"
+      class="load-test-empty"
+      data-testid="load-test-progress"
+    >
+      Load test in progress ({{ props.loadTestStatus }})…<br />
+      The results will appear here once it finishes.
+    </div>
+    <div v-else class="flex flex-col gap-4">
       <div class="font-bold text-2xl" data-testid="load-test-aggregation-table">
         Aggregation Table
         <LoadTestAggregationTable
@@ -132,6 +150,16 @@ const isLoadTestRunning = computed(() =>
       margin: 16px 0 8px 0;
     }
   }
+}
+
+.load-test-empty {
+  padding: 48px 16px;
+  text-align: center;
+  color: #868e96;
+  font-size: 14px;
+  line-height: 1.6;
+  border: 1px dashed #dee2e6;
+  border-radius: 4px;
 }
 
 .load-test-status-badge {
