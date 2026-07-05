@@ -8,7 +8,7 @@ import {
 } from '@cloudforet-test/mirinae';
 import { useVmListModel } from '@/widgets/workload/vm/vmList/model';
 import TableLoadingSpinner from '@/shared/ui/LoadingSpinner/TableLoadingSpinner.vue';
-import { onMounted, reactive, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import SuccessfullyLoadConfigModal from '@/features/workload/successfullyModal/ui/SuccessfullyLoadConfigModal.vue';
 import LoadConfig from '@/features/workload/actionLoadConfig/ui/LoadConfig.vue';
 import { showErrorMessage } from '@/shared/utils';
@@ -31,6 +31,19 @@ const resLoadStatus = useGetLastLoadTestState(null);
 const resGetMci = useGetMciInfo(null);
 const selectedVm = ref<IVm | null>(null);
 const loadConfigRef = ref();
+
+// 부하테스트 진행 상태 폴링(FR-M7-WL-003-07). cm-ant 상태: on_processing→on_fetching→successed/test_failed.
+const LOADTEST_TERMINAL_STATUS = ['successed', 'test_failed'];
+let loadStatusPollTimer: ReturnType<typeof setTimeout> | null = null;
+// 완료 감지 시 결과 컴포넌트(집계·결과·리소스)를 강제 재조회하기 위한 key.
+const loadTestResultKey = ref(0);
+
+function stopLoadStatusPolling() {
+  if (loadStatusPollTimer) {
+    clearTimeout(loadStatusPollTimer);
+    loadStatusPollTimer = null;
+  }
+}
 const { mciStore, initToolBoxTableModel, vmListTableModel, setMci } =
   useVmListModel();
 
@@ -112,6 +125,10 @@ onMounted(() => {
   initToolBoxTableModel();
 });
 
+onBeforeUnmount(() => {
+  stopLoadStatusPolling();
+});
+
 async function getMciInfo() {
   return resGetMci
     .execute({
@@ -141,22 +158,34 @@ async function handleMciIdChange() {
 
 function setVmLoadTestResult() {
   if (selectedVm.value === null) return;
+  // 다른 노드로 전환/재조회 시 이전 폴링 중단
+  stopLoadStatusPolling();
+  const targetVmId = selectedVm.value.id;
 
   resLoadStatus
     .execute({
       request: {
         nsId: props.nsId,
         infraId: props.mciId,
-        nodeId: selectedVm.value.id,
+        nodeId: targetVmId,
       },
     })
     .then(res => {
+      // 선택 노드가 그새 바뀌었으면 무시
+      if (selectedVm.value?.id !== targetVmId) return;
       if (res.data.responseData) {
-        mciStore.assignLastLoadTestStateToVm(
-          props.mciId,
-          selectedVm.value!.id,
-          res.data.responseData.result,
-        );
+        const result = res.data.responseData.result;
+        mciStore.assignLastLoadTestStateToVm(props.mciId, targetVmId, result);
+
+        const status = result?.executionStatus;
+        if (status && !LOADTEST_TERMINAL_STATUS.includes(status)) {
+          // 진행 중(on_processing/on_fetching) → 주기 폴링으로 상태 갱신
+          loadStatusPollTimer = setTimeout(() => setVmLoadTestResult(), 5000);
+        } else if (status && LOADTEST_TERMINAL_STATUS.includes(status)) {
+          // 완료/실패 → 폴링 종료 + 결과 컴포넌트 재조회
+          stopLoadStatusPolling();
+          loadTestResultKey.value += 1;
+        }
       }
     })
     .catch(e => {
@@ -289,6 +318,7 @@ function handleTemplateManagerClose() {
         </template>
         <template #evaluatePerf>
           <VmEvaluatePerf
+            :key="loadTestResultKey"
             :loading="resLoadStatus.isLoading"
             :mci-id="props.mciId"
             :ns-id="props.nsId"

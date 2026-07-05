@@ -91,12 +91,21 @@ export function useVmInformationModel() {
     }
   }
 
+  // 부하테스트 실행 상태(cm-ant)를 사용자 친화적 라벨로. 진행 중/수집 중/완료/실패를 한눈에.
+  const LOADTEST_STATUS_LABEL: Record<string, string> = {
+    on_processing: 'Running',
+    on_fetching: 'Collecting results',
+    successed: 'Completed',
+    test_failed: 'Failed',
+  };
+
   function mappdingLoadConfigStatus(executionStatus: string) {
     if (targetVmId.value) {
       detailTableModel.tableState.loading = true;
       detailTableModel.tableState.data = setDefineTableData(targetVmId.value);
       detailTableModel.tableState.loading = false;
-      detailTableModel.tableState.data.loadStatus = executionStatus;
+      detailTableModel.tableState.data.loadStatus =
+        LOADTEST_STATUS_LABEL[executionStatus] ?? executionStatus;
     }
   }
 
