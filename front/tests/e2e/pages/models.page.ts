@@ -248,8 +248,12 @@ export class ModelsPage {
       const price = priceMatch ? parseFloat(priceMatch[1]) : Number.POSITIVE_INFINITY;
       const spec = this.parseSpecToken(text);
 
-      // 값 완전성: 비용(월) 있음 + spec 토큰 있음 + 빈 셀 없음(플레이스홀더/공란 후보 제외)
-      const hasEmptyCell = cellTexts.some(t => t === '' || t === '-' || /^n\/?a$/i.test(t));
+      // 값 완전성: 비용(월) 있음 + spec 토큰 있음 + 빈 셀 없음.
+      // ★ 프론트는 빈 specId/imageId를 리터럴 "empty"(빨간 글씨)로 렌더하므로 이를 불완전으로 취급한다
+      //   (RecommendedInfraModel.getRecommendModelList → formatEmptyValue).
+      const hasEmptyCell = cellTexts.some(
+        t => t === '' || t === '-' || /^n\/?a$/i.test(t) || /^empty$/i.test(t),
+      );
       const complete = Number.isFinite(price) && !!spec && !hasEmptyCell;
       if (!complete) continue;
 

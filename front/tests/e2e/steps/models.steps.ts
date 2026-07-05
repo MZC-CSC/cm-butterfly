@@ -124,6 +124,8 @@ When(
     await models.openRecommend();
     await models.selectProvider(targetSpec.csp);
     await models.selectRegion(targetSpec.region);
+    // 후보 개수를 늘려 cm-beetle이 값이 채워진 후보를 반환할 확률을 높인다(소스 스펙이 낮으면 그래도 빌 수 있음).
+    await models.setCandidateLimit(Number(process.env.TEST_RECOMMEND_LIMIT || 20));
     await models.runRecommend();
     const chosen = await models.selectLowestCostCandidate();
     lastRecommendedSpec = chosen.spec;
