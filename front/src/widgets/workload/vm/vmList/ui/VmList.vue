@@ -23,7 +23,7 @@ import { IVm } from '@/entities/mci/model';
 import VmInformation from '@/widgets/workload/vm/vmInformation/ui/VmInformation.vue';
 import VmEvaluatePerf from '@/widgets/workload/vm/vmEvaluatePerf/ui/VmEvaluatePerf.vue';
 import ScenarioTemplateManagerModal from '@/widgets/workload/vm/scenarioTemplate/ui/ScenarioTemplateManagerModal.vue';
-import { useGetLastLoadTestState } from '@/entities/vm/api/api';
+import { useGetLastLoadTestState, useStopLoadTest } from '@/entities/vm/api/api';
 import { useGetMciInfo } from '@/entities/mci/api';
 
 interface IProps {
@@ -53,6 +53,22 @@ const currentLoadTestStatusLabel = computed(() => {
     ?.executionStatus as string | undefined;
   return status ? LOADTEST_STATUS_LABEL[status] ?? status : '';
 });
+// 관리(중단)용 loadTestKey.
+const currentLoadTestKey = computed(
+  () =>
+    ((resLoadStatus as any).data?.value?.responseData?.result
+      ?.loadTestKey as string) ?? '',
+);
+
+const resStopLoadTest = useStopLoadTest(null);
+function handleStopLoadTest() {
+  const key = currentLoadTestKey.value;
+  if (!key) return;
+  resStopLoadTest
+    .execute({ request: { loadTestKey: key } })
+    .then(() => setVmLoadTestResult())
+    .catch(e => showErrorMessage('error', e.errorMsg?.value ?? 'Stop failed'));
+}
 let loadStatusPollTimer: ReturnType<typeof setTimeout> | null = null;
 // 완료 감지 시 결과 컴포넌트(집계·결과·리소스)를 강제 재조회하기 위한 key.
 const loadTestResultKey = ref(0);
@@ -347,6 +363,7 @@ function handleTemplateManagerClose() {
             @openLoadconfig="handleLoadStatus"
             @openTemplateManager="handleTemplateManagerOpen"
             @checkLoadStatus="setVmLoadTestResult"
+            @stopLoadTest="handleStopLoadTest"
           />
         </template>
         <template #estimateCost>

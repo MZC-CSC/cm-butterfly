@@ -21,6 +21,7 @@ import {
 } from '@/entities/vm/model/types';
 
 const RUN_LOAD_TEST = 'Runloadtest';
+const STOP_LOAD_TEST = 'StopLoadTest';
 const GET_LAST_LOAD_TEST_CONFIG = 'Getlastloadtestexecutionstate';
 const GET_LOAD_TEST_EVALUATION_DATA = 'Getlastloadtestresult';
 const GET_LOAD_TEST_RESOURCE_METRIC = 'Getlastloadtestmetrics';
@@ -43,6 +44,20 @@ export function useRunLoadTest(requestPayload: IRunLoadTestRequest | null) {
     IAxiosResponse<IRunLoadTestRequest>,
     Required<Pick<RequestBodyWrapper<IMciRequestParams | null>, 'request'>>
   >(RUN_LOAD_TEST, requestBodyWrapper);
+}
+
+// 진행 중인 부하테스트 중단(StopLoadTest). loadTestKey로 지정.
+export function useStopLoadTest(loadTestKey: string | null) {
+  const requestBodyWrapper: Required<
+    Pick<RequestBodyWrapper<{ loadTestKey: string } | null>, 'request'>
+  > = {
+    request: loadTestKey ? { loadTestKey } : null,
+  };
+
+  return useAxiosPost<
+    IAxiosResponse<unknown>,
+    Required<Pick<RequestBodyWrapper<{ loadTestKey: string } | null>, 'request'>>
+  >(STOP_LOAD_TEST, requestBodyWrapper);
 }
 
 interface ILastloadtestStateResponseWrapper {

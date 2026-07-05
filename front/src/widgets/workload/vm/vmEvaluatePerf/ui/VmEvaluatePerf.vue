@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { PButton } from '@cloudforet-test/mirinae';
-import { computed, Ref } from 'vue';
+import { PButton, PButtonModal } from '@cloudforet-test/mirinae';
+import { computed, ref, Ref } from 'vue';
 import LoadTestEvaluationMetric from '@/widgets/workload/vm/vmEvaluatePerf/ui/LoadTestEvaluationMetric.vue';
 import LoadTestResourceMetric from '@/widgets/workload/vm/vmEvaluatePerf/ui/LoadTestResourceMetric.vue';
 import LoadTestAggregationTable from '@/widgets/workload/vm/vmEvaluatePerf/ui/LoadTestAggregationTable.vue';
@@ -19,12 +19,30 @@ const emit = defineEmits([
   'openLoadconfig',
   'openTemplateManager',
   'checkLoadStatus',
+  'stopLoadTest',
 ]);
 
 // 진행 중(실행/수집)인지 여부 — 배지 색/문구용.
 const isLoadTestRunning = computed(() =>
   ['Running', 'Collecting results'].includes(props.loadTestStatus ?? ''),
 );
+
+// Load Manage 관리 모달
+const manageModalOpen = ref(false);
+function openManageModal() {
+  emit('checkLoadStatus'); // 열 때 최신 상태 재조회
+  manageModalOpen.value = true;
+}
+function handleManageRefresh() {
+  emit('checkLoadStatus');
+}
+function handleManageStop() {
+  emit('stopLoadTest');
+}
+function handleManageRerun() {
+  manageModalOpen.value = false;
+  emit('openLoadconfig');
+}
 </script>
 
 <template>
@@ -61,9 +79,9 @@ const isLoadTestRunning = computed(() =>
         <p-button
           data-testid="vm-load-manage"
           style-type="tertiary"
-          icon-left="ic_refresh"
+          icon-left="ic_settings-filled"
           :disabled="!props.loadTestStatus"
-          @click="emit('checkLoadStatus')"
+          @click="openManageModal"
         >
           Load Manage
         </p-button>
@@ -128,6 +146,50 @@ const isLoadTestRunning = computed(() =>
         </div>
       </div>
     </div>
+
+    <PButtonModal
+      data-testid="load-manage-modal"
+      :visible="manageModalOpen"
+      size="sm"
+      header-title="Load Test Management"
+      @confirm="manageModalOpen = false"
+      @cancel="manageModalOpen = false"
+      @close="manageModalOpen = false"
+      @update:visible="v => (manageModalOpen = v)"
+    >
+      <div class="load-manage-body">
+        <p>
+          Current status:
+          <strong>{{ props.loadTestStatus || '—' }}</strong>
+        </p>
+        <div class="load-manage-actions">
+          <p-button
+            style-type="tertiary"
+            icon-left="ic_refresh"
+            data-testid="load-manage-refresh"
+            @click="handleManageRefresh"
+          >
+            Refresh Status
+          </p-button>
+          <p-button
+            v-if="isLoadTestRunning"
+            style-type="negative-secondary"
+            data-testid="load-manage-stop"
+            @click="handleManageStop"
+          >
+            Stop
+          </p-button>
+          <p-button
+            style-type="secondary"
+            icon-left="ic_settings"
+            data-testid="load-manage-rerun"
+            @click="handleManageRerun"
+          >
+            Re-run
+          </p-button>
+        </div>
+      </div>
+    </PButtonModal>
   </div>
 </template>
 
@@ -150,6 +212,18 @@ const isLoadTestRunning = computed(() =>
       margin: 16px 0 8px 0;
     }
   }
+}
+
+.load-manage-body {
+  padding: 8px 4px;
+  font-size: 14px;
+}
+
+.load-manage-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
 }
 
 .load-test-empty {
