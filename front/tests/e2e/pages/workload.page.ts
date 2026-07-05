@@ -207,8 +207,11 @@ export class WorkloadPage {
       .or(this.page.getByRole('button', { name: /evaluate perf/i }));
   }
   private get loadConfigButton(): Locator {
+    // 노드 상세 기본 탭(Information)의 "Load Config" 버튼(텍스트 버튼) 우선, Evaluate Perf 탭 버튼(testid)도 허용.
     return this.page
-      .getByTestId('vm-load-config-open');
+      .getByRole('button', { name: /load config/i })
+      .or(this.page.getByTestId('vm-load-config-open'))
+      .first();
   }
   private get loadConfigModal(): Locator {
     return this.page
@@ -310,7 +313,7 @@ export class WorkloadPage {
     rampUpTime: string;
     rampUpSteps: string;
   }): Promise<void> {
-    await this.openEvaluatePerfTab();
+    // 노드 선택 직후 기본 탭(Information)에 Load Config 버튼이 있으므로 탭 전환 없이 바로 연다.
     await this.openLoadConfig();
     await this.fillLoadConfig(cfg);
     await this.submitLoadConfig();
