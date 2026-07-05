@@ -60,9 +60,10 @@ export class WorkloadPage {
     await expect(this.mciTable).toBeVisible({ timeout: 20_000 });
   }
 
-  /** 특정 인프라가 목록에 보이는지 확인 */
+  /** 특정 인프라가 목록에 보이는지 확인. 워크플로우 실행→DAG→cm-beetle 마이그레이션이
+   *  tumblebug에 MCI를 만들기까지 시간이 걸리므로 넉넉히 대기(최대 180s). */
   async expectMciVisible(infraName: string): Promise<void> {
-    await expect(this.mciRow(infraName)).toBeVisible({ timeout: 20_000 });
+    await expect(this.mciRow(infraName)).toBeVisible({ timeout: 180_000 });
   }
 
   /** 인프라 행 선택(체크박스) — 선택 시 상세/서버 탭이 활성화됨 */

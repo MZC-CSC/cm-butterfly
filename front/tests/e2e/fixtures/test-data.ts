@@ -49,7 +49,9 @@ export const targetSpec = {
  */
 export const workload = {
   /** 마이그레이션 시나리오가 생성하는 인프라(MCI) 이름 — 워크로드 목록에서 확인할 대상 */
-  infraName: process.env.TEST_INFRA_NAME || 'e2e-target-infra',
+  // cm-beetle 마이그레이션이 생성하는 타깃 인프라(MCI) 이름. 추천 응답 targetInfra.name 기본값이
+  // 'infra101'이고 nameSeed(접두)는 비워두므로 생성 MCI 이름 = 'infra101'.
+  infraName: process.env.TEST_INFRA_NAME || 'infra101',
   /** 인프라 내 노드(VM) 이름 */
   nodeName: process.env.TEST_NODE_NAME || 'e2e-target-node',
   /** 부하테스트 기본 설정(비용 보호: 짧고 가볍게) */
