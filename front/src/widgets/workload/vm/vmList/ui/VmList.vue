@@ -70,8 +70,6 @@ function handleStopLoadTest() {
     .catch(e => showErrorMessage('error', e.errorMsg?.value ?? 'Stop failed'));
 }
 let loadStatusPollTimer: ReturnType<typeof setTimeout> | null = null;
-// 완료 감지 시 결과 컴포넌트(집계·결과·리소스)를 강제 재조회하기 위한 key.
-const loadTestResultKey = ref(0);
 
 function stopLoadStatusPolling() {
   if (loadStatusPollTimer) {
@@ -217,9 +215,9 @@ function setVmLoadTestResult() {
           // 진행 중(on_processing/on_fetching) → 주기 폴링으로 상태 갱신
           loadStatusPollTimer = setTimeout(() => setVmLoadTestResult(), 5000);
         } else if (status && LOADTEST_TERMINAL_STATUS.includes(status)) {
-          // 완료/실패 → 폴링 종료 + 결과 컴포넌트 재조회
+          // 완료/실패 → 폴링 종료. 결과는 상태 전환(v-if/v-else)으로 결과 컴포넌트가
+          // 새로 mount되며 자동 조회되므로 별도 강제 갱신 불필요.
           stopLoadStatusPolling();
-          loadTestResultKey.value += 1;
         }
       }
     })
@@ -353,7 +351,6 @@ function handleTemplateManagerClose() {
         </template>
         <template #evaluatePerf>
           <VmEvaluatePerf
-            :key="loadTestResultKey"
             :loading="resLoadStatus.isLoading"
             :mci-id="props.mciId"
             :ns-id="props.nsId"
