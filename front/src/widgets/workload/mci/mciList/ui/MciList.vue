@@ -104,7 +104,7 @@ onMounted(async () => {
         <table-loading-spinner
           :loading="loading"
           :height="height"
-          message="Loading MCI list..."
+          message="Loading Infra list..."
         />
         
         <!-- 로딩 완료 후 테이블 표시 -->

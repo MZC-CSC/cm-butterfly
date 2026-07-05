@@ -31,6 +31,13 @@ const dictionary = [
   'wls',
 ];
 
+// tb-0.12.9 현행화(MCI→Infra) — 라우트 name/menuId는 유지하되 breadcrumb 표시만 현행 용어로.
+// 사전 분해된 토막(mci/wls)을 표시 시점에만 치환한다.
+const breadcrumbDisplayRename: Record<string, string> = {
+  mci: 'Infra',
+  wls: 'Workloads',
+};
+
 const { isCollapsed } = storeToRefs(sidebar);
 
 const state = reactive({
@@ -98,7 +105,10 @@ function splitWordsFromDictionary(str: string, dictionary: string[]) {
 
     for (let word of dictionary) {
       if (remaining.startsWith(word)) {
-        result += word.charAt(0).toUpperCase() + word.slice(1) + ' ';
+        const display =
+          breadcrumbDisplayRename[word] ??
+          word.charAt(0).toUpperCase() + word.slice(1);
+        result += display + ' ';
         remaining = remaining.slice(word.length);
         found = true;
         break;
