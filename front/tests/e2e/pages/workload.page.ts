@@ -47,12 +47,9 @@ export class WorkloadPage {
       .getByTestId('mci-list-table');
   }
 
-  /** 이름으로 인프라 행 지정 */
+  /** 이름으로 인프라 행 지정 — 단일 ARIA row(.or() 체인은 같은 행을 여러 locator로 매칭해 중복→strict 위반). */
   mciRow(infraName: string): Locator {
-    return this.page
-      .getByTestId(`mci-row-${infraName}`)
-      .or(this.page.getByRole('row', { name: infraName }))
-      .or(this.mciTable.locator('tr', { hasText: infraName }));
+    return this.page.getByRole('row', { name: infraName });
   }
 
   /** 목록 로딩 완료(스피너 사라지고 테이블 노출) */
@@ -66,14 +63,12 @@ export class WorkloadPage {
     await expect(this.mciRow(infraName)).toBeVisible({ timeout: 180_000 });
   }
 
-  /** 인프라 행 선택(체크박스) — 선택 시 상세/서버 탭이 활성화됨 */
+  /** 인프라 행 선택(체크박스) — 선택 시 상세/서버 탭이 활성화됨. 행 내 단일 체크박스로 한정. */
   async selectMci(infraName: string): Promise<void> {
-    const row = this.mciRow(infraName);
-    const checkbox = row
-      .getByTestId('mci-row-select')
-      .or(row.getByRole('checkbox'))
-      .or(row.locator('input[type="checkbox"], .p-checkbox').first());
-    await checkbox.click();
+    await this.mciRow(infraName)
+      .locator('td.select-checkbox .p-checkbox, input[type="checkbox"]')
+      .first()
+      .click();
   }
 
   // ─────────────────────────────────────────────────────────────
