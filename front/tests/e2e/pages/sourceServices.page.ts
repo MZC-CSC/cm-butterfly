@@ -73,10 +73,13 @@ export class SourceServicesPage {
     return this.page
       .getByTestId('source-service-go-add-connection');
   }
-  /** 소스그룹 등록 모달 확정(footer의 "Add") */
+  /** 소스그룹 등록 모달 확정(footer의 "Add").
+   *  mirinae PButtonModal의 #confirm-button 슬롯은 `<span data-testid=...>`로 라벨만 담고
+   *  실제 클릭 대상은 이를 감싸는 <button>이다. testid를 앵커로 그 버튼을 지정한다(활성화 대기 포함). */
   private get groupConfirmButton(): Locator {
-    return this.page
-      .getByTestId('source-service-confirm');
+    return this.page.locator('button', {
+      has: this.page.getByTestId('source-service-confirm'),
+    });
   }
 
   // ───────────────────────── 연결정보 폼 (create-connection-info 형태) ─────────────────────────

@@ -9,6 +9,9 @@ import { config } from './fixtures/test-data';
 const testDir = defineBddConfig({
   features: 'features/**/*.feature',
   steps: 'steps/**/*.ts',
+  // 생성 spec이 커스텀 test(support/fixtures.ts의 auto mock fixture)를 쓰도록 지정.
+  // 이게 없으면 spec이 base playwright-bdd test를 import해 @unit mock이 설치되지 않는다.
+  importTestFrom: 'support/fixtures.ts',
 });
 
 export default defineConfig({
