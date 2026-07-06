@@ -11,6 +11,10 @@ import { onBeforeMount, watch } from 'vue';
 interface IProps {
   scenarioName: string;
   isOpen: boolean;
+  // 실시간 상태(VmList 폴링에서 전달): 친화 라벨 + 종료/실패 여부.
+  loadStatusLabel?: string;
+  isTerminal?: boolean;
+  isFailed?: boolean;
 }
 
 const props = defineProps<IProps>();
@@ -78,9 +82,14 @@ function handleClose(e) {
         >
           <template #data-status="{ data }">
             <div class="flex items-center gap-1">
-              <p-spinner size="xs" />
-              <p-status :icon="null" :disableIcon="true" :iconSize="0"
-                >Requested
+              <!-- 진행 중이면 스피너, 종료(완료/실패)면 스피너 제거하고 최종 상태 표시 -->
+              <p-spinner v-if="!props.isTerminal" size="xs" />
+              <p-status
+                :icon="null"
+                :disableIcon="true"
+                :iconSize="0"
+                :class="{ 'status-failed': props.isFailed }"
+                >{{ props.loadStatusLabel || 'Requested' }}
               </p-status>
             </div>
           </template>
@@ -101,6 +110,10 @@ function handleClose(e) {
 </template>
 
 <style scoped lang="postcss">
+.status-failed {
+  color: #e03131;
+}
+
 .button-modal-body {
   display: flex;
   flex-direction: column;

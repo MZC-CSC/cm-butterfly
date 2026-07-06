@@ -81,6 +81,16 @@ const currentLoadTestFailureMessage = computed(
     ((resLoadStatus as any).data?.value?.responseData?.result
       ?.failureMessage as string) ?? '',
 );
+// 성공 모달의 실시간 상태 표시용 — 종료(성공/실패) 여부.
+const currentLoadTestRawStatus = computed(
+  () =>
+    (resLoadStatus as any).data?.value?.responseData?.result
+      ?.executionStatus as string | undefined,
+);
+const isCurrentLoadTestTerminal = computed(() => {
+  const s = currentLoadTestRawStatus.value;
+  return !!s && LOADTEST_TERMINAL_STATUS.includes(s);
+});
 
 const resStopLoadTest = useStopLoadTest(null);
 // Re-run: 마지막 실행 파라미터(infos)로 Load Config를 pre-fill 하기 위한 상태.
@@ -315,6 +325,8 @@ function handleLoadConfigRequestSuccess(e: string) {
   modalState.loadConfigRequest.open = false;
   modalState.loadConfigSuccess.open = true;
   modalState.loadConfigRequest.context.scenarioName = e;
+  // 성공 모달이 실시간 상태를 보여주도록 새 실행 상태 폴링을 즉시 시작한다.
+  setVmLoadTestResult();
 }
 
 function handleLoadConfigSuccessClose() {
@@ -450,6 +462,9 @@ function handleTemplateManagerClose() {
     <SuccessfullyLoadConfigModal
       :is-open="modalState.loadConfigSuccess.open"
       :scenario-name="modalState.loadConfigRequest.context.scenarioName"
+      :load-status-label="currentLoadTestStatusLabel"
+      :is-terminal="isCurrentLoadTestTerminal"
+      :is-failed="currentLoadTestStatusLabel === 'Failed'"
       @close="handleLoadConfigSuccessClose"
     />
     <ScenarioTemplateManagerModal
