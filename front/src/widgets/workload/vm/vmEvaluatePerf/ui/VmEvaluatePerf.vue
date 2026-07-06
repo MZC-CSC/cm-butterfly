@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { PButton, PButtonModal } from '@cloudforet-test/mirinae';
-import { computed, ref, Ref } from 'vue';
+import { PButton, PTooltip } from '@cloudforet-test/mirinae';
+import { computed, Ref } from 'vue';
 import LoadTestEvaluationMetric from '@/widgets/workload/vm/vmEvaluatePerf/ui/LoadTestEvaluationMetric.vue';
 import LoadTestResourceMetric from '@/widgets/workload/vm/vmEvaluatePerf/ui/LoadTestResourceMetric.vue';
 import LoadTestAggregationTable from '@/widgets/workload/vm/vmEvaluatePerf/ui/LoadTestAggregationTable.vue';
@@ -12,37 +12,37 @@ interface IProps {
   loading: Ref<boolean>;
   // 현재/마지막 부하테스트 상태 라벨(Running/Collecting results/Completed/Failed). 비어 있으면 미실행.
   loadTestStatus?: string;
+  // 경량 상태 hover용 상세(현행 API가 주는 범위) — 전체 시작/종료 시각·실패 메시지.
+  loadTestStartAt?: string;
+  loadTestFinishAt?: string;
+  loadTestFailureMessage?: string;
 }
 
 const props = defineProps<IProps>();
+// 관리 액션은 상태별 문맥 버튼(모달 없음): 진행 중=Stop / 완료·실패=Re-run(마지막 설정으로 재실행).
 const emit = defineEmits([
   'openLoadconfig',
   'openTemplateManager',
-  'checkLoadStatus',
   'stopLoadTest',
+  'reRun',
 ]);
 
-// 진행 중(실행/수집)인지 여부 — 배지 색/문구용.
 const isLoadTestRunning = computed(() =>
   ['Running', 'Collecting results'].includes(props.loadTestStatus ?? ''),
 );
+const hasLoadTest = computed(() => !!props.loadTestStatus);
+const isLoadTestFailed = computed(() => props.loadTestStatus === 'Failed');
 
-// Load Manage 관리 모달
-const manageModalOpen = ref(false);
-function openManageModal() {
-  emit('checkLoadStatus'); // 열 때 최신 상태 재조회
-  manageModalOpen.value = true;
-}
-function handleManageRefresh() {
-  emit('checkLoadStatus');
-}
-function handleManageStop() {
-  emit('stopLoadTest');
-}
-function handleManageRerun() {
-  manageModalOpen.value = false;
-  emit('openLoadconfig');
-}
+// 상태 배지 hover 상세(짧은 라벨은 인라인, 긴 실패 메시지·시각은 hover로).
+const statusTooltip = computed(() => {
+  const lines: string[] = [];
+  if (props.loadTestStartAt) lines.push(`Started: ${props.loadTestStartAt}`);
+  if (props.loadTestFinishAt) lines.push(`Finished: ${props.loadTestFinishAt}`);
+  if (props.loadTestFailureMessage) {
+    lines.push(`Error: ${props.loadTestFailureMessage}`);
+  }
+  return lines.join('\n');
+});
 </script>
 
 <template>
@@ -76,23 +76,39 @@ function handleManageRerun() {
         >
           Load Config
         </p-button>
+        <!-- 상태별 문맥 버튼: 진행 중=Stop / 완료·실패=Re-run / 미실행=없음 -->
         <p-button
-          data-testid="vm-load-manage"
-          style-type="tertiary"
-          icon-left="ic_settings-filled"
-          :disabled="!props.loadTestStatus"
-          @click="openManageModal"
+          v-if="isLoadTestRunning"
+          data-testid="vm-load-stop"
+          style-type="negative-secondary"
+          icon-left="ic_close"
+          @click="emit('stopLoadTest')"
         >
-          Load Manage
+          Stop
         </p-button>
-        <span
-          v-if="props.loadTestStatus"
-          class="load-test-status-badge"
-          :class="{ running: isLoadTestRunning }"
-          data-testid="vm-load-test-status"
+        <p-button
+          v-else-if="hasLoadTest"
+          data-testid="vm-load-rerun"
+          style-type="tertiary"
+          icon-left="ic_refresh"
+          @click="emit('reRun')"
         >
-          Load Test: {{ props.loadTestStatus }}
-        </span>
+          Re-run
+        </p-button>
+        <!-- 짧은 상태 라벨 + hover 상세(시각·실패 메시지) -->
+        <p-tooltip
+          v-if="hasLoadTest"
+          :contents="statusTooltip"
+          position="bottom"
+        >
+          <span
+            class="load-test-status-badge"
+            :class="{ running: isLoadTestRunning, failed: isLoadTestFailed }"
+            data-testid="vm-load-test-status"
+          >
+            {{ props.loadTestStatus }}
+          </span>
+        </p-tooltip>
       </div>
     </div>
     <!-- 결과 영역: 부하측정이 없으면 안내(그래프 숨김), 진행 중이면 로딩, 완료면 결과 표시 -->
@@ -146,52 +162,6 @@ function handleManageRerun() {
         </div>
       </div>
     </div>
-
-    <PButtonModal
-      data-testid="load-manage-modal"
-      :visible="manageModalOpen"
-      size="sm"
-      header-title="Load Test Management"
-      @confirm="manageModalOpen = false"
-      @cancel="manageModalOpen = false"
-      @close="manageModalOpen = false"
-      @update:visible="v => (manageModalOpen = v)"
-    >
-      <template #body>
-        <div class="load-manage-body">
-        <p>
-          Current status:
-          <strong>{{ props.loadTestStatus || '—' }}</strong>
-        </p>
-        <div class="load-manage-actions">
-          <p-button
-            style-type="tertiary"
-            icon-left="ic_refresh"
-            data-testid="load-manage-refresh"
-            @click="handleManageRefresh"
-          >
-            Refresh Status
-          </p-button>
-          <p-button
-            v-if="isLoadTestRunning"
-            style-type="negative-secondary"
-            data-testid="load-manage-stop"
-            @click="handleManageStop"
-          >
-            Stop
-          </p-button>
-          <p-button
-            style-type="secondary"
-            icon-left="ic_settings"
-            data-testid="load-manage-rerun"
-            @click="handleManageRerun"
-          >
-            Re-run
-          </p-button>
-        </div>
-        </div>
-      </template>
-    </PButtonModal>
   </div>
 </template>
 
@@ -214,18 +184,6 @@ function handleManageRerun() {
       margin: 16px 0 8px 0;
     }
   }
-}
-
-.load-manage-body {
-  padding: 8px 4px;
-  font-size: 14px;
-}
-
-.load-manage-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 16px;
-  flex-wrap: wrap;
 }
 
 .load-test-empty {
@@ -251,6 +209,11 @@ function handleManageRerun() {
 .load-test-status-badge.running {
   background-color: #e7f5ff;
   color: #1971c2;
+}
+
+.load-test-status-badge.failed {
+  background-color: #fff0f0;
+  color: #e03131;
 }
 
 .chart {

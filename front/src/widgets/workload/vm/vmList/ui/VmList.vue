@@ -23,8 +23,13 @@ import { IVm } from '@/entities/mci/model';
 import VmInformation from '@/widgets/workload/vm/vmInformation/ui/VmInformation.vue';
 import VmEvaluatePerf from '@/widgets/workload/vm/vmEvaluatePerf/ui/VmEvaluatePerf.vue';
 import ScenarioTemplateManagerModal from '@/widgets/workload/vm/scenarioTemplate/ui/ScenarioTemplateManagerModal.vue';
-import { useGetLastLoadTestState, useStopLoadTest } from '@/entities/vm/api/api';
+import {
+  useGetLastLoadTestState,
+  useStopLoadTest,
+  useGetLoadTestInfo,
+} from '@/entities/vm/api/api';
 import { useGetMciInfo } from '@/entities/mci/api';
+import { ILoadConfigInitialValues } from '@/features/workload/actionLoadConfig/model';
 
 interface IProps {
   nsId: string;
@@ -53,14 +58,70 @@ const currentLoadTestStatusLabel = computed(() => {
     ?.executionStatus as string | undefined;
   return status ? LOADTEST_STATUS_LABEL[status] ?? status : '';
 });
-// 관리(중단)용 loadTestKey.
+// 관리(중단·Re-run)용 loadTestKey.
 const currentLoadTestKey = computed(
   () =>
     ((resLoadStatus as any).data?.value?.responseData?.result
       ?.loadTestKey as string) ?? '',
 );
+// 경량 상태 hover(Load Config 우측 상태 라벨)용 시각·실패 메시지.
+// front 상태 타입엔 없지만 백엔드(state/last)가 finishAt·failureMessage를 내려줌.
+const currentLoadTestStartAt = computed(
+  () =>
+    ((resLoadStatus as any).data?.value?.responseData?.result
+      ?.startAt as string) ?? '',
+);
+const currentLoadTestFinishAt = computed(
+  () =>
+    ((resLoadStatus as any).data?.value?.responseData?.result
+      ?.finishAt as string) ?? '',
+);
+const currentLoadTestFailureMessage = computed(
+  () =>
+    ((resLoadStatus as any).data?.value?.responseData?.result
+      ?.failureMessage as string) ?? '',
+);
 
 const resStopLoadTest = useStopLoadTest(null);
+// Re-run: 마지막 실행 파라미터(infos)로 Load Config를 pre-fill 하기 위한 상태.
+const resLoadTestInfo = useGetLoadTestInfo(null);
+const rerunConfig = ref<ILoadConfigInitialValues | null>(null);
+async function handleReRun() {
+  const key = currentLoadTestKey.value;
+  if (!key) {
+    // 실행 이력이 없으면 그냥 빈 Load Config
+    handleLoadStatus();
+    return;
+  }
+  try {
+    const res = await resLoadTestInfo.execute({
+      pathParams: { loadTestKey: key },
+    });
+    const info = (res as any)?.data?.responseData?.result;
+    if (info) {
+      const http = info.loadTestExecutionHttpInfos?.[0];
+      rerunConfig.value = {
+        scenarioName: info.testName,
+        virtualUsers: info.virtualUsers,
+        testDuration: info.duration,
+        rampUpTime: info.rampUpTime,
+        rampUpSteps: info.rampUpSteps,
+        method: http?.method,
+        protocol: http?.protocol,
+        port: http?.port,
+        path: http?.path,
+        bodyData: http?.bodyData,
+      };
+    } else {
+      rerunConfig.value = null;
+    }
+  } catch (e) {
+    // infos 조회 실패해도 빈 Load Config로 진행(차단하지 않음)
+    rerunConfig.value = null;
+  }
+  modalState.loadConfigRequest.open = true;
+  modalState.loadConfigSuccess.open = false;
+}
 function handleStopLoadTest() {
   const key = currentLoadTestKey.value;
   if (!key) return;
@@ -237,6 +298,8 @@ function handleCardClick(value: any) {
 }
 
 function handleLoadStatus() {
+  // 일반 Load Config 열기 → pre-fill 없음(Re-run만 마지막 파라미터를 채운다)
+  rerunConfig.value = null;
   modalState.loadConfigRequest.open = true;
   modalState.loadConfigSuccess.open = false;
 }
@@ -357,10 +420,13 @@ function handleTemplateManagerClose() {
             :vm-id="selectedVm.id"
             :ip="selectedVm.publicIP"
             :load-test-status="currentLoadTestStatusLabel"
+            :load-test-start-at="currentLoadTestStartAt"
+            :load-test-finish-at="currentLoadTestFinishAt"
+            :load-test-failure-message="currentLoadTestFailureMessage"
             @openLoadconfig="handleLoadStatus"
             @openTemplateManager="handleTemplateManagerOpen"
-            @checkLoadStatus="setVmLoadTestResult"
             @stopLoadTest="handleStopLoadTest"
+            @reRun="handleReRun"
           />
         </template>
         <template #estimateCost>
@@ -377,6 +443,7 @@ function handleTemplateManagerClose() {
       :ns-id="props.nsId"
       :vm-id="selectedVm?.id ?? ''"
       :ip="selectedVm?.publicIP ?? ''"
+      :initial-config="rerunConfig"
       @success="handleLoadConfigRequestSuccess"
       @close="handleLoadConfigRequestClose"
     />

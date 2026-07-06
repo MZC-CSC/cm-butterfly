@@ -10,7 +10,10 @@ import {
   PToggleButton,
   PDivider,
 } from '@cloudforet-test/mirinae';
-import { useLoadConfigModel } from '@/features/workload/actionLoadConfig/model';
+import {
+  useLoadConfigModel,
+  ILoadConfigInitialValues,
+} from '@/features/workload/actionLoadConfig/model';
 import { watch, ref, onMounted } from 'vue';
 import { showErrorMessage } from '@/shared/utils';
 import {
@@ -24,6 +27,7 @@ interface IProps {
   mciId: string;
   vmId: string;
   ip: string;
+  initialConfig?: ILoadConfigInitialValues | null;
 }
 
 const props = defineProps<IProps>();
@@ -71,6 +75,23 @@ function applyTemplate(templateName: string) {
   loadConfigModel.inputModels.rampUpSteps.value = template.rampUpSteps;
 }
 
+// Re-run 초기값을 폼에 반영(마지막 실행 파라미터 pre-fill).
+// host(agent/target)는 선택된 VM IP를 그대로 쓰므로 여기서 덮어쓰지 않는다.
+function applyInitialConfig(cfg: ILoadConfigInitialValues) {
+  const im = loadConfigModel.inputModels;
+  if (cfg.scenarioName !== undefined) im.scenarioName.value = cfg.scenarioName;
+  if (cfg.virtualUsers !== undefined) im.virtualUsers.value = cfg.virtualUsers;
+  if (cfg.testDuration !== undefined) im.testDuration.value = cfg.testDuration;
+  if (cfg.rampUpTime !== undefined) im.rampUpTime.value = cfg.rampUpTime;
+  if (cfg.rampUpSteps !== undefined) im.rampUpSteps.value = cfg.rampUpSteps;
+  if (cfg.port !== undefined && cfg.port !== '') im.port.value = cfg.port;
+  if (cfg.path !== undefined) im.path.value = cfg.path;
+  if (cfg.bodyData !== undefined) im.bodyData.value = cfg.bodyData;
+  if (cfg.method) loadConfigModel.methods.selected = cfg.method.toLowerCase();
+  if (cfg.protocol)
+    loadConfigModel.protocol.selected = cfg.protocol.toLowerCase();
+}
+
 // 템플릿 적용을 위한 expose
 defineExpose({
   applyTemplate,
@@ -96,6 +117,10 @@ watch(
     if (isOpen) {
       loadTemplates();
       selectedTemplate.value = '';
+      // Re-run: 마지막 실행 파라미터로 pre-fill (일반 열기 시 initialConfig 없음)
+      if (props.initialConfig) {
+        applyInitialConfig(props.initialConfig);
+      }
     }
   },
 );
