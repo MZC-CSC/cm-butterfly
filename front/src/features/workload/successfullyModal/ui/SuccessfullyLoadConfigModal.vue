@@ -77,10 +77,10 @@ function handleClose(e) {
           block
         >
           <template #data-status="{ data }">
-            <div class="flex">
+            <div class="flex items-center gap-1">
               <p-spinner size="xs" />
               <p-status :icon="null" :disableIcon="true" :iconSize="0"
-                >on_processing
+                >Requested
               </p-status>
             </div>
           </template>

@@ -32,6 +32,8 @@ const isLoadTestRunning = computed(() =>
 );
 const hasLoadTest = computed(() => !!props.loadTestStatus);
 const isLoadTestFailed = computed(() => props.loadTestStatus === 'Failed');
+// 결과(차트·집계)는 성공(Completed)일 때만 노출. 실패/진행 중엔 결과 조회를 하지 않는다.
+const isLoadTestCompleted = computed(() => props.loadTestStatus === 'Completed');
 
 // 상태 배지 hover 상세(짧은 라벨은 인라인, 긴 실패 메시지·시각은 hover로).
 const statusTooltip = computed(() => {
@@ -129,7 +131,23 @@ const statusTooltip = computed(() => {
       Load test in progress ({{ props.loadTestStatus }})…<br />
       The results will appear here once it finishes.
     </div>
-    <div v-else class="flex flex-col gap-4">
+    <div
+      v-else-if="isLoadTestFailed"
+      class="load-test-empty load-test-failed"
+      data-testid="load-test-failed"
+    >
+      The load test failed, so there are no results to show.<br />
+      <span v-if="props.loadTestFailureMessage" class="failure-detail">
+        {{ props.loadTestFailureMessage }}<br />
+      </span>
+      Check the target server and load generator, then start again with
+      <strong>Re-run</strong>.
+    </div>
+    <div
+      v-else-if="isLoadTestCompleted"
+      class="flex flex-col gap-4"
+      data-testid="load-test-results"
+    >
       <div class="font-bold text-2xl" data-testid="load-test-aggregation-table">
         Aggregation Table
         <LoadTestAggregationTable
@@ -214,6 +232,19 @@ const statusTooltip = computed(() => {
 .load-test-status-badge.failed {
   background-color: #fff0f0;
   color: #e03131;
+}
+
+.load-test-failed {
+  border-color: #ffc9c9;
+  color: #e03131;
+}
+
+.load-test-failed .failure-detail {
+  display: inline-block;
+  margin: 6px 0;
+  font-size: 13px;
+  color: #c92a2a;
+  word-break: break-word;
 }
 
 .chart {
