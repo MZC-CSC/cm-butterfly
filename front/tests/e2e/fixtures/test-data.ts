@@ -4,7 +4,7 @@
  */
 
 export const config = {
-  /** 대상 서버. 기본은 로컬 nginx. stage는 http://cmig.stage.cscmzc.com */
+  /** 대상 서버. 기본은 로컬 nginx. 배포 검증은 BASE_URL로 cm-mayfly 기동 인프라 서버 주소를 지정. */
   baseURL: process.env.BASE_URL || 'http://localhost',
 };
 
