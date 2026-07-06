@@ -1,4 +1,0 @@
-# 생성물·실행 산출물 (bddgen/playwright) — 추적 제외
-.features-gen/
-test-results/
-playwright-report/
