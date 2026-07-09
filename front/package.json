@@ -9,6 +9,10 @@
     "test:debug": "playwright test --debug",
     "test:ui": "playwright test --ui",
     "test:report": "playwright show-report",
+    "test:e2e": "cd tests/e2e && bddgen && playwright test",
+    "test:e2e:smoke": "cd tests/e2e && bddgen && playwright test --grep @smoke",
+    "test:e2e:scenario": "cd tests/e2e && bddgen && playwright test --grep @scenario",
+    "bddgen": "cd tests/e2e && bddgen",
     "dev": "vite",
     "prepare": "npx husky install",
     "lint": "eslint 'src/**/*.{ts,js,vue,tsx}'",
@@ -41,6 +45,7 @@
   "devDependencies": {
     "@originjs/vite-plugin-commonjs": "^1.0.3",
     "@playwright/test": "^1.40.0",
+    "playwright-bdd": "^7.5.0",
     "@types/lodash": "^4.14.192",
     "@types/node": "^22.0.0",
     "@typescript-eslint/eslint-plugin": "^5.41.0",

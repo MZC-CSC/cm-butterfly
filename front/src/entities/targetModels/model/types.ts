@@ -40,12 +40,12 @@ interface CloudInfraModel {
   systemLabel: string;
   vm: Vm[] | null;
   // Add new fields for infra model data
-  targetVmInfra?: any;
+  targetInfra?: any;
   targetSecurityGroupList?: any[];
   targetSshKey?: any;
   targetVNet?: any;
-  targetVmOsImageList?: any[];
-  targetVmSpecList?: any[];
+  targetOsImageList?: any[];
+  targetSpecList?: any[];
 }
 
 export interface ITargetModelResponse {

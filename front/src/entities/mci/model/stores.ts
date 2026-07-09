@@ -11,8 +11,15 @@ const NAMESPACE = 'MCI';
 export const useMCIStore = defineStore(NAMESPACE, () => {
   const mcis = ref<IMci[]>([]);
 
+  // tb-0.12.9 경계 어댑터: cb-tumblebug 응답이 vm→node로 변경됨(infra[].node[]).
+  // 내부 코드는 vm 명칭을 광범위하게 쓰므로 경계에서 node→vm 어댑트(내부 전면 rename은 tech-debt).
+  function adaptNode(_mci: IMci): IMci {
+    if (_mci && !_mci.vm && _mci.node) _mci.vm = _mci.node;
+    return _mci;
+  }
+
   function setMcis(_mcis: IMci[]) {
-    mcis.value = _mcis;
+    mcis.value = (_mcis ?? []).map(adaptNode);
   }
 
   function getMciById(mciId: string) {
@@ -24,6 +31,7 @@ export const useMCIStore = defineStore(NAMESPACE, () => {
   }
 
   function setMci(_mci: IMci) {
+    adaptNode(_mci);
     const targetMci = mcis.value.find(mci => mci.uid === _mci.uid);
     if (targetMci) {
       Object.assign(targetMci, _mci);

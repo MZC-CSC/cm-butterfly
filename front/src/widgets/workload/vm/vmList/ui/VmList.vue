@@ -8,7 +8,14 @@ import {
 } from '@cloudforet-test/mirinae';
 import { useVmListModel } from '@/widgets/workload/vm/vmList/model';
 import TableLoadingSpinner from '@/shared/ui/LoadingSpinner/TableLoadingSpinner.vue';
-import { onMounted, reactive, ref, watch } from 'vue';
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+} from 'vue';
 import SuccessfullyLoadConfigModal from '@/features/workload/successfullyModal/ui/SuccessfullyLoadConfigModal.vue';
 import LoadConfig from '@/features/workload/actionLoadConfig/ui/LoadConfig.vue';
 import { showErrorMessage } from '@/shared/utils';
@@ -16,8 +23,13 @@ import { IVm } from '@/entities/mci/model';
 import VmInformation from '@/widgets/workload/vm/vmInformation/ui/VmInformation.vue';
 import VmEvaluatePerf from '@/widgets/workload/vm/vmEvaluatePerf/ui/VmEvaluatePerf.vue';
 import ScenarioTemplateManagerModal from '@/widgets/workload/vm/scenarioTemplate/ui/ScenarioTemplateManagerModal.vue';
-import { useGetLastLoadTestState } from '@/entities/vm/api/api';
+import {
+  useGetLastLoadTestState,
+  useStopLoadTest,
+  useGetLoadTestInfo,
+} from '@/entities/vm/api/api';
 import { useGetMciInfo } from '@/entities/mci/api';
+import { ILoadConfigInitialValues } from '@/features/workload/actionLoadConfig/model';
 
 interface IProps {
   nsId: string;
@@ -31,6 +43,117 @@ const resLoadStatus = useGetLastLoadTestState(null);
 const resGetMci = useGetMciInfo(null);
 const selectedVm = ref<IVm | null>(null);
 const loadConfigRef = ref();
+
+// 부하테스트 진행 상태 폴링(FR-M7-WL-003-07). cm-ant 상태: on_processing→on_fetching→successed/test_failed.
+const LOADTEST_TERMINAL_STATUS = ['successed', 'test_failed'];
+const LOADTEST_STATUS_LABEL: Record<string, string> = {
+  on_processing: 'Running',
+  on_fetching: 'Collecting results',
+  successed: 'Completed',
+  test_failed: 'Failed',
+};
+// Evaluate Perf 헤더(Load Config 옆)에 노출할 현재 부하테스트 상태 라벨. 폴링 시마다 갱신.
+const currentLoadTestStatusLabel = computed(() => {
+  const status = (resLoadStatus as any).data?.value?.responseData?.result
+    ?.executionStatus as string | undefined;
+  return status ? LOADTEST_STATUS_LABEL[status] ?? status : '';
+});
+// 관리(중단·Re-run)용 loadTestKey.
+const currentLoadTestKey = computed(
+  () =>
+    ((resLoadStatus as any).data?.value?.responseData?.result
+      ?.loadTestKey as string) ?? '',
+);
+// 경량 상태 hover(Load Config 우측 상태 라벨)용 시각·실패 메시지.
+// front 상태 타입엔 없지만 백엔드(state/last)가 finishAt·failureMessage를 내려줌.
+const currentLoadTestStartAt = computed(
+  () =>
+    ((resLoadStatus as any).data?.value?.responseData?.result
+      ?.startAt as string) ?? '',
+);
+const currentLoadTestFinishAt = computed(
+  () =>
+    ((resLoadStatus as any).data?.value?.responseData?.result
+      ?.finishAt as string) ?? '',
+);
+const currentLoadTestFailureMessage = computed(
+  () =>
+    ((resLoadStatus as any).data?.value?.responseData?.result
+      ?.failureMessage as string) ?? '',
+);
+// 세분화 단계 진행(cm-ant FR-007-08 steps[]). 구버전 cm-ant면 빈 배열.
+const currentLoadTestSteps = computed(
+  () =>
+    ((resLoadStatus as any).data?.value?.responseData?.result
+      ?.steps as any[]) ?? [],
+);
+// 성공 모달의 실시간 상태 표시용 — 종료(성공/실패) 여부.
+const currentLoadTestRawStatus = computed(
+  () =>
+    (resLoadStatus as any).data?.value?.responseData?.result
+      ?.executionStatus as string | undefined,
+);
+const isCurrentLoadTestTerminal = computed(() => {
+  const s = currentLoadTestRawStatus.value;
+  return !!s && LOADTEST_TERMINAL_STATUS.includes(s);
+});
+
+const resStopLoadTest = useStopLoadTest(null);
+// Re-run: 마지막 실행 파라미터(infos)로 Load Config를 pre-fill 하기 위한 상태.
+const resLoadTestInfo = useGetLoadTestInfo(null);
+const rerunConfig = ref<ILoadConfigInitialValues | null>(null);
+async function handleReRun() {
+  const key = currentLoadTestKey.value;
+  if (!key) {
+    // 실행 이력이 없으면 그냥 빈 Load Config
+    handleLoadStatus();
+    return;
+  }
+  try {
+    const res = await resLoadTestInfo.execute({
+      pathParams: { loadTestKey: key },
+    });
+    const info = (res as any)?.data?.responseData?.result;
+    if (info) {
+      const http = info.loadTestExecutionHttpInfos?.[0];
+      rerunConfig.value = {
+        scenarioName: info.testName,
+        virtualUsers: info.virtualUsers,
+        testDuration: info.duration,
+        rampUpTime: info.rampUpTime,
+        rampUpSteps: info.rampUpSteps,
+        method: http?.method,
+        protocol: http?.protocol,
+        port: http?.port,
+        path: http?.path,
+        bodyData: http?.bodyData,
+      };
+    } else {
+      rerunConfig.value = null;
+    }
+  } catch (e) {
+    // infos 조회 실패해도 빈 Load Config로 진행(차단하지 않음)
+    rerunConfig.value = null;
+  }
+  modalState.loadConfigRequest.open = true;
+  modalState.loadConfigSuccess.open = false;
+}
+function handleStopLoadTest() {
+  const key = currentLoadTestKey.value;
+  if (!key) return;
+  resStopLoadTest
+    .execute({ request: { loadTestKey: key } })
+    .then(() => setVmLoadTestResult())
+    .catch(e => showErrorMessage('error', e.errorMsg?.value ?? 'Stop failed'));
+}
+let loadStatusPollTimer: ReturnType<typeof setTimeout> | null = null;
+
+function stopLoadStatusPolling() {
+  if (loadStatusPollTimer) {
+    clearTimeout(loadStatusPollTimer);
+    loadStatusPollTimer = null;
+  }
+}
 const { mciStore, initToolBoxTableModel, vmListTableModel, setMci } =
   useVmListModel();
 
@@ -112,12 +235,16 @@ onMounted(() => {
   initToolBoxTableModel();
 });
 
+onBeforeUnmount(() => {
+  stopLoadStatusPolling();
+});
+
 async function getMciInfo() {
   return resGetMci
     .execute({
       pathParams: {
         nsId: props.nsId,
-        mciId: props.mciId,
+        infraId: props.mciId,
       },
     })
     .then(res => {
@@ -141,22 +268,34 @@ async function handleMciIdChange() {
 
 function setVmLoadTestResult() {
   if (selectedVm.value === null) return;
+  // 다른 노드로 전환/재조회 시 이전 폴링 중단
+  stopLoadStatusPolling();
+  const targetVmId = selectedVm.value.id;
 
   resLoadStatus
     .execute({
       request: {
         nsId: props.nsId,
-        mciId: props.mciId,
-        vmId: selectedVm.value.id,
+        infraId: props.mciId,
+        nodeId: targetVmId,
       },
     })
     .then(res => {
+      // 선택 노드가 그새 바뀌었으면 무시
+      if (selectedVm.value?.id !== targetVmId) return;
       if (res.data.responseData) {
-        mciStore.assignLastLoadTestStateToVm(
-          props.mciId,
-          selectedVm.value!.id,
-          res.data.responseData.result,
-        );
+        const result = res.data.responseData.result;
+        mciStore.assignLastLoadTestStateToVm(props.mciId, targetVmId, result);
+
+        const status = result?.executionStatus;
+        if (status && !LOADTEST_TERMINAL_STATUS.includes(status)) {
+          // 진행 중(on_processing/on_fetching) → 주기 폴링으로 상태 갱신
+          loadStatusPollTimer = setTimeout(() => setVmLoadTestResult(), 5000);
+        } else if (status && LOADTEST_TERMINAL_STATUS.includes(status)) {
+          // 완료/실패 → 폴링 종료. 결과는 상태 전환(v-if/v-else)으로 결과 컴포넌트가
+          // 새로 mount되며 자동 조회되므로 별도 강제 갱신 불필요.
+          stopLoadStatusPolling();
+        }
       }
     })
     .catch(e => {
@@ -175,6 +314,8 @@ function handleCardClick(value: any) {
 }
 
 function handleLoadStatus() {
+  // 일반 Load Config 열기 → pre-fill 없음(Re-run만 마지막 파라미터를 채운다)
+  rerunConfig.value = null;
   modalState.loadConfigRequest.open = true;
   modalState.loadConfigSuccess.open = false;
 }
@@ -190,6 +331,8 @@ function handleLoadConfigRequestSuccess(e: string) {
   modalState.loadConfigRequest.open = false;
   modalState.loadConfigSuccess.open = true;
   modalState.loadConfigRequest.context.scenarioName = e;
+  // 성공 모달이 실시간 상태를 보여주도록 새 실행 상태 폴링을 즉시 시작한다.
+  setVmLoadTestResult();
 }
 
 function handleLoadConfigSuccessClose() {
@@ -294,8 +437,15 @@ function handleTemplateManagerClose() {
             :ns-id="props.nsId"
             :vm-id="selectedVm.id"
             :ip="selectedVm.publicIP"
+            :load-test-status="currentLoadTestStatusLabel"
+            :load-test-start-at="currentLoadTestStartAt"
+            :load-test-finish-at="currentLoadTestFinishAt"
+            :load-test-failure-message="currentLoadTestFailureMessage"
+            :load-test-steps="currentLoadTestSteps"
             @openLoadconfig="handleLoadStatus"
             @openTemplateManager="handleTemplateManagerOpen"
+            @stopLoadTest="handleStopLoadTest"
+            @reRun="handleReRun"
           />
         </template>
         <template #estimateCost>
@@ -312,12 +462,16 @@ function handleTemplateManagerClose() {
       :ns-id="props.nsId"
       :vm-id="selectedVm?.id ?? ''"
       :ip="selectedVm?.publicIP ?? ''"
+      :initial-config="rerunConfig"
       @success="handleLoadConfigRequestSuccess"
       @close="handleLoadConfigRequestClose"
     />
     <SuccessfullyLoadConfigModal
       :is-open="modalState.loadConfigSuccess.open"
       :scenario-name="modalState.loadConfigRequest.context.scenarioName"
+      :load-status-label="currentLoadTestStatusLabel"
+      :is-terminal="isCurrentLoadTestTerminal"
+      :is-failed="currentLoadTestStatusLabel === 'Failed'"
       @close="handleLoadConfigSuccessClose"
     />
     <ScenarioTemplateManagerModal

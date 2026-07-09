@@ -19,7 +19,9 @@ export function useMciListModel(props: IProps) {
   const mciStore = useMCIStore();
   const { mcis } = storeToRefs(mciStore);
 
-  const resMciList = useGetMciList(props.nsId, 'normal');
+  // tb-0.12.9 현행화: MCI 목록은 cm-beetle ListInfra 경유. option은 ""(전체) 또는 "id"만 유효하며,
+  // 구 tumblebug의 'normal'은 거부(400 "invalid option")된다 → ''(전체 조회).
+  const resMciList = useGetMciList(props.nsId, '');
   const loading = ref<boolean>(true);
 
   function initToolBoxTableModel() {
@@ -72,10 +74,15 @@ export function useMciListModel(props: IProps) {
       .execute()
       .then(res => {
         if (res.data.responseData) {
-          mciStore.setMcis(res.data.responseData.mci);
+          // tb-0.12.9 현행화: MCI 목록이 cm-beetle ListInfra 경유로 바뀌며 응답이 cm-beetle 표준
+          // 래퍼(responseData.data.infra[])로 온다. 구 tumblebug 직접 응답(responseData.infra)도
+          // fallback으로 허용해 양쪽을 안전하게 읽는다. (mci→infra 키 전환 + data 래퍼 반영)
+          const infraList =
+            res.data.responseData.data?.infra ?? res.data.responseData.infra ?? [];
+          mciStore.setMcis(infraList);
 
           const PromiseArr: any = [];
-          res.data.responseData.mci.forEach(mci => {
+          infraList.forEach(mci => {
             PromiseArr.push(fetchMciById(mci.id)());
           });
 
@@ -98,7 +105,7 @@ export function useMciListModel(props: IProps) {
   }
 
   function fetchMciById(mciId: string) {
-    const resGetMciById = useGetMciInfo({ nsId: props.nsId, mciId });
+    const resGetMciById = useGetMciInfo({ nsId: props.nsId, infraId: mciId });
 
     return resGetMciById.execute;
   }

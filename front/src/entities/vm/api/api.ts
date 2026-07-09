@@ -21,6 +21,8 @@ import {
 } from '@/entities/vm/model/types';
 
 const RUN_LOAD_TEST = 'Runloadtest';
+const STOP_LOAD_TEST = 'StopLoadTest';
+const GET_LOAD_TEST_INFO = 'GetLoadTestExecutionInfo';
 const GET_LAST_LOAD_TEST_CONFIG = 'Getlastloadtestexecutionstate';
 const GET_LOAD_TEST_EVALUATION_DATA = 'Getlastloadtestresult';
 const GET_LOAD_TEST_RESOURCE_METRIC = 'Getlastloadtestmetrics';
@@ -45,16 +47,68 @@ export function useRunLoadTest(requestPayload: IRunLoadTestRequest | null) {
   >(RUN_LOAD_TEST, requestBodyWrapper);
 }
 
+// 진행 중인 부하테스트 중단(StopLoadTest). loadTestKey로 지정.
+export function useStopLoadTest(loadTestKey: string | null) {
+  const requestBodyWrapper: Required<
+    Pick<RequestBodyWrapper<{ loadTestKey: string } | null>, 'request'>
+  > = {
+    request: loadTestKey ? { loadTestKey } : null,
+  };
+
+  return useAxiosPost<
+    IAxiosResponse<unknown>,
+    Required<Pick<RequestBodyWrapper<{ loadTestKey: string } | null>, 'request'>>
+  >(STOP_LOAD_TEST, requestBodyWrapper);
+}
+
+// 부하테스트 실행 정보 조회(GetLoadTestExecutionInfo, infos/{loadTestKey}) —
+// Re-run 시 마지막 실행 파라미터로 Load Config를 pre-fill 하기 위해 사용.
+export interface ILoadTestExecutionHttpInfo {
+  method?: string;
+  protocol?: string;
+  hostname?: string;
+  port?: string;
+  path?: string;
+  bodyData?: string;
+}
+
+export interface ILoadTestExecutionInfoResult {
+  loadTestKey?: string;
+  testName?: string;
+  virtualUsers?: string;
+  duration?: string;
+  rampUpTime?: string;
+  rampUpSteps?: string;
+  loadTestExecutionHttpInfos?: ILoadTestExecutionHttpInfo[];
+}
+
+export function useGetLoadTestInfo(loadTestKey: string | null) {
+  const requestBodyWrapper: Required<
+    Pick<RequestBodyWrapper<{ loadTestKey: string | null }>, 'pathParams'>
+  > = {
+    pathParams: {
+      loadTestKey: loadTestKey || null,
+    },
+  };
+
+  return useAxiosPost<
+    IAxiosResponse<ILoadTestExecutionInfoResult>,
+    Required<
+      Pick<RequestBodyWrapper<{ loadTestKey: string | null }>, 'pathParams'>
+    >
+  >(GET_LOAD_TEST_INFO, requestBodyWrapper);
+}
+
 interface ILastloadtestStateResponseWrapper {
   result: ILastloadtestStateResponse;
 }
 
 export function useGetLastLoadTestState(
-  params: IMciRequestParams | { vmId: string } | null,
+  params: IMciRequestParams | { nodeId: string } | null,
 ) {
   const requestBodyWrapper: Required<
     Pick<
-      RequestBodyWrapper<IMciRequestParams | { vmId: string } | null>,
+      RequestBodyWrapper<IMciRequestParams | { nodeId: string } | null>,
       'request'
     >
   > = {
@@ -65,7 +119,7 @@ export function useGetLastLoadTestState(
     IAxiosResponse<ILastloadtestStateResponseWrapper>,
     Required<
       Pick<
-        RequestBodyWrapper<IMciRequestParams | { vmId: string } | null>,
+        RequestBodyWrapper<IMciRequestParams | { nodeId: string } | null>,
         'request'
       >
     >
@@ -73,12 +127,12 @@ export function useGetLastLoadTestState(
 }
 
 interface IMetricParams extends IMciRequestParams {
-  vmId: string;
+  nodeId: string;
   format: 'normal';
 }
 
 interface IMetricParamsBase extends IMciRequestParams {
-  vmId: string;
+  nodeId: string;
 }
 
 type FormatType = 'normal' | 'aggregate';

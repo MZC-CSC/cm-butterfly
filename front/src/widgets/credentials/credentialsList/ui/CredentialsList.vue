@@ -258,7 +258,7 @@ async function handleDeleteCredentials() {
 </script>
 
 <template>
-  <div>
+  <div data-testid="credential-list">
     <p-horizontal-layout :key="tableKey" :height="adjustedDynamicHeight">
       <template #container="{ height }">
         <!-- 로딩 중일 때 스피너 표시 -->
@@ -293,6 +293,7 @@ async function handleDeleteCredentials() {
             <p-button
               style-type="primary"
               icon-left="ic_plus_bold"
+              data-testid="credential-add"
               @click="handleAddCredential"
             >
               Add

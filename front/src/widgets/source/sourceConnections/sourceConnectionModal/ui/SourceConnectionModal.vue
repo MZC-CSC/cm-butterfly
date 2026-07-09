@@ -140,7 +140,11 @@ const handleAddSourceConnection = () => {
         <p-button style-type="tertiary" @click="handleCancel">
           {{ i18n.t('COMPONENT.BUTTON_MODAL.CANCEL') }}
         </p-button>
-        <p-button :disabled="!isDisabled" @click="handleAddSourceConnection">
+        <p-button
+          data-testid="source-connection-apply"
+          :disabled="!isDisabled"
+          @click="handleAddSourceConnection"
+        >
           {{ i18n.t('COMPONENT.BUTTON_MODAL.APPLY') }}
         </p-button>
       </template>

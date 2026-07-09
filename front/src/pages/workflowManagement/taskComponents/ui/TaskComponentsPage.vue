@@ -43,16 +43,17 @@ const mainTabState = reactive({
   ],
 });
 
+// cm-cicada type/spec 전환: TaskComponent는 { type, spec } 스키마(구 options/param_option 폐기)
 const schema = {
   json: true,
   properties: {
-    options: {
-      type: 'object',
-      title: 'Options',
+    type: {
+      type: 'string',
+      title: 'Type',
     },
-    param_option: {
+    spec: {
       type: 'object',
-      title: 'Param Option',
+      title: 'Spec',
     },
   },
 };
@@ -63,13 +64,12 @@ function handleClickTemplateComponentId(id: string) {
 
 async function handleUpdateTaskComponent(updatedData: object) {
   try {
+    // 신 스키마: { type, spec, name, description }를 top-level로 전송(구 { data } 래핑 폐기)
     const { data } = await updateTaskComponent.execute({
       pathParams: {
         tcId: selectedTaskComponentId.value,
       },
-      request: {
-        data: updatedData,
-      },
+      request: updatedData,
     });
 
     if (
@@ -99,11 +99,12 @@ async function getTaskComponentById() {
       },
     });
 
+    // 신 스키마: TaskComponent가 top-level { type, spec, ... }(구 .data 래핑 폐기)
     if (
-      data.responseData?.data &&
-      Object.values(data.responseData.data).length > 0
+      data.responseData &&
+      Object.values(data.responseData).length > 0
     ) {
-      tcIdData.value = data.responseData?.data;
+      tcIdData.value = data.responseData;
     }
   } catch (error) {
     showErrorMessage('error', 'Failed to get the task component.');
@@ -124,18 +125,18 @@ async function handleUpdateTaskComponentEdit() {
     if (selectedTaskComponentId.value.length > 0) {
       await getTaskComponentById()
         .then(async r => {
+          // 신 스키마: { type, spec, ... }를 top-level로 전송(구 { data } 래핑 폐기)
           const { data } = await updateTaskComponent.execute({
             pathParams: {
               tcId: selectedTaskComponentId.value,
             },
             request: {
-              data: tcIdData.value,
+              ...tcIdData.value,
               name: taskComponentName.value,
             },
           });
 
-          console.log('jere');
-          if (data.responseData?.data !== null) {
+          if (data.responseData !== null) {
             showSuccessMessage(
               'success',
               'Task Component data updated successfully.',
@@ -164,7 +165,7 @@ async function handleUpdateTaskComponentEdit() {
 <template>
   <div :class="`${pageName}-page page`">
     <header>
-      <p>{{ pageName }}</p>
+      <p data-testid="taskcomponent-page-header">{{ pageName }}</p>
     </header>
     <section :class="`${pageName}-page-body`">
       <task-components-list

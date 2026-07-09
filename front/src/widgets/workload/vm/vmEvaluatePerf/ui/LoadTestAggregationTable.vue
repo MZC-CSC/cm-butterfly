@@ -78,8 +78,8 @@ watch(
       .execute({
         queryParams: {
           nsId: nv.nsId,
-          mciId: nv.mciId,
-          vmId: nv.vmId,
+          infraId: nv.mciId,
+          nodeId: nv.vmId,
           format: 'aggregate',
         },
       })
@@ -96,8 +96,8 @@ watch(
           detailTableModel.tableState.data = [];
         }
       })
-      .catch(e => {
-        showErrorMessage('error', e.errorMsg.value);
+      .catch(() => {
+        // 부하측정 결과가 아직 없으면 조회가 실패할 수 있다. 에러 토스트 대신 빈 상태로 둔다.
         detailTableModel.tableState.data = [];
       })
       .finally(() => {

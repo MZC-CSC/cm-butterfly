@@ -6,6 +6,7 @@
 import { ref, computed } from 'vue';
 import { getTaskComponentList } from '@/features/sequential/designer/toolbox/model/api';
 import type { ITaskComponentInfoResponse } from '@/features/sequential/designer/toolbox/model/api';
+import { normalizeTaskComponentInPlace } from '@/entities/workflow/lib/schemaAdapter';
 
 interface TaskSchema {
   name: string;
@@ -54,6 +55,8 @@ class TaskSchemaStore {
         console.log(`Found ${response.responseData.length} task components`);
         
         response.responseData.forEach((taskComponent: ITaskComponentInfoResponse) => {
+          // cm-cicada Type/Spec 응답을 legacy 형태로 정규화 (idempotent)
+          normalizeTaskComponentInPlace(taskComponent);
           console.log(`Processing task component: ${taskComponent.name}`);
           console.log(`Has body_params:`, !!taskComponent.data?.body_params);
           
@@ -85,7 +88,9 @@ class TaskSchemaStore {
         this.isLoaded.value = true;
         console.log(`Successfully loaded ${this.taskSchemas.value.size} task schemas`);
       } else {
-        throw new Error('No responseData found in API response');
+        // 데이터가 아직 없으면(비동기 로드 전) 조용히 반환 — 이후 watch 경로에서 다시 로드됨
+        console.warn('Task schemas: responseData not ready yet, skipping');
+        return;
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Unknown error occurred';

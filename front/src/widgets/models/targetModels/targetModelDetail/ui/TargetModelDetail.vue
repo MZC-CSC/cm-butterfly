@@ -130,7 +130,11 @@ function handleOpenWorkflowEditor() {
         </p>
       </template>
       <template #data-workflowTool>
-        <p class="link-button-text" @click="handleOpenWorkflowEditor">
+        <p
+          data-testid="target-make-workflow"
+          class="link-button-text"
+          @click="handleOpenWorkflowEditor"
+        >
           Make Workflow
         </p>
       </template>

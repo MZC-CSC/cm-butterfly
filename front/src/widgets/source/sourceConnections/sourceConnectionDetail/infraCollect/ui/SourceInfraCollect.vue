@@ -75,6 +75,7 @@ function handleCollectInfra() {
       </template>
       <template #data-viewInfra="{ data }">
         <p
+          data-testid="view-infra-meta"
           class="text-blue-700 cursor-pointer"
           @click="emit('update:metaViewerModalState', true)"
         >
@@ -84,6 +85,7 @@ function handleCollectInfra() {
       <template #extra="{ name }">
         <div v-if="name === 'collectInfraStatus'">
           <p-button
+            data-testid="collect-infra"
             style-type="tertiary"
             size="sm"
             :loading="resCollectInfra.isLoading.value"
