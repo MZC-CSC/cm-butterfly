@@ -157,6 +157,7 @@ const statusTooltip = computed(() => {
           v-if="hasLoadTest"
           :contents="statusTooltip"
           position="bottom"
+          :options="{ classes: ['p-tooltip', 'load-test-step-tooltip'] }"
         >
           <span
             class="load-test-status-badge"
@@ -321,5 +322,17 @@ const statusTooltip = computed(() => {
   @apply border-gray-200 border;
   height: 500px;
   border-radius: 4px 0px 0px 0px;
+}
+</style>
+
+<!-- 전역: 상태 hover tooltip은 긴 detail이 잘리지 않고 줄바꿈되게 한다.
+     기본 .p-tooltip .tooltip-inner는 white-space: pre(줄바꿈 유지·wrap 안 함)라
+     640px를 넘는 긴 줄이 잘린다 → pre-wrap + word-break로 오버라이드. -->
+<style lang="postcss">
+.p-tooltip.load-test-step-tooltip .tooltip-inner {
+  max-width: 420px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: left;
 }
 </style>
