@@ -87,6 +87,12 @@ const currentLoadTestSteps = computed(
     ((resLoadStatus as any).data?.value?.responseData?.result
       ?.steps as any[]) ?? [],
 );
+// 진행률 바용 예상 총 소요(초).
+const currentLoadTestExpectedSeconds = computed(
+  () =>
+    ((resLoadStatus as any).data?.value?.responseData?.result
+      ?.totalExpectedExecutionSecond as number) ?? 0,
+);
 // 성공 모달의 실시간 상태 표시용 — 종료(성공/실패) 여부.
 const currentLoadTestRawStatus = computed(
   () =>
@@ -442,6 +448,7 @@ function handleTemplateManagerClose() {
             :load-test-finish-at="currentLoadTestFinishAt"
             :load-test-failure-message="currentLoadTestFailureMessage"
             :load-test-steps="currentLoadTestSteps"
+            :load-test-expected-seconds="currentLoadTestExpectedSeconds"
             @openLoadconfig="handleLoadStatus"
             @openTemplateManager="handleTemplateManagerOpen"
             @stopLoadTest="handleStopLoadTest"
