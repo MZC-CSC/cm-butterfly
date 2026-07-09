@@ -81,6 +81,12 @@ const currentLoadTestFailureMessage = computed(
     ((resLoadStatus as any).data?.value?.responseData?.result
       ?.failureMessage as string) ?? '',
 );
+// 세분화 단계 진행(cm-ant FR-007-08 steps[]). 구버전 cm-ant면 빈 배열.
+const currentLoadTestSteps = computed(
+  () =>
+    ((resLoadStatus as any).data?.value?.responseData?.result
+      ?.steps as any[]) ?? [],
+);
 // 성공 모달의 실시간 상태 표시용 — 종료(성공/실패) 여부.
 const currentLoadTestRawStatus = computed(
   () =>
@@ -435,6 +441,7 @@ function handleTemplateManagerClose() {
             :load-test-start-at="currentLoadTestStartAt"
             :load-test-finish-at="currentLoadTestFinishAt"
             :load-test-failure-message="currentLoadTestFailureMessage"
+            :load-test-steps="currentLoadTestSteps"
             @openLoadconfig="handleLoadStatus"
             @openTemplateManager="handleTemplateManagerOpen"
             @stopLoadTest="handleStopLoadTest"

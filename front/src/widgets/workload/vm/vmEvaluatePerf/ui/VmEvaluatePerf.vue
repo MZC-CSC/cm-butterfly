@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { PButton, PTooltip } from '@cloudforet-test/mirinae';
 import { computed, Ref } from 'vue';
+import { ILoadTestExecutionStep } from '@/entities/mci/model';
 import LoadTestEvaluationMetric from '@/widgets/workload/vm/vmEvaluatePerf/ui/LoadTestEvaluationMetric.vue';
 import LoadTestResourceMetric from '@/widgets/workload/vm/vmEvaluatePerf/ui/LoadTestResourceMetric.vue';
 import LoadTestAggregationTable from '@/widgets/workload/vm/vmEvaluatePerf/ui/LoadTestAggregationTable.vue';
@@ -16,6 +17,8 @@ interface IProps {
   loadTestStartAt?: string;
   loadTestFinishAt?: string;
   loadTestFailureMessage?: string;
+  // 세분화 단계 진행(cm-ant FR-007-08 steps[]). 구버전 cm-ant면 빈 배열.
+  loadTestSteps?: ILoadTestExecutionStep[];
 }
 
 const props = defineProps<IProps>();
@@ -35,12 +38,64 @@ const isLoadTestFailed = computed(() => props.loadTestStatus === 'Failed');
 // 결과(차트·집계)는 성공(Completed)일 때만 노출. 실패/진행 중엔 결과 조회를 하지 않는다.
 const isLoadTestCompleted = computed(() => props.loadTestStatus === 'Completed');
 
-// 상태 배지 hover 상세(짧은 라벨은 인라인, 긴 실패 메시지·시각은 hover로).
+// 단계(steps[]) 표현 매핑 — cm-ant ExecutionStep/StepStatus.
+const STEP_LABEL: Record<string, string> = {
+  generator_install: 'Generator install',
+  agent_install: 'Agent install',
+  jmx_prepare: 'JMX prepare',
+  jmeter_run: 'JMeter run',
+  result_fetch: 'Result fetch',
+};
+const STEP_MARK: Record<string, string> = {
+  ok: '[OK]',
+  running: '[..]',
+  failed: '[X]',
+  pending: '[ ]',
+  skipped: '[-]',
+};
+const stepLabel = (name: string) => STEP_LABEL[name] ?? name;
+
+const steps = computed<ILoadTestExecutionStep[]>(() => props.loadTestSteps ?? []);
+const hasSteps = computed(() => steps.value.length > 0);
+// 현재 단계 = 진행 중(running)인 단계, 없으면 마지막 실패 단계.
+const currentStep = computed(() => {
+  const list = steps.value;
+  return (
+    list.find(s => s.status === 'running') ??
+    [...list].reverse().find(s => s.status === 'failed') ??
+    null
+  );
+});
+
+// 배지 라벨: 기존 상태 라벨에 진행 중 현재 단계를 조합("Running · JMeter run").
+// 길면 배지가 줄바꿈되도록 CSS 처리(잘리지 않음).
+const badgeLabel = computed(() => {
+  const base = props.loadTestStatus ?? '';
+  if (isLoadTestRunning.value && currentStep.value) {
+    return `${base} · ${stepLabel(currentStep.value.name)}`;
+  }
+  return base;
+});
+
+// 상태 배지 hover 상세 — 세분화 단계 진행(steps[]) + 시각 + 실패/진행 detail.
+// 긴 내용은 tooltip이 wrap(잘리지 않음). steps 없으면(구버전 cm-ant) 경량 표현으로 폴백.
 const statusTooltip = computed(() => {
   const lines: string[] = [];
+  for (const s of steps.value) {
+    const mark = STEP_MARK[s.status] ?? `[${s.status}]`;
+    let line = `${mark} ${stepLabel(s.name)}`;
+    if (s.message) line += ` — ${s.message}`;
+    lines.push(line);
+    // 진행 중·실패 단계는 상세(detail)까지 노출(원인·조치).
+    if (s.detail && (s.status === 'running' || s.status === 'failed')) {
+      lines.push(`      ${s.detail}`);
+    }
+  }
+  if (lines.length) lines.push('');
   if (props.loadTestStartAt) lines.push(`Started: ${props.loadTestStartAt}`);
   if (props.loadTestFinishAt) lines.push(`Finished: ${props.loadTestFinishAt}`);
-  if (props.loadTestFailureMessage) {
+  // steps로 실패 detail을 못 준 경우(구버전 등)에만 failureMessage 폴백.
+  if (props.loadTestFailureMessage && !hasSteps.value) {
     lines.push(`Error: ${props.loadTestFailureMessage}`);
   }
   return lines.join('\n');
@@ -108,7 +163,7 @@ const statusTooltip = computed(() => {
             :class="{ running: isLoadTestRunning, failed: isLoadTestFailed }"
             data-testid="vm-load-test-status"
           >
-            {{ props.loadTestStatus }}
+            {{ badgeLabel }}
           </span>
         </p-tooltip>
       </div>
@@ -128,7 +183,10 @@ const statusTooltip = computed(() => {
       class="load-test-empty"
       data-testid="load-test-progress"
     >
-      Load test in progress ({{ props.loadTestStatus }})…<br />
+      Load test in progress ({{ badgeLabel }})…<br />
+      <span v-if="currentStep?.message" class="progress-step-msg">{{
+        currentStep.message
+      }}</span>
       The results will appear here once it finishes.
     </div>
     <div
@@ -221,7 +279,19 @@ const statusTooltip = computed(() => {
   border-radius: 4px;
   background-color: #f1f3f5;
   color: #495057;
-  white-space: nowrap;
+  /* 상태+현재 단계 조합이 길어지면 잘리지 않고 줄바꿈되어 아래로 밀린다. */
+  max-width: 340px;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.35;
+}
+
+.progress-step-msg {
+  display: block;
+  margin: 4px 0;
+  font-size: 13px;
+  color: #495057;
+  word-break: break-word;
 }
 
 .load-test-status-badge.running {

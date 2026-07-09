@@ -197,6 +197,19 @@ interface LoadGeneratorInstallInfo {
   updatedAt: string;
 }
 
+// 부하테스트 실행 단계(cm-ant FR-MA2-PERF-007-08 steps[]).
+// name: generator_install·agent_install·jmx_prepare·jmeter_run·result_fetch
+// status: pending·running·ok·failed·skipped
+export interface ILoadTestExecutionStep {
+  seq?: number;
+  name: string;
+  status: string;
+  startAt?: string;
+  finishAt?: string;
+  message?: string;
+  detail?: string;
+}
+
 export interface ILastloadtestStateResponse {
   compileDuration: string;
   createdAt: string;
@@ -206,6 +219,10 @@ export interface ILastloadtestStateResponse {
   loadGeneratorInstallInfo: LoadGeneratorInstallInfo;
   loadTestKey: string;
   startAt: string;
+  finishAt?: string;
   totalExpectedExecutionSecond: number;
   updatedAt: string;
+  // cm-ant v0.5.3+ 세분화 상태(FR-007-08). 구버전이면 없음.
+  failureMessage?: string;
+  steps?: ILoadTestExecutionStep[];
 }
