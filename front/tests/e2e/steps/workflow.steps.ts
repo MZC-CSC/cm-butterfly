@@ -1,5 +1,6 @@
 import { createBdd } from 'playwright-bdd';
-import { test, expect } from '../support/fixtures';
+import { test, expect, getSentRequests } from '../support/fixtures';
+import { captureScreen } from '../support/screenshot';
 import { WorkflowPage } from '../pages/workflow.page';
 import { ModelsPage } from '../pages/models.page';
 import { workflowData } from '../fixtures/test-data';
@@ -156,4 +157,91 @@ When('마이그레이션 워크플로우를 생성하고 실행하면', async ({
   await wf.selectWorkflow(name);
   await wf.openHistoryTab();
   await wf.expectRunHistoryPresent();
+});
+
+// ── cm-cicada type/spec 스키마 회귀 (BAR-1389) ────────────────────────────
+//
+// cm-cicada가 TaskComponent를 type/spec 스키마로 바꾸면서, 콘솔의 두 화면이
+// 업스트림 패치에서 빠져 우리가 직접 보완했다.
+//   - Task Components  : 저장 payload가 구 {data:{options}} 래핑이면 cicada가 거부한다
+//   - Workflow JSON 뷰어: run_script가 spec.request_body로 옮겨가 디코드가 안 되면 base64가 노출된다
+// 화면이 멀쩡해 보여도 나가는 요청이 구 스키마일 수 있어, 요청 기록까지 함께 본다.
+
+/** 테스트용 스크립트 원문과 그 base64 — 디코드 여부 판정의 기준점 */
+const RUN_SCRIPT_MARKER = 'e2e run_script decode check';
+const RUN_SCRIPT_PLAIN = `#!/bin/bash\necho "${RUN_SCRIPT_MARKER}"\nuptime`;
+const RUN_SCRIPT_B64 = Buffer.from(RUN_SCRIPT_PLAIN).toString('base64');
+
+Then('콘솔이 구 스키마 요청을 보내지 않는다', async () => {
+  const legacy = getSentRequests().filter(r => /"data"\s*:\s*\{[^}]*"options"/.test(r.body));
+  expect(
+    legacy.map(r => r.url),
+    '구 options/{data} 래핑 payload를 보내면 cm-cicada가 거부한다',
+  ).toEqual([]);
+});
+
+/**
+ * run_script 스크립트가 담긴 워크플로우를 준비한다.
+ * 콘솔이 쓰는 프록시(operationId `create-workflow`)를 그대로 호출해, 로그인 세션·경로를
+ * 실제 사용 흐름과 동일하게 태운다.
+ */
+Given('run_script 스크립트가 담긴 {string} 워크플로우가 있다', async ({ page }, name: string) => {
+  const body = {
+    name,
+    description: 'e2e — cm-cicada run_script decode check',
+    data: {
+      task_groups: [
+        {
+          name: 'tg1',
+          description: 'task group',
+          tasks: [
+            {
+              name: 'run-script-task',
+              task_component: 'cicada_task_run_script',
+              spec: {
+                request_body: JSON.stringify({
+                  ns_id: 'default',
+                  infra_id: 'infra101',
+                  node_id: 'node1',
+                  content: RUN_SCRIPT_B64,
+                }),
+              },
+              dependencies: [],
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  // 콘솔은 프록시 호출에 Bearer 토큰을 붙인다. 로그인 세션이 localStorage에 보관한 토큰을 그대로 쓴다.
+  const token = await page.evaluate(() => {
+    for (const k of Object.keys(localStorage)) {
+      const v = localStorage.getItem(k) ?? '';
+      const m = v.match(/"access_token"\s*:\s*"([^"]+)"/);
+      if (m) return m[1];
+    }
+    return '';
+  });
+  expect(token, '로그인 세션에서 access token을 찾지 못했다').not.toEqual('');
+
+  const res = await page.request.post('/api/create-workflow', {
+    data: { request: body },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+  });
+  expect(res.ok(), `워크플로우 준비 실패: ${res.status()} ${await res.text()}`).toBeTruthy();
+});
+
+When('{string} 워크플로우의 JSON 뷰어를 연다', async ({ page }, name: string) => {
+  const wf = new WorkflowPage(page);
+  await wf.gotoWorkflows();
+  await wf.openJsonViewer(name);
+});
+
+Then('JSON 뷰어에 스크립트가 디코드되어 보인다', async ({ page }) => {
+  await new WorkflowPage(page).expectScriptDecoded(RUN_SCRIPT_MARKER, RUN_SCRIPT_B64.slice(0, 20));
+});
+
+Then('화면을 {string} 이름으로 캡처한다', async ({ page }, name: string) => {
+  await captureScreen(page, test.info(), name);
 });

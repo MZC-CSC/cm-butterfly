@@ -36,3 +36,21 @@
     만약 "e2e-sample-bash-workflow" 워크플로우를 실행하면
     그러면 워크플로우 실행 이력이 생성된다
     그리고 워크플로우 실행이 정상 완료된다
+
+  # cm-cicada가 TaskComponent를 type/spec 스키마로 바꾼 뒤, 업스트림 패치가 다루지 않아
+  # 우리가 직접 보완한 두 화면. 화면이 멀쩡해 보여도 나가는 요청이나 표시되는 값이
+  # 구 스키마 기준이면 실제로는 깨진 것이라, 요청 기록과 화면 캡처를 함께 본다. (BAR-1389)
+
+  @unit @cicada-schema
+  시나리오: Task Component 화면이 신 스키마로 동작한다
+    만약 Task Component 화면을 연다
+    그러면 Task Component 목록이 조회된다
+    그리고 콘솔이 구 스키마 요청을 보내지 않는다
+    그리고 화면을 "task-components" 이름으로 캡처한다
+
+  @unit @cicada-schema
+  시나리오: 워크플로우 JSON 뷰어가 run_script를 디코드해 보여준다
+    먼저 run_script 스크립트가 담긴 "e2e-runscript-wf" 워크플로우가 있다
+    만약 "e2e-runscript-wf" 워크플로우의 JSON 뷰어를 연다
+    그러면 JSON 뷰어에 스크립트가 디코드되어 보인다
+    그리고 화면을 "workflow-json-viewer" 이름으로 캡처한다

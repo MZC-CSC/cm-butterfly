@@ -17,8 +17,11 @@ import { workflowData } from '../fixtures/test-data';
  * SequentialDesigner(디자이너/에디터)에서 template + type/spec task로 구성한다.
  *
  * ⚠️ data-testid 미부여 구간: 현재 워크플로우 도메인 .vue에는 data-testid가 없다.
- *   README 규칙(BAR-880)대로 getByTestId(...)를 우선 두고 role/text fallback을 붙였다.
- *   프론트에 아래 testid를 부여하면 fallback을 제거한다.
+ *   BAR-880(셀렉터 안정화) — 워크플로우 도메인의 핵심 지점에 data-testid를 부여했다:
+ *     workflow-list-table · taskcomponent-list-table · workflow-template-list-table ·
+ *     workflow-json-view(상세의 JSON 열기) · workflow-json-viewer(뷰어 본문).
+ *   화면 문구나 DOM 구조가 바뀌어도 이 testid로 정확히 찾아간다. 아직 testid가 없는 구간만
+ *   role/text fallback을 남겨 두고, 부여되는 대로 fallback을 걷어낸다.
  */
 export class WorkflowPage {
   /** ★ 화면 위치(URL) */
@@ -32,10 +35,20 @@ export class WorkflowPage {
   // 공통 요소
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** 목록 테이블(p-toolbox-table / p-data-table 이 렌더하는 table) */
+  /**
+   * 목록 테이블 — 화면마다 *고유한* testid를 쓴다.
+   * 같은 testid를 여러 화면이 공유하면 어느 테이블을 가리키는지 모호해지고,
+   * 화면이 바뀔 때 엉뚱한 곳을 잡는다. (BAR-880 — 셀렉터 안정화)
+   */
+  private tableTestId = 'workflow-list-table';
+
   private get table(): Locator {
-    return this.page
-      .getByTestId('workflow-list-table');
+    return this.page.getByTestId(this.tableTestId);
+  }
+
+  /** 현재 화면의 테이블을 지정한다 */
+  private useTable(testId: string): void {
+    this.tableTestId = testId;
   }
 
   /** 테이블 데이터 행 (헤더 제외) */
@@ -52,6 +65,7 @@ export class WorkflowPage {
   // ─────────────────────────────────────────────────────────────────────────
 
   async gotoWorkflows(): Promise<void> {
+    this.useTable('workflow-list-table');
     await this.page.goto(WorkflowPage.workflowsPath);
     await this.expectWorkflowsLoaded();
   }
@@ -222,6 +236,7 @@ export class WorkflowPage {
   // ─────────────────────────────────────────────────────────────────────────
 
   async gotoTemplates(): Promise<void> {
+    this.useTable('workflow-template-list-table');
     await this.page.goto(WorkflowPage.templatesPath);
     await expect(this.table).toBeVisible({ timeout: 15_000 });
   }
@@ -239,6 +254,7 @@ export class WorkflowPage {
   // ─────────────────────────────────────────────────────────────────────────
 
   async gotoTaskComponents(): Promise<void> {
+    this.useTable('taskcomponent-list-table');
     await this.page.goto(WorkflowPage.taskComponentsPath);
     await this.expectTaskComponentsLoaded();
   }
@@ -254,5 +270,40 @@ export class WorkflowPage {
 
   async expectTaskComponentVisible(name: string): Promise<void> {
     await expect(this.rowByText(name)).toBeVisible({ timeout: 15_000 });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 7) 워크플로우 JSON 뷰어 (cm-cicada type/spec — run_script base64 디코드)
+  // ─────────────────────────────────────────────────────────────────────────
+  //
+  // 콘솔은 task_component가 `cicada_task_run_script`인 task의 스크립트를 base64로 저장하고,
+  // JSON 뷰어에서 사람이 읽을 수 있게 디코드해 보여준다. cm-cicada가 type/spec 스키마로
+  // 바뀌면서 그 값의 위치가 `task.request_body` → `task.spec.request_body`로 옮겨갔다.
+  // 뷰어가 신 위치를 읽지 못하면 화면에 base64 덩어리가 그대로 노출된다.
+
+  /** 워크플로우를 선택하고 상세의 "View Workflow JSON"을 눌러 뷰어를 연다 */
+  async openJsonViewer(name: string): Promise<void> {
+    await this.rowByText(name).evaluate((el: HTMLElement) => el.click());
+    const link = this.page.getByTestId('workflow-json-view').first();
+    await expect(link).toBeVisible({ timeout: 15_000 });
+    // 상세 패널이 뷰포트 밖에 있을 수 있어 DOM 클릭으로 연다
+    await link.evaluate((el: HTMLElement) => el.click());
+    await expect(this.page.getByTestId('workflow-json-viewer')).toBeVisible({ timeout: 15_000 });
+  }
+
+  /** 뷰어에 표시된 JSON 텍스트 */
+  async jsonViewerText(): Promise<string> {
+    return this.page.locator('body').innerText();
+  }
+
+  /**
+   * 스크립트가 디코드되어 보이는지 확인한다.
+   * @param marker 스크립트 원문에 들어 있는 문구 (디코드되면 화면에 나타난다)
+   * @param base64Prefix 인코딩된 원본의 앞부분 (디코드되면 화면에 나타나면 안 된다)
+   */
+  async expectScriptDecoded(marker: string, base64Prefix: string): Promise<void> {
+    const text = await this.jsonViewerText();
+    expect(text, 'run_script 내용이 디코드되어 보여야 한다(spec.request_body 경로)').toContain(marker);
+    expect(text, 'base64 원본이 그대로 노출되면 안 된다').not.toContain(base64Prefix);
   }
 }

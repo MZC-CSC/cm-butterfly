@@ -72,7 +72,11 @@ watchEffect(() => {
         </p>
       </template>
       <template #data-workflowJSON>
-        <p class="link-button-text" @click="handleJsonModal">
+        <p
+          data-testid="workflow-json-view"
+          class="link-button-text"
+          @click="handleJsonModal"
+        >
           View Workflow JSON
         </p>
       </template>

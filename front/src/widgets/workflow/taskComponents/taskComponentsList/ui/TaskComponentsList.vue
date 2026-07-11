@@ -169,9 +169,9 @@ watch(
         
         <!-- 로딩 완료 후 테이블 표시 -->
         <p-toolbox-table
+          data-testid="taskcomponent-list-table"
           v-if="!getTaskComponentList.isLoading.value"
           ref="toolboxTableRef"
-          data-testid="workflow-list-table"
           :items="tableModel.tableState.displayItems"
           :fields="tableModel.tableState.fields"
           :total-count="tableModel.tableState.tableCount"

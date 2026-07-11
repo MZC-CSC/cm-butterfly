@@ -16,7 +16,15 @@ import { registerHoneybeeMocks } from './mocks/honeybee';
  */
 let currentMock: ApiMock | null = null;
 
-export const test = base.extend<{ mockApi: ApiMock | null }>({
+/** 시나리오 동안 콘솔이 백엔드로 내보낸 요청 기록 (계약 회귀 검증용) */
+export interface SentRequest {
+  method: string;
+  url: string;
+  body: string;
+}
+let sentRequests: SentRequest[] = [];
+
+export const test = base.extend<{ mockApi: ApiMock | null; screens: boolean }>({
   mockApi: [
     async ({ page }, use, testInfo) => {
       let mock: ApiMock | null = null;
@@ -31,7 +39,42 @@ export const test = base.extend<{ mockApi: ApiMock | null }>({
     },
     { auto: true },
   ],
+
+  /**
+   * 화면 캡처 + 요청 기록 fixture.
+   *
+   * - 콘솔이 프록시(`/api/**`)로 보내는 요청을 모아 둔다. 스텝에서 "구 스키마 payload를 보내지 않는다"
+   *   같은 *계약* 검증에 쓴다. 화면이 멀쩡해 보여도 나가는 요청이 구 스키마면 잡아낸다.
+   * - 시나리오가 끝나면 마지막 화면을 캡처해 리포트에 첨부한다. 웹은 계약이 맞아도 보이는 것이
+   *   깨질 수 있어, 실행 결과 화면을 증거로 남겨 비교·분석에 쓴다.
+   */
+  screens: [
+    async ({ page }, use, testInfo) => {
+      sentRequests = [];
+      page.on('request', req => {
+        if (req.url().includes('/api/') && req.method() !== 'GET') {
+          sentRequests.push({ method: req.method(), url: req.url(), body: req.postData() ?? '' });
+        }
+      });
+
+      await use(true);
+
+      try {
+        const { captureScreen } = await import('./screenshot');
+        await captureScreen(page, testInfo, 'final');
+      } catch {
+        // 캡처 실패가 테스트를 깨뜨리지 않게 한다(증거 보존은 부가 목적).
+      }
+      sentRequests = [];
+    },
+    { auto: true },
+  ],
 });
+
+/** 이번 시나리오에서 콘솔이 백엔드로 보낸 요청들 */
+export function getSentRequests(): SentRequest[] {
+  return sentRequests;
+}
 
 export const expect = test.expect;
 
