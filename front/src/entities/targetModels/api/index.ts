@@ -17,7 +17,7 @@ const DELETE_TARGET_ONPREM_MODEL = 'DeleteOnPremModel';
 const DELETE_TARGET_SOFTWARE_MODEL = 'DeleteTargetSoftwareModel';
 
 interface ICreateTargetModelPayload {
-  cloudInfraModel: IRecommendModelResponse['targetVmInfra'];
+  cloudInfraModel: IRecommendModelResponse['targetInfra'];
   csp: string;
   description: string;
   isInitUserModel: boolean;

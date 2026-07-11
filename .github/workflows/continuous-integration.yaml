@@ -27,7 +27,6 @@ jobs:
     name: Build source code for butterfly api
     strategy:
       matrix:
-        go-version: ["1.23"]
         os: [ubuntu-22.04]
         #os: [ubuntu-22.04, ubuntu-20.04, windows-2022, windows-2019]
     runs-on: ${{matrix.os}}
@@ -37,7 +36,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{matrix.go-version}}
+          go-version-file: api/go.mod
 
       - name: Install Go dependencies
         run: go mod download

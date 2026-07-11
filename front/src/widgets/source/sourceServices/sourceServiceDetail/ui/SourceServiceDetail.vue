@@ -176,20 +176,31 @@ function handleSoftwareModal() {
       </template>
 
       <template #data-viewInfra="{ data }">
-        <p class="text-blue-700 cursor-pointer" @click="handleJsonModal">
-          {{ data.isShow ? 'View Infra(Meta) ->' : null }}
+        <p
+          v-if="data.isShow"
+          data-testid="source-group-view-infra-meta"
+          class="text-blue-700 cursor-pointer"
+          @click="handleJsonModal"
+        >
+          View Infra(Meta) -&gt;
         </p>
       </template>
 
       <template #data-viewSoftware="{ data }">
-        <p class="text-blue-700 cursor-pointer" @click="handleSoftwareModal">
-          {{ data.isShow ? 'View Software(Meta) ->' : null }}
+        <p
+          v-if="data.isShow"
+          data-testid="source-group-view-sw-meta"
+          class="text-blue-700 cursor-pointer"
+          @click="handleSoftwareModal"
+        >
+          View Software(Meta) -&gt;
         </p>
       </template>
 
       <template #extra="{ name }">
         <div v-if="name === 'status'">
           <p-button
+            data-testid="source-group-refresh"
             style-type="tertiary"
             size="sm"
             :loading="refreshSourceGroupConnectionInfoStatus.isLoading.value"
@@ -200,6 +211,7 @@ function handleSoftwareModal() {
         </div>
         <div v-else-if="name === 'viewInfra'">
           <p-button
+            data-testid="source-group-collect-infra"
             style-type="tertiary"
             size="sm"
             :loading="resGetInfraSourceGroup.isLoading.value"
@@ -210,6 +222,7 @@ function handleSoftwareModal() {
         </div>
         <div v-else-if="name === 'viewSoftware'">
           <p-button
+            data-testid="source-group-collect-sw"
             style-type="tertiary"
             size="sm"
             :loading="resCollectSWSourceGroup.isLoading.value"

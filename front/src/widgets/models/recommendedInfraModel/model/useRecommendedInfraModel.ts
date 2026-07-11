@@ -74,7 +74,7 @@ export function useRecommendedInfraModel() {
     recommendedModel: IExtendRecommendModelResponse,
   ) {
     // 입력 데이터 유효성 검사
-    if (!recommendedModel || !recommendedModel.targetVmInfra || !recommendedModel.targetVmInfra.subGroups) {
+    if (!recommendedModel || !recommendedModel.targetInfra || !recommendedModel.targetInfra.nodeGroups) {
       console.warn('Invalid recommendedModel data:', recommendedModel);
       return {
         name: 'Invalid Data',
@@ -117,14 +117,14 @@ export function useRecommendedInfraModel() {
       estimateCost = 'n/a';
     }
 
-    // Extract vCPU, memory, and disk from targetVmSpecList
+    // Extract vCPU, memory, and disk from targetSpecList
     const vCpuValues: string[] = [];
     const memoryValues: string[] = [];
     const diskValues: string[] = [];
     
-    recommendedModel.targetVmInfra.subGroups?.forEach(subGroup => {
+    recommendedModel.targetInfra.nodeGroups?.forEach(subGroup => {
       // Find matching spec
-      const matchingSpec = recommendedModel.targetVmSpecList?.find(
+      const matchingSpec = recommendedModel.targetSpecList?.find(
         spec => spec.id === subGroup.specId
       );
       
@@ -146,13 +146,13 @@ export function useRecommendedInfraModel() {
       }
     });
 
-    // Extract OS and Architecture from targetVmOsImageList
+    // Extract OS and Architecture from targetOsImageList
     const osValues: string[] = [];
     const archValues: string[] = [];
     
-    recommendedModel.targetVmInfra.subGroups?.forEach(subGroup => {
+    recommendedModel.targetInfra.nodeGroups?.forEach(subGroup => {
       // Find matching image
-      const matchingImage = recommendedModel.targetVmOsImageList?.find(
+      const matchingImage = recommendedModel.targetOsImageList?.find(
         image => image.cspImageName === subGroup.imageId
       );
       
@@ -191,11 +191,11 @@ export function useRecommendedInfraModel() {
     const organizedDatum: Partial<
       Record<RecommendedModelTableType | 'originalData', any>
     > = {
-      name: recommendedModel.targetVmInfra.name,
+      name: recommendedModel.targetInfra.name,
       //id: recommendedModel['id'] || '',
       //description: recommendedModel['description'] || '',
       spec:
-        recommendedModel.targetVmInfra.subGroups
+        recommendedModel.targetInfra.nodeGroups
           ?.reduce((acc, cur) => {
             // specId가 "empty"인 경우도 포함
             if (!cur.specId || cur.specId.trim() === '') {
@@ -214,7 +214,7 @@ export function useRecommendedInfraModel() {
       memory: memoryValues.length > 0 ? memoryValues.join(' / ') : 'n/a',
       disk: diskValues.length > 0 ? diskValues.join(' / ') : 'n/a',
       image:
-        recommendedModel.targetVmInfra.subGroups
+        recommendedModel.targetInfra.nodeGroups
           ?.reduce((acc, cur) => {
             // imageId가 "empty"인 경우도 포함
             if (!cur.imageId || cur.imageId.trim() === '') {

@@ -190,6 +190,7 @@ onMounted(() => {
 
 <template>
   <p-button-modal
+    data-testid="scenario-template-modal"
     :visible="isOpen"
     :v-model="isOpen"
     :loading="loading"
@@ -231,6 +232,7 @@ onMounted(() => {
                 <template #default="{ invalid }">
                   <p-text-input
                     v-model="templateForm.name"
+                    data-testid="scenario-template-name"
                     :invalid="invalid"
                     placeholder="Enter template name"
                     block
@@ -310,6 +312,7 @@ onMounted(() => {
 
               <div class="save-actions">
                 <p-button
+                  data-testid="scenario-template-save"
                   style-type="primary"
                   :loading="loading"
                   @click="saveTemplate"

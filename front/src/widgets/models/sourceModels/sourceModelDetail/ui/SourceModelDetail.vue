@@ -118,14 +118,22 @@ function handleRecommendedList() {
     >
       <!-- :disable-copy="true" -->
       <template #data-customAndViewJSON>
-        <p class="link-button-text" @click="handleJsonModal">
+        <p
+          class="link-button-text"
+          data-testid="source-detail-custom-view"
+          @click="handleJsonModal"
+        >
           Custom & View Source Model
         </p>
         <!-- <p-button style-type="transparent" @click="handleJsonModal">
         </p-button> -->
       </template>
       <template #data-recommendModel>
-        <p class="link-button-text" @click="handleRecommendedList">
+        <p
+          class="link-button-text"
+          data-testid="source-detail-view-recommend"
+          @click="handleRecommendedList"
+        >
           View Recommended List
         </p>
       </template>

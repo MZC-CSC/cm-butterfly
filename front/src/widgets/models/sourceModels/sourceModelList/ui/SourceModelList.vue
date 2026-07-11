@@ -351,6 +351,7 @@ function handleDeleteConfirm() {
         <p-toolbox-table
           v-if="!resSourceList.isLoading.value"
           ref="toolboxTableRef"
+          data-testid="model-list-table"
           :items="tableModel.tableState.displayItems"
           :fields="tableModel.tableState.fields"
           :total-count="tableModel.tableState.tableCount"

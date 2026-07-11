@@ -48,16 +48,23 @@ function processTaskGroups(taskGroups: any[]) {
       taskGroup.tasks.forEach((task: any) => {
         // Check task.task_component (fixed identifier, not user-changeable)
         // task.task_component로 확인 (고정 식별자, 사용자 변경 불가)
-        if (task.task_component === 'cicada_task_run_script' && task.request_body) {
-          try {
-            const requestBody = JSON.parse(task.request_body);
-            if (requestBody.content) {
-              console.log('🔓 Decoding content in JSON Viewer for task:', task.name);
-              requestBody.content = decodeBase64(requestBody.content);
-              task.request_body = JSON.stringify(requestBody);
+        // cm-cicada type/spec 전환: request_body는 task.spec.request_body에 있음(레거시 task.request_body fallback)
+        if (task.task_component === 'cicada_task_run_script') {
+          const hasSpec = task.spec && task.spec.request_body != null;
+          const rawRequestBody = hasSpec ? task.spec.request_body : task.request_body;
+          if (rawRequestBody) {
+            try {
+              const requestBody = JSON.parse(rawRequestBody);
+              if (requestBody.content) {
+                console.log('🔓 Decoding content in JSON Viewer for task:', task.name);
+                requestBody.content = decodeBase64(requestBody.content);
+                const encoded = JSON.stringify(requestBody);
+                if (hasSpec) task.spec.request_body = encoded;
+                else task.request_body = encoded;
+              }
+            } catch (e) {
+              console.error('Error decoding task request_body:', e);
             }
-          } catch (e) {
-            console.error('Error decoding task request_body:', e);
           }
         }
       });
@@ -138,16 +145,23 @@ function encodeTaskGroups(taskGroups: any[]) {
       taskGroup.tasks.forEach((task: any) => {
         // Check task.task_component (fixed identifier, not user-changeable)
         // task.task_component로 확인 (고정 식별자, 사용자 변경 불가)
-        if (task.task_component === 'cicada_task_run_script' && task.request_body) {
-          try {
-            const requestBody = JSON.parse(task.request_body);
-            if (requestBody.content) {
-              console.log('🔐 Encoding content in JSON Viewer for task:', task.name);
-              requestBody.content = encodeBase64(requestBody.content);
-              task.request_body = JSON.stringify(requestBody);
+        // cm-cicada type/spec 전환: request_body는 task.spec.request_body에 있음(레거시 task.request_body fallback)
+        if (task.task_component === 'cicada_task_run_script') {
+          const hasSpec = task.spec && task.spec.request_body != null;
+          const rawRequestBody = hasSpec ? task.spec.request_body : task.request_body;
+          if (rawRequestBody) {
+            try {
+              const requestBody = JSON.parse(rawRequestBody);
+              if (requestBody.content) {
+                console.log('🔐 Encoding content in JSON Viewer for task:', task.name);
+                requestBody.content = encodeBase64(requestBody.content);
+                const encoded = JSON.stringify(requestBody);
+                if (hasSpec) task.spec.request_body = encoded;
+                else task.request_body = encoded;
+              }
+            } catch (e) {
+              console.error('Error encoding task request_body:', e);
             }
-          } catch (e) {
-            console.error('Error encoding task request_body:', e);
           }
         }
       });
@@ -171,7 +185,7 @@ function encodeTaskGroups(taskGroups: any[]) {
     @update:modal-state="handleModal"
   >
     <template #add-info>
-      <div class="workflow-json-editor-wrapper">
+      <div data-testid="workflow-json-viewer" class="workflow-json-editor-wrapper">
         <div class="editor-title">Target Model</div>
         <EnhancedJsonEditor
           ref="jsonEditorRef"

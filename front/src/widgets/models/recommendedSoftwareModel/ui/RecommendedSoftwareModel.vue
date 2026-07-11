@@ -311,6 +311,7 @@ function handleCreateTargetModel(e) {
   <div>
     <create-form
       class="page-modal-layout"
+      data-testid="sw-recommend-modal"
       title="Software Migration Recommendation"
       :need-widget-layout="true"
       :badge-title="sourceModelName"
@@ -339,6 +340,7 @@ function handleCreateTargetModel(e) {
           <!-- 가운데: Recommend Model 버튼 -->
           <button
             class="convert-btn"
+            data-testid="sw-recommend-get"
             :disabled="!sourceSoftwareModelData || isLoading"
             @click="handleGetMigrationList"
           >
@@ -379,6 +381,7 @@ function handleCreateTargetModel(e) {
           Cancel
         </p-button>
         <p-button
+          data-testid="sw-recommend-save-target"
           :disabled="!recommendedModelData"
           @click="handleSaveTargetModel"
         >

@@ -104,13 +104,14 @@ onMounted(async () => {
         <table-loading-spinner
           :loading="loading"
           :height="height"
-          message="Loading MCI list..."
+          message="Loading Infra list..."
         />
         
         <!-- 로딩 완료 후 테이블 표시 -->
         <p-toolbox-table
           v-if="!loading"
           ref="toolboxTableRef"
+          data-testid="mci-list-table"
           :items="mciTableModel.tableState.displayItems"
           :fields="mciTableModel.tableState.fields"
           :total-count="mciTableModel.tableState.tableCount"
@@ -131,6 +132,7 @@ onMounted(async () => {
         >
           <template #toolbox-left>
             <p-select-dropdown
+              data-testid="mci-action-dropdown"
               placeholder="Action"
               :menu="actionState.actionMenus"
               :selected.sync="actionState.selectedActionItem"

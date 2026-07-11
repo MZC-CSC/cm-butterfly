@@ -112,6 +112,7 @@ const handleDelete = () => {
         <p-field-group label="Source Connection Name" invalid required>
           <p-text-input
             v-model="sourceConnection.name"
+            data-testid="source-connection-name"
             placeholder="Source Connection Name"
             :invalid="!sourceConnection.name"
             :disabled="isFieldReadonly('name')"
@@ -128,6 +129,7 @@ const handleDelete = () => {
         <p-field-group label="IP Address" invalid required>
           <p-text-input
             v-model="sourceConnection.ip_address"
+            data-testid="source-connection-ip"
             :invalid="!invalidState.isIpAddressValid"
             placeholder="###.###.###.###"
             :disabled="isFieldReadonly('ip_address')"
@@ -136,6 +138,7 @@ const handleDelete = () => {
         <p-field-group label="Port (for SSH)" invalid required>
           <p-text-input
             v-model="sourceConnection.ssh_port"
+            data-testid="source-connection-ssh-port"
             placeholder="1~65535"
             :invalid="!invalidState.isPortValid"
             :disabled="isFieldReadonly('ssh_port')"
@@ -144,6 +147,7 @@ const handleDelete = () => {
         <p-field-group label="User" invalid required>
           <p-text-input
             v-model="sourceConnection.user"
+            data-testid="source-connection-user"
             placeholder="User ID"
             :invalid="!sourceConnection.user"
             :disabled="isFieldReadonly('user')"
@@ -152,6 +156,7 @@ const handleDelete = () => {
         <p-field-group label="Password">
           <p-text-input
             v-model="sourceConnection.password"
+            data-testid="source-connection-password"
             placeholder="Password"
             :disabled="isFieldReadonly('password')"
           />
@@ -159,6 +164,7 @@ const handleDelete = () => {
         <p-field-group class="private-key" label="Private Key">
           <p-textarea
             v-model="sourceConnection.private_key"
+            data-testid="source-connection-private-key"
             :rows="5"
             :disabled="isFieldReadonly('private_key')"
           />

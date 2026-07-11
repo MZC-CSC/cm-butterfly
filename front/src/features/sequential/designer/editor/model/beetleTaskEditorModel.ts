@@ -156,10 +156,10 @@ export function useTaskEditorModel() {
 
   function setFormContext(object: object | '') {
     // originalObject 저장 (새로운 모델 구조인 경우 전체 객체 저장)
-    if (typeof object === 'object' && object !== null && 'targetVmInfra' in object) {
+    if (typeof object === 'object' && object !== null && 'targetInfra' in object) {
       originalObject = object;
-      // targetVmInfra만 추출하여 처리
-      object = (object as any).targetVmInfra || '';
+      // targetInfra만 추출하여 처리
+      object = (object as any).targetInfra || '';
     } else {
       originalObject = null;
     }
@@ -203,7 +203,7 @@ export function useTaskEditorModel() {
   }
 
   function convertFormModelToStepProperties(): object {
-    // 새로운 모델 구조만 지원: originalObject에 targetVmInfra 값만 업데이트
+    // 새로운 모델 구조만 지원: originalObject에 targetInfra 값만 업데이트
     const updatedTargetVmInfra: any = {};
     
     formContext.value.forEach(data => {
@@ -235,10 +235,10 @@ export function useTaskEditorModel() {
       }
     });
     
-    // originalObject의 targetVmInfra만 업데이트하고 전체 객체 반환
+    // originalObject의 targetInfra만 업데이트하고 전체 객체 반환
     return {
       ...originalObject,
-      targetVmInfra: updatedTargetVmInfra
+      targetInfra: updatedTargetVmInfra
     };
   }
 

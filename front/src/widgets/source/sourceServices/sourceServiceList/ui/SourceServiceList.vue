@@ -89,6 +89,8 @@ function addDeleteIconAtTable() {
     targetElement,
     'prepend',
   );
+  // 동적으로 주입된 삭제 아이콘에 e2e 셀렉터용 data-testid 부여
+  instance.$el.setAttribute('data-testid', 'source-group-delete');
   return instance;
 }
 
@@ -200,6 +202,7 @@ watch(
         >
           <template #toolbox-left>
             <p-button
+              data-testid="source-group-add"
               style-type="primary"
               icon-left="ic_plus_bold"
               @click="

@@ -165,11 +165,11 @@ async function getRecommendModelList() {
         console.log(`Processing candidate ${index + 1}:`, JSON.stringify(candidate, null, 2));
         
         // API 응답 데이터 검증 및 정리
-        if (candidate.targetVmInfra?.subGroups) {
-          const originalLength = candidate.targetVmInfra.subGroups.length;
+        if (candidate.targetInfra?.nodeGroups) {
+          const originalLength = candidate.targetInfra.nodeGroups.length;
           
           // 무효한 데이터 로깅
-          const invalidVms = candidate.targetVmInfra.subGroups.filter(vm => 
+          const invalidVms = candidate.targetInfra.nodeGroups.filter(vm => 
             !vm || !vm.specId || vm.specId.trim() === '' || !vm.imageId || vm.imageId.trim() === ''
           );
           
@@ -178,7 +178,7 @@ async function getRecommendModelList() {
           }
           
           // 무효한 데이터의 빈 필드를 "empty"로 대체
-          candidate.targetVmInfra.subGroups = candidate.targetVmInfra.subGroups.map(vm => {
+          candidate.targetInfra.nodeGroups = candidate.targetInfra.nodeGroups.map(vm => {
             const updatedVm = { ...vm };
             if (!vm.specId || vm.specId.trim() === '') {
               updatedVm.specId = 'empty';
@@ -190,14 +190,14 @@ async function getRecommendModelList() {
           });
         }
 
-        // 비용 계산 (targetVmSpecList 기반)
+        // 비용 계산 (targetSpecList 기반)
         try {
           let totalCostPerHour = 0;
           let currency = '';
           let skippedVms: Array<{ vmName: string; specId: string; costPerHour: number }> = [];
           
-          candidate.targetVmInfra.subGroups?.forEach(vm => {
-            const matchingSpec = candidate.targetVmSpecList?.find(spec => spec.id === vm.specId);
+          candidate.targetInfra.nodeGroups?.forEach(vm => {
+            const matchingSpec = candidate.targetSpecList?.find(spec => spec.id === vm.specId);
             if (matchingSpec && matchingSpec.costPerHour !== undefined && matchingSpec.costPerHour !== null) {
               if (matchingSpec.costPerHour < 0) {
                 skippedVms.push({
@@ -313,19 +313,19 @@ function handleSave(e: { name: string; description: string }) {
 
     let selectedModel: IRecommendModelResponse = displayItem.originalData;
 
-    if (!selectedModel?.targetVmInfra?.subGroups || selectedModel.targetVmInfra.subGroups.length === 0) {
-      throw new Error('Selected model has no VM subGroups');
+    if (!selectedModel?.targetInfra?.nodeGroups || selectedModel.targetInfra.nodeGroups.length === 0) {
+      throw new Error('Selected model has no VM nodeGroups');
     }
 
     // 선택된 Row의 데이터를 가공 없이 그대로 사용
     // 주의: selectIndex는 테이블 행의 인덱스이고, 이미 displayItems[rowIndex]에서 해당 모델을 가져왔으므로
-    // subGroups에서는 첫 번째 VM(인덱스 0)을 사용해야 함 (CSP/Region 추출용)
-    const selectedVm = selectedModel.targetVmInfra.subGroups[0];
+    // nodeGroups에서는 첫 번째 VM(인덱스 0)을 사용해야 함 (CSP/Region 추출용)
+    const selectedVm = selectedModel.targetInfra.nodeGroups[0];
     
-    // 기존 targetVmInfra를 그대로 사용 (가공 없이)
+    // 기존 targetInfra를 그대로 사용 (가공 없이)
     const modifiedTargetVmInfra = {
-      ...selectedModel.targetVmInfra
-      // subGroups는 원본 그대로 유지
+      ...selectedModel.targetInfra
+      // nodeGroups는 원본 그대로 유지
     };
 
     // API 스펙에 맞는 cloudInfraModel 구조 생성
@@ -335,9 +335,9 @@ function handleSave(e: { name: string; description: string }) {
       targetSecurityGroupList: selectedModel.targetSecurityGroupList || [],
       targetSshKey: selectedModel.targetSshKey || {},
       targetVNet: selectedModel.targetVNet || {},
-      targetVmInfra: modifiedTargetVmInfra, // 가공되지 않은 targetVmInfra 사용
-      targetVmOsImageList: selectedModel.targetVmOsImageList || [],
-      targetVmSpecList: selectedModel.targetVmSpecList || []
+      targetInfra: modifiedTargetVmInfra, // 가공되지 않은 targetInfra 사용
+      targetOsImageList: selectedModel.targetOsImageList || [],
+      targetSpecList: selectedModel.targetSpecList || []
     };
 
     // specId가 빈 문자열이거나 +가 없는 경우 기본값 사용
@@ -382,6 +382,7 @@ function handleSave(e: { name: string; description: string }) {
   <div>
     <create-form
       class="page-modal-layout"
+      data-testid="recommend-modal"
       title="Recommend Model"
       :need-widget-layout="true"
       :badge-title="sourceModelName"
@@ -394,6 +395,7 @@ function handleSave(e: { name: string; description: string }) {
           <section class="select-service-box flex w-full items-center gap-4">
             <p class="text-label-lg font-bold">Provider</p>
             <p-select-dropdown
+              data-testid="recommend-provider-select"
               :menu="provider.menu"
               :loading="provider.loading"
               @update:visible-menu="handleProviderMenuClick"
@@ -406,6 +408,7 @@ function handleSave(e: { name: string; description: string }) {
             ></p-select-dropdown>
             <p class="text-label-lg font-bold">Region</p>
             <p-select-dropdown
+              data-testid="recommend-region-select"
               :menu="region.menu"
               :loading="region.loading"
               :disabled="provider.selected === ''"
@@ -420,6 +423,7 @@ function handleSave(e: { name: string; description: string }) {
             <!-- Search 버튼을 오른쪽 끝으로 -->
             <div class="flex-grow"></div>
             <p-button
+              data-testid="recommend-search"
               :disabled="!provider.selected || !region.selected"
               @click="getRecommendModelList"
             >
@@ -432,6 +436,7 @@ function handleSave(e: { name: string; description: string }) {
             <p class="text-label-lg font-bold" title="Maximum number of recommended infrastructures to return (default: 3)">Candidate Limit</p>
             <input
               v-model.number="candidateLimit"
+              data-testid="recommend-candidate-limit"
               type="number"
               :min="1"
               :max="10"
@@ -469,6 +474,7 @@ function handleSave(e: { name: string; description: string }) {
           </section>
           <p-toolbox-table
             ref="toolboxTable"
+            data-testid="recommend-result-table"
             :items="recommendInfraModel.tableModel.tableState.displayItems"
             :fields="recommendInfraModel.tableModel.tableState.fields"
             :total-count="recommendInfraModel.tableModel.tableState.tableCount"
@@ -496,7 +502,10 @@ function handleSave(e: { name: string; description: string }) {
       </template>
       <template #buttons>
         <p-button style-type="tertiary" @click="handleModal">cancel</p-button>
-        <p-button @click="modalState.targetModal = true">
+        <p-button
+          data-testid="recommend-save-target"
+          @click="modalState.targetModal = true"
+        >
           Save as a Target Model
         </p-button>
       </template>

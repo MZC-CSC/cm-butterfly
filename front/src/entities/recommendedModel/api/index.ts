@@ -9,8 +9,8 @@ import {
   IRecommendModelResponse,
 } from '@/entities/recommendedModel/model/types';
 
-//const GET_RECOMMEND_MODEL = 'RecommendInfra';
-const GET_RECOMMEND_MODEL = 'RecommendVMInfra';
+// tb-0.12.9 clean break: 구 'RecommendVMInfra'(POST /recommendation/mci) 제거 → 'RecommendVmInfraCandidates'(POST /recommendation/infra)로 통합 (cm-beetle BC-6)
+const GET_RECOMMEND_MODEL = 'RecommendVmInfraCandidates';
 const GET_RECOMMEND_CANDIDATES = 'RecommendVmInfraCandidates';
 const GET_RECOMMEND_COST = 'Updateandgetestimatecost';
 

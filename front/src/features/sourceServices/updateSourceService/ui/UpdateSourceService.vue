@@ -241,6 +241,7 @@ watch(
       <p-field-group label="Source Service Name" invalid required>
         <p-text-input
           v-model="state.sourceServiceName"
+          data-testid="source-service-name"
           placeholder="Source Service Name"
           :invalid="!state.sourceServiceName"
           :disabled="false"
@@ -250,6 +251,7 @@ watch(
         <p-textarea
           v-if="state.description !== null"
           v-model="state.description"
+          data-testid="source-service-description"
           :disabled="false"
         />
       </p-field-group>
@@ -257,6 +259,7 @@ watch(
     <p-pane-layout class="layout">
       <div class="toggle">
         <p-toggle-button
+          data-testid="source-service-with-connection"
           :value="sourceConnectionStore.withSourceConnection"
           :disabled="!isToggleDisabled || loading"
           @change-toggle="handleCheckSourceConnection"
@@ -265,6 +268,7 @@ watch(
       </div>
       <p-divider />
       <p-button
+        data-testid="source-service-go-add-connection"
         style-type="tertiary"
         :disabled="!isAddDisabled || loading"
         @click="handleLink"

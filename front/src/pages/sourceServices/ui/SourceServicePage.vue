@@ -154,7 +154,7 @@ const data = computed(() => {
       v-if="!modalStates.addSourceConnection.open"
       :class="`${pageName}-page-header`"
     >
-      <p>{{ pageName }}</p>
+      <p data-testid="source-services-header">{{ pageName }}</p>
     </header>
     <section :class="`${pageName}-page-body`">
       <SourceServiceList

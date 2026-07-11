@@ -7,6 +7,7 @@ import {
 } from '@/features/workflow/workflowEditor/model/types';
 import { toolboxSteps } from '@/features/sequential/designer/toolbox/model/toolboxSteps';
 import { ITaskResponse } from '@/entities';
+import { toDesignerStepType } from '@/entities/workflow/lib/schemaAdapter';
 
 export function useSequentialToolboxModel() {
   const loadStepsFunc = toolboxSteps();
@@ -59,11 +60,13 @@ export function useSequentialToolboxModel() {
         loadStepsFunc.defineBettleTaskStep(
           getRandomId(),
           res.name ?? 'undefined',  // name: toolbox에서는 원본 이름 표시, canvas 드롭 시 자동으로 고유 이름 생성
-          res.name,                  // type: task component 식별자
+          toDesignerStepType(res.name), // type: swd 유효 형식으로 정규화(실제 이름은 name/originalData 보존)
           {
             model: modelData,
             originalData: mappingTaskInfoResponseITaskResponse(res),
             fixedModel: getFixedModel(res),
+            taskType: res.type ?? 'http', // cm-cicada task type (per-type editor 선택용)
+            taskComponentData: { ...res.data, spec: res.spec, type: res.type },
           },
         ),
       );
@@ -86,14 +89,19 @@ export function useSequentialToolboxModel() {
       request_body: taskInfoResponse.data.options.request_body,
       query_params: '',
       task_component: taskInfoResponse.name,
+      type: taskInfoResponse.type ?? 'http',
+      spec: taskInfoResponse.spec,
     };
   }
 
   function getFixedModel(task: ITaskComponentInfoResponse): fixedModel {
+    // 스키마 properties의 description은 *설명(힌트)*이지 값이 아니다. 값은 빈 문자열로 두어
+    // 사용자가 채우거나(수동 task) 자동 생성 task는 빈 값→백엔드 기본값을 쓰게 한다.
+    // (과거 description을 값으로 저장해 예: beetle 마이그레이션 useExisting=<설명문>이 되어 400 발생 — BAR-1393)
     const pathParamsKeyValue = task?.data.path_params?.properties
       ? Object.entries(task.data.path_params?.properties).reduce(
-          (acc, [key, value]) => {
-            acc[key] = value.description;
+          (acc, [key]) => {
+            acc[key] = '';
             return acc;
           },
           {},
@@ -102,8 +110,8 @@ export function useSequentialToolboxModel() {
 
     const queryParamsKeyValue = task?.data.query_params?.properties
       ? Object.entries(task.data.query_params?.properties).reduce(
-          (acc, [key, value]) => {
-            acc[key] = value.description;
+          (acc, [key]) => {
+            acc[key] = '';
             return acc;
           },
           {},

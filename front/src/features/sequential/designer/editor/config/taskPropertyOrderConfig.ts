@@ -23,9 +23,9 @@ export const TASK_PROPERTY_ORDER_CONFIG: Record<string, PropertyOrderRule[]> = {
       order: [  
         'description',
         'targetCloud',
-        'targetVmInfra',
-        'targetVmSpecList',
-        'targetVmOsImageList',
+        'targetInfra',
+        'targetSpecList',
+        'targetOsImageList',
         'targetVNet',
         'targetSecurityGroupList',
         'targetSshKey',
@@ -33,11 +33,11 @@ export const TASK_PROPERTY_ORDER_CONFIG: Record<string, PropertyOrderRule[]> = {
       ]
     },
     {
-      path: 'body_params.targetVmInfra',
+      path: 'body_params.targetInfra',
       order: [
         'name',
         'description',        
-        'subGroups',
+        'nodeGroups',
         'installMonAgent',  
         'label',
         'systemLabel',

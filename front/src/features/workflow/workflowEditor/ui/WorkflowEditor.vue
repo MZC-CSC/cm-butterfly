@@ -28,6 +28,7 @@ import getRandomId from '@/shared/utils/uuid';
 import { parseRequestBody } from '@/shared/utils/stringToObject';
 import SequentialDesigner from '@/features/sequential/designer/ui/SequentialDesigner.vue';
 import { DEFAULT_NAMESPACE } from '@/shared/constants/namespace';
+import { normalizeTaskComponentList } from '@/entities/workflow/lib/schemaAdapter';
 import { useTaskSchemaLoader } from '@/features/sequential/designer/editor/composables/useTaskSchemaLoader';
 
 interface IProps {
@@ -66,10 +67,14 @@ onBeforeMount(function () {
     resWorkflowTemplateData.execute(),
     resTaskComponentList.execute(),
   ]).then(res => {
+    // cm-cicada Type/Spec 응답을 디자이너가 소비하는 legacy 형태로 정규화 (in place).
+    // 팔레트/캔버스/템플릿 로드가 모두 이 배열을 참조하므로 여기서 한 번 변환한다.
+    normalizeTaskComponentList(res[1].data.responseData);
+
     workflowToolModel.workflowStore.setWorkflowTemplates(
       res[0].data.responseData,
     );
-    
+
     // cicada_task_run_script is now included in API response
     // cicada_task_run_script는 이제 API 응답에 포함됨
     workflowToolModel.setTaskComponent(res[1].data.responseData);
@@ -326,13 +331,13 @@ function mapTargetModelToTaskComponent(
 
   const parseString = parseRequestBody(taskComponent.data.options.request_body);
   
-  if (isInfraModel && targetModel?.cloudInfraModel?.targetVmInfra) {
-    // Handle infra model data - use targetVmInfra from cloudInfraModel
-    console.log('Processing infra model with targetVmInfra:', targetModel.cloudInfraModel.targetVmInfra);
+  if (isInfraModel && targetModel?.cloudInfraModel?.targetInfra) {
+    // Handle infra model data - use targetInfra from cloudInfraModel
+    console.log('Processing infra model with targetInfra:', targetModel.cloudInfraModel.targetInfra);
     
     if (parseString) {
-      // Set the targetVmInfra data directly
-      parseString['targetVmInfra'] = targetModel.cloudInfraModel.targetVmInfra;
+      // Set the targetInfra data directly
+      parseString['targetInfra'] = targetModel.cloudInfraModel.targetInfra;
       
       // Also set other related infra data if available
       if (targetModel.cloudInfraModel.targetSecurityGroupList) {
@@ -344,11 +349,11 @@ function mapTargetModelToTaskComponent(
       if (targetModel.cloudInfraModel.targetVNet) {
         parseString['targetVNet'] = targetModel.cloudInfraModel.targetVNet;
       }
-      if (targetModel.cloudInfraModel.targetVmOsImageList) {
-        parseString['targetVmOsImageList'] = targetModel.cloudInfraModel.targetVmOsImageList;
+      if (targetModel.cloudInfraModel.targetOsImageList) {
+        parseString['targetOsImageList'] = targetModel.cloudInfraModel.targetOsImageList;
       }
-      if (targetModel.cloudInfraModel.targetVmSpecList) {
-        parseString['targetVmSpecList'] = targetModel.cloudInfraModel.targetVmSpecList;
+      if (targetModel.cloudInfraModel.targetSpecList) {
+        parseString['targetSpecList'] = targetModel.cloudInfraModel.targetSpecList;
       }
     }
     console.log('Processed infra model data:', parseString);
@@ -365,11 +370,11 @@ function mapTargetModelToTaskComponent(
       if (targetSoftwareModel.softwareList) {
         parseString['softwareList'] = targetSoftwareModel.softwareList;
       }
-      if (targetSoftwareModel.targetVmSpecList) {
-        parseString['targetVmSpecList'] = targetSoftwareModel.targetVmSpecList;
+      if (targetSoftwareModel.targetSpecList) {
+        parseString['targetSpecList'] = targetSoftwareModel.targetSpecList;
       }
-      if (targetSoftwareModel.targetVmOsImageList) {
-        parseString['targetVmOsImageList'] = targetSoftwareModel.targetVmOsImageList;
+      if (targetSoftwareModel.targetOsImageList) {
+        parseString['targetOsImageList'] = targetSoftwareModel.targetOsImageList;
       }
       if (targetSoftwareModel.targetSecurityGroupList) {
         parseString['targetSecurityGroupList'] = targetSoftwareModel.targetSecurityGroupList;
@@ -394,12 +399,14 @@ function mapTargetModelToTaskComponent(
     console.log('Processed software model data:', parseString);
   }
 
-  // Set path_params and query_params from task component with nsId default value
-  // Extract actual values from task component properties (similar to getFixedModel in toolboxModel.ts)
+  // Set path_params and query_params from task component with nsId default value.
+  // ★ 스키마 properties의 description은 *설명(placeholder)*이지 값이 아니다. 값은 비워 두어
+  //   자동 생성 task가 백엔드 기본값을 쓰거나(선택 파라미터) 사용자가 채우게 한다.
+  //   (과거 description을 값으로 넣어 예: cm-beetle 마이그레이션 nameSeed=<설명문>이 되어 400 — BAR-1393)
   const pathParamsKeyValue = taskComponent?.data.path_params?.properties
     ? Object.entries(taskComponent.data.path_params.properties).reduce(
-        (acc, [key, value]) => {
-          acc[key] = value.description;
+        (acc, [key]) => {
+          acc[key] = '';
           return acc;
         },
         {} as Record<string, string>,
@@ -408,8 +415,8 @@ function mapTargetModelToTaskComponent(
 
   const queryParamsKeyValue = taskComponent?.data.query_params?.properties
     ? Object.entries(taskComponent.data.query_params.properties).reduce(
-        (acc, [key, value]) => {
-          acc[key] = value.description;
+        (acc, [key]) => {
+          acc[key] = '';
           return acc;
         },
         {} as Record<string, string>,
@@ -533,13 +540,13 @@ function createTaskForModel(
 
   const parseString = parseRequestBody(taskComponent.data.options.request_body);
   
-  if (isInfraModel && targetModel?.cloudInfraModel?.targetVmInfra) {
-    // Handle infra model data - use targetVmInfra from cloudInfraModel
-    console.log('Processing infra model with targetVmInfra:', targetModel.cloudInfraModel.targetVmInfra);
+  if (isInfraModel && targetModel?.cloudInfraModel?.targetInfra) {
+    // Handle infra model data - use targetInfra from cloudInfraModel
+    console.log('Processing infra model with targetInfra:', targetModel.cloudInfraModel.targetInfra);
     
     if (parseString) {
-      // Set the targetVmInfra data directly
-      parseString['targetVmInfra'] = targetModel.cloudInfraModel.targetVmInfra;
+      // Set the targetInfra data directly
+      parseString['targetInfra'] = targetModel.cloudInfraModel.targetInfra;
       
       // Also set other related infra data if available
       if (targetModel.cloudInfraModel.targetSecurityGroupList) {
@@ -551,11 +558,11 @@ function createTaskForModel(
       if (targetModel.cloudInfraModel.targetVNet) {
         parseString['targetVNet'] = targetModel.cloudInfraModel.targetVNet;
       }
-      if (targetModel.cloudInfraModel.targetVmOsImageList) {
-        parseString['targetVmOsImageList'] = targetModel.cloudInfraModel.targetVmOsImageList;
+      if (targetModel.cloudInfraModel.targetOsImageList) {
+        parseString['targetOsImageList'] = targetModel.cloudInfraModel.targetOsImageList;
       }
-      if (targetModel.cloudInfraModel.targetVmSpecList) {
-        parseString['targetVmSpecList'] = targetModel.cloudInfraModel.targetVmSpecList;
+      if (targetModel.cloudInfraModel.targetSpecList) {
+        parseString['targetSpecList'] = targetModel.cloudInfraModel.targetSpecList;
       }
     }
     console.log('Processed infra model data:', parseString);
@@ -572,11 +579,11 @@ function createTaskForModel(
       if (targetSoftwareModel.softwareList) {
         parseString['softwareList'] = targetSoftwareModel.softwareList;
       }
-      if (targetSoftwareModel.targetVmSpecList) {
-        parseString['targetVmSpecList'] = targetSoftwareModel.targetVmSpecList;
+      if (targetSoftwareModel.targetSpecList) {
+        parseString['targetSpecList'] = targetSoftwareModel.targetSpecList;
       }
-      if (targetSoftwareModel.targetVmOsImageList) {
-        parseString['targetVmOsImageList'] = targetSoftwareModel.targetVmOsImageList;
+      if (targetSoftwareModel.targetOsImageList) {
+        parseString['targetOsImageList'] = targetSoftwareModel.targetOsImageList;
       }
       if (targetSoftwareModel.targetSecurityGroupList) {
         parseString['targetSecurityGroupList'] = targetSoftwareModel.targetSecurityGroupList;
@@ -601,12 +608,14 @@ function createTaskForModel(
     console.log('Processed software model data:', parseString);
   }
 
-  // Set path_params and query_params from task component with nsId default value
-  // Extract actual values from task component properties (similar to getFixedModel in toolboxModel.ts)
+  // Set path_params and query_params from task component with nsId default value.
+  // ★ 스키마 properties의 description은 *설명(placeholder)*이지 값이 아니다. 값은 비워 두어
+  //   자동 생성 task가 백엔드 기본값을 쓰거나(선택 파라미터) 사용자가 채우게 한다.
+  //   (과거 description을 값으로 넣어 예: cm-beetle 마이그레이션 nameSeed=<설명문>이 되어 400 — BAR-1393)
   const pathParamsKeyValue = taskComponent?.data.path_params?.properties
     ? Object.entries(taskComponent.data.path_params.properties).reduce(
-        (acc, [key, value]) => {
-          acc[key] = value.description;
+        (acc, [key]) => {
+          acc[key] = '';
           return acc;
         },
         {} as Record<string, string>,
@@ -615,8 +624,8 @@ function createTaskForModel(
 
   const queryParamsKeyValue = taskComponent?.data.query_params?.properties
     ? Object.entries(taskComponent.data.query_params.properties).reduce(
-        (acc, [key, value]) => {
-          acc[key] = value.description;
+        (acc, [key]) => {
+          acc[key] = '';
           return acc;
         },
         {} as Record<string, string>,
@@ -884,6 +893,7 @@ function handleSelectTemplate(e) {
             <PFieldGroup class="flex-1" :label="'Workflow Name'" required>
               <p-text-input
                 v-model="workflowName.value.value"
+                data-testid="workflow-name-input"
                 block
               ></p-text-input>
             </PFieldGroup>
@@ -896,6 +906,7 @@ function handleSelectTemplate(e) {
             <PFieldGroup class="flex-1" :label="'Workflow Template'" required>
               <p-select-dropdown
                 class="w-full"
+                data-testid="workflow-template-select"
                 :menu="workflowToolModel.dropDownModel.data"
                 :disabled="props.toolType !== 'add'"
                 @select="handleSelectTemplate"
@@ -920,6 +931,7 @@ function handleSelectTemplate(e) {
           Cancel
         </p-button>
         <p-button
+          data-testid="workflow-designer-save"
           :loading="resUpdateWorkflow.isLoading.value"
           @click="handleSave"
           >Save

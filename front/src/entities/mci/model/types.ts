@@ -1,5 +1,5 @@
 export interface MciResponseData {
-  mci: IMci[];
+  infra: IMci[]; // tb-0.12.9: cb-tumblebug GetAllInfra wrapper mci→infra (소스 확정)
 }
 
 export type McisTableType =
@@ -53,7 +53,7 @@ export interface IVm {
   id: string;
   uid: string;
   name: string;
-  subGroupId: string;
+  nodeGroupId: string;
   location: Location;
   status: string;
   targetStatus: string;
@@ -133,7 +133,8 @@ export interface IMci {
   systemLabel: string;
   systemMessage: string;
   description: string;
-  vm: IVm[];
+  vm: IVm[]; // tb-0.12.9: cb-tumblebug 응답은 node[]로 옴 → store 경계에서 vm으로 어댑트
+  node?: IVm[]; // cb-tumblebug v0.12.19 원응답 필드(infra[].node[])
   newVmList: any; // Assuming newVmList can be any type
 }
 
@@ -196,6 +197,19 @@ interface LoadGeneratorInstallInfo {
   updatedAt: string;
 }
 
+// 부하테스트 실행 단계(cm-ant FR-MA2-PERF-007-08 steps[]).
+// name: generator_install·agent_install·jmx_prepare·jmeter_run·result_fetch
+// status: pending·running·ok·failed·skipped
+export interface ILoadTestExecutionStep {
+  seq?: number;
+  name: string;
+  status: string;
+  startAt?: string;
+  finishAt?: string;
+  message?: string;
+  detail?: string;
+}
+
 export interface ILastloadtestStateResponse {
   compileDuration: string;
   createdAt: string;
@@ -205,6 +219,10 @@ export interface ILastloadtestStateResponse {
   loadGeneratorInstallInfo: LoadGeneratorInstallInfo;
   loadTestKey: string;
   startAt: string;
+  finishAt?: string;
   totalExpectedExecutionSecond: number;
   updatedAt: string;
+  // cm-ant v0.5.3+ 세분화 상태(FR-007-08). 구버전이면 없음.
+  failureMessage?: string;
+  steps?: ILoadTestExecutionStep[];
 }
