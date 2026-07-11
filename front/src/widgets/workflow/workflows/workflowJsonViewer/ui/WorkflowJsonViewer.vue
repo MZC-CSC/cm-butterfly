@@ -48,10 +48,9 @@ function processTaskGroups(taskGroups: any[]) {
       taskGroup.tasks.forEach((task: any) => {
         // Check task.task_component (fixed identifier, not user-changeable)
         // task.task_component로 확인 (고정 식별자, 사용자 변경 불가)
-        // cm-cicada type/spec 전환: request_body는 task.spec.request_body에 있음(레거시 task.request_body fallback)
+        // cm-cicada type/spec 스키마: request_body는 task.spec.request_body에 있다.
         if (task.task_component === 'cicada_task_run_script') {
-          const hasSpec = task.spec && task.spec.request_body != null;
-          const rawRequestBody = hasSpec ? task.spec.request_body : task.request_body;
+          const rawRequestBody = task.spec?.request_body;
           if (rawRequestBody) {
             try {
               const requestBody = JSON.parse(rawRequestBody);
@@ -59,8 +58,7 @@ function processTaskGroups(taskGroups: any[]) {
                 console.log('🔓 Decoding content in JSON Viewer for task:', task.name);
                 requestBody.content = decodeBase64(requestBody.content);
                 const encoded = JSON.stringify(requestBody);
-                if (hasSpec) task.spec.request_body = encoded;
-                else task.request_body = encoded;
+                task.spec.request_body = encoded;
               }
             } catch (e) {
               console.error('Error decoding task request_body:', e);
@@ -145,10 +143,9 @@ function encodeTaskGroups(taskGroups: any[]) {
       taskGroup.tasks.forEach((task: any) => {
         // Check task.task_component (fixed identifier, not user-changeable)
         // task.task_component로 확인 (고정 식별자, 사용자 변경 불가)
-        // cm-cicada type/spec 전환: request_body는 task.spec.request_body에 있음(레거시 task.request_body fallback)
+        // cm-cicada type/spec 스키마: request_body는 task.spec.request_body에 있다.
         if (task.task_component === 'cicada_task_run_script') {
-          const hasSpec = task.spec && task.spec.request_body != null;
-          const rawRequestBody = hasSpec ? task.spec.request_body : task.request_body;
+          const rawRequestBody = task.spec?.request_body;
           if (rawRequestBody) {
             try {
               const requestBody = JSON.parse(rawRequestBody);
@@ -156,8 +153,7 @@ function encodeTaskGroups(taskGroups: any[]) {
                 console.log('🔐 Encoding content in JSON Viewer for task:', task.name);
                 requestBody.content = encodeBase64(requestBody.content);
                 const encoded = JSON.stringify(requestBody);
-                if (hasSpec) task.spec.request_body = encoded;
-                else task.request_body = encoded;
+                task.spec.request_body = encoded;
               }
             } catch (e) {
               console.error('Error encoding task request_body:', e);

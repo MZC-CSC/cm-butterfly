@@ -5,11 +5,10 @@ import {
 } from '@/shared/libs';
 import JwtTokenProvider from '@/shared/libs/token';
 
-const GET_ALL_VPCS = 'getallvnet';
-const CREATE_VPC = 'postvnet';
-const GET_PROVIDER_LIST = 'getproviderList';
-const GET_REGION_LIST = 'getregionlist';
-const DELETE_VPC = 'delvnet';
+const GET_ALL_VPCS = 'cb-tumblebug/getallvnet';
+const CREATE_VPC = 'cb-tumblebug/postvnet';
+const GET_PROVIDER_LIST = 'cb-tumblebug/getproviderList';
+const DELETE_VPC = 'cb-tumblebug/delvnet';
 
 const jwtTokenProvider = JwtTokenProvider.getProvider();
 const { access_token } = jwtTokenProvider.getTokens();
@@ -92,10 +91,3 @@ export function useGetProviderList<T, D>() {
   });
 }
 
-export function useGetRegionList<T, D>() {
-  return useAxiosPost<IAxiosResponse<T>, D | null>(GET_REGION_LIST, null, {
-    headers: {
-      Authorization: `${access_token}`,
-    },
-  });
-}

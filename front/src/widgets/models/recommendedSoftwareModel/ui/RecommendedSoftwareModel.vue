@@ -130,122 +130,14 @@ async function handleGetMigrationList() {
 
     console.log('API migration data loaded:', recommendedModelData.value);
   } catch (error) {
-    console.warn('API call failed, using dummy data:', error);
-
-    // API 호출 실패 시 더미 데이터 사용
-    const dummyMigrationData = {
-      description: 'Software Migration Recommendations',
-      isInitUserModel: true,
-      targetSoftwareModel: {
-        servers: [
-          {
-            errors: ['No critical errors found'],
-            migration_list: {
-              binaries: [
-                {
-                  binary_path: '/usr/local/bin/app',
-                  custom_configs: ['/etc/app/config.json'],
-                  custom_data_paths: ['/var/lib/app/data'],
-                  name: 'Sample Application',
-                  needed_libraries: ['libssl-dev', 'libcurl4-openssl-dev'],
-                  order: 1,
-                  version: '1.0.0',
-                },
-              ],
-              containers: [
-                {
-                  container_id: 'sample-container-1',
-                  container_image: {
-                    image_architecture: 'common',
-                    image_hash: 'sha256:abc123def456',
-                    image_name: 'sample-app',
-                    image_version: 'latest',
-                  },
-                  container_ports: [
-                    {
-                      container_port: 8080,
-                      host_ip: '0.0.0.0',
-                      host_port: 8080,
-                      protocol: 'tcp',
-                    },
-                  ],
-                  container_status: 'running',
-                  docker_compose_path: '/opt/docker-compose.yml',
-                  envs: [
-                    {
-                      name: 'DB_HOST',
-                      value: 'localhost',
-                    },
-                    {
-                      name: 'DB_PORT',
-                      value: '5432',
-                    },
-                  ],
-                  mount_paths: ['/var/lib/app:/app/data'],
-                  name: 'sample-app-container',
-                  network_mode: 'bridge',
-                  order: 1,
-                  restart_policy: 'unless-stopped',
-                  runtime: 'docker',
-                },
-              ],
-              kubernetes: [
-                {
-                  kube_config: '/etc/kubernetes/admin.conf',
-                  order: 1,
-                  resources: {
-                    deployment: {
-                      replicas: 3,
-                      resources: {
-                        requests: {
-                          cpu: '100m',
-                          memory: '128Mi',
-                        },
-                        limits: {
-                          cpu: '500m',
-                          memory: '512Mi',
-                        },
-                      },
-                    },
-                  },
-                  velero: {
-                    backup_location_config: 'default',
-                    bucket: 'backup-bucket',
-                    features: 'EnableCSI',
-                    plugins: 'velero/velero-plugin-for-aws:v1.0.0',
-                    provider: 'aws',
-                    secret_file: '/etc/velero/credentials',
-                  },
-                  version: '1.24.0',
-                },
-              ],
-              packages: [
-                {
-                  custom_configs: ['/etc/nginx/nginx.conf'],
-                  custom_data_paths: ['/var/www/html'],
-                  gpg_key_url: 'https://nginx.org/keys/nginx_signing.key',
-                  name: 'nginx',
-                  need_to_delete_packages: ['apache2'],
-                  needed_packages: ['nginx', 'nginx-common'],
-                  order: 1,
-                  repo_url: 'http://nginx.org/packages/ubuntu',
-                  repo_use_os_version_code: false,
-                  version: '1.18.0',
-                },
-              ],
-            },
-            source_connection_info_id: 'conn-12345',
-          },
-        ],
-      },
-      userId: 'user-123',
-      userModelName: `${props.sourceModelName}_Migration`,
-      userModelVersion: 'v0.1',
-    };
-
-    // 더미 데이터를 recommendedModelData에 저장
-    recommendedModelData.value = dummyMigrationData;
-    console.log('Dummy migration data loaded:', dummyMigrationData);
+    // 실패는 실패로 드러낸다. 예전에는 더미 추천 데이터로 대체해서
+    // cm-grasshopper 가 죽어도 화면에는 가짜 추천이 떴다.
+    console.error('Failed to load software migration list:', error);
+    recommendedModelData.value = null;
+    showErrorMessage(
+      'error',
+      '소프트웨어 마이그레이션 추천 목록을 가져오지 못했습니다.',
+    );
   } finally {
     isLoading.value = false;
   }

@@ -7,13 +7,13 @@ import { ISourceConnectionResponse } from '@/entities/sourceConnection/model/typ
 import { IOnpremModelPayload, ISourceModelResponse } from '@/entities';
 import { axiosInstance } from '@/shared/libs/api/instance';
 
-const GET_SOURCE_MODEL_LIST = 'GetModels';
-const UPDATE_SOURCE_MODEL = 'UpdateOnPremModel';
-const CREATE_ONPREMMODEL = 'CreateOnPremModel';
-const DELETE_ONPREMMODEL = 'DeleteOnPremModel';
-const DELETE_CLOUD_MODEL = 'DeleteCloudModel';
-const DELETE_SOURCE_SOFTWARE_MODEL = 'DeleteSourceSoftwareModel';
-const CREATE_SOURCE_SOFTWARE_MODEL = 'CreateSourceSoftwareModel';
+const GET_SOURCE_MODEL_LIST = 'cm-damselfly/GetModels';
+const UPDATE_SOURCE_MODEL = 'cm-damselfly/UpdateOnPremModel';
+const CREATE_ONPREMMODEL = 'cm-damselfly/CreateOnPremModel';
+const DELETE_ONPREMMODEL = 'cm-damselfly/DeleteOnPremModel';
+const DELETE_CLOUD_MODEL = 'cm-damselfly/DeleteCloudModel';
+const DELETE_SOURCE_SOFTWARE_MODEL = 'cm-damselfly/DeleteSourceSoftwareModel';
+const CREATE_SOURCE_SOFTWARE_MODEL = 'cm-damselfly/CreateSourceSoftwareModel';
 
 export function useGetSourceModelList() {
   const requestWrapper: Required<Pick<RequestBodyWrapper<any>, 'pathParams'>> =

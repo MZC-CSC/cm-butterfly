@@ -8,9 +8,9 @@ import {
   ICreateCredentialsPayload,
 } from '@/entities/credentials/model/types';
 
-const GET_CREDENTIAL = 'List-Credential';
-const CREATE_CREDENTIAL = 'Register-Credential';
-const DELETE_CREDENTIAL = 'Unregister-Credential';
+const GET_CREDENTIAL = 'cb-spider/List-Credential';
+const CREATE_CREDENTIAL = 'cb-spider/Register-Credential';
+const DELETE_CREDENTIAL = 'cb-spider/Unregister-Credential';
 
 export function useGetCredentialList() {
   return useAxiosPost<IAxiosResponse<IGetCredentialListResponse>, null>(

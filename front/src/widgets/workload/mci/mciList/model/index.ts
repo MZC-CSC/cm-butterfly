@@ -78,7 +78,7 @@ export function useMciListModel(props: IProps) {
           // 래퍼(responseData.data.infra[])로 온다. 구 tumblebug 직접 응답(responseData.infra)도
           // fallback으로 허용해 양쪽을 안전하게 읽는다. (mci→infra 키 전환 + data 래퍼 반영)
           const infraList =
-            res.data.responseData.data?.infra ?? res.data.responseData.infra ?? [];
+            res.data.responseData.data?.infra ?? [];
           mciStore.setMcis(infraList);
 
           const PromiseArr: any = [];

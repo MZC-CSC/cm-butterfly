@@ -11,19 +11,19 @@ import {
 } from '@/entities/sourceConnection/model/types';
 import { axiosInstance } from '@/shared/libs/api/instance';
 
-const CREATE_SOURCE_CONNECTION = 'create-connection-info';
-const UPDATE_SOURCE_CONNECTION = 'update-connection-info';
-const GET_SOURCE_CONNECTION_LIST = 'list-connection-info';
-const COLLECT_INFRA = 'import-infra';
-const COLLECT_SW = 'import-software';
-const COLLECT_SW_SOURCE_GROUP = 'import-software-source-group';
-const DELETE_SOURCE_CONNECTION = 'delete-connection-info';
+const CREATE_SOURCE_CONNECTION = 'cm-honeybee/create-connection-info';
+const UPDATE_SOURCE_CONNECTION = 'cm-honeybee/update-connection-info';
+const GET_SOURCE_CONNECTION_LIST = 'cm-honeybee/list-connection-info';
+const COLLECT_INFRA = 'cm-honeybee/import-infra';
+const COLLECT_SW = 'cm-honeybee/import-software';
+const COLLECT_SW_SOURCE_GROUP = 'cm-honeybee/import-software-source-group';
+const DELETE_SOURCE_CONNECTION = 'cm-honeybee/delete-connection-info';
 const REFRESH_SOURCE_GROUP_CONNECTION_INFO_STATUS =
   'Refresh-Source-Group-Connection-Info-Status';
-const GET_INFRA_INFO_REFINED = 'get-infra-info-refined';
-const GET_INFRA_INFO_SOURCE_GROUP_REFINED = 'get-infra-info-source-group-refined';
-const GET_SOFTWARE_INFO_REFINED = 'get-software-info-refined';
-const GET_SOFTWARE_INFO_SOURCE_GROUP_REFINED = 'get-software-info-source-group-refined';
+const GET_INFRA_INFO_REFINED = 'cm-honeybee/get-infra-info-refined';
+const GET_INFRA_INFO_SOURCE_GROUP_REFINED = 'cm-honeybee/get-infra-info-source-group-refined';
+const GET_SOFTWARE_INFO_REFINED = 'cm-honeybee/get-software-info-refined';
+const GET_SOFTWARE_INFO_SOURCE_GROUP_REFINED = 'cm-honeybee/get-software-info-source-group-refined';
 
 export function useCreateConnectionInfo(
   sgId: string | null,

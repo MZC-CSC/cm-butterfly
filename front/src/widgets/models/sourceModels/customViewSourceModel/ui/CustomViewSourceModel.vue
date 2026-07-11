@@ -95,22 +95,17 @@ watch(
       }
     } else {
       // Infra 모델인 경우 (기존 로직)
-      if (targetModel.value?.onpremiseInfraModel?.servers) {
+      const nodes = targetModel.value?.onpremiseInfraModel?.nodes;
+      if (nodes) {
         try {
-          serverCode.value = JSON.stringify(targetModel.value.onpremiseInfraModel.servers, null, 2);
+          serverCode.value = JSON.stringify(nodes, null, 2);
         } catch (error) {
-          console.error('Failed to stringify servers data:', error);
+          console.error('Failed to stringify nodes data:', error);
           serverCode.value = '';
         }
       } else {
         serverCode.value = '';
         console.warn('Source model or onpremiseInfraModel is not available');
-        console.log('=== Infra Model Debug Info ===');
-        console.log('targetModel.value exists:', !!targetModel.value);
-        console.log('onpremiseInfraModel exists:', !!targetModel.value?.onpremiseInfraModel);
-        console.log('servers exists:', !!targetModel.value?.onpremiseInfraModel?.servers);
-        console.log('Full targetModel structure:', JSON.stringify(targetModel.value, null, 2));
-        console.log('================================');
       }
     }
   },
@@ -168,7 +163,7 @@ function handleSaveModal(e) {
       isInitUserModel: false,
       userModelVersion: targetModel.value?.userModelVersion || 'v0.1',
       onpremiseInfraModel: {
-        servers: JSON.parse(serverCode.value),
+        nodes: JSON.parse(serverCode.value),
         network: {
           ipv4Networks: targetModel.value.onpremiseInfraModel.network?.ipv4Networks || [],
           ipv6Networks: targetModel.value.onpremiseInfraModel.network?.ipv6Networks || [],

@@ -8,13 +8,13 @@ import { ITargetModelResponse } from '@/entities';
 import { ISourceConnectionResponse } from '@/entities/sourceConnection/model/types';
 import { axiosInstance } from '@/shared/libs/api/instance';
 
-const CREATE_TARGET_MODEL = 'CreateCloudModel';
-const CREATE_TARGET_SOFTWARE_MODEL = 'CreateTargetSoftwareModel';
-const GET_SOURCE_MODEL_LIST = 'GetModels';
-const UPDATE_TARGET_MODEL = 'UpdateCloudModel';
-const DELETE_TARGET_MODEL = 'DeleteCloudModel';
-const DELETE_TARGET_ONPREM_MODEL = 'DeleteOnPremModel';
-const DELETE_TARGET_SOFTWARE_MODEL = 'DeleteTargetSoftwareModel';
+const CREATE_TARGET_MODEL = 'cm-damselfly/CreateCloudModel';
+const CREATE_TARGET_SOFTWARE_MODEL = 'cm-damselfly/CreateTargetSoftwareModel';
+const GET_SOURCE_MODEL_LIST = 'cm-damselfly/GetModels';
+const UPDATE_TARGET_MODEL = 'cm-damselfly/UpdateCloudModel';
+const DELETE_TARGET_MODEL = 'cm-damselfly/DeleteCloudModel';
+const DELETE_TARGET_ONPREM_MODEL = 'cm-damselfly/DeleteOnPremModel';
+const DELETE_TARGET_SOFTWARE_MODEL = 'cm-damselfly/DeleteTargetSoftwareModel';
 
 interface ICreateTargetModelPayload {
   cloudInfraModel: IRecommendModelResponse['targetInfra'];

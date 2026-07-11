@@ -12,25 +12,25 @@ import {
 } from '@/entities/workflow/model/types';
 import { axiosInstance } from '@/shared/libs/api/instance';
 
-const GET_WORKFLOW_LIST = 'list-workflow';
-const GET_WORKFLOW = 'get-workflow';
-const CREATE_WORKFLOW = 'create-workflow';
-const UPDATE_WORKFLOW = 'update-workflow';
-const RUN_WORKFLOW = 'run-workflow';
-const DELETE_WORKFLOW = 'delete-workflow';
-const GET_WORKFLOW_RUNS = 'get-workflow-runs';
-const GET_TASK_INSTANCES = 'get-task-instances';
-const GET_TASK_LOGS = 'get-task-logs';
-const GET_SOFTWARE_MIGRATION_STATUS = 'get-software-migration-status';
+const GET_WORKFLOW_LIST = 'cm-cicada/list-workflow';
+const GET_WORKFLOW = 'cm-cicada/get-workflow';
+const CREATE_WORKFLOW = 'cm-cicada/create-workflow';
+const UPDATE_WORKFLOW = 'cm-cicada/update-workflow';
+const RUN_WORKFLOW = 'cm-cicada/run-workflow';
+const DELETE_WORKFLOW = 'cm-cicada/delete-workflow';
+const GET_WORKFLOW_RUNS = 'cm-cicada/get-workflow-runs';
+const GET_TASK_INSTANCES = 'cm-cicada/get-task-instances';
+const GET_TASK_LOGS = 'cm-cicada/get-task-logs';
+const GET_SOFTWARE_MIGRATION_STATUS = 'cm-grasshopper/get-software-migration-status';
 
 // const GET_DISK_TYPE = 'GET_DISK_TYPE';
-const GET_WORKFLOW_TEMPLATE_LIST = 'list-workflow-template';
+const GET_WORKFLOW_TEMPLATE_LIST = 'cm-cicada/list-workflow-template';
 
-const GET_TASK_COMPONENT_LIST = 'list-task-component';
-const GET_TASK_COMPONENT = 'get-task-component';
+const GET_TASK_COMPONENT_LIST = 'cm-cicada/list-task-component';
+const GET_TASK_COMPONENT = 'cm-cicada/get-task-component';
 const CREATE_TASK_COMPONENT = 'cm-cicada/create-task-component';
-const UPDATE_TASK_COMPONENT = 'update-task-component';
-const DELETE_TASK_COMPONENT = 'delete-task-component';
+const UPDATE_TASK_COMPONENT = 'cm-cicada/update-task-component';
+const DELETE_TASK_COMPONENT = 'cm-cicada/delete-task-component';
 
 // 1. workflow
 export function useGetWorkflowList() {
