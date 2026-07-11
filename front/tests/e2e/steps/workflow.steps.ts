@@ -1,0 +1,247 @@
+import { createBdd } from 'playwright-bdd';
+import { test, expect, getSentRequests } from '../support/fixtures';
+import { captureScreen } from '../support/screenshot';
+import { WorkflowPage } from '../pages/workflow.page';
+import { ModelsPage } from '../pages/models.page';
+import { workflowData } from '../fixtures/test-data';
+import { uniqueName } from '../support/naming';
+
+const { Given, When, Then } = createBdd(test);
+
+/**
+ * 워크플로우 관리(cm-cicada) 스텝.
+ * - 단위(@unit): 목록 조회 / 템플릿 / Task Component / 생성(디자이너) / 실행·상태 폴링.
+ * - 재사용(@scenario): "마이그레이션 워크플로우를 생성하고 실행하면" — 인프라 마이그레이션 시나리오가 조립.
+ *
+ * 화면 위치·셀렉터는 모두 WorkflowPage(Page Object)에 있다.
+ */
+
+// ── 워크플로우 목록 ───────────────────────────────────────────────────────
+
+Given('워크플로우 목록 화면을 연다', async ({ page }) => {
+  await new WorkflowPage(page).gotoWorkflows();
+});
+
+Then('워크플로우 목록이 조회된다', async ({ page }) => {
+  const wf = new WorkflowPage(page);
+  await wf.expectWorkflowsLoaded();
+  // 조회 자체가 성공(테이블 노출)했는지 확인. 건수는 환경에 따라 0 이상.
+  expect(await wf.workflowCount()).toBeGreaterThanOrEqual(0);
+});
+
+Then('워크플로우 목록에 {string} 워크플로우가 보인다', async ({ page }, name: string) => {
+  await new WorkflowPage(page).expectWorkflowVisible(name);
+});
+
+// ── 워크플로우 템플릿 ─────────────────────────────────────────────────────
+
+Given('워크플로우 템플릿 화면을 연다', async ({ page }) => {
+  await new WorkflowPage(page).gotoTemplates();
+});
+
+Then('워크플로우 템플릿 목록이 조회된다', async ({ page }) => {
+  const wf = new WorkflowPage(page);
+  expect(await wf.templateCount()).toBeGreaterThanOrEqual(0);
+});
+
+Then('워크플로우 템플릿에 {string} 템플릿이 보인다', async ({ page }, name: string) => {
+  await new WorkflowPage(page).expectTemplateVisible(name);
+});
+
+// ── Task Component (type/spec 스키마) ─────────────────────────────────────
+
+Given('Task Component 화면을 연다', async ({ page }) => {
+  await new WorkflowPage(page).gotoTaskComponents();
+});
+
+Then('Task Component 목록이 조회된다', async ({ page }) => {
+  const wf = new WorkflowPage(page);
+  await wf.expectTaskComponentsLoaded();
+  expect(await wf.taskComponentCount()).toBeGreaterThanOrEqual(0);
+});
+
+Then('Task Component 목록에 {string} 컴포넌트가 보인다', async ({ page }, name: string) => {
+  await new WorkflowPage(page).expectTaskComponentVisible(name);
+});
+
+// ── 워크플로우 생성 — 디자이너/에디터 (type/spec task) ─────────────────────
+
+When('워크플로우 디자이너를 연다', async ({ page }) => {
+  await new WorkflowPage(page).openDesigner();
+});
+
+Then('워크플로우 디자이너가 표시된다', async ({ page }) => {
+  await new WorkflowPage(page).expectDesignerOpen();
+});
+
+/**
+ * "{string} 템플릿으로 \"e2e-wf\" 워크플로우를 생성하면"
+ * 디자이너에서 이름 입력 → 템플릿 선택 → 저장까지. (type/spec task는 템플릿에 포함)
+ */
+When(
+  '{string} 템플릿으로 {string} 워크플로우를 생성하면',
+  async ({ page }, templateName: string, name: string) => {
+    const wf = new WorkflowPage(page);
+    await wf.openDesigner();
+    await wf.fillWorkflowName(name);
+    await wf.selectTemplate(templateName);
+    await wf.saveWorkflow();
+  },
+);
+
+Then('워크플로우 JSON 뷰어가 표시된다', async ({ page }) => {
+  await new WorkflowPage(page).expectJsonViewerVisible();
+});
+
+// ── 워크플로우 실행(run) + 상태 폴링 ──────────────────────────────────────
+// ⚠️ @unit 실행은 반드시 요금 안전(예제 bash 등, 인프라 미프로비저닝) 워크플로우로만.
+
+When('{string} 워크플로우를 실행하면', async ({ page }, name: string) => {
+  const wf = new WorkflowPage(page);
+  await wf.gotoWorkflows();
+  await wf.runWorkflow(name);
+});
+
+Then('워크플로우 실행 이력이 생성된다', async ({ page }) => {
+  const wf = new WorkflowPage(page);
+  await wf.selectWorkflow(workflowData.safeRunWorkflowName).catch(() => {});
+  await wf.openHistoryTab();
+  await wf.expectRunHistoryPresent();
+});
+
+Then('워크플로우 실행이 정상 완료된다', async ({ page }) => {
+  const wf = new WorkflowPage(page);
+  await wf.openHistoryTab().catch(() => {});
+  const state = await wf.pollLatestRunState();
+  // 종료 상태 도달 확인. 예제 워크플로우는 success 기대.
+  expect(['success', 'failed']).toContain(state);
+  expect(state, `워크플로우 실행 최종 상태=${state}`).toBe('success');
+});
+
+// ── 재사용(마이그레이션 시나리오) ────────────────────────────────────────
+/**
+ * "그리고 마이그레이션 워크플로우를 생성하고 실행하면"
+ * 인프라마이그레이션.feature(@scenario)가 조립하는 재사용 스텝.
+ * 앞선 타깃 모델 스텝이 저장한 추천 타깃 모델을 바탕으로 add-mode 디자이너가
+ * migrate_infra_workflow 템플릿을 자동 선택 → beetle_task_infra_migration(type/spec) task 구성 →
+ * 저장(생성) 후 목록에서 실행(run). 실제 EC2 프로비저닝이 트리거되므로 시나리오 종료 시 정리 필수.
+ */
+When('마이그레이션 워크플로우를 생성하고 실행하면', async ({ page }) => {
+  const models = new ModelsPage(page);
+  const wf = new WorkflowPage(page);
+  const name = `${workflowData.createNamePrefix}-migrate-${Date.now()}`;
+
+  // 1) 타깃 모델 상세 "Make Workflow" → 워크플로우 에디터 → 이름/템플릿 → 저장(생성)
+  //    (Workflows 목록의 Add는 disabled — 생성은 타깃 모델에서 시작)
+  await models.openWorkflowEditorFromTarget(
+    uniqueName(process.env.TEST_TARGET_MODEL_NAME || 'e2e-lowcost-target'),
+  );
+  await wf.expectDesignerOpen();
+  await wf.fillWorkflowName(name);
+  // add-mode 에디터는 타깃 모델의 migrationType으로 템플릿·task(beetle_task_infra_migration)를
+  // 자동 구성하므로 템플릿을 수동 선택하지 않는다(수동 선택은 자동 구성을 방해해 저장 실패).
+  await wf.saveWorkflow();
+
+  // cm-cicada는 생성 시 DAG YAML을 디스크에 기록만 하고, airflow가 이를 파싱해 등록하는 데
+  // ~5~15초(실측 ~11s, min_file_process_interval=5s)가 걸린다. 이 지연 창 안에 run을 쏘면
+  // "provided dag_id is not exist"로 거부되므로, run 전에 DAG 등록 시간을 준다.
+  // (다중 run=다중 EC2 프로비저닝을 피하려고 재시도가 아닌 단일 대기를 쓴다.)
+  await wf.gotoWorkflows();
+  await wf.expectWorkflowVisible(name);
+  await new Promise(r => setTimeout(r, 20_000));
+
+  // 2) 목록에서 생성된 워크플로우 실행(run)
+  await wf.runWorkflow(name);
+
+  // 3) 실행 이력이 생성될 때까지 대기 (완료 여부는 후속 EC2 확인 스텝에서 검증)
+  await wf.selectWorkflow(name);
+  await wf.openHistoryTab();
+  await wf.expectRunHistoryPresent();
+});
+
+// ── cm-cicada type/spec 스키마 회귀 (BAR-1389) ────────────────────────────
+//
+// cm-cicada가 TaskComponent를 type/spec 스키마로 바꾸면서, 콘솔의 두 화면이
+// 업스트림 패치에서 빠져 우리가 직접 보완했다.
+//   - Task Components  : 저장 payload가 구 {data:{options}} 래핑이면 cicada가 거부한다
+//   - Workflow JSON 뷰어: run_script가 spec.request_body로 옮겨가 디코드가 안 되면 base64가 노출된다
+// 화면이 멀쩡해 보여도 나가는 요청이 구 스키마일 수 있어, 요청 기록까지 함께 본다.
+
+/** 테스트용 스크립트 원문과 그 base64 — 디코드 여부 판정의 기준점 */
+const RUN_SCRIPT_MARKER = 'e2e run_script decode check';
+const RUN_SCRIPT_PLAIN = `#!/bin/bash\necho "${RUN_SCRIPT_MARKER}"\nuptime`;
+const RUN_SCRIPT_B64 = Buffer.from(RUN_SCRIPT_PLAIN).toString('base64');
+
+Then('콘솔이 구 스키마 요청을 보내지 않는다', async () => {
+  const legacy = getSentRequests().filter(r => /"data"\s*:\s*\{[^}]*"options"/.test(r.body));
+  expect(
+    legacy.map(r => r.url),
+    '구 options/{data} 래핑 payload를 보내면 cm-cicada가 거부한다',
+  ).toEqual([]);
+});
+
+/**
+ * run_script 스크립트가 담긴 워크플로우를 준비한다.
+ * 콘솔이 쓰는 프록시(operationId `create-workflow`)를 그대로 호출해, 로그인 세션·경로를
+ * 실제 사용 흐름과 동일하게 태운다.
+ */
+Given('run_script 스크립트가 담긴 {string} 워크플로우가 있다', async ({ page }, name: string) => {
+  const body = {
+    name,
+    description: 'e2e — cm-cicada run_script decode check',
+    data: {
+      task_groups: [
+        {
+          name: 'tg1',
+          description: 'task group',
+          tasks: [
+            {
+              name: 'run-script-task',
+              task_component: 'cicada_task_run_script',
+              spec: {
+                request_body: JSON.stringify({
+                  ns_id: 'default',
+                  infra_id: 'infra101',
+                  node_id: 'node1',
+                  content: RUN_SCRIPT_B64,
+                }),
+              },
+              dependencies: [],
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  // 콘솔은 프록시 호출에 Bearer 토큰을 붙인다. 로그인 세션이 localStorage에 보관한 토큰을 그대로 쓴다.
+  const token = await page.evaluate(() => {
+    for (const k of Object.keys(localStorage)) {
+      const v = localStorage.getItem(k) ?? '';
+      const m = v.match(/"access_token"\s*:\s*"([^"]+)"/);
+      if (m) return m[1];
+    }
+    return '';
+  });
+  expect(token, '로그인 세션에서 access token을 찾지 못했다').not.toEqual('');
+
+  const res = await page.request.post('/api/create-workflow', {
+    data: { request: body },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+  });
+  expect(res.ok(), `워크플로우 준비 실패: ${res.status()} ${await res.text()}`).toBeTruthy();
+});
+
+When('{string} 워크플로우의 JSON 뷰어를 연다', async ({ page }, name: string) => {
+  const wf = new WorkflowPage(page);
+  await wf.gotoWorkflows();
+  await wf.openJsonViewer(name);
+});
+
+Then('JSON 뷰어에 스크립트가 디코드되어 보인다', async ({ page }) => {
+  await new WorkflowPage(page).expectScriptDecoded(RUN_SCRIPT_MARKER, RUN_SCRIPT_B64.slice(0, 20));
+});
+
+Then('화면을 {string} 이름으로 캡처한다', async ({ page }, name: string) => {
+  await captureScreen(page, test.info(), name);
+});
