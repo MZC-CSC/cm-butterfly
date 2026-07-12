@@ -17,6 +17,10 @@ export const scenarioState: {
   nodeId?: string;
   /** 노드 공인 IP (nginx 외부 접근·부하 대상 호스트) */
   nodePublicIp?: string;
+  /** 노드의 SSH 계정 — tumblebug이 만든 노드는 cb-user다(소스 서버의 ubuntu와 다르다) */
+  nodeUserName?: string;
+  /** 노드의 보안그룹 id 목록 — 80 포트를 열 대상 */
+  securityGroupIds?: string[];
   /** 마지막 추천 스펙(검증용) */
   lastRecommendedSpec?: string;
 } = {};

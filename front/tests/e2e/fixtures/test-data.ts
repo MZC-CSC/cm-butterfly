@@ -17,8 +17,17 @@ export const users: Record<string, { id: string; password: string }> = {
 };
 
 /** 네임스페이스(워크스페이스) */
+/**
+ * 네임스페이스 — 콘솔과 *같은* 값을 써야 한다.
+ *
+ * 마이그레이션으로 만들어진 인프라는 cb-tumblebug의 `mig01`("Default namespace for computing infra
+ * migration") 안에 들어간다. 콘솔도 `shared/constants/namespace.ts`의 DEFAULT_NAMESPACE = 'mig01' 을 쓴다.
+ *
+ * 예전엔 여기만 'default'로 두고 있었다. 그래서 워크로드를 조회하면 늘 비어 보였고, 원격명령(PostCmdInfra)은
+ * "그 ns에 그런 인프라 없음"으로 실패했다. 콘솔이 보는 것과 테스트가 보는 것이 달랐던 셈이다.
+ */
 export const testNamespace = {
-  id: process.env.TEST_NS || 'default',
+  id: process.env.TEST_NS || 'mig01',
 };
 
 /**

@@ -2,7 +2,7 @@ import { createBdd } from 'playwright-bdd';
 import { APIRequestContext } from '@playwright/test';
 import { test, expect } from '../support/fixtures';
 import { scenarioState } from '../support/world';
-import { config, testNamespace, workload, getUser, sourceServer } from '../fixtures/test-data';
+import { config, testNamespace, workload, getUser } from '../fixtures/test-data';
 
 const { Given, When, Then } = createBdd(test);
 
@@ -43,10 +43,13 @@ async function fetchNodePublicIp(request: APIRequestContext, token: string): Pro
     });
     const body = await res.json().catch(() => ({}));
     const infra = body?.responseData?.data ?? body?.responseData ?? {};
-    const node = (infra.node ?? infra.Node ?? [])[0] ?? {};
-    nodeId = node.id ?? node.Id ?? nodeId;
-    // cm-beetle GetInfra 노드의 공인 IP 키는 publicIP(대문자 IP). 소문자 변형도 안전하게 fallback.
-    const ip = node.publicIP ?? node.publicIp ?? node.PublicIp ?? node.public_ip ?? '';
+    const node = (infra.node ?? [])[0] ?? {};
+    nodeId = node.id ?? nodeId;
+    // 원격명령은 노드가 실제로 쓰는 계정으로 나가야 한다. tumblebug이 만든 노드의 계정은 `cb-user`이며,
+    // 소스 서버의 SSH 계정(ubuntu)과 다르다 — 그걸 그대로 쓰면 명령이 붙지 못한다.
+    scenarioState.nodeUserName = node.nodeUserName ?? scenarioState.nodeUserName;
+    scenarioState.securityGroupIds = node.securityGroupIds ?? scenarioState.securityGroupIds;
+    const ip = node.publicIP ?? '';
     if (ip) return { nodeId, ip };
     await new Promise(r => setTimeout(r, 10_000));
   }
@@ -66,14 +69,7 @@ async function openHttpPort(
   nsId: string,
   infraId: string,
 ): Promise<void> {
-  const res = await request.post(`${config.baseURL}/api/cm-beetle/GetInfra`, {
-    headers: { Authorization: `Bearer ${token}` },
-    data: { pathParams: { nsId, infraId } },
-  });
-  const body = await res.json().catch(() => ({}));
-  const infra = body?.responseData?.data ?? body?.responseData ?? {};
-  const node = (infra.node ?? [])[0] ?? {};
-  const sgIds: string[] = node.securityGroupIds ?? node.securityGroupIDs ?? [];
+  const sgIds: string[] = scenarioState.securityGroupIds ?? [];
 
   for (const sgId of sgIds) {
     const r = await request.post(
@@ -119,7 +115,8 @@ Given('생성된 워크로드에 nginx를 설치한다', async ({ request }) => 
       pathParams: { nsId, infraId },
       request: {
         // cb-tumblebug MciCmdReq — command 목록과 접속 계정.
-        userName: sourceServer.sshUser || 'ubuntu',
+        // 계정은 GetInfra가 알려준 노드 계정(cb-user)을 쓴다. 소스 서버 계정(ubuntu)이 아니다.
+        userName: scenarioState.nodeUserName ?? 'cb-user',
         command: [
           'sudo apt-get update -y',
           'sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nginx',

@@ -150,11 +150,21 @@ export class WorkloadPage {
     return this.page
       .getByTestId('mci-action-dropdown');
   }
+  /**
+   * 액션 드롭다운의 Delete 항목.
+   *
+   * mirinae PSelectDropdown 이 메뉴를 `.p-context-menu-item` 스팬으로 그리는데 **role 속성을 붙이지 않는다.**
+   * 그래서 getByRole('menuitem') 으로는 안 잡히고, 페이지 전체에서 'Delete' 텍스트를 찾으면 중첩된 스팬
+   * 여러 개가 걸려 strict mode 위반이 난다.
+   *
+   * 그래서 *testid가 붙어 있는 드롭다운 안으로 범위를 좁혀* 디자인 시스템의 항목 클래스로 집는다.
+   * (라벨 'Delete' 는 우리 코드의 actionMenus 배열에서 오는 값이라 화면 문구 변덕과 무관하다.)
+   */
   private get deleteMenuItem(): Locator {
-    return this.page
-      .getByTestId('mci-action-delete')
-      .or(this.page.getByRole('menuitem', { name: /delete/i }))
-      .or(this.page.getByText('Delete', { exact: true }));
+    return this.actionDropdown
+      .locator('.p-context-menu-item')
+      .filter({ hasText: 'Delete' })
+      .first();
   }
   private get deleteModal(): Locator {
     return this.page
@@ -166,10 +176,17 @@ export class WorkloadPage {
       .or(this.deleteModal.getByRole('textbox'))
       .or(this.deleteModal.locator('input').last());
   }
+  /**
+   * 삭제 모달의 확정 버튼.
+   *
+   * 이 모달은 PButtonModal 의 *기본* 확정 버튼을 그대로 쓴다(슬롯을 덮지 않았다). 그래서 버튼에 testid가 없고,
+   * `mci-delete-modal` testid는 PButtonModal 래퍼에 달려 있어 그 안으로 스코프를 걸 수도 없다(가시 요소가 아니다).
+   *
+   * 슬롯을 덮어 testid를 넣으면 버튼 라벨이 바뀌어 화면이 달라진다. 그래서 디자인 시스템이 보장하는
+   * 확정 버튼 클래스를 쓴다 — 이 Page Object 의 Load Config 모달에서도 같은 방식을 쓰고 있다.
+   */
   private get deleteConfirmButton(): Locator {
-    return this.deleteModal
-      .getByTestId('mci-delete-confirm')
-      .or(this.deleteModal.getByRole('button', { name: /confirm|delete|삭제/i }));
+    return this.page.locator('.p-button-modal .confirm-button');
   }
 
   /**
@@ -201,7 +218,10 @@ export class WorkloadPage {
     await this.deleteConfirmInput.first().fill(infraName);
     await this.deleteConfirmButton.first().click();
     // 닫힘도 보이는 요소로 판정한다(래퍼 testid는 가시 요소가 아니다).
-    await expect(this.deleteConfirmInput.first()).toBeHidden({ timeout: 60_000 });
+    //
+    // 인프라 삭제는 클라우드 자원을 실제로 지우는 일이라 수 분이 걸린다. 그동안 모달은 로딩 상태로 열려 있다.
+    // 60초로 끊으면 "삭제가 실패했다"가 아니라 "아직 지우는 중"인데 실패로 판정하게 된다.
+    await expect(this.deleteConfirmInput.first()).toBeHidden({ timeout: 12 * 60_000 });
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -261,44 +281,30 @@ export class WorkloadPage {
     rampUpSteps: string;
   }): Promise<void> {
     const m = this.loadConfigModal;
-    await m
-      .locator('input[data-testid="load-config-scenario-name"], textarea[data-testid="load-config-scenario-name"]')
-      .or(m.getByPlaceholder('Test Scenario Name'))
-      .fill(cfg.scenarioName);
-    // 대상 호스트(target-host)는 tumblebug이 선택된 VM(노드)의 IP를 자동으로 채워주므로 덮어쓰지 않는다.
-    // 자동값이 비어 있는 예외 상황에서만 보조로 채운다.
-    const targetHostInput = m
-      .locator('input[data-testid="load-config-target-host"], textarea[data-testid="load-config-target-host"]')
-      .or(m.getByPlaceholder('Host Name'))
-      .first();
-    const autoHost = await targetHostInput.inputValue().catch(() => '');
+
+    // ★ testid만 쓴다 — placeholder fallback 금지.
+    //   예전엔 `.or(getByPlaceholder('Time'))` 같은 fallback을 달아 뒀는데, 'Time'이 "Time"과
+    //   "Test Run Time" 두 입력칸에 모두 걸려 strict mode 위반으로 죽었다. 화면 문구는 언제든 바뀌므로
+    //   문구에 기대지 않는다. 필요한 testid는 이미 화면 소스에 전부 부여돼 있다.
+    const field = (testid: string): Locator =>
+      m.locator(`input[data-testid="${testid}"], textarea[data-testid="${testid}"]`);
+
+    await field('load-config-scenario-name').fill(cfg.scenarioName);
+
+    // 대상 호스트는 선택된 노드의 IP로 자동으로 채워진다. 자동값이 있으면 덮어쓰지 않고,
+    // 비어 있을 때만 보조로 채운다.
+    const targetHost = field('load-config-target-host');
+    const autoHost = await targetHost.inputValue().catch(() => '');
     if (!autoHost && cfg.targetHost) {
-      await targetHostInput.fill(cfg.targetHost);
+      await targetHost.fill(cfg.targetHost);
     }
-    await m
-      .locator('input[data-testid="load-config-port"], textarea[data-testid="load-config-port"]')
-      .or(m.getByPlaceholder('1~65535'))
-      .fill(cfg.port);
-    await m
-      .locator('input[data-testid="load-config-path"], textarea[data-testid="load-config-path"]')
-      .or(m.getByPlaceholder('Path'))
-      .fill(cfg.path);
-    await m
-      .locator('input[data-testid="load-config-virtual-users"], textarea[data-testid="load-config-virtual-users"]')
-      .or(m.getByPlaceholder('Number of virtual users'))
-      .fill(cfg.virtualUsers);
-    await m
-      .locator('input[data-testid="load-config-duration"], textarea[data-testid="load-config-duration"]')
-      .or(m.getByPlaceholder('Test Run Time'))
-      .fill(cfg.duration);
-    await m
-      .locator('input[data-testid="load-config-rampup-time"], textarea[data-testid="load-config-rampup-time"]')
-      .or(m.getByPlaceholder('Time'))
-      .fill(cfg.rampUpTime);
-    await m
-      .locator('input[data-testid="load-config-rampup-steps"], textarea[data-testid="load-config-rampup-steps"]')
-      .or(m.getByPlaceholder('Number of steps'))
-      .fill(cfg.rampUpSteps);
+
+    await field('load-config-port').fill(cfg.port);
+    await field('load-config-path').fill(cfg.path);
+    await field('load-config-virtual-users').fill(cfg.virtualUsers);
+    await field('load-config-duration').fill(cfg.duration);
+    await field('load-config-rampup-time').fill(cfg.rampUpTime);
+    await field('load-config-rampup-steps').fill(cfg.rampUpSteps);
   }
 
   /** 부하테스트 실행(Runloadtest) — PButtonModal 기본 confirm 버튼 클릭 */
@@ -346,11 +352,42 @@ export class WorkloadPage {
       .getByTestId('load-test-resource-metric');
   }
 
-  /** 부하테스트 결과(집계·결과·리소스 메트릭)가 렌더링됐는지 확인 */
-  async expectLoadTestResult(): Promise<void> {
-    await expect(this.aggregationTable).toBeVisible({ timeout: 30_000 });
-    await expect(this.resultMetric).toBeVisible();
-    await expect(this.resourceMetric).toBeVisible();
+  /**
+   * 부하테스트 결과(집계 표 · 결과 차트 · 리소스 차트)가 렌더링됐는지 확인한다.
+   *
+   * 실행을 누른다고 결과가 바로 나오지 않는다 — cm-ant 가 부하를 걸고(설정상 10초), 그 결과를 수집·집계하고,
+   * 리소스 메트릭은 대상 노드에 PerfMon 에이전트를 설치한 뒤에야 모인다. 다 합쳐 수 분이 걸린다.
+   * 30초로 끊으면 "결과가 없다"가 아니라 "아직 집계 중"인데 실패로 판정하게 된다.
+   *
+   * 그래서 결과가 뜰 때까지 화면을 새로고침하며 기다린다. 세 가지가 다 나와야 통과다 —
+   * 집계 표(성능 수치) · 결과 차트 · 리소스 차트.
+   */
+  async expectLoadTestResult(timeoutMs = 10 * 60_000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const ok = await this.aggregationTable
+        .isVisible({ timeout: 10_000 })
+        .catch(() => false);
+      if (ok) break;
+      if (Date.now() > deadline) {
+        // 마지막으로 한 번 더 확인하고, 그래도 없으면 명확한 실패 메시지와 함께 죽는다.
+        await expect(
+          this.aggregationTable,
+          '부하테스트 집계 결과가 끝내 표시되지 않았다(cm-ant 실행/집계 상태 확인 필요).',
+        ).toBeVisible({ timeout: 30_000 });
+        break;
+      }
+      await this.page.waitForTimeout(15_000);
+      await this.page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+      await this.openEvaluatePerfTab().catch(() => {});
+    }
+
+    await expect(this.resultMetric, '부하테스트 결과 차트가 없다').toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(this.resourceMetric, '리소스 메트릭 차트가 없다').toBeVisible({
+      timeout: 60_000,
+    });
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -371,9 +408,9 @@ export class WorkloadPage {
   /** 시나리오 템플릿 저장(CreateLoadTestScenarioCatalog) */
   async saveScenarioTemplate(name: string): Promise<void> {
     const m = this.scenarioTemplateModal;
+    // testid 전용 — 화면 문구(placeholder)에 기대지 않는다.
     await m
       .locator('input[data-testid="scenario-template-name"], textarea[data-testid="scenario-template-name"]')
-      .or(m.getByPlaceholder(/template name|name/i).first())
       .fill(name);
     // 예전엔 여기서 locator만 만들고 끝나서(.click() 없음) 저장이 실제로 일어나지 않았다.
     await m.getByTestId('scenario-template-save').click();
