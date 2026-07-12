@@ -217,11 +217,42 @@ export class WorkloadPage {
     }
     await this.deleteConfirmInput.first().fill(infraName);
     await this.deleteConfirmButton.first().click();
-    // 닫힘도 보이는 요소로 판정한다(래퍼 testid는 가시 요소가 아니다).
-    //
-    // 인프라 삭제는 클라우드 자원을 실제로 지우는 일이라 수 분이 걸린다. 그동안 모달은 로딩 상태로 열려 있다.
-    // 60초로 끊으면 "삭제가 실패했다"가 아니라 "아직 지우는 중"인데 실패로 판정하게 된다.
-    await expect(this.deleteConfirmInput.first()).toBeHidden({ timeout: 12 * 60_000 });
+  }
+
+  /**
+   * 삭제 모달이 스스로 닫히는지 확인한다.
+   *
+   * ★ 이건 *화면의 동작*을 보는 것이고, 실제로 지워졌는지와는 별개다.
+   *   삭제 모달은 확정 버튼을 누른 뒤 요청 하나를 동기로 붙들고 기다린다. 인프라 삭제는 클라우드 자원을
+   *   실제로 지우는 일이라 수 분이 걸리고, 그동안 모달은 열린 채다. 실패하면 모달을 닫지도 않는다.
+   *
+   *   여기서 실패가 나면 **그건 화면의 결함이지, 테스트가 틀린 게 아니다.** 단언을 무르지 않고 그대로 드러낸다.
+   *   실제 삭제 여부는 아래 expectInfraGone() 으로 따로 확인한다 — 화면이 안 닫혀도 자원은 지워졌을 수 있다.
+   *
+   * @returns 닫혔으면 true. 끝내 안 닫혔으면 false(호출부가 결함으로 기록한다).
+   */
+  async deleteModalClosed(timeoutMs = 3 * 60_000): Promise<boolean> {
+    return this.deleteConfirmInput
+      .first()
+      .isHidden({ timeout: timeoutMs })
+      .catch(() => false);
+  }
+
+  /**
+   * 목록을 다시 방문해 인프라가 *실제로* 사라졌는지 확인한다.
+   * 목록은 자동 갱신되지 않으므로 새로고침하며 본다. 이게 삭제의 진짜 결과다.
+   */
+  async expectInfraGone(infraName: string, timeoutMs = 12 * 60_000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      await this.gotoMci().catch(() => {});
+      if ((await this.mciRow(infraName).count()) === 0) return;
+      expect(
+        Date.now() < deadline,
+        `"${infraName}" 인프라가 끝내 지워지지 않았다(목록에 그대로 남아 있다).`,
+      ).toBeTruthy();
+      await this.page.waitForTimeout(20_000);
+    }
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -362,23 +393,38 @@ export class WorkloadPage {
    * 그래서 결과가 뜰 때까지 화면을 새로고침하며 기다린다. 세 가지가 다 나와야 통과다 —
    * 집계 표(성능 수치) · 결과 차트 · 리소스 차트.
    */
-  async expectLoadTestResult(timeoutMs = 10 * 60_000): Promise<void> {
+  async expectLoadTestResult(
+    infraName: string,
+    nodeName: string,
+    timeoutMs = 10 * 60_000,
+  ): Promise<void> {
     const deadline = Date.now() + timeoutMs;
     for (;;) {
       const ok = await this.aggregationTable
         .isVisible({ timeout: 10_000 })
         .catch(() => false);
       if (ok) break;
+
       if (Date.now() > deadline) {
-        // 마지막으로 한 번 더 확인하고, 그래도 없으면 명확한 실패 메시지와 함께 죽는다.
         await expect(
           this.aggregationTable,
           '부하테스트 집계 결과가 끝내 표시되지 않았다(cm-ant 실행/집계 상태 확인 필요).',
         ).toBeVisible({ timeout: 30_000 });
         break;
       }
+
       await this.page.waitForTimeout(15_000);
-      await this.page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+
+      // ★ 그냥 새로고침하면 안 된다.
+      //   인프라·노드 선택은 화면 상태라서, 새로고침하면 선택이 풀리고 성능 탭 자체가 사라진다.
+      //   그러면 집계 표는 영영 안 보이고, "결과가 없다"고 오판하게 된다(실제로 그렇게 실패했다 —
+      //   cm-ant 쪽 부하테스트는 successed 였는데도).
+      //   결과를 다시 보려면 선택을 처음부터 다시 세워야 한다.
+      await this.gotoMci();
+      await this.expectMciListLoaded();
+      await this.selectMci(infraName);
+      await this.openServerTab();
+      await this.selectNode(nodeName);
       await this.openEvaluatePerfTab().catch(() => {});
     }
 
@@ -483,7 +529,16 @@ export class WorkloadPage {
     await this.selectMci(infraName);
     await this.openDeleteModal();
     await this.confirmDelete(infraName, 'force');
-    await expect(this.mciRow(infraName)).toHaveCount(0, { timeout: 5 * 60_000 });
+
+    // 모달이 안 닫히는 건 알려진 화면 결함이다(요청 하나를 동기로 붙들고, 실패해도 닫지 않는다).
+    // 여기서는 시나리오를 세우기 위한 *사전 정리*이므로 결함을 기록만 하고 진행한다.
+    // 결함 자체는 시나리오 본편의 정리 단계에서 정식으로 판정한다.
+    if (!(await this.deleteModalClosed())) {
+      console.warn(
+        '[scenario] 삭제 모달이 스스로 닫히지 않았다(화면 결함). 실제 삭제 여부는 목록에서 다시 확인한다.',
+      );
+    }
+    await this.expectInfraGone(infraName);
   }
 
   /**

@@ -2,6 +2,12 @@ import { createBdd } from 'playwright-bdd';
 import { APIRequestContext } from '@playwright/test';
 import { test, expect } from '../support/fixtures';
 import { scenarioState } from '../support/world';
+import {
+  startLoadTestTiming,
+  watchLoadTest,
+  reportLoadTestTiming,
+  LoadTestTiming,
+} from '../support/loadTestTiming';
 import { config, testNamespace, workload, getUser } from '../fixtures/test-data';
 
 const { Given, When, Then } = createBdd(test);
@@ -175,11 +181,45 @@ When('생성된 워크로드에 부하 테스트를 실행한다', async ({ page
     rampUpTime: workload.loadTest.rampUpTime,
     rampUpSteps: workload.loadTest.rampUpSteps,
   });
+
+  // ★ 여기서부터 시간을 잰다 — 부하발생기 VM 생성·JMeter 설치는 이 앞이라 포함되지 않는다.
+  //   재고 싶은 건 "부하를 걸기 시작해 결과(CSV)가 완성될 때까지"다.
+  loadTiming = startLoadTestTiming();
 });
 
-/** "그러면 부하 테스트 결과가 조회된다" */
-Then('부하 테스트 결과가 조회된다', async ({ page }) => {
+/** 이번 시나리오의 부하테스트 소요시간 (실행 스텝 → 결과 조회 스텝으로 넘긴다) */
+let loadTiming: LoadTestTiming | undefined;
+
+/**
+ * "그러면 부하 테스트 결과가 조회된다"
+ *
+ * 화면에 결과가 뜨는지 보는 것과 *별개로*, cm-ant 쪽 실행 상태도 함께 지켜본다.
+ * 결과가 안 보일 때 (a) 아직 안 끝난 건지 (b) 끝났는데 콘솔이 못 그리는 건지 갈라야 하기 때문이다.
+ * 소요시간은 리포트에 붙는다 — 가끔 아주 오래 걸리는 일이 있어 숫자로 남겨 둔다.
+ */
+Then('부하 테스트 결과가 조회된다', async ({ page, request, $testInfo }) => {
+  test.setTimeout(20 * 60_000);
   const { WorkloadPage } = await import('../pages/workload.page');
   const wl = new WorkloadPage(page);
-  await wl.expectLoadTestResult();
+
+  const timing = loadTiming ?? startLoadTestTiming();
+  const token = await loginToken(request);
+
+  // cm-ant 실행 상태 감시와 화면 확인을 나란히 돌린다.
+  const watching = watchLoadTest(request, token, timing).catch(() => {});
+
+  try {
+    await wl.expectLoadTestResult(
+      scenarioState.infraName ?? workload.infraName,
+      workload.nodeName,
+    );
+    timing.visibleAtSec = Math.round((Date.now() - timing.submittedAt) / 1000);
+  } finally {
+    await watching;
+    await reportLoadTestTiming(
+      $testInfo,
+      timing,
+      Number(workload.loadTest.duration),
+    );
+  }
 });

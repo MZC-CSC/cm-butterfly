@@ -46,7 +46,14 @@ export default defineConfig({
   workers: 1,
   timeout: 90_000,
   expect: { timeout: 15_000 },
-  reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
+  reporter: [
+    ['list'],
+    ['html', { open: 'never', outputFolder: 'playwright-report' }],
+    // ★ 시나리오별 정리 보고서 — 기본 생성, E2E_SUMMARY_REPORT=0 이면 안 만든다.
+    //   기본 HTML 리포트가 *실패를 파고드는* 용도라면, 이건 "어떤 시나리오가 있고 각각 됐는지,
+    //   그때 화면이 어땠는지"를 한눈에 훑는 용도다(그대로 인쇄하면 PDF 보고서가 된다).
+    ['./support/summaryReporter.ts'],
+  ],
   use: {
     baseURL: config.baseURL,
     actionTimeout: 15_000,

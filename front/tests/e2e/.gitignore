@@ -2,3 +2,4 @@
 .features-gen/
 test-results/
 playwright-report/
+e2e-report/

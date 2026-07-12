@@ -101,7 +101,10 @@ When('{string} 노드로 부하테스트를 실행한다', async ({ page }, node
 
 /** "부하테스트 결과가 표시된다" — 집계 테이블·결과/리소스 메트릭 렌더 확인 */
 Then('부하테스트 결과가 표시된다', async ({ page }) => {
-  await new WorkloadPage(page).expectLoadTestResult();
+  await new WorkloadPage(page).expectLoadTestResult(
+    scenarioState.infraName ?? workload.infraName,
+    workload.nodeName,
+  );
 });
 
 // ─────────────────────────────────────────────────────────────
