@@ -49,6 +49,20 @@ export function useWorkflowRunViewerModel() {
   );
 
   /**
+   * 이 실행이 끝난 뒤에 워크플로우가 수정됐는가.
+   *
+   * 엔진은 "그 실행에 쓰인 정의"를 돌려주지 않는다. 화면이 보여주는 파라미터는
+   * 언제나 *현재 정의*의 값이므로, 실행 이후 정의가 바뀌었으면 화면 값과 실제
+   * 실행에 쓰인 값이 다를 수 있다. 그 사실을 감추지 않고 알린다.
+   */
+  const definitionChangedAfterRun = computed(() => {
+    const updatedAt = workflow.value?.updated_at;
+    const startedAt = selectedRun.value?.start_date;
+    if (!updatedAt || !startedAt) return false;
+    return new Date(updatedAt).getTime() > new Date(startedAt).getTime();
+  });
+
+  /**
    * 실행 이력에는 있는데 현재 정의에는 없는 태스크. 그래프에 그릴 자리가 없으므로
    * 조용히 버리지 않고 따로 보여준다.
    */
@@ -166,6 +180,7 @@ export function useWorkflowRunViewerModel() {
     selectedInstance,
     selectedNode,
     deletedTaskInstances,
+    definitionChangedAfterRun,
     graph,
     isPolling,
     loadError,

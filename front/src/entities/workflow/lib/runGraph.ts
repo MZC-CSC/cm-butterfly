@@ -18,6 +18,8 @@ export interface IRunGraphNode {
   name: string;
   taskComponent: string;
   groupName: string;
+  /** 이 task에 저장돼 있는 값. 실행에 쓰인 값이 아니라 *현재 정의*의 값이다 */
+  spec: Record<string, any>;
   /** 세로 위치. 자기보다 앞선 모든 task보다 뒤에 놓인다 */
   level: number;
   /** 같은 level 안에서의 가로 위치 */
@@ -57,6 +59,26 @@ function taskIdOf(task: ITaskResponse): string {
   return task.id ?? task.name;
 }
 
+/**
+ * task에 저장된 값을 화면에 보여줄 형태로 모은다.
+ *
+ * cm-cicada의 새 형식은 `spec`에 값을 담고, 예전 형식은 request_body/path_params/
+ * query_params를 따로 둔다. 둘 다 올 수 있으므로 있는 것만 모은다.
+ */
+function taskSpecOf(task: ITaskResponse): Record<string, any> {
+  const spec: Record<string, any> = { ...(task.spec ?? {}) };
+  if (task.request_body !== undefined && spec.request_body === undefined) {
+    spec.request_body = task.request_body;
+  }
+  if (task.path_params !== undefined && spec.path_params === undefined) {
+    spec.path_params = task.path_params;
+  }
+  if (task.query_params !== undefined && spec.query_params === undefined) {
+    spec.query_params = task.query_params;
+  }
+  return spec;
+}
+
 export function buildRunGraph(workflow: IWorkflowResponse | null): IRunGraph {
   const warnings: string[] = [];
   const flat = flattenTasks(workflow?.data?.task_groups);
@@ -66,6 +88,7 @@ export function buildRunGraph(workflow: IWorkflowResponse | null): IRunGraph {
     name: task.name,
     taskComponent: task.task_component,
     groupName,
+    spec: taskSpecOf(task),
     level: 0,
     order: 0,
   }));

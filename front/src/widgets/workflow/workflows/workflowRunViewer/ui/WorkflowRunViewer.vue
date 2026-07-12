@@ -25,6 +25,7 @@ const {
   selectedInstance,
   selectedNode,
   deletedTaskInstances,
+  definitionChangedAfterRun,
   graph,
   isPolling,
   loadError,
@@ -41,6 +42,26 @@ const runOptions = computed(() =>
       label: `${run.start_date ?? run.execution_date} · ${taskStateLabel(run.state)}`,
     })),
 );
+
+/** 값이 JSON 문자열이면 읽기 좋게 펼친다 (cicada는 request_body를 문자열로 담는다) */
+function formatParamValue(value: any): string {
+  if (value === null || value === undefined) return '-';
+  if (typeof value === 'string') {
+    try {
+      return JSON.stringify(JSON.parse(value), null, 2);
+    } catch {
+      return value;
+    }
+  }
+  return JSON.stringify(value, null, 2);
+}
+
+const selectedParams = computed(() => {
+  const spec = selectedNode.value?.spec ?? {};
+  return Object.entries(spec)
+    .filter(([, value]) => value !== undefined && value !== '')
+    .map(([key, value]) => ({ key, value: formatParamValue(value) }));
+});
 
 function formatDuration(seconds?: number): string {
   if (seconds === undefined || seconds === null) return '-';
@@ -139,6 +160,30 @@ async function onRunChange(runId: string) {
             <dt>소요</dt>
             <dd>{{ formatDuration(selectedInstance?.duration_date) }}</dd>
           </dl>
+
+          <div class="run-viewer__params">
+            <h5>파라미터</h5>
+            <!--
+              엔진은 그 실행에 쓰인 값을 돌려주지 않는다. 아래는 언제나
+              *현재 정의*의 값이므로, 실행 후 정의가 바뀌었으면 다를 수 있다.
+            -->
+            <p
+              v-if="definitionChangedAfterRun"
+              class="run-viewer__param-warning"
+            >
+              ⚠ 이 실행 이후 워크플로우가 수정됐습니다. 아래 값은 현재 정의의
+              값이며, 실제 실행에 쓰인 값과 다를 수 있습니다.
+            </p>
+            <p v-else class="run-viewer__hint">현재 정의 기준입니다.</p>
+
+            <p v-if="!selectedParams.length" class="run-viewer__hint">
+              저장된 파라미터가 없습니다.
+            </p>
+            <div v-for="param in selectedParams" :key="param.key">
+              <div class="run-viewer__param-key">{{ param.key }}</div>
+              <pre class="run-viewer__param-value">{{ param.value }}</pre>
+            </div>
+          </div>
         </template>
         <p v-else class="run-viewer__hint">
           태스크를 선택하면 상세가 표시됩니다.
@@ -215,12 +260,18 @@ async function onRunChange(runId: string) {
 
 .run-viewer__body {
   display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   align-items: flex-start;
 }
 
+/*
+  폭이 모자라면 상세 패널이 그래프 아래로 내려간다. 좌측 메뉴가 펼쳐져 있거나
+  병렬 갈래가 늘어 그래프가 넓어져도 그래프가 짓눌리지 않게 하기 위함이다.
+  뷰포트가 아니라 실제 남은 폭에 반응하도록 미디어 쿼리 대신 wrap을 쓴다.
+*/
 .run-viewer__graph {
-  flex: 1 1 auto;
+  flex: 1 1 30rem;
   min-width: 0;
   border: 1px solid #e5e5e8;
   border-radius: 0.375rem;
@@ -235,7 +286,8 @@ async function onRunChange(runId: string) {
 }
 
 .run-viewer__panel {
-  flex: 0 0 18rem;
+  flex: 1 1 18rem;
+  max-width: 100%;
   border: 1px solid #e5e5e8;
   border-radius: 0.375rem;
   padding: 0.875rem;
@@ -261,6 +313,47 @@ async function onRunChange(runId: string) {
 .run-viewer__hint {
   font-size: 0.8125rem;
   color: #6b6e78;
+}
+
+.run-viewer__params {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e5e8;
+}
+
+.run-viewer__params h5 {
+  font-weight: 700;
+  font-size: 0.8125rem;
+  margin-bottom: 0.25rem;
+}
+
+.run-viewer__param-warning {
+  font-size: 0.75rem;
+  color: #8a5a17;
+  background: #fff8ef;
+  border-radius: 0.25rem;
+  padding: 0.375rem 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.run-viewer__param-key {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b6e78;
+}
+
+.run-viewer__param-value {
+  margin-top: 0.125rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.25rem;
+  background: #f7f7f8;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 14rem;
+  overflow: auto;
 }
 
 .run-viewer__deleted {
