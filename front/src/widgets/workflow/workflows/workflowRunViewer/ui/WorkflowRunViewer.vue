@@ -2,6 +2,7 @@
 import { computed, watch } from 'vue';
 import { PBadge, PSelectDropdown } from '@cloudforet-test/mirinae';
 import RunGraph from './RunGraph.vue';
+import { graphPixelWidth } from '@/entities/workflow/lib/runGraph';
 import { useWorkflowRunViewerModel } from '../model/workflowRunViewerModel';
 import {
   taskStateBadgeType,
@@ -42,6 +43,13 @@ const runOptions = computed(() =>
       label: `${run.start_date ?? run.execution_date} · ${taskStateLabel(run.state)}`,
     })),
 );
+
+/*
+  그래프에 내주는 폭을 병렬 갈래 수로 정한다. 인프라·SW 마이그레이션처럼 태스크가
+  한 줄로만 이어지는 워크플로우는 좁게 잡히므로 남는 폭이 상세 패널로 가고, 병렬이
+  많으면 그래프가 넓게 자리를 잡는다. 폭이 모자라면 패널이 아래로 내려간다.
+*/
+const graphFlexBasis = computed(() => `${graphPixelWidth(graph.value)}px`);
 
 /** 값이 JSON 문자열이면 읽기 좋게 펼친다 (cicada는 request_body를 문자열로 담는다) */
 function formatParamValue(value: any): string {
@@ -122,7 +130,7 @@ async function onRunChange(runId: string) {
     </div>
 
     <div class="run-viewer__body">
-      <div class="run-viewer__graph">
+      <div class="run-viewer__graph" :style="{ flexBasis: graphFlexBasis }">
         <div v-if="!graph.nodes.length" class="run-viewer__empty">
           표시할 태스크가 없습니다.
         </div>
@@ -271,8 +279,11 @@ async function onRunChange(runId: string) {
   뷰포트가 아니라 실제 남은 폭에 반응하도록 미디어 쿼리 대신 wrap을 쓴다.
 */
 .run-viewer__graph {
-  flex: 1 1 30rem;
+  /* flex-basis는 병렬 갈래 수에 따라 스크립트에서 정한다 */
+  flex-grow: 1;
+  flex-shrink: 1;
   min-width: 0;
+  max-width: 100%;
   border: 1px solid #e5e5e8;
   border-radius: 0.375rem;
   background: #fafafb;

@@ -31,10 +31,19 @@ export interface IRunGraphEdge {
   to: string;
 }
 
+/** 그래프 렌더 치수 — 뷰어가 그래프에 얼마나 폭을 내줄지 계산할 때도 쓴다 */
+export const GRAPH_NODE_WIDTH = 190;
+export const GRAPH_NODE_HEIGHT = 52;
+export const GRAPH_GAP_X = 44;
+export const GRAPH_GAP_Y = 60;
+export const GRAPH_PADDING = 28;
+
 export interface IRunGraph {
   nodes: IRunGraphNode[];
   edges: IRunGraphEdge[];
   levelCount: number;
+  /** 한 단계에 가장 많이 놓이는 노드 수 = 그래프가 필요로 하는 가로 칸 수 */
+  maxParallel: number;
   /** 한 줄로 이어지는 단일 체인인가 (편집기가 표현할 수 있는 유일한 형태) */
   isLinear: boolean;
   /** 정의가 온전하지 않을 때 남기는 메모. 감추지 말고 화면에 드러낸다 */
@@ -133,6 +142,7 @@ export function buildRunGraph(workflow: IWorkflowResponse | null): IRunGraph {
     nodes,
     edges,
     levelCount,
+    maxParallel: maxNodesPerLevel(nodes),
     isLinear: isSingleChain(nodes, edges),
     warnings,
   };
@@ -180,6 +190,27 @@ function assignLevels(
     ready.forEach(node => resolved.add(node.id));
     remaining = remaining.filter(node => !resolved.has(node.id));
   }
+}
+
+function maxNodesPerLevel(nodes: IRunGraphNode[]): number {
+  const counts = new Map<number, number>();
+  nodes.forEach(node => {
+    counts.set(node.level, (counts.get(node.level) ?? 0) + 1);
+  });
+  return Math.max(1, ...counts.values());
+}
+
+/**
+ * 그래프를 다 그리는 데 필요한 가로 픽셀.
+ *
+ * 병렬 갈래가 없는 워크플로우(인프라·SW 마이그레이션처럼 컴포넌트가 하나뿐인
+ * 경우)는 좁게 잡히므로, 뷰어가 남는 폭을 상세 패널에 내줄 수 있다.
+ */
+export function graphPixelWidth(graph: IRunGraph): number {
+  const columns = graph.maxParallel;
+  return (
+    GRAPH_PADDING * 2 + columns * GRAPH_NODE_WIDTH + (columns - 1) * GRAPH_GAP_X
+  );
 }
 
 function assignOrders(nodes: IRunGraphNode[]): void {

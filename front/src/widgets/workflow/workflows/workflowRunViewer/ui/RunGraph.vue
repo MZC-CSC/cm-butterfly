@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { IRunGraph, IRunGraphNode } from '@/entities/workflow/lib/runGraph';
+import {
+  GRAPH_GAP_X,
+  GRAPH_GAP_Y,
+  GRAPH_NODE_HEIGHT,
+  GRAPH_NODE_WIDTH,
+  GRAPH_PADDING,
+  IRunGraph,
+  IRunGraphNode,
+} from '@/entities/workflow/lib/runGraph';
 import { ITaskInstance } from '@/entities/workflow/model/types';
 import {
   taskStateKind,
@@ -16,11 +24,11 @@ interface Props {
 const props = defineProps<Props>();
 const emit = defineEmits<{ (e: 'select', taskId: string): void }>();
 
-const NODE_WIDTH = 190;
-const NODE_HEIGHT = 52;
-const GAP_X = 44;
-const GAP_Y = 60;
-const PADDING = 28;
+const NODE_WIDTH = GRAPH_NODE_WIDTH;
+const NODE_HEIGHT = GRAPH_NODE_HEIGHT;
+const GAP_X = GRAPH_GAP_X;
+const GAP_Y = GRAPH_GAP_Y;
+const PADDING = GRAPH_PADDING;
 
 const instanceByTaskId = computed(
   () => new Map(props.instances.map(i => [i.task_id, i])),
