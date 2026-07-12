@@ -6,6 +6,7 @@ import {
   WorkflowDetail,
   WorkflowJsonViewer,
   WorkflowHistory,
+  WorkflowRunViewer,
 } from '@/widgets/workflow';
 import { SimpleEditForm } from '@/widgets/layout';
 import { useGetWorkflow, useUpdateWorkflow } from '@/entities';
@@ -50,6 +51,10 @@ const mainTabState = reactive({
     {
       name: 'history',
       label: 'History',
+    },
+    {
+      name: 'runViewer',
+      label: 'Run Status',
     },
   ],
 });
@@ -200,6 +205,12 @@ async function handleUpdateWorkflow(updatedData: object) {
               <p>Workflow History</p>
             </div>
             <workflow-history :selected-workflow-id="selectedWorkflowId" />
+          </template>
+          <template #runViewer>
+            <div class="tab-section-header">
+              <p>Workflow Run Status</p>
+            </div>
+            <workflow-run-viewer :workflow-id="selectedWorkflowId" />
           </template>
         </p-tab>
       </div>
