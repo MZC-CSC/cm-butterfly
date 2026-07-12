@@ -9,7 +9,11 @@ import {
 } from '@/widgets/workflow';
 import { SimpleEditForm } from '@/widgets/layout';
 import { useGetWorkflow, useUpdateWorkflow } from '@/entities';
-import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
+import {
+  showErrorMessage,
+  showSuccessMessage,
+  toErrorMessage,
+} from '@/shared/utils';
 import WorkflowEditor from '@/features/workflow/workflowEditor/ui/WorkflowEditor.vue';
 
 const getWorkflow = useGetWorkflow(null);
@@ -129,20 +133,19 @@ async function handleUpdateWorkflow(updatedData: object) {
       },
     });
 
-    if (
-      // data.responseData?.data.description !== '' &&
-      data.responseData?.data.task_groups !== null
-    ) {
+    // The response may arrive without the data wrapper, so read all the way down optionally.
+    // This used to throw and fall into the catch, which then showed a hardcoded, unrelated message.
+    if (data.responseData?.data?.task_groups != null) {
       modalState.addWorkflow.trigger = true;
-      showSuccessMessage('success', 'Workflow data updated successfully.');
+      showSuccessMessage('Success', 'Workflow data updated successfully.');
     } else {
       modalState.addWorkflow.trigger = true;
-      showErrorMessage('error', 'Workflow data cannot be null.');
+      showErrorMessage('Error', 'Workflow data cannot be null.');
     }
   } catch (error) {
     showErrorMessage(
-      'error',
-      'Failed to update the workflow. (Error:wrong dependency found in migrate_infra.infra_get (infra_impor111t))',
+      'Error',
+      toErrorMessage(error, 'Failed to update the workflow.'),
     );
   }
 }

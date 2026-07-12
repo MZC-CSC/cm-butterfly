@@ -19,7 +19,9 @@ import {
   useUpdateWorkflowV2,
 } from '@/entities';
 import { Designer } from 'sequential-workflow-designer';
-import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
+import { showErrorMessage, showSuccessMessage,
+  toErrorMessage,
+} from '@/shared/utils';
 import {
   getTaskComponentList,
   ITaskComponentInfoResponse,
@@ -830,7 +832,7 @@ function postWorkflow(workflow: IWorkflow) {
         emit('update:close-modal', false); // 저장 성공 후 모달 닫기
       })
       .catch(err => {
-        showErrorMessage('Error', err.errorMsg.value);
+        showErrorMessage('Error', toErrorMessage(err, 'Failed to process the workflow.'));
       });
   } else if (props.toolType === 'add') {
     resAddWorkFlow
@@ -848,7 +850,7 @@ function postWorkflow(workflow: IWorkflow) {
         emit('update:close-modal', false); // 저장 성공 후 모달 닫기
       })
       .catch(err => {
-        showErrorMessage('Error', err.errorMsg.value);
+        showErrorMessage('Error', toErrorMessage(err, 'Failed to process the workflow.'));
       });
   }
 }

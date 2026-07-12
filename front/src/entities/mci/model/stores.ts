@@ -31,6 +31,7 @@ export const useMCIStore = defineStore(NAMESPACE, () => {
   }
 
   function setMci(_mci: IMci) {
+    if (!_mci) return;
     adaptNode(_mci);
     const targetMci = mcis.value.find(mci => mci.uid === _mci.uid);
     if (targetMci) {
@@ -47,7 +48,7 @@ export const useMCIStore = defineStore(NAMESPACE, () => {
 
   function setVmInfo(mciID: string, vm: IVm) {
     const mci = getMciById(mciID);
-    const targetVm = mci?.vm.find(_vm => _vm.uid === vm.uid);
+    const targetVm = mci?.vm?.find(_vm => _vm.uid === vm.uid);
     if (targetVm) {
       Object.assign(targetVm, vm);
     }

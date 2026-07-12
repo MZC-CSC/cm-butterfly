@@ -130,13 +130,13 @@ async function handleGetMigrationList() {
 
     console.log('API migration data loaded:', recommendedModelData.value);
   } catch (error) {
-    // 실패는 실패로 드러낸다. 예전에는 더미 추천 데이터로 대체해서
-    // cm-grasshopper 가 죽어도 화면에는 가짜 추천이 떴다.
+    // Let a failure look like a failure. This used to fall back to dummy recommendations, so a dead
+    // cm-grasshopper still rendered a plausible-looking result and the breakage went unnoticed.
     console.error('Failed to load software migration list:', error);
     recommendedModelData.value = null;
     showErrorMessage(
-      'error',
-      '소프트웨어 마이그레이션 추천 목록을 가져오지 못했습니다.',
+      'Error',
+      'Failed to load the software migration recommendations.',
     );
   } finally {
     isLoading.value = false;

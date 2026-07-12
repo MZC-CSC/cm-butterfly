@@ -129,14 +129,17 @@ async function fetchWorkflowList() {
   try {
     tableModel.tableState.loading = true;
     const { data } = await getWorkflowList.execute();
-    if (data.status?.code === 200 && Array.isArray(data.responseData)) {
-      workflowStore.setWorkFlows(data.responseData);
-      if (data.responseData.length === 0) {
-        showErrorMessage('info', '조회된 Workflow가 없습니다.');
-      }
+    if (data.status?.code === 200) {
+      // With no workflows the response is [] or null. Both mean "none", not "failed", so keep the
+      // list empty and let the empty state show. This used to raise a toast, and since
+      // showErrorMessage always renders a red alert regardless of its first argument, a perfectly
+      // normal empty list looked like an error.
+      workflowStore.setWorkFlows(
+        Array.isArray(data.responseData) ? data.responseData : [],
+      );
     } else {
       workflowStore.setWorkFlows([]);
-      showErrorMessage('error', 'Workflow 목록을 불러오지 못했습니다.');
+      showErrorMessage('Error', 'Failed to load the workflow list.');
     }
     nextTick(() => {
       isDataLoaded.value = true;

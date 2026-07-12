@@ -249,7 +249,8 @@ export function useRecommendedInfraModel() {
   ): Array<ISelectMenu> {
     const menu: Array<ISelectMenu> = [];
 
-    providerResponse.output.forEach(provider => {
+    // With no registered provider the output is empty — that is an empty menu, not an error.
+    (providerResponse?.output ?? []).forEach(provider => {
       menu.push({
         name: provider,
         label: provider,

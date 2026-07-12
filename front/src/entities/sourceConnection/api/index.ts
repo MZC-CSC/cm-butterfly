@@ -19,7 +19,7 @@ const COLLECT_SW = 'cm-honeybee/import-software';
 const COLLECT_SW_SOURCE_GROUP = 'cm-honeybee/import-software-source-group';
 const DELETE_SOURCE_CONNECTION = 'cm-honeybee/delete-connection-info';
 const REFRESH_SOURCE_GROUP_CONNECTION_INFO_STATUS =
-  'Refresh-Source-Group-Connection-Info-Status';
+  'cm-honeybee/Refresh-Source-Group-Connection-Info-Status';
 const GET_INFRA_INFO_REFINED = 'cm-honeybee/get-infra-info-refined';
 const GET_INFRA_INFO_SOURCE_GROUP_REFINED = 'cm-honeybee/get-infra-info-source-group-refined';
 const GET_SOFTWARE_INFO_REFINED = 'cm-honeybee/get-software-info-refined';

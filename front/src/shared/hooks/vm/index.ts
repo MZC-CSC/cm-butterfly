@@ -1,10 +1,12 @@
 import { IVm } from '@/entities/mci/model';
 
-export function getCloudProvidersInVms(vms: IVm[]) {
+// An infra with no nodes yet (just created, or all nodes removed) arrives with no node/vm key
+// at all. That is not an error, it just means "no nodes", so treat it as an empty list.
+export function getCloudProvidersInVms(vms?: IVm[] | null) {
   const provider: { [key: string]: any } = {};
 
-  vms.forEach(vm => {
-    const { providerName } = vm.connectionConfig;
+  (vms ?? []).forEach(vm => {
+    const providerName = vm?.connectionConfig?.providerName;
     if (providerName) {
       provider[providerName] ||= providerColor(providerName);
     }

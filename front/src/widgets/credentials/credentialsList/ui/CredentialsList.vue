@@ -16,6 +16,7 @@ import {
   insertDynamicComponent,
   showErrorMessage,
   showSuccessMessage,
+  toErrorMessage,
 } from '@/shared/utils';
 import DynamicTableIconButton from '@/shared/ui/Button/dynamicIconButton/DynamicTableIconButton.vue';
 import { useDynamicTableHeight } from '@/shared/hooks/table/useDynamicTableHeight';
@@ -103,19 +104,18 @@ async function getCredentialList() {
   isDataLoaded.value = false;
   try {
     const res = await credentialListApi.execute();
-    
-    if (res.data.responseData) {
-      configStore.setConfig(res.data.responseData.credential);
 
-      // 테이블 데이터 초기화
-      tableModel.tableState.displayItems =
-        res.data.responseData.credential.map((item: any) => ({
-          configName: item.CredentialName, // 추가
-          CredentialName: item.CredentialName,
-          ProviderName: item.ProviderName,
-        }));
-    }
-    
+    // When nothing is registered the credential key is null or absent. That is not an error, so
+    // treat it as an empty list. Previously null.map() threw here and fell into the catch, which
+    // reported a load failure on a perfectly good response.
+    const credentials = res.data.responseData?.credential ?? [];
+    configStore.setConfig(credentials);
+    tableModel.tableState.displayItems = credentials.map((item: any) => ({
+      configName: item.CredentialName,
+      CredentialName: item.CredentialName,
+      ProviderName: item.ProviderName,
+    }));
+
     nextTick(() => {
       isDataLoaded.value = true;
       // 데이터 로드 후 컴포넌트 재렌더링
@@ -124,7 +124,7 @@ async function getCredentialList() {
   } catch (e: any) {
     showErrorMessage(
       'Error',
-      e.errorMsg || 'Credential 목록을 불러오는 데 실패했습니다.',
+      toErrorMessage(e, 'Failed to load the credential list.'),
     );
     isDataLoaded.value = true;
   }

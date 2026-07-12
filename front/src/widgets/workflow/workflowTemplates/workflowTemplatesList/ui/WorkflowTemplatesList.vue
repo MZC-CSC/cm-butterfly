@@ -100,12 +100,11 @@ async function fetchWorkflowTemplateList() {
   isDataLoaded.value = false;
   try {
     const { data } = await getworkflowTemplateList.execute();
-    if (
-      data.status?.code === 200 &&
-      data.responseData &&
-      data.responseData.length > 0
-    ) {
-      workflowStore.setWorkflowTemplates(data.responseData);
+    if (data.status?.code === 200) {
+      // Clear the store even on an empty result so the previous fetch does not linger.
+      workflowStore.setWorkflowTemplates(
+        Array.isArray(data.responseData) ? data.responseData : [],
+      );
     }
     nextTick(() => {
       isDataLoaded.value = true;

@@ -3,7 +3,9 @@ import { PButton, PDefinitionTable, PStatus } from '@cloudforet-test/mirinae';
 import { onBeforeMount, watch } from 'vue';
 import { useSourceSoftwareCollectModel } from '@/widgets/source/sourceConnections/sourceConnectionDetail/softwareCollect/model/sourceSoftwareCollectModel';
 import { useCollectSW } from '@/entities/sourceConnection/api';
-import { showErrorMessage } from '@/shared/utils';
+import { showErrorMessage,
+  toErrorMessage,
+} from '@/shared/utils';
 
 interface IProps {
   sourceGroupId: string | null;
@@ -55,7 +57,7 @@ function handleClickCollectSW() {
       }
     })
     .catch(e => {
-      if (e.errorMsg.value) showErrorMessage('Error', e.errorMsg.value);
+      showErrorMessage('Error', toErrorMessage(e, 'Failed to load collected software information.'));
     });
 }
 </script>

@@ -124,14 +124,14 @@ async function fetchTaskComponentsList() {
   isDataLoaded.value = false;
   try {
     const { data } = await getTaskComponentList.execute();
-    if (
-      data.status?.code === 200 &&
-      data.responseData &&
-      data.responseData.length > 0
-    ) {
-      // cicada_task_run_script is now included in API response
-      // cicada_task_run_script는 이제 API 응답에 포함됨
-      workflowStore.setTaskComponents(data.responseData);
+    if (data.status?.code === 200) {
+      // cicada_task_run_script is now included in the API response.
+      //
+      // Always clear the store on an empty result. The old code did nothing when the list came back
+      // empty, so rows from the previous fetch stayed on screen — deleting the last item left it visible.
+      workflowStore.setTaskComponents(
+        Array.isArray(data.responseData) ? data.responseData : [],
+      );
     }
     nextTick(() => {
       isDataLoaded.value = true;

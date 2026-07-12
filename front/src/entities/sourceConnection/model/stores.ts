@@ -29,8 +29,9 @@ export const useSourceConnectionStore = defineStore(NAMESPACE, () => {
     return connections.value[connectId] || null;
   }
 
-  function setConnections(res: ISourceConnectionResponse) {
-    res.connection_info.forEach(el => {
+  function setConnections(res: ISourceConnectionResponse | null | undefined) {
+    // A source group with no connections arrives without connection_info at all — that means none, not an error.
+    (res?.connection_info ?? []).forEach(el => {
       setConnection(el);
     });
   }
