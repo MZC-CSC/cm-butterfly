@@ -11,6 +11,7 @@
       </label>
       <textarea
         v-if="fieldSchema.type === 'string' && shouldUseTextarea"
+        :data-testid="fieldTestId"
         :value="fieldValue || ''"
         @input="handleInput($event)"
         class="field-textarea"
@@ -19,6 +20,7 @@
       ></textarea>
       <input
         v-else-if="fieldSchema.type === 'string'"
+        :data-testid="fieldTestId"
         type="text"
         :value="fieldValue || ''"
         @input="handleInput($event)"
@@ -27,6 +29,7 @@
       />
       <input
         v-else-if="fieldSchema.type === 'number' || fieldSchema.type === 'integer'"
+        :data-testid="fieldTestId"
         type="number"
         :value="fieldValue || 0"
         @input="handleInput($event)"
@@ -35,6 +38,7 @@
       />
       <input
         v-else-if="fieldSchema.type === 'boolean'"
+        :data-testid="fieldTestId"
         type="checkbox"
         :checked="!!fieldValue"
         @change="handleInput($event)"
@@ -68,6 +72,7 @@
         <div v-if="isStringArray" class="string-array">
           <div v-for="(item, index) in arrayValue" :key="index" class="array-item">
             <input
+              :data-testid="arrayItemTestId(index)"
               type="text"
               :value="item"
               @input="updateArrayItem(index, $event)"
@@ -105,6 +110,7 @@
                 :parent-required="fieldSchema.items?.required || []"
                 :task-name="taskName"
                 :current-path="`${currentPath}[]`"
+                :index-path="childIndexPath(String(propName), index)"
                 @update="updateObjectArrayItemProperty(index, String(propName), $event)"
                 :depth="depth + 1"
               />
@@ -156,6 +162,7 @@
           :parent-required="fieldSchema.required || []"
           :task-name="taskName"
           :current-path="computedChildPath(propName)"
+          :index-path="childIndexPath(String(propName))"
           @update="updateObjectProperty(String(propName), $event)"
           :depth="depth + 1"
         />
@@ -209,10 +216,34 @@ export default defineComponent({
     currentPath: {
       type: String,
       default: ''
+    },
+    // Path used only to build test ids. It mirrors currentPath but keeps array indices, so every leaf
+    // gets a unique id. currentPath itself must stay index-free — the schema lookup keys off `foo[]`.
+    indexPath: {
+      type: String,
+      default: ''
     }
   },
   emits: ['update'],
   setup(props, { emit }) {
+    // Every leaf input gets a stable id built from its path in the schema, e.g.
+    // `wf-field-body_params.targetInfra.name`. The label text is the only other thing that identifies
+    // a field here, and label text changes; the path does not. Tests need to point at one specific
+    // field (the target infrastructure name, say) without guessing at wording or DOM position.
+    const fieldTestId = computed(() =>
+      `wf-field-${props.indexPath || props.currentPath || props.fieldName}`,
+    );
+
+    /** Child path for the test id, keeping the array index so siblings do not collide. */
+    const childIndexPath = (propName: string | number, arrayIndex?: number) => {
+      const base = props.indexPath || props.currentPath || props.fieldName;
+      return arrayIndex === undefined
+        ? `${base}.${propName}`
+        : `${base}[${arrayIndex}].${propName}`;
+    };
+    const arrayItemTestId = (arrayIndex: number) =>
+      `wf-field-${props.indexPath || props.currentPath || props.fieldName}[${arrayIndex}]`;
+
     // Required 여부 확인
     const isRequired = computed(() => {
       return props.parentRequired.includes(props.fieldName);
@@ -539,6 +570,9 @@ export default defineComponent({
     };
 
     return {
+      fieldTestId,
+      childIndexPath,
+      arrayItemTestId,
       isSimpleType,
       isStringArray,
       arrayValue,

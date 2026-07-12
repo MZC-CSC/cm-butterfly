@@ -110,6 +110,13 @@ export const workflowData = {
   safeRunTemplateName:
     process.env.TEST_WF_SAFE_TEMPLATE || '_v2_example_xcom_workflow',
 
+  /**
+   * 인프라 마이그레이션 워크플로우의 태스크 컴포넌트 이름.
+   * 디자이너 캔버스에서 이 이름으로 스텝을 지목해 편집 패널을 연다(라이브러리가 `sqd-type-{이름}` 클래스를 단다).
+   */
+  infraMigrationTask:
+    process.env.TEST_WF_INFRA_TASK || 'beetle_task_infra_migration',
+
   /** 마이그레이션 워크플로우 생성 시 자동 선택되는 인프라 템플릿 이름 */
   infraTemplateName:
     process.env.TEST_WF_INFRA_TEMPLATE || 'migrate_infra_workflow',

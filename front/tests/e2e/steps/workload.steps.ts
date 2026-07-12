@@ -141,10 +141,10 @@ Then(
  * fixtures/test-data.ts의 workload.infraName / workload.nodeName 기준.
  */
 Then('타깃 EC2 인스턴스가 정상 생성된다', async ({ page }) => {
-  await new WorkloadPage(page).expectInstanceCreated(
-    workload.infraName,
-    workload.nodeName,
-  );
+  // 워크플로우 툴에서 인프라 이름을 바꿨다면 *그 이름*으로 확인해야 한다.
+  // 고정 이름(infra101)만 보면, 이름을 바꾼 게 실제로 반영됐는지 알 수 없다.
+  const infraName = scenarioState.infraName ?? workload.infraName;
+  await new WorkloadPage(page).expectInstanceCreated(infraName, workload.nodeName);
 });
 
 /**

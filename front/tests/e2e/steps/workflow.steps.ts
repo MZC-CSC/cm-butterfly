@@ -5,6 +5,7 @@ import { WorkflowPage } from '../pages/workflow.page';
 import { ModelsPage } from '../pages/models.page';
 import { workflowData } from '../fixtures/test-data';
 import { uniqueName } from '../support/naming';
+import { scenarioState } from '../support/world';
 
 const { Given, When, Then } = createBdd(test);
 
@@ -131,7 +132,16 @@ Then('워크플로우 실행이 정상 완료된다', async ({ page }) => {
  * migrate_infra_workflow 템플릿을 자동 선택 → beetle_task_infra_migration(type/spec) task 구성 →
  * 저장(생성) 후 목록에서 실행(run). 실제 EC2 프로비저닝이 트리거되므로 시나리오 종료 시 정리 필수.
  */
-When('마이그레이션 워크플로우를 생성하고 실행하면', async ({ page }) => {
+/**
+ * 마이그레이션 워크플로우를 만들고 실행한다.
+ *
+ * @param editInfraName 넘기면 워크플로우 툴에서 *생성될 인프라 이름*을 이 값으로 바꿔 저장한다.
+ *                      넘기지 않으면 기본값(타깃 모델이 지정한 이름, 보통 `infra101`) 그대로 간다.
+ */
+async function createAndRunMigrationWorkflow(
+  page: import('@playwright/test').Page,
+  editInfraName?: string,
+): Promise<void> {
   const models = new ModelsPage(page);
   const wf = new WorkflowPage(page);
   const name = `${workflowData.createNamePrefix}-migrate-${Date.now()}`;
@@ -145,6 +155,18 @@ When('마이그레이션 워크플로우를 생성하고 실행하면', async ({
   await wf.fillWorkflowName(name);
   // add-mode 에디터는 타깃 모델의 migrationType으로 템플릿·task(beetle_task_infra_migration)를
   // 자동 구성하므로 템플릿을 수동 선택하지 않는다(수동 선택은 자동 구성을 방해해 저장 실패).
+
+  if (editInfraName) {
+    // ★ 워크플로우 툴에서 생성될 인프라 이름을 바꾼다.
+    //
+    //   cm-beetle 은 타깃 인프라 이름을 타깃 모델에 적힌 값(기본 `infra101`)으로 만든다. 그래서 같은
+    //   과정을 반복하면 늘 같은 이름으로만 생성되고, 앞선 실행이 남긴 인프라와 구분되지 않는다.
+    //   워크플로우 툴은 그 값을 바꿀 수 있게 돼 있고, *그게 실제로 동작하는지* 확인하는 게 이 경로다.
+    await wf.selectTaskInDesigner(workflowData.infraMigrationTask);
+    await wf.setTaskParam('body', 'targetInfra.name', editInfraName);
+    scenarioState.infraName = editInfraName;
+  }
+
   await wf.saveWorkflow();
 
   // cm-cicada는 생성 시 DAG YAML을 디스크에 기록만 하고, airflow가 이를 파싱해 등록한다.
@@ -164,7 +186,37 @@ When('마이그레이션 워크플로우를 생성하고 실행하면', async ({
   await wf.selectWorkflow(name);
   await wf.openHistoryTab();
   await wf.expectRunHistoryPresent();
+}
+
+/** 기본값 그대로 — 타깃 모델이 지정한 인프라 이름으로 생성된다 */
+When('마이그레이션 워크플로우를 생성하고 실행하면', async ({ page }) => {
+  await createAndRunMigrationWorkflow(page);
 });
+
+/**
+ * "만약 워크플로우 툴에서 인프라 이름을 {string} 로 바꿔 마이그레이션 워크플로우를 생성하고 실행하면"
+ *
+ * 워크플로우 툴이 실제로 동작하는지 보는 경로다. 기본값으로만 돌리면 그 화면이 값을 반영하는지 알 수 없다.
+ */
+When(
+  '워크플로우 툴에서 인프라 이름을 {string} 로 바꿔 마이그레이션 워크플로우를 생성하고 실행하면',
+  async ({ page }, infraName: string) => {
+    await createAndRunMigrationWorkflow(page, uniqueName(infraName));
+  },
+);
+
+/** "그러면 워크플로우 툴의 인프라 이름 기본값은 {string} 이다" — 기본값이 무엇인지 명시적으로 확인 */
+Then(
+  '워크플로우 툴의 인프라 이름 기본값은 {string} 이다',
+  async ({ page }, expected: string) => {
+    const wf = new WorkflowPage(page);
+    const actual = await wf.readTaskParam('body', 'targetInfra.name');
+    expect(
+      actual,
+      `워크플로우 툴이 보여주는 인프라 이름 기본값이 "${expected}" 가 아니다`,
+    ).toBe(expected);
+  },
+);
 
 // ── cm-cicada type/spec 스키마 회귀 (BAR-1389) ────────────────────────────
 //
@@ -256,4 +308,22 @@ Then('JSON 뷰어에 스크립트가 디코드되어 보인다', async ({ page }
 
 Then('화면을 {string} 이름으로 캡처한다', async ({ page }, name: string) => {
   await captureScreen(page, test.info(), name);
+});
+
+
+/**
+ * "만약 워크플로우 툴을 열고 마이그레이션 태스크를 선택하면"
+ *
+ * 저장하지 않고 편집 패널만 연다. 워크플로우 툴이 *무엇을 기본값으로 보여주는지* 확인하기 위한 경로라,
+ * 클라우드 자원을 만들지 않는다.
+ */
+When('워크플로우 툴을 열고 마이그레이션 태스크를 선택하면', async ({ page }) => {
+  const models = new ModelsPage(page);
+  const wf = new WorkflowPage(page);
+
+  await models.openWorkflowEditorFromTarget(
+    uniqueName(process.env.TEST_TARGET_MODEL_NAME || 'e2e-lowcost-target'),
+  );
+  await wf.expectDesignerOpen();
+  await wf.selectTaskInDesigner(workflowData.infraMigrationTask);
 });
