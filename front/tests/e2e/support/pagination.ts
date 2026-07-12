@@ -68,11 +68,27 @@ export class TablePagination {
     await this.waitForRows();
     for (;;) {
       // 이 페이지에 있나? (없으면 짧게 끊고 다음 페이지로 — 페이지마다 15초씩 기다리면 한없이 느려진다)
-      if (await row.first().isVisible({ timeout: 2_000 }).catch(() => false)) {
+      if (
+        await row
+          .first()
+          .isVisible({ timeout: 2_000 })
+          .catch(() => false)
+      ) {
         return (await this.status()).current;
       }
       if (!(await this.next())) return null;
     }
+  }
+
+  /**
+   * 행이 *어느 페이지에도* 없는지 확인한다.
+   *
+   * ★ 삭제 확인처럼 "없어야 한다"를 볼 때 1페이지만 보면 안 된다. 목록은 15행씩 끊기므로 뒤 페이지에
+   *   멀쩡히 살아 있는데도 "사라졌다"고 통과해 버린다. 실제로 이 오판 때문에, 삭제됐다고 판정한
+   *   인프라(=살아 있는 EC2)가 요금을 계속 먹고 있었다. 없다는 판정은 *전 페이지를 훑고* 내린다.
+   */
+  async isRowAbsent(row: Locator): Promise<boolean> {
+    return (await this.findRow(row)) === null;
   }
 
   /**

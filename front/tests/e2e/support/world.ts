@@ -23,6 +23,10 @@ export const scenarioState: {
   securityGroupIds?: string[];
   /** 마지막 추천 스펙(검증용) */
   lastRecommendedSpec?: string;
+  /** 소프트웨어 소스 모델 이름 (SW 수집 → SW 추천 스텝이 참조) */
+  softwareSourceModelName?: string;
+  /** 소프트웨어 마이그레이션 워크플로우 이름 (실행 → 상태 확인 스텝이 참조) */
+  softwareWorkflowName?: string;
 } = {};
 
 export function resetScenarioState(): void {
