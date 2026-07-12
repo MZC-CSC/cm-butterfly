@@ -132,8 +132,9 @@ export interface ITargetMapping {
   source_connection_info_id: string;
   target: {
     namespace_id: string;
-    mci_id: string;
-    vm_id: string;
+    // cb-tumblebug 의 MCI→Infra 명명 변경이 cm-grasshopper 응답에도 반영됐다.
+    infra_id: string;
+    node_id: string;
   };
   status: string;
   software_migration_status_list: ISoftwareMigrationStatus[];

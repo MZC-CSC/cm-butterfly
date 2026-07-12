@@ -51,7 +51,7 @@ watch(
   () => {
     targetModel.value = configStore.getConfigByName(props.data);
     serverCode.value =
-      <string>targetModel.value?.onpremiseInfraModel.servers || '';
+      <string>targetModel.value?.onpremiseInfraModel?.nodes || '';
   },
   { immediate: true },
 );

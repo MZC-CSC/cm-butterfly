@@ -20,19 +20,19 @@ import {
   IUpdateLoadTestScenarioCatalogRequest,
 } from '@/entities/vm/model/types';
 
-const RUN_LOAD_TEST = 'Runloadtest';
-const STOP_LOAD_TEST = 'StopLoadTest';
-const GET_LOAD_TEST_INFO = 'GetLoadTestExecutionInfo';
-const GET_LAST_LOAD_TEST_CONFIG = 'Getlastloadtestexecutionstate';
-const GET_LOAD_TEST_EVALUATION_DATA = 'Getlastloadtestresult';
-const GET_LOAD_TEST_RESOURCE_METRIC = 'Getlastloadtestmetrics';
+const RUN_LOAD_TEST = 'cm-ant/Runloadtest';
+const STOP_LOAD_TEST = 'cm-ant/StopLoadTest';
+const GET_LOAD_TEST_INFO = 'cm-ant/GetLoadTestExecutionInfo';
+const GET_LAST_LOAD_TEST_CONFIG = 'cm-ant/Getlastloadtestexecutionstate';
+const GET_LOAD_TEST_EVALUATION_DATA = 'cm-ant/Getlastloadtestresult';
+const GET_LOAD_TEST_RESOURCE_METRIC = 'cm-ant/Getlastloadtestmetrics';
 
 // Load Test Scenario Catalog API endpoints
-const GET_ALL_LOAD_TEST_SCENARIO_CATALOGS = 'GetAllLoadTestScenarioCatalogs';
-const GET_LOAD_TEST_SCENARIO_CATALOG = 'GetLoadTestScenarioCatalog';
-const CREATE_LOAD_TEST_SCENARIO_CATALOG = 'CreateLoadTestScenarioCatalog';
-const UPDATE_LOAD_TEST_SCENARIO_CATALOG = 'UpdateLoadTestScenarioCatalog';
-const DELETE_LOAD_TEST_SCENARIO_CATALOG = 'DeleteLoadTestScenarioCatalog';
+const GET_ALL_LOAD_TEST_SCENARIO_CATALOGS = 'cm-ant/GetAllLoadTestScenarioCatalogs';
+const GET_LOAD_TEST_SCENARIO_CATALOG = 'cm-ant/GetLoadTestScenarioCatalog';
+const CREATE_LOAD_TEST_SCENARIO_CATALOG = 'cm-ant/CreateLoadTestScenarioCatalog';
+const UPDATE_LOAD_TEST_SCENARIO_CATALOG = 'cm-ant/UpdateLoadTestScenarioCatalog';
+const DELETE_LOAD_TEST_SCENARIO_CATALOG = 'cm-ant/DeleteLoadTestScenarioCatalog';
 
 export function useRunLoadTest(requestPayload: IRunLoadTestRequest | null) {
   const requestBodyWrapper: Required<

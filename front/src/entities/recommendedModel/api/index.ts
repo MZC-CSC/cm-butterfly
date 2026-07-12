@@ -10,9 +10,9 @@ import {
 } from '@/entities/recommendedModel/model/types';
 
 // tb-0.12.9 clean break: 구 'RecommendVMInfra'(POST /recommendation/mci) 제거 → 'RecommendVmInfraCandidates'(POST /recommendation/infra)로 통합 (cm-beetle BC-6)
-const GET_RECOMMEND_MODEL = 'RecommendVmInfraCandidates';
-const GET_RECOMMEND_CANDIDATES = 'RecommendVmInfraCandidates';
-const GET_RECOMMEND_COST = 'Updateandgetestimatecost';
+const GET_RECOMMEND_MODEL = 'cm-beetle/RecommendVmInfraCandidates';
+const GET_RECOMMEND_CANDIDATES = 'cm-beetle/RecommendVmInfraCandidates';
+const GET_RECOMMEND_COST = 'cm-ant/Updateandgetestimatecost';
 
 export function useGetRecommendModelListBySourceModel(
   sourceModelInfo: ISourceModelResponse['onpremiseInfraModel'] | null,

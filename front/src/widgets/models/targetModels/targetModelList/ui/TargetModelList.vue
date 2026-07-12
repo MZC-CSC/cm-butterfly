@@ -96,9 +96,12 @@ function addDeleteIconAtTable() {
 function getTableList() {
   isDataLoaded.value = false;
   resGetTargetModelList.execute().then(res => {
-    if (res.data.responseData) {
-      targetModelStore.setTargetModel(res.data.responseData);
-    }
+    // cm-damselfly returns 200 with a null body when there are no models, not an empty array.
+    // Guarding with `if (responseData)` therefore skipped the update and left the previous fetch's
+    // rows on screen — delete the last model and it stayed visible. Always write, coercing to [].
+    targetModelStore.setTargetModel(
+      Array.isArray(res.data.responseData) ? res.data.responseData : [],
+    );
     nextTick(() => {
       isDataLoaded.value = true;
       // 데이터 로드 후 컴포넌트 재렌더링

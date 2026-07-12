@@ -16,7 +16,11 @@ import {
   useGetRecommendModelListBySourceModel,
   useGetRecommendModelCandidates,
 } from '@/entities/recommendedModel/api';
-import { showErrorMessage } from '@/shared/utils';
+import {
+  showErrorMessage,
+  showInfoMessage,
+  toErrorMessage,
+} from '@/shared/utils';
 import { IRecommendModelResponse } from '@/entities/recommendedModel/model/types';
 import { useGetProviderList, useGetRegionList } from '@/entities/provider/api';
 import { useAuth } from '@/features/auth/model/useAuth.ts';
@@ -276,11 +280,19 @@ async function getRecommendModelList() {
       }
       
     } else {
-      showErrorMessage('error', 'No candidates found');
+      // No matching candidate is a normal outcome — it happens whenever the spec filter is narrow.
+      // Leave the table empty and just inform. A red error here makes a 200 OK look like a failure.
       recommendInfraModel.initToolBoxTableModel();
+      showInfoMessage(
+        'No candidates',
+        'No candidate matched these conditions. Try widening them and search again.',
+      );
     }
   } catch (err: any) {
-    showErrorMessage('error', err?.errorMsg || 'Failed to get recommendations');
+    showErrorMessage(
+      'Error',
+      toErrorMessage(err, 'Failed to get recommendations'),
+    );
     recommendInfraModel.initToolBoxTableModel();
   }
 }

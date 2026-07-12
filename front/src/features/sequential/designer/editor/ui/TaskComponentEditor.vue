@@ -797,33 +797,33 @@ export default defineComponent({
         let queryParamsData: any = {};
         let bodyParamsData: any = {};  // 실제 저장된 데이터
         
-        // ✨ 핵심 로직 변경: taskComponentData.body_params가 있으면 무조건 schema로 사용
-        if (taskComponentData && (taskComponentData as any).body_params) {
-          console.log('=== 📋 PATH B: Using taskComponentData.body_params as schema ===');
-          console.log('taskComponentData.body_params:', (taskComponentData as any).body_params);
-          
-          // Schema는 taskComponentData에서
-          bodyParamsSchemaSource = (taskComponentData as any).body_params;
-          
-          // path_params와 query_params는 schema이므로 properties에서 실제 필드 추출
+        // path/query 파라미터는 body 유무와 무관하게 처리한다.
+        // 예전에는 이 추출이 body_params 조건 안에 들어 있어서, body 없는 GET 컴포넌트
+        // (예: honeybee_task_get_infra_refined)의 path 입력란이 아예 그려지지 않았고,
+        // 값을 넣을 방법이 없어 저장 후 워크플로우 실행이 실패했다.
+        if (taskComponentData) {
           const pathParamsSchemaObj = (taskComponentData as any).path_params;
           const queryParamsSchemaObj = (taskComponentData as any).query_params;
-          
+
           pathParamsSchema.value = pathParamsSchemaObj || null;
           queryParamsSchema.value = queryParamsSchemaObj || null;
-          
-          // properties에서 실제 필드명을 추출하여 빈 데이터 객체 생성
+
           if (pathParamsSchemaObj?.properties) {
             Object.keys(pathParamsSchemaObj.properties).forEach(key => {
               pathParamsData[key] = '';
             });
           }
-          
+
           if (queryParamsSchemaObj?.properties) {
             Object.keys(queryParamsSchemaObj.properties).forEach(key => {
               queryParamsData[key] = '';
             });
           }
+        }
+
+        if (taskComponentData && (taskComponentData as any).body_params) {
+          // Schema는 taskComponentData에서
+          bodyParamsSchemaSource = (taskComponentData as any).body_params;
           
           // Data는 existingBodyParamsData에서 (originalData.request_body 또는 model.properties)
           if (hasExistingData) {

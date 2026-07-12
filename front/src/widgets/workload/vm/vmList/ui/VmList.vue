@@ -18,7 +18,9 @@ import {
 } from 'vue';
 import SuccessfullyLoadConfigModal from '@/features/workload/successfullyModal/ui/SuccessfullyLoadConfigModal.vue';
 import LoadConfig from '@/features/workload/actionLoadConfig/ui/LoadConfig.vue';
-import { showErrorMessage } from '@/shared/utils';
+import { showErrorMessage,
+  toErrorMessage,
+} from '@/shared/utils';
 import { IVm } from '@/entities/mci/model';
 import VmInformation from '@/widgets/workload/vm/vmInformation/ui/VmInformation.vue';
 import VmEvaluatePerf from '@/widgets/workload/vm/vmEvaluatePerf/ui/VmEvaluatePerf.vue';
@@ -215,9 +217,10 @@ watch(
   () => props.selectedVmId,
   newVmId => {
     if (newVmId && mciStore.getMciById(props.mciId)) {
+      // An infra with no nodes has no vm key at all — guard before indexing into it.
       const vm = mciStore
         .getMciById(props.mciId)
-        ?.vm.find(vm => vm.id === newVmId);
+        ?.vm?.find(vm => vm.id === newVmId);
       if (vm) {
         selectedVm.value = vm;
         // Update selectIndex to match the selected VM
@@ -259,7 +262,7 @@ async function getMciInfo() {
       }
     })
     .catch(e => {
-      showErrorMessage(e, e.errorMsg.value);
+      showErrorMessage('Error', toErrorMessage(e, 'Failed to load node information.'));
     });
 }
 
@@ -305,7 +308,7 @@ function setVmLoadTestResult() {
       }
     })
     .catch(e => {
-      showErrorMessage(e, e.errorMsg.value);
+      showErrorMessage('Error', toErrorMessage(e, 'Failed to load node information.'));
     });
 }
 
