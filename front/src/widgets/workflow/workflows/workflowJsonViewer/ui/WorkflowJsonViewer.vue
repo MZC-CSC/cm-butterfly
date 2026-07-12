@@ -196,6 +196,7 @@ function encodeTaskGroups(taskGroups: any[]) {
           :navigation-bar="true"
           :status-bar="false"
           height="600px"
+          file-name="workflow"
           @update:modelValue="handleModelUpdate"
         />
       </div>

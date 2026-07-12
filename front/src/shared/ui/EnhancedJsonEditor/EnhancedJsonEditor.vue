@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import {
   JSONEditor,
   Mode,
@@ -24,6 +24,14 @@ interface Props {
   statusBar?: boolean;
   /** Editor height */
   height?: string;
+  /** Show Import button (always hidden when readOnly) */
+  allowImport?: boolean;
+  /** Show Export button (available even when readOnly) */
+  allowExport?: boolean;
+  /** Prefix of the exported file name: {fileName}-{yyyyMMdd-HHmmss}.json */
+  fileName?: string;
+  /** Maximum size of an imported file, in bytes */
+  maxImportSize?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -34,6 +42,10 @@ const props = withDefaults(defineProps<Props>(), {
   navigationBar: true,
   statusBar: true,
   height: '100%',
+  allowImport: true,
+  allowExport: true,
+  fileName: 'json-data',
+  maxImportSize: 10 * 1024 * 1024,
 });
 
 const emit = defineEmits<{
@@ -41,9 +53,12 @@ const emit = defineEmits<{
   (e: 'update:mode', value: string): void;
   (e: 'change', value: { content: Content; previousContent: Content; changeStatus: OnChangeStatus }): void;
   (e: 'error', value: Error): void;
+  (e: 'import', value: { fileName: string; json: unknown }): void;
+  (e: 'export', value: { fileName: string }): void;
 }>();
 
 const editorRef = ref<HTMLElement | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
 let editorInstance: JSONEditor | null = null;
 const currentMode = ref<Mode>(props.mode as Mode);
 const showPropertyGrid = ref(props.mode === 'table');
@@ -84,6 +99,123 @@ function contentToString(content: Content): string {
   }
   console.log('[EnhancedJsonEditor] contentToString fallback, returning "{}"');
   return '{}';  // 기본값을 빈 문자열 대신 '{}'로
+}
+
+/* ── Import / Export ───────────────────────────────────────── */
+
+// Import은 편집 가능한 에디터에서만 (readOnly면 버튼 자체를 노출하지 않는다)
+const showImport = computed(() => props.allowImport && !props.readOnly);
+const showExport = computed(() => props.allowExport);
+const showToolbar = computed(() => showImport.value || showExport.value);
+
+function setError(message: string) {
+  hasError.value = true;
+  errorMessage.value = message;
+  emit('error', new Error(message));
+}
+
+// 현재 에디터에 표시 중인 내용을 JSON으로 얻는다 (편집 중 미저장분 포함)
+// text 모드에서는 JSON이 깨져 있을 수 있어 파싱에 실패하면 null을 돌려준다.
+function getCurrentJson(): unknown | null {
+  const content: Content = editorInstance
+    ? editorInstance.get()
+    : toContent(props.modelValue);
+
+  if ('json' in content && content.json !== undefined) {
+    return content.json;
+  }
+  if ('text' in content && content.text !== undefined) {
+    const trimmed = content.text.trim();
+    if (!trimmed) return {};
+    return JSON.parse(trimmed);
+  }
+  return null;
+}
+
+function timestamp(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
+    `-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+  );
+}
+
+function handleExport() {
+  let json: unknown | null;
+  try {
+    json = getCurrentJson();
+  } catch (err) {
+    setError(`내보내기 실패: JSON 형식이 올바르지 않습니다 (${(err as Error).message})`);
+    return;
+  }
+  if (json === null) {
+    setError('내보내기 실패: 내보낼 JSON 내용이 없습니다');
+    return;
+  }
+
+  const outName = `${props.fileName}-${timestamp()}.json`;
+  const blob = new Blob([JSON.stringify(json, null, 2)], {
+    type: 'application/json',
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = outName;
+  anchor.click();
+  URL.revokeObjectURL(url);
+
+  hasError.value = false;
+  errorMessage.value = '';
+  emit('export', { fileName: outName });
+}
+
+function triggerImport() {
+  fileInputRef.value?.click();
+}
+
+// 파일 내용을 에디터에 반영한다. 파싱에 실패하면 기존 내용을 그대로 둔다.
+function applyImportedText(text: string, sourceName: string) {
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch (err) {
+    setError(`가져오기 실패: JSON 파싱 오류 (${(err as Error).message})`);
+    return;
+  }
+
+  hasError.value = false;
+  errorMessage.value = '';
+
+  if (editorInstance) {
+    editorInstance.update({ json } as Content);
+  }
+  emit('update:modelValue', JSON.stringify(json, null, 2));
+  emit('import', { fileName: sourceName, json });
+}
+
+function handleFileSelected(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+
+  if (file.size > props.maxImportSize) {
+    const limitMb = Math.round(props.maxImportSize / (1024 * 1024));
+    setError(`가져오기 실패: 파일이 너무 큽니다 (최대 ${limitMb}MB)`);
+    input.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    applyImportedText(String(reader.result ?? ''), file.name);
+    input.value = ''; // 같은 파일을 다시 선택할 수 있도록 비운다
+  };
+  reader.onerror = () => {
+    setError('가져오기 실패: 파일을 읽을 수 없습니다');
+    input.value = '';
+  };
+  reader.readAsText(file);
 }
 
 function initEditor() {
@@ -228,6 +360,8 @@ function switchToEditor() {
 // Expose methods for parent component
 defineExpose({
   getEditor: () => editorInstance,
+  exportJson: handleExport,
+  importJson: (text: string) => applyImportedText(text, `${props.fileName}.json`),
   refresh: () => {
     if (!editorInstance) return;
     editorInstance.update(toContent(props.modelValue));
@@ -295,6 +429,35 @@ defineExpose({
 
 <template>
   <div class="enhanced-json-editor" :style="{ height }">
+    <!-- File toolbar - kept outside the vanilla editor so it stays visible in Property Grid mode too -->
+    <div v-if="showToolbar" class="file-toolbar">
+      <button
+        v-if="showImport"
+        type="button"
+        class="file-btn"
+        title="JSON 파일 가져오기"
+        @click="triggerImport"
+      >
+        ↑ Import
+      </button>
+      <button
+        v-if="showExport"
+        type="button"
+        class="file-btn"
+        title="JSON 파일로 내보내기"
+        @click="handleExport"
+      >
+        ↓ Export
+      </button>
+      <input
+        ref="fileInputRef"
+        type="file"
+        accept="application/json,.json"
+        class="file-input"
+        @change="handleFileSelected"
+      />
+    </div>
+
     <!-- Property Grid view (replaces vanilla-jsoneditor table mode) -->
     <div v-if="showPropertyGrid" class="property-grid-wrapper">
       <div class="pg-header">
@@ -313,8 +476,8 @@ defineExpose({
     <!-- vanilla-jsoneditor (tree / text modes) -->
     <div v-show="!showPropertyGrid" ref="editorRef" class="editor-container" />
 
-    <!-- Error indicator -->
-    <div v-if="hasError && !showPropertyGrid" class="error-bar">
+    <!-- Error indicator - also carries Import/Export failures, so it must show in Property Grid mode as well -->
+    <div v-if="hasError" class="error-bar">
       {{ errorMessage }}
     </div>
   </div>
@@ -328,6 +491,35 @@ defineExpose({
   border-radius: 6px;
   overflow: hidden;
   background-color: #ffffff;
+}
+
+.file-toolbar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 10px;
+  background: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.file-btn {
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #4f46e5;
+  background: #ffffff;
+  border: 1px solid #c7d2fe;
+  border-radius: 3px;
+  cursor: pointer;
+
+  &:hover {
+    background: #eef2ff;
+  }
+}
+
+.file-input {
+  display: none;
 }
 
 .editor-container {

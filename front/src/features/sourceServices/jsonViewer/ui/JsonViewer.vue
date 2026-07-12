@@ -132,6 +132,7 @@ function handleModelUpdate(value: string) {
           :navigation-bar="true"
           :status-bar="false"
           height="600px"
+          file-name="source-metadata"
         />
       </div>
     </p-pane-layout>
@@ -164,6 +165,7 @@ function handleModelUpdate(value: string) {
           :navigation-bar="true"
           :status-bar="false"
           height="600px"
+          file-name="source-model"
           @update:modelValue="handleModelUpdate"
         />
       </div>

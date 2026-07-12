@@ -208,6 +208,7 @@ function handleCodeUpdate(value: string) {
             :navigation-bar="true"
             :status-bar="true"
             height="600px"
+            file-name="target-model"
             @update:model-value="handleCodeUpdate"
           />
         </div>
