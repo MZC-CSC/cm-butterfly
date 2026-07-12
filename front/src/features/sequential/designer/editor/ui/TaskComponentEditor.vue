@@ -1,5 +1,5 @@
 <template>
-  <div class="task-component-editor">
+  <div class="task-component-editor" data-testid="wf-task-editor">
     <!-- Task Configuration Section -->
     <div class="task-configuration-section">
       <div class="section-header">
@@ -33,6 +33,7 @@
             </label>
             <input 
               :id="`path-${key}`"
+              :data-testid="`wf-path-param-${key}`"
               type="text" 
               :value="value"
               @input="handlePathParamInput(key, $event)"
@@ -52,6 +53,7 @@
             </label>
             <input 
               :id="`query-${key}`"
+              :data-testid="`wf-query-param-${key}`"
               type="text" 
               :value="value"
               @input="handleQueryParamInput(key, $event)"
@@ -80,6 +82,7 @@
                 :parent-required="bodyParamsSchema.required || []"
                 :task-name="getCurrentTaskComponentName()"
                 :current-path="`body_params.${propName}`"
+                :index-path="`body_params.${propName}`"
                 @update="updateBodyParamField(String(propName), $event)"
                 :depth="0"
               />

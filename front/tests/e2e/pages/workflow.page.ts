@@ -185,6 +185,86 @@ export class WorkflowPage {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // 2-1) 워크플로우 툴 — 태스크 파라미터 편집
+  //
+  // 디자이너에서 태스크를 고르면 오른쪽에 편집 패널이 열리고, 거기서 그 태스크가 호출할 API의
+  // path/query 파라미터와 body를 수정할 수 있다. 마이그레이션 태스크라면 *생성될 인프라 이름*,
+  // 네임스페이스, CSP·리전 같은 값이 여기 있다.
+  //
+  // 기본값으로만 돌리면 이 화면이 실제로 동작하는지 알 수 없다. 값을 바꿔 저장하고, 바꾼 대로
+  // 만들어지는지까지 봐야 워크플로우 툴을 검증한 것이다.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * 디자이너 캔버스에서 태스크를 선택해 편집 패널을 연다.
+   *
+   * 캔버스는 sequential-workflow-designer 가 SVG 로 그린다. 라이브러리가 만든 요소라 우리가 testid 를
+   * 붙일 수 없지만, 스텝마다 `sqd-type-{태스크 컴포넌트 이름}` 클래스를 달아 준다. 그 이름은 화면 문구가
+   * 아니라 *우리 데이터*(task_component)라서 화면이 바뀌어도 흔들리지 않는다. 그걸로 지목한다.
+   */
+  async selectTaskInDesigner(taskComponentName: string): Promise<void> {
+    await expect(this.designer).toBeVisible({ timeout: 20_000 });
+    await this.designer
+      .locator(`.sqd-step-task.sqd-type-${taskComponentName}`)
+      .first()
+      .click();
+    await expect(this.taskEditor).toBeVisible({ timeout: 15_000 });
+  }
+
+  /** 태스크 편집 패널 */
+  private get taskEditor(): Locator {
+    return this.page.getByTestId('wf-task-editor');
+  }
+
+  /** path 파라미터 입력칸 (예: nsId) */
+  private pathParam(key: string): Locator {
+    return this.page.getByTestId(`wf-path-param-${key}`);
+  }
+
+  /** query 파라미터 입력칸 (예: nameSeed) */
+  private queryParam(key: string): Locator {
+    return this.page.getByTestId(`wf-query-param-${key}`);
+  }
+
+  /**
+   * body 파라미터 입력칸. 스키마 경로로 지목한다 — 예: `targetInfra.name`, `targetCloud.csp`.
+   * (testid 는 `wf-field-body_params.{경로}` 형태로 부여돼 있다.)
+   */
+  private bodyField(path: string): Locator {
+    return this.page.getByTestId(`wf-field-body_params.${path}`);
+  }
+
+  /** 편집 패널의 현재 값을 읽는다 — 기본값 시나리오에서 "무엇이 기본값인지" 확인용 */
+  async readTaskParam(kind: 'path' | 'query' | 'body', key: string): Promise<string> {
+    const field =
+      kind === 'path'
+        ? this.pathParam(key)
+        : kind === 'query'
+          ? this.queryParam(key)
+          : this.bodyField(key);
+    await expect(field).toBeVisible({ timeout: 15_000 });
+    return field.inputValue();
+  }
+
+  /** 편집 패널의 값을 바꾼다 */
+  async setTaskParam(
+    kind: 'path' | 'query' | 'body',
+    key: string,
+    value: string,
+  ): Promise<void> {
+    const field =
+      kind === 'path'
+        ? this.pathParam(key)
+        : kind === 'query'
+          ? this.queryParam(key)
+          : this.bodyField(key);
+    await expect(field).toBeVisible({ timeout: 15_000 });
+    await field.fill(value);
+    // 입력이 모델에 반영될 시간을 준다(입력 이벤트 → 상위 상태 갱신).
+    await this.page.waitForTimeout(500);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // 3) 워크플로우 실행(run) + 상태 폴링 (History)
   // ─────────────────────────────────────────────────────────────────────────
 
