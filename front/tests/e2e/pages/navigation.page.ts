@@ -69,7 +69,11 @@ export class NavigationPage {
   async expectCategoryLoaded(name: string): Promise<void> {
     const target = this.resolve(name);
     await expect(this.page).toHaveURL(target.urlPattern, { timeout: 15_000 });
-    // 404 라우트로 튕기지 않았는지 확인(라우팅 실패 시 NotFound)
-    await expect(this.page.getByText(/not\s*found|404/i)).toHaveCount(0);
+    // 404 라우트로 튕기지 않았는지 확인 — NotFound 컴포넌트 자체를 본다.
+    //
+    // 예전엔 본문 전체 텍스트를 /not found|404/로 훑었는데, 목록에 찍힌 UUID가 그 패턴에 걸렸다
+    // (예: 1e7ff6d3-ea66-4044-... 의 "404", a8904046355e 의 "404"). 화면은 멀쩡한데 데이터가 있다는
+    // 이유만으로 실패하던 오탐이라, 라우팅 실패를 판정하는 유일한 근거인 NotFound 화면으로 좁힌다.
+    await expect(this.page.getByTestId('not-found-page')).toHaveCount(0);
   }
 }

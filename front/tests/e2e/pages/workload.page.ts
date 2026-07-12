@@ -172,11 +172,17 @@ export class WorkloadPage {
       .or(this.deleteModal.getByRole('button', { name: /confirm|delete|삭제/i }));
   }
 
-  /** 액션 드롭다운 → Delete 로 삭제 모달 열기 */
+  /**
+   * 액션 드롭다운 → Delete 로 삭제 모달 열기.
+   *
+   * 모달이 열렸는지는 *실제로 보이는 요소*(확인 키워드 입력칸)로 판정한다.
+   * `mci-delete-modal` testid는 PButtonModal 래퍼에 달려 있어 가시 요소로 잡히지 않는다
+   * (load-config 모달·모델 저장 폼에서 이미 겪은 함정이라 같은 방식으로 처리한다).
+   */
   async openDeleteModal(): Promise<void> {
     await this.actionDropdown.click();
     await this.deleteMenuItem.click();
-    await expect(this.deleteModal).toBeVisible();
+    await expect(this.deleteConfirmInput.first()).toBeVisible({ timeout: 15_000 });
   }
 
   /**
@@ -192,9 +198,10 @@ export class WorkloadPage {
         .getByTestId('mci-delete-method-force');
       await forceRadio.click();
     }
-    await this.deleteConfirmInput.fill(infraName);
-    await this.deleteConfirmButton.click();
-    await expect(this.deleteModal).toBeHidden({ timeout: 30_000 });
+    await this.deleteConfirmInput.first().fill(infraName);
+    await this.deleteConfirmButton.first().click();
+    // 닫힘도 보이는 요소로 판정한다(래퍼 testid는 가시 요소가 아니다).
+    await expect(this.deleteConfirmInput.first()).toBeHidden({ timeout: 60_000 });
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -368,8 +375,8 @@ export class WorkloadPage {
       .locator('input[data-testid="scenario-template-name"], textarea[data-testid="scenario-template-name"]')
       .or(m.getByPlaceholder(/template name|name/i).first())
       .fill(name);
-    await m
-      .getByTestId('scenario-template-save');
+    // 예전엔 여기서 locator만 만들고 끝나서(.click() 없음) 저장이 실제로 일어나지 않았다.
+    await m.getByTestId('scenario-template-save').click();
   }
 
   /** 목록 탭에서 특정 템플릿이 보이는지 확인 */
@@ -384,8 +391,15 @@ export class WorkloadPage {
   // ─────────────────────────────────────────────────────────────
 
   /**
-   * 워크로드 목록에서 마이그레이션으로 생성된 인프라(및 노드)가 실재하는지 확인.
-   * 목록에서 인프라를 찾고, 선택 → 서버 탭에서 노드까지 확인한다.
+   * 마이그레이션으로 만들어진 인프라의 노드가 *실제로 떠 있는지* 확인한다.
+   *
+   * ★ 행이 보이는 것만으로는 부족하다.
+   *   cm-beetle은 타깃 인프라 이름을 늘 `infra101`로 만든다. 그래서 앞선 실행이 남긴 인프라가 그대로 있으면,
+   *   이번 실행이 아무것도 만들지 못했어도 같은 이름의 행이 보인다. 실제로 노드가 죽어 있는(Terminated)
+   *   인프라를 보고 "EC2가 정상 생성됐다"고 통과하던 적이 있다 — 전형적인 거짓 통과다.
+   *
+   *   그래서 상태 열이 *Running* 인지까지 본다. 목록의 Status는 "Running:1 (R:1/1)" 처럼 표시되고,
+   *   죽어 있으면 "Terminated:1 (R:0/1)" 이 된다.
    */
   async expectInstanceCreated(
     infraName: string,
@@ -394,11 +408,45 @@ export class WorkloadPage {
     await this.gotoMci();
     await this.expectMciListLoaded();
     await this.expectMciVisible(infraName);
+
+    // 프로비저닝은 시간이 걸린다 — Running이 될 때까지 새로고침하며 기다린다.
+    const deadline = Date.now() + 15 * 60_000;
+    for (;;) {
+      const text = (await this.mciRow(infraName).innerText().catch(() => '')) || '';
+      if (/Running:\s*[1-9]/.test(text)) break;
+      expect(
+        Date.now() < deadline,
+        `"${infraName}" 인프라의 노드가 Running 상태가 되지 않았다. 현재 상태: ${text.replace(/\s+/g, ' ').trim()}`,
+      ).toBeTruthy();
+      await this.page.waitForTimeout(15_000);
+      await this.page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+      await this.expectMciListLoaded().catch(() => {});
+    }
+
     if (nodeName) {
       await this.selectMci(infraName);
       await this.openServerTab();
       await this.expectNodeVisible(nodeName);
     }
+  }
+
+  /**
+   * 앞선 실행이 남긴 같은 이름의 인프라를 지운다.
+   *
+   * cm-beetle이 타깃 이름을 늘 `infra101`로 만들기 때문에, 죽은 인프라가 남아 있으면 이번 실행의 결과와
+   * 구분되지 않는다(위의 거짓 통과가 그래서 생겼다). 시나리오 시작 전에 깨끗이 치우고 들어간다.
+   */
+  async removeStaleInfra(infraName: string): Promise<void> {
+    await this.gotoMci();
+    await this.expectMciListLoaded();
+    if (!(await this.mciRow(infraName).isVisible({ timeout: 5_000 }).catch(() => false))) {
+      return; // 남은 게 없다 — 그대로 진행
+    }
+    console.log(`[scenario] 앞선 실행이 남긴 "${infraName}" 인프라를 정리하고 시작한다.`);
+    await this.selectMci(infraName);
+    await this.openDeleteModal();
+    await this.confirmDelete(infraName, 'force');
+    await expect(this.mciRow(infraName)).toHaveCount(0, { timeout: 5 * 60_000 });
   }
 
   /**

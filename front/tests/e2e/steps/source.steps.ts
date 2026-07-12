@@ -3,8 +3,17 @@ import { test } from '../support/fixtures';
 import { SourceServicesPage, Connection } from '../pages/sourceServices.page';
 import { sourceServer } from '../fixtures/test-data';
 import { uniqueName } from '../support/naming';
+import { scenarioState } from '../support/world';
 
 const { Given, When, Then } = createBdd(test);
+
+/**
+ * 지금 다루고 있는 소스그룹 이름.
+ * 등록 스텝이 기억해 둔 값을 쓰고, 없으면(등록 없이 수집만 하는 경우) fixtures 기본값으로 되돌아간다.
+ */
+function currentSourceGroup(): string {
+  return scenarioState.sourceGroupName ?? uniqueName(sourceServer.name);
+}
 
 /**
  * 소스 서비스(소스 컴퓨팅, cm-honeybee) 도메인 스텝.
@@ -39,6 +48,9 @@ Given('소스 서비스에 {string} 소스서버를 등록한다', async ({ page
   const source = new SourceServicesPage(page);
   await source.goto();
   await source.createSourceGroupWithConnection(uniqueName(name), connectionFromFixture(name));
+  // 뒤따르는 수집·저장 스텝이 *방금 등록한 그룹*을 대상으로 삼도록 기억해 둔다.
+  // (예전엔 fixtures의 sourceServer.name을 그대로 박아 써서, 다른 이름으로 등록해도 엉뚱한 그룹을 집었다.)
+  scenarioState.sourceGroupName = uniqueName(name);
 });
 
 /**
@@ -48,7 +60,7 @@ Given('소스 서비스에 {string} 소스서버를 등록한다', async ({ page
  */
 Given('소스 인프라를 수집한다', async ({ page }) => {
   const source = new SourceServicesPage(page);
-  await source.selectGroup(uniqueName(sourceServer.name));
+  await source.selectGroup(currentSourceGroup());
   await source.collectInfra();
   await source.expectInfraCollected();
 });
@@ -60,7 +72,10 @@ Given('소스 인프라를 수집한다', async ({ page }) => {
  */
 Given('수집된 정보를 소스 모델로 저장한다', async ({ page }) => {
   const source = new SourceServicesPage(page);
-  await source.saveCollectedInfraAsSourceModel(uniqueName(sourceServer.name));
+  // 소스 모델 이름은 소스그룹 이름과 같게 둔다 — 이후 추천 단계가 그 이름으로 모델을 찾는다.
+  const modelName = currentSourceGroup();
+  await source.saveCollectedInfraAsSourceModel(modelName);
+  scenarioState.sourceModelName = modelName;
 });
 
 // ───────────────────────── 유닛 스텝 ─────────────────────────
@@ -104,12 +119,13 @@ When('인프라 수집을 실행하면', async ({ page }) => {
 
 /** "그러면 소스그룹 목록에 \"e2e-src\" 이\\(가\\) 보인다" */
 Then('소스그룹 목록에 {string} 이\\(가\\) 보인다', async ({ page }, name: string) => {
-  await new SourceServicesPage(page).expectGroupListed(name);
+  // 생성은 uniqueName으로 하는데 확인은 원래 이름으로 하고 있었다 — 같은 이름으로 맞춘다.
+  await new SourceServicesPage(page).expectGroupListed(uniqueName(name));
 });
 
 /** "그러면 연결정보 목록에 \"e2e-conn\" 이\\(가\\) 보인다" */
 Then('연결정보 목록에 {string} 이\\(가\\) 보인다', async ({ page }, connName: string) => {
-  await new SourceServicesPage(page).expectConnectionListed(connName);
+  await new SourceServicesPage(page).expectConnectionListed(uniqueName(connName));
 });
 
 /** "그러면 인프라 수집 결과가 조회된다" (정제 결과 링크 노출) */

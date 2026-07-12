@@ -97,19 +97,24 @@ Then('워크플로우 JSON 뷰어가 표시된다', async ({ page }) => {
 // ⚠️ @unit 실행은 반드시 요금 안전(예제 bash 등, 인프라 미프로비저닝) 워크플로우로만.
 
 When('{string} 워크플로우를 실행하면', async ({ page }, name: string) => {
+  // 실행 → DAG run 트리거 → 상태 전이(queued→running→success)까지 기다린다. 기본 90초로는 모자라다.
+  test.setTimeout(10 * 60_000);
+
   const wf = new WorkflowPage(page);
   await wf.gotoWorkflows();
-  await wf.runWorkflow(name);
+  // 시드가 워크플로우를 만들고 *DAG 등록까지 확인*해 두므로, 여기서는 목록에서 한 번 실행하면 된다.
+  await wf.runWorkflow(uniqueName(name));
 });
 
 Then('워크플로우 실행 이력이 생성된다', async ({ page }) => {
   const wf = new WorkflowPage(page);
-  await wf.selectWorkflow(workflowData.safeRunWorkflowName).catch(() => {});
+  await wf.selectWorkflow(uniqueName(workflowData.safeRunWorkflowName)).catch(() => {});
   await wf.openHistoryTab();
   await wf.expectRunHistoryPresent();
 });
 
 Then('워크플로우 실행이 정상 완료된다', async ({ page }) => {
+  test.setTimeout(12 * 60_000);
   const wf = new WorkflowPage(page);
   await wf.openHistoryTab().catch(() => {});
   const state = await wf.pollLatestRunState();
@@ -142,13 +147,15 @@ When('마이그레이션 워크플로우를 생성하고 실행하면', async ({
   // 자동 구성하므로 템플릿을 수동 선택하지 않는다(수동 선택은 자동 구성을 방해해 저장 실패).
   await wf.saveWorkflow();
 
-  // cm-cicada는 생성 시 DAG YAML을 디스크에 기록만 하고, airflow가 이를 파싱해 등록하는 데
-  // ~5~15초(실측 ~11s, min_file_process_interval=5s)가 걸린다. 이 지연 창 안에 run을 쏘면
-  // "provided dag_id is not exist"로 거부되므로, run 전에 DAG 등록 시간을 준다.
-  // (다중 run=다중 EC2 프로비저닝을 피하려고 재시도가 아닌 단일 대기를 쓴다.)
+  // cm-cicada는 생성 시 DAG YAML을 디스크에 기록만 하고, airflow가 이를 파싱해 등록한다.
+  // 등록 전에 run을 쏘면 "provided dag_id is not exist"로 거부된다. DAG가 늘수록 파싱이 느려져
+  // 실측 1분 안팎까지 걸리므로(예전 20초 대기로는 모자랐다) 넉넉히 기다린 뒤 *한 번만* 실행한다.
+  //
+  // ⚠️ 여기서는 재시도하지 않는다 — 마이그레이션 워크플로우는 실행할 때마다 EC2를 만든다.
+  //    거부되면 실행 자체가 안 된 것이라 자원 낭비는 없고, 아래 이력 확인에서 실패로 드러난다.
   await wf.gotoWorkflows();
   await wf.expectWorkflowVisible(name);
-  await new Promise(r => setTimeout(r, 20_000));
+  await new Promise(r => setTimeout(r, 120_000));
 
   // 2) 목록에서 생성된 워크플로우 실행(run)
   await wf.runWorkflow(name);
@@ -186,8 +193,12 @@ Then('콘솔이 구 스키마 요청을 보내지 않는다', async () => {
  * 실제 사용 흐름과 동일하게 태운다.
  */
 Given('run_script 스크립트가 담긴 {string} 워크플로우가 있다', async ({ page }, name: string) => {
+  // cm-cicada는 워크플로우 이름에 UNIQUE 제약이 있다. 고정 이름으로 만들면 두 번째 실행부터
+  // "UNIQUE constraint failed: workflows.name"으로 준비 단계가 항상 깨진다.
+  // 런별 접미사를 붙여 매번 새로 만든다(같은 런 안에서는 uniqueName이 같은 값을 주므로
+  // 뒤따르는 뷰어 열기 스텝이 같은 이름으로 찾아간다).
   const body = {
-    name,
+    name: uniqueName(name),
     description: 'e2e — cm-cicada run_script decode check',
     data: {
       task_groups: [
@@ -225,7 +236,7 @@ Given('run_script 스크립트가 담긴 {string} 워크플로우가 있다', as
   });
   expect(token, '로그인 세션에서 access token을 찾지 못했다').not.toEqual('');
 
-  const res = await page.request.post('/api/create-workflow', {
+  const res = await page.request.post('/api/cm-cicada/create-workflow', {
     data: { request: body },
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
   });
@@ -235,7 +246,8 @@ Given('run_script 스크립트가 담긴 {string} 워크플로우가 있다', as
 When('{string} 워크플로우의 JSON 뷰어를 연다', async ({ page }, name: string) => {
   const wf = new WorkflowPage(page);
   await wf.gotoWorkflows();
-  await wf.openJsonViewer(name);
+  // 준비 스텝이 uniqueName으로 만들었으니 같은 이름으로 찾는다.
+  await wf.openJsonViewer(uniqueName(name));
 });
 
 Then('JSON 뷰어에 스크립트가 디코드되어 보인다', async ({ page }) => {

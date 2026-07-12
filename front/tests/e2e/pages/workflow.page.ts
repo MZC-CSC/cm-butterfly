@@ -1,4 +1,5 @@
 import { Page, expect, Locator } from '@playwright/test';
+import { TablePagination } from '../support/pagination';
 import { workflowData } from '../fixtures/test-data';
 
 /**
@@ -40,24 +41,51 @@ export class WorkflowPage {
    * 같은 testid를 여러 화면이 공유하면 어느 테이블을 가리키는지 모호해지고,
    * 화면이 바뀔 때 엉뚱한 곳을 잡는다. (BAR-880 — 셀렉터 안정화)
    */
-  private tableTestId = 'workflow-list-table';
-
-  private get table(): Locator {
-    return this.page.getByTestId(this.tableTestId);
+  // 화면마다 테이블 testid 가 다르다. 스텝마다 Page Object 를 새로 만들기 때문에
+  // "현재 화면"을 인스턴스 상태로 들고 있으면 안 된다 — 각 메서드가 자기 테이블을 직접 가리킨다.
+  private table(testId: string): Locator {
+    return this.page.getByTestId(testId);
   }
 
-  /** 현재 화면의 테이블을 지정한다 */
-  private useTable(testId: string): void {
-    this.tableTestId = testId;
+  private get workflowTable(): Locator {
+    return this.table('workflow-list-table');
+  }
+
+  private get templateTable(): Locator {
+    return this.table('workflow-template-list-table');
+  }
+
+  private get taskComponentTable(): Locator {
+    return this.table('taskcomponent-list-table');
   }
 
   /** 테이블 데이터 행 (헤더 제외) */
+  private rowsOf(table: Locator): Locator {
+    return table.locator('tbody tr');
+  }
+
+  private rowByTextIn(table: Locator, text: string): Locator {
+    return this.rowsOf(table).filter({ hasText: text }).first();
+  }
+
+  /**
+   * 목록에서 워크플로우 행을 실제로 노출시킨다.
+   *
+   * 워크플로우 목록도 15행씩 끊긴다. 시드가 방금 만든 워크플로우는 1페이지에 없을 수 있어서,
+   * Run 버튼을 못 찾고 클릭 타임아웃으로 죽었다. 페이지를 넘겨 가며 찾고 몇 페이지인지도 남긴다.
+   */
+  private async revealWorkflow(name: string): Promise<number> {
+    const pager = new TablePagination(this.page, this.workflowTable);
+    return pager.expectRowSomewhere(this.rowByText(name), name);
+  }
+
+  /** 기본(워크플로우 목록) 테이블 — 하위 호환 헬퍼 */
   private get rows(): Locator {
-    return this.table.locator('tbody tr');
+    return this.rowsOf(this.workflowTable);
   }
 
   private rowByText(text: string): Locator {
-    return this.rows.filter({ hasText: text }).first();
+    return this.rowByTextIn(this.workflowTable, text);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -65,7 +93,6 @@ export class WorkflowPage {
   // ─────────────────────────────────────────────────────────────────────────
 
   async gotoWorkflows(): Promise<void> {
-    this.useTable('workflow-list-table');
     await this.page.goto(WorkflowPage.workflowsPath);
     await this.expectWorkflowsLoaded();
   }
@@ -73,8 +100,7 @@ export class WorkflowPage {
   /** 목록 화면 로드 확인 — 헤더 "Workflows" + 테이블 노출 */
   async expectWorkflowsLoaded(): Promise<void> {
     await expect(this.page.getByTestId('workflow-page-header')).toBeVisible({ timeout: 15_000 });
-    // 로딩 스피너가 끝나고 테이블이 나타날 때까지 대기
-    await expect(this.table).toBeVisible({ timeout: 15_000 });
+    await expect(this.workflowTable).toBeVisible({ timeout: 15_000 });
   }
 
   /** 조회된 워크플로우 개수(행 수) */
@@ -83,11 +109,13 @@ export class WorkflowPage {
   }
 
   async expectWorkflowVisible(name: string): Promise<void> {
+    await this.revealWorkflow(name);
     await expect(this.rowByText(name)).toBeVisible({ timeout: 15_000 });
   }
 
   /** 행 선택 → 상세(Details/History 탭) 노출 */
   async selectWorkflow(name: string): Promise<void> {
+    await this.revealWorkflow(name);
     await this.rowByText(name).click();
     await expect(
       this.page.getByText('Workflow Information', { exact: false }).first(),
@@ -165,11 +193,46 @@ export class WorkflowPage {
    * (WorkflowList의 col-run-format 슬롯 = style-type=tertiary "Run" 버튼)
    */
   async runWorkflow(name?: string): Promise<void> {
-    const runBtn = name
-      ? this.rowByText(name).getByRole('button', { name: /^Run$/ })
-      : this.page
-          .getByTestId('workflow-run-btn');
-    await runBtn.click();
+    if (!name) {
+      await this.page.getByTestId('workflow-run-btn').click();
+      return;
+    }
+    await this.revealWorkflow(name);
+    // 행 안의 Run 버튼은 testid로 잡는다(문구가 바뀌어도 안 깨지도록).
+    await this.rowByText(name).getByTestId('workflow-run-btn').click();
+  }
+
+
+  /**
+   * 요금 안전 워크플로우를 실행하고, 실행 이력이 실제로 잡힐 때까지 재시도한다.
+   *
+   * cm-cicada는 워크플로우를 만들 때 DAG YAML을 디스크에 쓰고, airflow가 그걸 주기적으로 파싱해 등록한다.
+   * 등록 전(대략 1분 안쪽)에 run을 쏘면 "provided dag_id is not exist"로 거부된다 — 방금 만든 워크플로우를
+   * 곧바로 실행하는 흐름이라 정확히 그 창에 걸린다. 그래서 이력이 잡힐 때까지 몇 번 더 눌러 본다.
+   *
+   * ⚠️ 요금 안전 워크플로우 전용이다. 마이그레이션 워크플로우에 쓰면 누를 때마다 EC2가 늘어난다.
+   */
+  async runWorkflowUntilHistoryAppears(name: string, attempts = 6): Promise<void> {
+    for (let i = 1; i <= attempts; i++) {
+      await this.gotoWorkflows();
+      await this.runWorkflow(name);
+
+      await this.selectWorkflow(name);
+      await this.openHistoryTab();
+      const started = await this.page
+        .getByTestId('workflow-run-state')
+        .first()
+        .isVisible({ timeout: 30_000 })
+        .catch(() => false);
+      if (started) return;
+
+      // 아직 DAG가 등록되지 않았다 — 조금 기다렸다 다시 시도한다.
+      await this.page.waitForTimeout(30_000);
+    }
+    throw new Error(
+      `"${name}" 워크플로우를 ${attempts}번 실행했지만 실행 이력이 잡히지 않았다. ` +
+        'airflow가 DAG를 등록하지 못했을 수 있다(dag_id is not exist / DagBag import 오류 확인).',
+    );
   }
 
   /** Details/History 탭 전환 — mirinae PTab는 ARIA role(tab)로 단일 선택(text fallback은 span과 중복 매칭) */
@@ -182,8 +245,12 @@ export class WorkflowPage {
 
   /** History 탭에 최소 1건의 실행 이력이 나타날 때까지 대기 */
   async expectRunHistoryPresent(): Promise<void> {
-    // 이력 테이블(p-data-table)의 State 헤더 + 최소 1행
-    await expect(this.rows.first()).toBeVisible({ timeout: 30_000 });
+    // 실행 이력의 State 셀로 확인한다.
+    // 예전엔 this.rows(= *워크플로우 목록* 테이블의 행)를 봤는데, 그 테이블은 이력과 무관하게 늘 떠 있어서
+    // 실행이 하나도 없어도 항상 통과했다(무의미한 검증).
+    await expect(this.page.getByTestId('workflow-run-state').first()).toBeVisible({
+      timeout: 60_000,
+    });
   }
 
   /**
@@ -236,17 +303,16 @@ export class WorkflowPage {
   // ─────────────────────────────────────────────────────────────────────────
 
   async gotoTemplates(): Promise<void> {
-    this.useTable('workflow-template-list-table');
     await this.page.goto(WorkflowPage.templatesPath);
-    await expect(this.table).toBeVisible({ timeout: 15_000 });
+    await expect(this.templateTable).toBeVisible({ timeout: 15_000 });
   }
 
   async templateCount(): Promise<number> {
-    return this.rows.count();
+    return this.rowsOf(this.templateTable).count();
   }
 
   async expectTemplateVisible(name: string): Promise<void> {
-    await expect(this.rowByText(name)).toBeVisible({ timeout: 15_000 });
+    await expect(this.rowByTextIn(this.templateTable, name)).toBeVisible({ timeout: 15_000 });
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -254,22 +320,21 @@ export class WorkflowPage {
   // ─────────────────────────────────────────────────────────────────────────
 
   async gotoTaskComponents(): Promise<void> {
-    this.useTable('taskcomponent-list-table');
     await this.page.goto(WorkflowPage.taskComponentsPath);
     await this.expectTaskComponentsLoaded();
   }
 
   async expectTaskComponentsLoaded(): Promise<void> {
     await expect(this.page.getByTestId('taskcomponent-page-header')).toBeVisible({ timeout: 15_000 });
-    await expect(this.table).toBeVisible({ timeout: 15_000 });
+    await expect(this.taskComponentTable).toBeVisible({ timeout: 15_000 });
   }
 
   async taskComponentCount(): Promise<number> {
-    return this.rows.count();
+    return this.rowsOf(this.taskComponentTable).count();
   }
 
   async expectTaskComponentVisible(name: string): Promise<void> {
-    await expect(this.rowByText(name)).toBeVisible({ timeout: 15_000 });
+    await expect(this.rowByTextIn(this.taskComponentTable, name)).toBeVisible({ timeout: 15_000 });
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -283,6 +348,7 @@ export class WorkflowPage {
 
   /** 워크플로우를 선택하고 상세의 "View Workflow JSON"을 눌러 뷰어를 연다 */
   async openJsonViewer(name: string): Promise<void> {
+    await this.revealWorkflow(name);
     await this.rowByText(name).evaluate((el: HTMLElement) => el.click());
     const link = this.page.getByTestId('workflow-json-view').first();
     await expect(link).toBeVisible({ timeout: 15_000 });

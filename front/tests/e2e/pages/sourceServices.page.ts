@@ -1,4 +1,5 @@
 import { Page, expect, Locator } from '@playwright/test';
+import { TablePagination } from '../support/pagination';
 
 /**
  * SourceServicesPage — 소스 서비스(소스 컴퓨팅, cm-honeybee) 화면의 "어디서/어떻게".
@@ -54,28 +55,31 @@ export class SourceServicesPage {
       .or(this.page.getByRole('row', { name: new RegExp(name) }));
   }
 
-  /** 목록 상단 검색창(PToolboxTable plain search) */
-  private get listSearchInput(): Locator {
-    return this.page
-      .getByRole('textbox', { name: 'Search' })
-      .or(this.page.getByPlaceholder('Search'))
-      .first();
+  /** 소스그룹 목록 테이블 */
+  private get groupTable(): Locator {
+    return this.page.getByTestId('source-group-list-table');
+  }
+
+  /** 소스그룹 목록의 페이지네이션 */
+  private get groupPagination(): TablePagination {
+    return new TablePagination(this.page, this.groupTable);
   }
 
   /**
-   * 소스그룹 목록은 PToolboxTable 클라이언트 페이징(pageSize 15)이라, 누적 데이터가 많으면
-   * 대상 그룹 행이 1페이지 밖에 있을 수 있다. 목록 상단 검색창에 고유 이름을 입력해 해당 행만
-   * 남도록 필터링하면 목록 크기·페이지와 무관하게 행을 노출시킬 수 있다.
+   * 목록에서 소스그룹 행을 실제로 노출시킨다.
+   *
+   * 이 테이블의 상단 검색창은 mirinae query 태그 방식이라 필터가 붙어 있지 않다(입력해도 목록이 안 줄어든다).
+   * 목록은 15행씩 끊기므로, 방금 만든 그룹이 1페이지에 없을 수 있다 — 실제로 그렇게 실패했다.
+   * 그래서 검색에 기대지 않고 *페이지를 넘겨 가며* 찾고, 몇 페이지에서 찾았는지도 남긴다.
    */
-  private async revealGroup(name: string): Promise<void> {
-    const search = this.listSearchInput;
-    if ((await search.count()) === 0) return; // 검색창이 없으면 그대로 진행(호출부 assert가 처리)
-    await search.click();
-    await search.fill('');
-    await search.fill(name);
-    await search.press('Enter');
-    // 클라이언트 필터 반영 대기
-    await this.page.waitForTimeout(800);
+  private async revealGroup(name: string): Promise<number> {
+    // 목록을 서버에서 새로 받아온다.
+    // 등록 직후 목록이 자동 갱신되지 않아, 방금 만든 그룹이 화면에 없는 채로 남아 있는 경우가 있다
+    // (honeybee에는 들어갔는데 목록에는 안 보이는 상태). 그 상태로 페이지를 넘겨봐야 없는 건 없다.
+    // 새로고침하면 1페이지부터 다시 세므로 페이지 번호 계산도 안정된다.
+    await this.page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(this.groupTable).toBeVisible({ timeout: 20_000 });
+    return this.groupPagination.expectRowSomewhere(this.groupRow(name), name);
   }
 
   // ───────────────────────── 소스그룹 등록 모달 (register-source-group) ─────────────────────────

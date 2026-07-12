@@ -21,11 +21,19 @@ export const testNamespace = {
   id: process.env.TEST_NS || 'default',
 };
 
-/** 소스 서버(온프렘 대체 nano EC2) — 마이그레이션 시나리오용 */
+/**
+ * 소스 서버(온프렘 대체 small EC2) — @seed·@scenario가 수집 대상으로 쓴다.
+ *
+ * ★ 실제로 SSH 접속이 되는 서버여야 한다.
+ *   cm-honeybee가 이 주소로 직접 SSH를 걸어 인프라·소프트웨어를 수집한다(에이전트리스). 더미 IP를 두면
+ *   수집이 끝내 실패하고, 그 뒤의 소스모델·추천·워크플로우가 전부 데이터 없이 무너진다.
+ *   추천 스펙이 소스 스펙을 따라가므로 작은 인스턴스(nano/micro/small)로 만든다.
+ *
+ *   TEST_SOURCE_IP / TEST_SOURCE_PRIVATE_KEY 를 반드시 주입한다.
+ */
 export const sourceServer = {
   name: process.env.TEST_SOURCE_NAME || 'e2e-nano-source',
-  // @unit은 백엔드 mock이라 실제 접속 안 함 → 더미 기본값(문서용 TEST-NET-3). @scenario는 env로 실제값 주입.
-  ip: process.env.TEST_SOURCE_IP || '203.0.113.10',
+  ip: process.env.TEST_SOURCE_IP || '',
   privateIp: process.env.TEST_SOURCE_PRIVATE_IP || '',
   sshPort: process.env.TEST_SOURCE_SSH_PORT || '22',
   sshUser: process.env.TEST_SOURCE_SSH_USER || 'ubuntu',
@@ -86,9 +94,20 @@ export const workflowData = {
   safeRunWorkflowName:
     process.env.TEST_WF_SAFE_RUN || 'e2e-sample-bash-workflow',
 
+  /**
+   * 요금 안전 예제 워크플로우를 만들 때 쓰는 *템플릿* 이름.
+   * cm-cicada가 기본 제공하는 예제 템플릿이라 실제 인프라를 만들지 않는다.
+   */
+  safeRunTemplateName:
+    process.env.TEST_WF_SAFE_TEMPLATE || '_v2_example_xcom_workflow',
+
   /** 마이그레이션 워크플로우 생성 시 자동 선택되는 인프라 템플릿 이름 */
   infraTemplateName:
     process.env.TEST_WF_INFRA_TEMPLATE || 'migrate_infra_workflow',
+
+  /** 소프트웨어 마이그레이션 워크플로우 템플릿 이름 */
+  softwareTemplateName:
+    process.env.TEST_WF_SW_TEMPLATE || 'migrate_software_workflow',
 
   /** 생성 유닛 테스트에서 만들 워크플로우 이름(접미사는 스텝에서 부여) */
   createNamePrefix: process.env.TEST_WF_CREATE_PREFIX || 'e2e-wf',

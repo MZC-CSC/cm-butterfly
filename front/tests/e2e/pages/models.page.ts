@@ -1,4 +1,5 @@
 import { Page, expect, Locator } from '@playwright/test';
+import { TablePagination } from '../support/pagination';
 
 /**
  * ModelsPage — 모델(소스/타깃/추천) 도메인의 "어디서/어떻게"를 모으는 Page Object.
@@ -40,26 +41,20 @@ export class ModelsPage {
       .first();
   }
 
-  /** 목록 상단 검색창(PToolboxTable plain search) */
-  private get listSearchInput(): Locator {
-    return this.page
-      .getByRole('textbox', { name: 'Search' })
-      .or(this.page.getByPlaceholder('Search'))
-      .first();
+  /** 모델 목록의 페이지네이션 */
+  private get listPagination(): TablePagination {
+    return new TablePagination(this.page, this.listTable);
   }
 
   /**
-   * 모델 목록도 PToolboxTable 클라이언트 페이징이라 누적 모델이 많으면 대상 행이 1페이지 밖에
-   * 있을 수 있다. 검색창에 고유 이름을 입력해 해당 행만 남도록 필터링한다.
+   * 목록에서 모델 행을 실제로 노출시킨다.
+   *
+   * 상단 검색창은 mirinae query 태그 방식이라 이 테이블에 필터가 붙어 있지 않다(입력해도 안 줄어든다).
+   * 목록은 15행씩 끊기므로 방금 만든 모델이 1페이지에 없을 수 있다. 검색에 기대지 말고
+   * *페이지를 넘겨 가며* 찾고, 몇 페이지에서 찾았는지도 남긴다.
    */
-  private async revealModel(name: string): Promise<void> {
-    const search = this.listSearchInput;
-    if ((await search.count()) === 0) return;
-    await search.click();
-    await search.fill('');
-    await search.fill(name);
-    await search.press('Enter');
-    await this.page.waitForTimeout(800);
+  private async revealModel(name: string): Promise<number> {
+    return this.listPagination.expectRowSomewhere(this.modelRow(name), name);
   }
 
   /** 소스 모델 상세 — "Custom & View Source Model"(온프렘 정보 편집·저장 진입) */
@@ -346,13 +341,23 @@ export class ModelsPage {
     await this.page.waitForTimeout(2_000);
   }
 
-  /** 추천 결과를 지정 이름의 타깃 SW 모델로 저장 (CreateTargetSoftwareModel) */
+  /**
+   * 추천 결과를 지정 이름의 타깃 SW 모델로 저장 (CreateTargetSoftwareModel).
+   *
+   * SW 저장은 인프라 저장과 성공 UX가 다르다 — 성공하면 토스트만 뜨고 저장 폼이 닫힌다(확인 모달이 없다).
+   * 예전엔 인프라와 똑같이 "Confirm" 버튼을 기다렸는데 SW에는 그런 버튼이 없어서, 있지도 않은 걸
+   * 15초 기다리다 죽었다.
+   *
+   * 폼의 열림/닫힘은 *실제로 보이는 요소*인 이름 입력칸으로 판정한다. SimpleEditForm의 뿌리인
+   * PButtonModal에 testid를 달아 봐야 래퍼라 가시 요소로 잡히지 않는다(load-config 모달에서 이미 겪은 함정).
+   */
   async saveAsTargetSoftwareModel(name: string): Promise<void> {
     await this.swSaveTargetButton.click(); // → SimpleEditForm(Save Software Migration as Target Model)
+    await expect(this.modelNameInput).toBeVisible({ timeout: 15_000 });
     await this.modelNameInput.fill(name);
     await this.modelNameConfirmButton.click();
-    await expect(this.successConfirmButton).toBeVisible({ timeout: 15_000 });
-    await this.successConfirmButton.click();
+    // 저장 성공 = 폼이 닫힌다(이름 입력칸이 사라진다). 실패하면 폼이 열린 채 남아 여기서 잡힌다.
+    await expect(this.modelNameInput).toBeHidden({ timeout: 20_000 });
   }
 
   // ── 유틸 ──────────────────────────────────────────────────────────

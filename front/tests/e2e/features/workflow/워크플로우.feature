@@ -1,8 +1,14 @@
 # language: ko
 @workflow
 기능: 워크플로우 관리
-  cm-butterfly 콘솔에서 cm-cicada 워크플로우를 조회·생성·실행한다.
+  cm-butterfly 콘솔에서 cm-cicada 워크플로우를 조회·실행한다.
   cm-cicada는 TaskComponent를 type/spec 스키마(http · http_xcom · bash · ssh · trigger_workflow)로 정의한다.
+
+  # ★ "워크플로우 디자이너 열기"는 여기(@unit)에서 뺐다.
+  #   워크플로우 목록 툴박스의 Add 버튼은 소스에서 아예 `disabled`로 박혀 있다(WorkflowList.vue).
+  #   즉 목록에서는 디자이너로 들어갈 수 없다. 실제 진입점은 *타깃 모델 상세*의 워크플로우 생성이라,
+  #   디자이너는 타깃 모델이 있는 시나리오에서 그 경로로 검증한다.
+  #   없는 진입점을 기다리다 테스트가 죽지 않도록 여기서는 걷어냈다.
 
   배경:
     먼저 "cmiguser"로 로그인한다
@@ -22,15 +28,8 @@
     만약 Task Component 화면을 연다
     그러면 Task Component 목록이 조회된다
 
-  @unit
-  시나리오: 워크플로우 디자이너(에디터) 열기
-    먼저 워크플로우 목록 화면을 연다
-    만약 워크플로우 디자이너를 연다
-    그러면 워크플로우 디자이너가 표시된다
-
-  # ⚠️ 요금 안전(cost-safe): 반드시 실제 인프라를 만들지 않는 예제 워크플로우
-  #   (기본값 e2e-sample-bash-workflow, bash echo 등)로만 실행한다.
-  #   마이그레이션 워크플로우는 EC2를 프로비저닝하므로 @unit 실행 금지 → @scenario에서만.
+  # ⚠️ 요금 안전(cost-safe): 시드가 예제 템플릿(_v2_example_xcom_workflow)으로 만들어 둔
+  #   워크플로우만 실행한다. 마이그레이션 워크플로우는 EC2를 프로비저닝하므로 @unit 실행 금지 → @scenario에서만.
   @unit @run
   시나리오: 워크플로우 실행 및 상태 확인 (요금 안전 예제)
     만약 "e2e-sample-bash-workflow" 워크플로우를 실행하면

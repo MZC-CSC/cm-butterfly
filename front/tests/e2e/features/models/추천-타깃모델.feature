@@ -5,6 +5,8 @@
   operationId: RecommendVmInfraCandidates · Updateandgetestimatecost · GetProviderList/GetRegions · CreateCloudModel
   비용 보호: 추천 결과 중 월 예상비용이 가장 낮은 후보를 선택하고 스펙 급을 small 이하로 검증한다.
 
+  # "e2e-nano-source"는 시드(@seed)가 실제 소스 서버를 수집해 만들어 둔 인프라 소스 모델이다.
+
   @unit
   시나리오: 저비용 타깃 인프라 추천
     먼저 "cmiguser"로 로그인한다
@@ -19,5 +21,5 @@
     그리고 소스 모델 화면을 연다
     그리고 "e2e-nano-source" 소스 모델을 선택한다
     그리고 저비용 타깃 인프라를 추천받는다
-    만약 추천 결과 중 가장 저렴한 스펙을 "e2e-lowcost-target" 타깃 모델로 저장하면
-    그러면 타깃 모델 목록에 "e2e-lowcost-target" 이 보인다
+    만약 추천 결과 중 가장 저렴한 스펙을 "e2e-unit-target" 타깃 모델로 저장하면
+    그러면 타깃 모델 목록에 "e2e-unit-target" 이 보인다

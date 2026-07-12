@@ -57,11 +57,22 @@ export const test = base.extend<{ mockApi: ApiMock | null; screens: boolean }>({
         }
       });
 
+      const { captureScreen } = await import('./screenshot');
+
+      // ★ 시작 화면 — "테스트 전에는 무엇이 보였나"를 남긴다.
+      //   성공/실패와 무관하게 남겨야 사람이 전/후를 비교해 *정말* 정상 동작했는지 판단할 수 있다.
+      //   (첫 화면은 보통 about:blank라 실패해도 무시한다.)
+      try {
+        await captureScreen(page, testInfo, '01-before');
+      } catch {
+        // 아직 페이지가 열리기 전이면 캡처할 게 없다 — 무시.
+      }
+
       await use(true);
 
+      // ★ 종료 화면 — "테스트가 끝났을 때 화면이 어떤 상태였나".
       try {
-        const { captureScreen } = await import('./screenshot');
-        await captureScreen(page, testInfo, 'final');
+        await captureScreen(page, testInfo, '99-after');
       } catch {
         // 캡처 실패가 테스트를 깨뜨리지 않게 한다(증거 보존은 부가 목적).
       }

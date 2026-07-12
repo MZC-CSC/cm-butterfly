@@ -3,6 +3,7 @@ import { test, expect } from '../support/fixtures';
 import { ModelsPage, isSpecWithinClass } from '../pages/models.page';
 import { sourceServer, targetSpec } from '../fixtures/test-data';
 import { uniqueName } from '../support/naming';
+import { scenarioState } from '../support/world';
 
 const { Given, When, Then } = createBdd(test);
 
@@ -12,8 +13,7 @@ const { Given, When, Then } = createBdd(test);
  * 기능(@unit) 스텝과 마이그레이션 시나리오(@migration) 재사용 스텝을 함께 제공한다.
  */
 
-/** 시나리오 전역 상태 — 방금 저장/선택한 소스 모델 이름, 마지막 추천 스펙 */
-let lastSourceModelName = '';
+/** 마지막 추천 스펙(같은 파일 안에서만 쓰므로 모듈 지역변수로 충분) */
 let lastRecommendedSpec = '';
 
 // ───────────────────────────────────────────────────────────────────────
@@ -37,19 +37,24 @@ Then('소스 모델 목록이 보인다', async ({ page }) => {
 });
 
 Then('소스 모델 목록에 {string} 이 보인다', async ({ page }, name: string) => {
-  await new ModelsPage(page).expectModelInList(name);
+  // 소스 모델 화면에 있다고 가정하지 않는다.
+  // 앞 스텝이 소스 서비스 화면(수집 팝업)에 머물러 있으면 거기 검색창을 뒤지게 되는데,
+  // 소스그룹 이름이 모델 이름과 같으면 *엉뚱한 화면에서 우연히 통과*한다(실제로 그렇게 통과하고 있었다).
+  const models = new ModelsPage(page);
+  await models.gotoSourceModels();
+  await models.expectModelInList(uniqueName(name));
 });
 
 Then('타깃 모델 목록에 {string} 이 보인다', async ({ page }, name: string) => {
   const models = new ModelsPage(page);
   await models.gotoTargetModels();
-  await models.expectModelInList(name);
+  await models.expectModelInList(uniqueName(name));
 });
 
 /** "{string} 소스 모델을 선택한다" — 목록에서 지정 소스 모델 행 선택(상세 노출) */
 Given('{string} 소스 모델을 선택한다', async ({ page }, name: string) => {
-  await new ModelsPage(page).selectModel(name);
-  lastSourceModelName = name;
+  await new ModelsPage(page).selectModel(uniqueName(name));
+  scenarioState.sourceModelName = uniqueName(name);
 });
 
 // ───────────────────────────────────────────────────────────────────────
@@ -68,8 +73,8 @@ When('수집된 정보를 {string} 소스 모델로 저장하면', async ({ page
   const models = new ModelsPage(page);
   await models.gotoSourceModels();
   await models.selectFirstModel();
-  await models.saveAsSourceModel(name);
-  lastSourceModelName = name;
+  await models.saveAsSourceModel(uniqueName(name));
+  scenarioState.sourceModelName = uniqueName(name);
 });
 
 // ───────────────────────────────────────────────────────────────────────
@@ -104,7 +109,7 @@ When(
     const models = new ModelsPage(page);
     const chosen = await models.selectLowestCostCandidate();
     lastRecommendedSpec = chosen.spec;
-    await models.saveAsTargetModel(name);
+    await models.saveAsTargetModel(uniqueName(name));
   },
 );
 
@@ -120,7 +125,9 @@ When(
     const models = new ModelsPage(page);
     // 수집 결과로 저장한 인프라 소스모델(OnPremiseModel)을 선택한 뒤 추천 모달 진입
     await models.gotoSourceModels();
-    await models.selectModel(lastSourceModelName || uniqueName(sourceServer.name));
+    await models.selectModel(
+      scenarioState.sourceModelName ?? uniqueName(sourceServer.name),
+    );
     await models.openRecommend();
     await models.selectProvider(targetSpec.csp);
     await models.selectRegion(targetSpec.region);
@@ -162,7 +169,7 @@ async function recommend(page: import('@playwright/test').Page): Promise<string>
 Given('{string} 소프트웨어 소스 모델을 선택한다', async ({ page }, name: string) => {
   const models = new ModelsPage(page);
   await models.gotoSourceModels();
-  await models.selectModel(name);
+  await models.selectModel(uniqueName(name));
 });
 
 /**
@@ -175,7 +182,7 @@ When(
     const models = new ModelsPage(page);
     await models.openSoftwareRecommend();
     await models.runSoftwareRecommend();
-    await models.saveAsTargetSoftwareModel(name);
+    await models.saveAsTargetSoftwareModel(uniqueName(name));
   },
 );
 
@@ -183,5 +190,27 @@ When(
 Then('타깃 SW 모델 목록에 {string} 이 보인다', async ({ page }, name: string) => {
   const models = new ModelsPage(page);
   await models.gotoTargetModels();
-  await models.expectModelInList(name);
+  await models.expectModelInList(uniqueName(name));
 });
+
+// ───────────────────────────────────────────────────────────────────────
+// 커스텀 모델 — 소스 모델을 제목만 바꿔 저장하면 커스텀 모델이 된다
+// ───────────────────────────────────────────────────────────────────────
+
+/**
+ * "{string} 소스 모델을 {string} 커스텀 모델로 저장하면"
+ *
+ * 소스 모델 상세의 "Custom & View Source Model"에서 수집된 온프렘 정보를 확인하고, 이름만 바꿔 저장한다.
+ * 이렇게 저장된 것이 커스텀 모델이다(인프라·소프트웨어 모두 같은 절차).
+ * 이후 추천은 이 커스텀 모델을 기준으로 진행되므로 전역 상태에 기록해 둔다.
+ */
+When(
+  '{string} 소스 모델을 {string} 커스텀 모델로 저장하면',
+  async ({ page }, sourceName: string, customName: string) => {
+    const models = new ModelsPage(page);
+    await models.gotoSourceModels();
+    await models.selectModel(uniqueName(sourceName));
+    await models.saveAsSourceModel(uniqueName(customName));
+    scenarioState.sourceModelName = uniqueName(customName);
+  },
+);

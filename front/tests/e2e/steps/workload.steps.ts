@@ -2,6 +2,7 @@ import { createBdd } from 'playwright-bdd';
 import { test, expect } from '../support/fixtures';
 import { WorkloadPage } from '../pages/workload.page';
 import { workload } from '../fixtures/test-data';
+import { scenarioState } from '../support/world';
 
 const { Given, When, Then } = createBdd(test);
 
@@ -149,4 +150,36 @@ Then('타깃 EC2 인스턴스가 정상 생성된다', async ({ page }) => {
  */
 Given('생성된 인스턴스를 중지한다', async ({ page }) => {
   await new WorkloadPage(page).stopInstance(workload.infraName);
+});
+
+// ─────────────────────────────────────────────────────────────
+// ★ 시나리오 재사용 — 생성된 인프라의 상세·노드 확인
+//
+// 이 두 검증은 인프라가 *실제로 살아 있어야* 성립한다. 인프라를 만드는 유일한 경로가
+// 마이그레이션 워크플로우(=EC2 프로비저닝)라서, 기능(@unit) 테스트로 떼어 두면 만들어 줄 사람이 없어
+// 항상 타임아웃으로 죽었다. 그래서 인프라를 실제로 만드는 시나리오 안에서, 데이터가 살아 있는 동안 본다.
+// ─────────────────────────────────────────────────────────────
+
+/** "그리고 생성된 인프라의 상세 정보가 보인다" — cm-beetle/GetInfra 상세 */
+Given('생성된 인프라의 상세 정보가 보인다', async ({ page }) => {
+  const wl = new WorkloadPage(page);
+  await wl.gotoMci();
+  await wl.expectMciListLoaded();
+  await wl.selectMci(scenarioState.infraName ?? workload.infraName);
+  await wl.openDetailTab();
+});
+
+/** "그리고 생성된 인프라의 노드 목록이 보인다" — 서버(노드) 탭 */
+Given('생성된 인프라의 노드 목록이 보인다', async ({ page }) => {
+  const wl = new WorkloadPage(page);
+  // ⚠️ 여기서 selectMci를 다시 부르면 안 된다 — 행 선택은 체크박스 토글이라, 앞 스텝에서 이미 선택해 둔 것을
+  //    한 번 더 누르면 *선택이 풀린다*. 선택이 풀리면 Detail/Server 탭 자체가 사라져서 서버 탭을 못 찾는다.
+  //    (실제로 그렇게 실패했다.) 앞 스텝(상세 정보가 보인다)이 선택해 둔 상태를 그대로 쓴다.
+  await wl.openServerTab();
+  await wl.expectNodeVisible(workload.nodeName);
+});
+
+/** "먼저 앞선 실행이 남긴 워크로드를 정리한다" — 같은 이름(infra101)의 죽은 인프라가 남아 있으면 지우고 시작 */
+Given('앞선 실행이 남긴 워크로드를 정리한다', async ({ page }) => {
+  await new WorkloadPage(page).removeStaleInfra(workload.infraName);
 });
