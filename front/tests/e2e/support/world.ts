@@ -27,6 +27,19 @@ export const scenarioState: {
   softwareSourceModelName?: string;
   /** 소프트웨어 마이그레이션 워크플로우 이름 (실행 → 상태 확인 스텝이 참조) */
   softwareWorkflowName?: string;
+  /**
+   * 소프트웨어 마이그레이션 워크플로우를 *실행한 시각*.
+   *
+   * grasshopper 실행을 우리 것으로 가려내는 유일한 열쇠다. 인프라 이름(`infra101`)도, 노드 id도
+   * cb-tumblebug이 같은 값을 다시 쓰기 때문에, 앞선 실행이 남긴 기록과 구분되지 않는다.
+   */
+  swRunStartedAt?: number;
+  /** cm-grasshopper 실행 id (이번 실행으로 시작된 것만) */
+  swExecutionIds?: string[];
+  /** API가 알려준 소프트웨어별 결과 — 결과 화면과 대조한다 */
+  swMigrationRows?: any[];
+  /** 부하테스트 대상 nginx가 *소프트웨어 마이그레이션으로* 올라왔는지 */
+  nginxFromMigration?: boolean;
 } = {};
 
 export function resetScenarioState(): void {

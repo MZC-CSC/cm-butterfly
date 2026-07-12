@@ -257,6 +257,10 @@ async function createAndRunSoftwareMigrationWorkflow(
   await wf.expectWorkflowVisible(name);
   await new Promise(r => setTimeout(r, 120_000));
 
+  // ★ 실행 직전 시각을 기록한다. grasshopper 실행 기록을 우리 것으로 가려낼 유일한 열쇠다 —
+  //   인프라 이름도 노드 id도 cb-tumblebug이 같은 값을 다시 쓰기 때문에, 앞선 실행이 남긴 기록과
+  //   구분되지 않는다(실제로 지난 실행의 기록이 이번 것으로 잡혔다).
+  scenarioState.swRunStartedAt = Date.now();
   await wf.runWorkflow(name);
 
   await wf.selectWorkflow(name);

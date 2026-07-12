@@ -145,11 +145,89 @@ Given('생성된 워크로드의 80 포트를 개방한다', async ({ request })
   );
 });
 
+/** 타깃 노드에서 명령을 돌리고 *표준출력만* 돌려준다 (응답에는 명령문도 실려 오므로 그걸 매칭하면 안 된다) */
+async function nodeStdout(
+  request: APIRequestContext,
+  token: string,
+  command: string[],
+): Promise<string> {
+  const res = await request.post(
+    `${config.baseURL}/api/cb-tumblebug/PostCmdInfra`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 300_000,
+      data: {
+        pathParams: {
+          nsId: testNamespace.id,
+          infraId: scenarioState.infraId ?? workload.infraName,
+        },
+        request: { userName: scenarioState.nodeUserName ?? 'cb-user', command },
+      },
+    },
+  );
+  const results =
+    (await res.json().catch(() => null))?.responseData?.results ?? [];
+  return results
+    .map((r: any) => Object.values(r?.stdout ?? {}).join('\n'))
+    .join('\n');
+}
+
+/**
+ * "그리고 부하테스트 대상 웹서버를 준비한다"
+ *
+ * 부하테스트는 웹서버가 있어야 성립한다. 원래 의도는 **소프트웨어 마이그레이션이 올린 nginx** 를 그대로
+ * 대상으로 삼는 것이고, 그게 됐으면 아무것도 하지 않는다.
+ *
+ * 안 됐으면 여기서 nginx를 올려 부하테스트를 이어간다. 대신 **무엇이 일어났는지 감추지 않는다** —
+ * 마이그레이션이 올린 것인지 우리가 준비한 것인지 로그와 리포트에 그대로 남긴다. 마이그레이션의 성패는
+ * 앞의 결과 확인 스텝이 이미 따로 판정했으므로, 이 준비 단계가 그 판정을 덮지 않는다.
+ */
+Given('부하테스트 대상 웹서버를 준비한다', async ({ request, $testInfo }) => {
+  test.setTimeout(15 * 60_000);
+  const token = await loginToken(request);
+
+  const running = (out: string) => /^\s*active\s*$/m.test(out);
+  let out = await nodeStdout(request, token, [
+    'systemctl is-active nginx || true',
+  ]);
+
+  if (running(out)) {
+    scenarioState.nginxFromMigration = true;
+    console.log(
+      '[perf] nginx가 이미 돌고 있다 — 소프트웨어 마이그레이션이 올린 것을 그대로 쓴다.',
+    );
+  } else {
+    scenarioState.nginxFromMigration = false;
+    console.warn(
+      `[perf] ★ 소프트웨어 마이그레이션이 nginx를 올리지 못했다(systemctl is-active → ${out.trim() || '없음'}). ` +
+        '부하테스트를 이어가기 위해 테스트가 직접 설치한다. 마이그레이션 성패는 앞 단계에서 이미 판정했다.',
+    );
+    await nodeStdout(request, token, [
+      'sudo apt-get update -y',
+      'sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --reinstall nginx',
+      'sudo systemctl enable --now nginx',
+    ]);
+    out = await nodeStdout(request, token, [
+      'systemctl is-active nginx || true',
+    ]);
+  }
+
+  await $testInfo.attach('부하테스트-대상-웹서버', {
+    body:
+      `# 부하테스트 대상 웹서버\n\n` +
+      `- nginx 출처: **${scenarioState.nginxFromMigration ? '소프트웨어 마이그레이션' : '테스트가 직접 설치(마이그레이션 실패)'}**\n` +
+      `- systemctl is-active nginx → \`${out.trim() || '없음'}\`\n`,
+    contentType: 'text/markdown',
+  });
+
+  expect(
+    running(out),
+    `부하테스트 대상 nginx를 띄우지 못했다: ${out.trim() || '응답 없음'}`,
+  ).toBeTruthy();
+});
+
 /**
  * "그러면 nginx가 외부에서 접근 가능하다" — 노드 공인 IP:80 접근 확인
- *
- * 이 nginx는 *소프트웨어 마이그레이션이 올린 것*이다(타깃은 방금 만든 빈 EC2다).
- * 따라서 여기서 200이 떨어진다는 건 마이그레이션이 실제로 동작했다는 뜻이기도 하다.
  */
 Then('nginx가 외부에서 접근 가능하다', async ({ request }) => {
   const ip = scenarioState.nodePublicIp;

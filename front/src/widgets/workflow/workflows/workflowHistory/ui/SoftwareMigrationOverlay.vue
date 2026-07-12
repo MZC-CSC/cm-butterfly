@@ -209,7 +209,11 @@ onBeforeMount(() => {
 
 <template>
   <transition name="slide-down-up" @after-leave="handleClose">
-    <div v-show="props.isVisible" class="page-layer">
+    <div
+      v-show="props.isVisible"
+      class="page-layer"
+      data-testid="sw-migration-overlay"
+    >
       <div class="page-top">
         <p-icon-button
           style-type="transparent"
@@ -238,7 +242,11 @@ onBeforeMount(() => {
         </div>
 
         <!-- Error — 실패를 목업으로 덮지 않고 그대로 알린다 -->
-        <div v-else-if="swError" class="error-section" data-testid="sw-migration-error">
+        <div
+          v-else-if="swError"
+          class="error-section"
+          data-testid="sw-migration-error"
+        >
           <p-i name="ic_error-filled" width="1.5rem" height="1.5rem" />
           <p>{{ swError }}</p>
         </div>
@@ -267,7 +275,7 @@ onBeforeMount(() => {
             </div>
           </div>
 
-          <div class="table-section">
+          <div class="table-section" data-testid="sw-migration-table">
             <h3>Software Migration Details</h3>
             <p-toolbox-table
               :fields="swTableModel.tableState.fields"

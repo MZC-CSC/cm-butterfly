@@ -55,8 +55,13 @@ export const sourceServer = {
 export const targetSpec = {
   csp: process.env.TEST_TARGET_CSP || 'aws',
   region: process.env.TEST_TARGET_REGION || 'ap-northeast-2',
-  /** 추천 결과에서 이 급 이하로 강제(요금 보호) */
-  maxClass: process.env.TEST_TARGET_MAX_CLASS || 'small',
+  /**
+   * 추천 결과에서 이 급 이하로 강제(요금 보호). 그 *상한 안에서 가장 큰* 후보를 고른다.
+   *
+   * micro급으로 내려가면 소프트웨어 마이그레이션이 CPU 포화로 끝나지 않아(실측: 40분에 39개 중 11개),
+   * 정작 확인하려던 "마이그레이션이 되는가"를 볼 수가 없다. 상한은 유지하되 그 안에서는 여유를 준다.
+   */
+  maxClass: process.env.TEST_TARGET_MAX_CLASS || 'medium',
 };
 
 /**
