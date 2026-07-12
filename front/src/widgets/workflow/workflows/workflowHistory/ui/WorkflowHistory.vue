@@ -88,14 +88,12 @@ async function fetchTaskInstancesForRun(run: IWorkflowRun) {
           [run.workflow_run_id]: true,
         };
 
-        // 모든 execution_id 수집
-        const executionIds = swTasks.map((task: any) => {
-          // TODO: execution_id가 없으면 임시 ID 사용
-          return (
-            task.software_migration_execution_id ||
-            '0132478a-345a-458a-acce-3be7aa16f481'
-          );
-        });
+        // 실행 ID가 없는 태스크는 조회 대상에서 뺀다. 예전에는 코드에 박아 둔
+        // 다른 실행의 ID로 조회해서, 남의 설치 결과가 이 실행의 결과인 것처럼
+        // 보였다.
+        const executionIds = swTasks
+          .map((task: any) => task.software_migration_execution_id)
+          .filter((id: string | undefined): id is string => !!id);
 
         runExecutionIds.value = {
           ...runExecutionIds.value,

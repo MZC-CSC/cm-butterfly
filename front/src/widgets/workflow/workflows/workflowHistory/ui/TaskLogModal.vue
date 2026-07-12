@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { PIconButton, PTextEditor, PSpinner, PButton } from '@cloudforet-test/mirinae';
+import {
+  PIconButton,
+  PTextEditor,
+  PSpinner,
+  PButton,
+} from '@cloudforet-test/mirinae';
 import { ITaskInstance } from '@/entities/workflow/model/types';
 import { useGetTaskLogs } from '@/entities/workflow/api/index';
 import { ref, watch, computed } from 'vue';

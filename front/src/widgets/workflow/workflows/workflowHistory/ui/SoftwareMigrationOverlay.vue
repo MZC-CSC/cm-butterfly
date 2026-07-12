@@ -88,7 +88,14 @@ const getStatusBadgeType = (status: string) => {
 
 // SW 마이그레이션 상태 로드 - 모든 execution ID에 대해 병렬로 조회
 const loadSwMigrationStatus = async () => {
-  if (!props.executionIds || props.executionIds.length === 0) return;
+  // 조회할 실행 ID가 없으면 왜 결과가 없는지 말한다. 조용히 빈 화면을 보여주면
+  // 사용자는 "설치된 소프트웨어가 없다"고 읽는다 — 사실은 조회 자체를 못 한 것이다.
+  if (!props.executionIds || props.executionIds.length === 0) {
+    swMigrationDataList.value = [];
+    swError.value =
+      '이 태스크에 소프트웨어 마이그레이션 실행 ID가 없어 결과를 조회할 수 없습니다.';
+    return;
+  }
 
   swLoading.value = true;
   swError.value = '';
@@ -238,7 +245,11 @@ onBeforeMount(() => {
         </div>
 
         <!-- Error — 실패를 목업으로 덮지 않고 그대로 알린다 -->
-        <div v-else-if="swError" class="error-section" data-testid="sw-migration-error">
+        <div
+          v-else-if="swError"
+          class="error-section"
+          data-testid="sw-migration-error"
+        >
           <p-i name="ic_error-filled" width="1.5rem" height="1.5rem" />
           <p>{{ swError }}</p>
         </div>
