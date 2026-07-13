@@ -105,6 +105,18 @@ test.describe('워크플로우 실행 상태 뷰어', () => {
     await workflow.cancelRerun();
   });
 
+  test('복제도 확인 없이 만들지 않는다 (누를 때마다 워크플로우가 늘어나므로)', async ({
+    page,
+  }) => {
+    const workflow = new WorkflowPage(page);
+    await workflow.gotoWorkflows();
+    await workflow.openRunViewer(WORKFLOW);
+
+    const modal = await workflow.openCloneConfirm();
+    await expect(modal).toContainText(/copy/i);
+    await workflow.cancelClone();
+  });
+
   test('새 실행은 재실행과 구분되고, 확인 없이 시작하지 않는다', async ({
     page,
   }) => {

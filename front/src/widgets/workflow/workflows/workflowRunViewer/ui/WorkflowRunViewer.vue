@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { PBadge, PButton, PSelectDropdown } from '@cloudforet-test/mirinae';
+import {
+  PBadge,
+  PButton,
+  PSelectDropdown,
+  PTooltip,
+} from '@cloudforet-test/mirinae';
 import RunGraph from './RunGraph.vue';
 import { graphPixelWidth } from '@/entities/workflow/lib/runGraph';
 import { useWorkflowRunViewerModel } from '../model/workflowRunViewerModel';
@@ -72,12 +77,28 @@ async function cloneAndEdit() {
  * 된다 — 같은 일을 두 갈래로 표현할 이유가 없다. (엔진은 여전히 지원한다.)
  */
 const RERUN_SCOPES = [
-  { key: 'only', label: 'This task only' },
-  { key: 'after', label: 'This task and everything after it' },
+  {
+    key: 'only',
+    label: 'This task only',
+    hint: 'Runs just the selected task again. Tasks after it keep their current result, so use this when only this task needs redoing.',
+  },
+  {
+    key: 'after',
+    label: 'This task and everything after it',
+    hint: "Runs the selected task again, then everything that depends on it. Use this when the tasks that followed were built on this task's result.",
+  },
 ] as const;
 
 // 워크플로우 전체를 실행하는 것이므로 확인 없이 시작하지 않는다
 const showRunConfirm = ref(false);
+
+// 복제는 워크플로우를 하나 더 만든다. 누를 때마다 늘어나므로 확인을 받는다.
+const showCloneConfirm = ref(false);
+
+async function confirmClone() {
+  showCloneConfirm.value = false;
+  await cloneAndEdit();
+}
 
 async function confirmRun() {
   showRunConfirm.value = false;
@@ -244,38 +265,55 @@ async function onRunChange(runId: string) {
         </div>
 
         <div class="run-viewer__actions">
-          <!-- 실행 전체의 실패분을 다시 돌린다 — 선택한 태스크와 무관하다 -->
-          <p-button
-            data-testid="workflow-rerun-failed-btn"
-            size="sm"
-            style-type="tertiary"
-            :disabled="!hasFailedTask || rerunPending"
-            @click="requestRerunFailed"
-          >
-            Re-run failed tasks
-          </p-button>
           <!--
-            원본을 고치면 그 워크플로우의 과거 실행이 화면에서 엉뚱한 값으로 보이게
-            된다. 값을 바꿔 돌리려면 복제본을 고친다.
+            순서: 이 실행의 실패분을 다시 → 이 워크플로우를 새로 → 값을 바꿔 쓰려면 복제.
+            왼쪽일수록 지금 보고 있는 실행에 가깝고, 오른쪽으로 갈수록 새 것을 만든다.
+            세 동작이 헷갈리기 쉬워 각각 무엇을 하는지 hover로 설명한다.
           -->
-          <p-button
-            data-testid="workflow-clone-edit-btn"
-            size="sm"
-            style-type="tertiary"
-            :disabled="cloning"
-            @click="cloneAndEdit"
+          <p-tooltip
+            contents="Re-runs the tasks that failed in this run, and the ones that could not run because of them. You are shown the exact list and asked to confirm first."
+            position="bottom"
           >
-            Clone &amp; Edit
-          </p-button>
-          <p-button
-            data-testid="workflow-viewer-run-btn"
-            size="sm"
-            style-type="primary"
-            :disabled="isPolling"
-            @click="showRunConfirm = true"
+            <p-button
+              data-testid="workflow-rerun-failed-btn"
+              size="sm"
+              style-type="tertiary"
+              :disabled="!hasFailedTask || rerunPending"
+              @click="requestRerunFailed"
+            >
+              Re-run failed tasks
+            </p-button>
+          </p-tooltip>
+
+          <p-tooltip
+            contents="Starts a new run of the whole workflow from the first task. This does not re-run the run selected above."
+            position="bottom"
           >
-            Start new run
-          </p-button>
+            <p-button
+              data-testid="workflow-viewer-run-btn"
+              size="sm"
+              style-type="primary"
+              :disabled="isPolling"
+              @click="showRunConfirm = true"
+            >
+              Start new run
+            </p-button>
+          </p-tooltip>
+
+          <p-tooltip
+            contents="Copies this workflow and opens the copy in the editor, so you can change values without touching the original or its run history."
+            position="bottom"
+          >
+            <p-button
+              data-testid="workflow-clone-edit-btn"
+              size="sm"
+              style-type="tertiary"
+              :disabled="cloning"
+              @click="showCloneConfirm = true"
+            >
+              Clone &amp; Edit
+            </p-button>
+          </p-tooltip>
         </div>
       </div>
 
@@ -398,15 +436,19 @@ async function onRunChange(runId: string) {
                 No failure cause found in the log. Check the full log below.
               </p>
               <div class="run-viewer__try-row">
-                <p-button
-                  data-testid="workflow-run-log-download"
-                  size="sm"
-                  style-type="tertiary"
-                  icon-left="ic_download"
-                  @click="downloadLog"
+                <p-tooltip
+                  contents="Saves the log of the selected try as a text file."
+                  position="bottom"
                 >
-                  Download log
-                </p-button>
+                  <p-button
+                    data-testid="workflow-run-log-download"
+                    size="sm"
+                    style-type="tertiary"
+                    @click="downloadLog"
+                  >
+                    Download log
+                  </p-button>
+                </p-tooltip>
               </div>
               <details class="run-viewer__log-details">
                 <summary>Full log</summary>
@@ -429,18 +471,23 @@ async function onRunChange(runId: string) {
               task in this run, use "Re-run failed tasks" above.
             </p>
             <div class="run-viewer__rerun-buttons">
-              <p-button
+              <p-tooltip
                 v-for="scope in RERUN_SCOPES"
                 :key="scope.key"
-                data-testid="workflow-rerun-scope"
-                :data-scope="scope.key"
-                size="sm"
-                style-type="tertiary"
-                :disabled="rerunPending"
-                @click="requestRerun(scope.key)"
+                :contents="scope.hint"
+                position="bottom"
               >
-                {{ scope.label }}
-              </p-button>
+                <p-button
+                  data-testid="workflow-rerun-scope"
+                  :data-scope="scope.key"
+                  size="sm"
+                  style-type="tertiary"
+                  :disabled="rerunPending"
+                  @click="requestRerun(scope.key)"
+                >
+                  {{ scope.label }}
+                </p-button>
+              </p-tooltip>
             </div>
           </div>
 
@@ -581,6 +628,42 @@ async function onRunChange(runId: string) {
             @click="confirmRun"
           >
             Start new run
+          </p-button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 복제는 워크플로우를 하나 더 만든다. 누를 때마다 쌓이므로 확인을 받는다. -->
+    <div
+      v-if="showCloneConfirm"
+      class="run-viewer__modal"
+      data-testid="workflow-clone-confirm"
+    >
+      <div class="run-viewer__modal-box">
+        <h4>Copy this workflow and edit the copy?</h4>
+        <p class="run-viewer__hint">
+          A new workflow is created as a copy of this one, and the editor opens
+          on the copy. The original and its run history are left untouched.
+        </p>
+        <p class="run-viewer__hint">
+          Each copy is kept as its own workflow, so make one when you actually
+          intend to change values — not to look around.
+        </p>
+        <div class="run-viewer__modal-actions">
+          <p-button
+            data-testid="workflow-clone-confirm-cancel"
+            style-type="tertiary"
+            @click="showCloneConfirm = false"
+          >
+            Cancel
+          </p-button>
+          <p-button
+            data-testid="workflow-clone-confirm-ok"
+            style-type="primary"
+            :disabled="cloning"
+            @click="confirmClone"
+          >
+            Copy &amp; Edit
           </p-button>
         </div>
       </div>

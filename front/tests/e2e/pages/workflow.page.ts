@@ -202,6 +202,19 @@ export class WorkflowPage {
     return modal;
   }
 
+  /** 복제는 워크플로우를 하나 더 만드는 일이라 확인을 거친다 */
+  async openCloneConfirm(): Promise<Locator> {
+    await this.page.getByTestId('workflow-clone-edit-btn').click();
+    const modal = this.page.getByTestId('workflow-clone-confirm');
+    await expect(modal).toBeVisible();
+    return modal;
+  }
+
+  async cancelClone(): Promise<void> {
+    await this.page.getByTestId('workflow-clone-confirm-cancel').click();
+    await expect(this.page.getByTestId('workflow-clone-confirm')).toBeHidden();
+  }
+
   async cancelNewRun(): Promise<void> {
     await this.page.getByTestId('workflow-run-confirm-cancel').click();
     await expect(this.page.getByTestId('workflow-run-confirm')).toBeHidden();
