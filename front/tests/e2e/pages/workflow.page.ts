@@ -91,6 +91,150 @@ export class WorkflowPage {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // 0) 실행 상태 뷰어 (Run Status 탭)
+  //
+  //   상태를 *색*으로 확인하지 않는다. 노드가 자기 상태를 data-state로 내보내므로
+  //   그것을 그대로 단언한다 — 디자인이 바뀌어도 테스트는 살아 있다.
+  //   (규약: cm-butterfly/design/07-DESIGN/DESIGN-E2E-SELECTORS.md)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /** 디버그용 — 목록에서 워크플로우 행을 노출시킨다 */
+  async revealWorkflowPublic(name: string): Promise<number> {
+    return this.revealWorkflow(name);
+  }
+
+  /** 워크플로우를 골라 Run Status 탭을 연다 */
+  async openRunViewer(workflowName: string): Promise<void> {
+    await this.revealWorkflow(workflowName);
+    await this.rowByText(workflowName).click();
+    await this.page.getByRole('tab', { name: 'Run Status' }).click();
+    await expect(this.page.getByTestId('workflow-run-viewer')).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(this.page.getByTestId('workflow-run-graph')).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
+  /** 그래프의 태스크 노드 */
+  runNode(taskName: string): Locator {
+    return this.page.locator(
+      `[data-testid="workflow-run-node"][data-task-name="${taskName}"]`,
+    );
+  }
+
+  /** 노드의 실행 상태가 기대와 같은가 (색이 아니라 상태 값으로 단언) */
+  async expectTaskState(taskName: string, state: string): Promise<void> {
+    await expect(this.runNode(taskName)).toHaveAttribute('data-state', state, {
+      timeout: 20_000,
+    });
+  }
+
+  async selectTask(taskName: string): Promise<void> {
+    await this.runNode(taskName).click();
+    await expect(
+      this.page.getByTestId('workflow-run-task-detail'),
+    ).toBeVisible();
+  }
+
+  /** 선택한 태스크의 로그를 연다 (시도 번호 지정 가능) */
+  async openTaskLog(tryNumber?: number): Promise<Locator> {
+    const button = tryNumber
+      ? this.page.locator(
+          `[data-testid="workflow-run-log-try"][data-try="${tryNumber}"]`,
+        )
+      : this.page.getByTestId('workflow-run-log-try').first();
+    await button.click();
+    // 전체 로그는 접혀 있다. 펼쳐야 내용이 보인다.
+    await this.page.getByText('Full log').click();
+    const log = this.page.getByTestId('workflow-run-log');
+    await expect(log).toBeVisible({ timeout: 20_000 });
+    return log;
+  }
+
+  /** 진행 표시 — 실행 중인지, 몇 개 중 몇 개가 끝났는지 */
+  get runProgress() {
+    return this.page.getByTestId('workflow-run-progress');
+  }
+
+  get runProgressCount() {
+    return this.page.getByTestId('workflow-run-progress-count');
+  }
+
+  /** 지금 보고 있는 실행이 어느 실행인지 */
+  get runMeta() {
+    return this.page.getByTestId('workflow-run-meta');
+  }
+
+  get failureSummary(): Locator {
+    return this.page.getByTestId('workflow-run-failure');
+  }
+
+  /**
+   * 재실행 사전 확인을 연다.
+   *
+   * 무엇이 다시 도는지는 화면의 그림이 아니라 *엔진이 실제 실행 그래프를 보고* 정한다.
+   * 그래서 실행하지 않고 대상 목록을 먼저 받아 확인시키며, 이 메서드는 그 목록을 돌려준다.
+   */
+  async previewRerun(scope: 'only' | 'after'): Promise<Locator> {
+    await this.page
+      .locator(`[data-testid="workflow-rerun-scope"][data-scope="${scope}"]`)
+      .click();
+    await expect(this.page.getByTestId('workflow-rerun-confirm')).toBeVisible({
+      timeout: 20_000,
+    });
+    return this.page.getByTestId('workflow-rerun-target');
+  }
+
+  /**
+   * 실행 전체의 실패분 재실행 — 선택한 태스크와 무관하므로 실행 단위 동작들과
+   * 같은 자리에 있다(태스크 상세 패널이 아니다).
+   */
+  async previewRerunFailed(): Promise<Locator> {
+    await this.page.getByTestId('workflow-rerun-failed-btn').click();
+    await expect(this.page.getByTestId('workflow-rerun-confirm')).toBeVisible({
+      timeout: 20_000,
+    });
+    return this.page.getByTestId('workflow-rerun-target');
+  }
+
+  async confirmRerun(): Promise<void> {
+    await this.page.getByTestId('workflow-rerun-ok').click();
+    await expect(this.page.getByTestId('workflow-rerun-confirm')).toBeHidden();
+  }
+
+  async cancelRerun(): Promise<void> {
+    await this.page.getByTestId('workflow-rerun-cancel').click();
+    await expect(this.page.getByTestId('workflow-rerun-confirm')).toBeHidden();
+  }
+
+  /** 새 실행 — 선택된 실행을 다시 도는 것이 아니라 워크플로우를 처음부터 실행한다 */
+  async openNewRunConfirm(): Promise<Locator> {
+    await this.page.getByTestId('workflow-viewer-run-btn').click();
+    const modal = this.page.getByTestId('workflow-run-confirm');
+    await expect(modal).toBeVisible();
+    return modal;
+  }
+
+  /** 복제는 워크플로우를 하나 더 만드는 일이라 확인을 거친다 */
+  async openCloneConfirm(): Promise<Locator> {
+    await this.page.getByTestId('workflow-clone-edit-btn').click();
+    const modal = this.page.getByTestId('workflow-clone-confirm');
+    await expect(modal).toBeVisible();
+    return modal;
+  }
+
+  async cancelClone(): Promise<void> {
+    await this.page.getByTestId('workflow-clone-confirm-cancel').click();
+    await expect(this.page.getByTestId('workflow-clone-confirm')).toBeHidden();
+  }
+
+  async cancelNewRun(): Promise<void> {
+    await this.page.getByTestId('workflow-run-confirm-cancel').click();
+    await expect(this.page.getByTestId('workflow-run-confirm')).toBeHidden();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // 1) 워크플로우 목록
   // ─────────────────────────────────────────────────────────────────────────
 

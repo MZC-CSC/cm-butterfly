@@ -113,6 +113,16 @@ export interface ITaskInstance {
   software_migration_execution_id?: string;
 }
 
+/** 재실행 대상으로 잡힌 태스크 (dryRun 응답) */
+export interface ITaskInstanceReference {
+  task_id: string;
+  task_name: string;
+  workflow_id?: string;
+  dag_id?: string;
+  workflow_run_id?: string;
+  execution_date?: string;
+}
+
 export interface ITaskInstancesResponse {
   taskInstances: ITaskInstance[];
 }

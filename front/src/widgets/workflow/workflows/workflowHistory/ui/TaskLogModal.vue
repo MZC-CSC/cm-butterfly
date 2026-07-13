@@ -1,7 +1,13 @@
 <script setup lang="ts">
-import { PIconButton, PTextEditor, PSpinner, PButton } from '@cloudforet-test/mirinae';
+import {
+  PIconButton,
+  PTextEditor,
+  PSpinner,
+  PButton,
+} from '@cloudforet-test/mirinae';
 import { ITaskInstance } from '@/entities/workflow/model/types';
 import { useGetTaskLogs } from '@/entities/workflow/api/index';
+import { normalizeTaskLog } from '@/entities/workflow/lib/taskLog';
 import { ref, watch, computed } from 'vue';
 
 interface Props {
@@ -18,34 +24,10 @@ const emit = defineEmits(['close']);
 const taskLogs = ref<any>(null);
 const logsLoading = ref(false);
 
-// 로그를 문자열로 변환
-const processedLogs = computed(() => {
-  if (!taskLogs.value) return '';
-
-  let logContent = '';
-
-  // content 필드가 있는 객체인 경우
-  if (typeof taskLogs.value === 'object' && taskLogs.value.content) {
-    logContent = taskLogs.value.content;
-  }
-  // 이미 문자열인 경우
-  else if (typeof taskLogs.value === 'string') {
-    logContent = taskLogs.value;
-  }
-  // 그 외 객체인 경우 JSON으로 변환
-  else if (typeof taskLogs.value === 'object') {
-    try {
-      logContent = JSON.stringify(taskLogs.value, null, 2);
-    } catch (e) {
-      logContent = String(taskLogs.value);
-    }
-  } else {
-    logContent = String(taskLogs.value);
-  }
-
-  // 개행문자(\n)를 실제 줄바꿈으로 변환
-  return logContent.replace(/\\n/g, '\n');
-});
+// 로그를 화면에 뿌릴 수 있는 형태로 정리한다.
+// 엔진이 돌려주는 로그는 평문이 아니라 실행 엔진 응답을 통째로 문자열화한 것이라,
+// 그대로 뿌리면 한 줄로 뭉개지고 앞뒤에 군더더기가 붙는다.
+const processedLogs = computed(() => normalizeTaskLog(taskLogs.value));
 
 // 모달 닫기
 const handleClose = () => {

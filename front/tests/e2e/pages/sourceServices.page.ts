@@ -28,20 +28,17 @@ export class SourceServicesPage {
 
   /** 화면 헤더 "Source Services" */
   private get pageHeader(): Locator {
-    return this.page
-      .getByTestId('source-services-header');
+    return this.page.getByTestId('source-services-header');
   }
 
   /** 목록 상단 "Add" 버튼 → 소스 서비스(그룹) 등록 모달 열기 */
   private get addGroupButton(): Locator {
-    return this.page
-      .getByTestId('source-group-add');
+    return this.page.getByTestId('source-group-add');
   }
 
   /** 목록 상단 삭제 아이콘(선택 행 삭제) */
   private get deleteGroupIcon(): Locator {
-    return this.page
-      .getByTestId('source-group-delete');
+    return this.page.getByTestId('source-group-delete');
   }
 
   /**
@@ -86,23 +83,30 @@ export class SourceServicesPage {
 
   private get serviceNameInput(): Locator {
     return this.page
-      .locator('input[data-testid="source-service-name"], textarea[data-testid="source-service-name"]')
+      .locator(
+        'input[data-testid="source-service-name"], textarea[data-testid="source-service-name"]',
+      )
       .or(this.page.getByPlaceholder('Source Service Name'));
   }
   private get serviceDescriptionInput(): Locator {
     return this.page
-      .locator('input[data-testid="source-service-description"], textarea[data-testid="source-service-description"]')
-      .or(this.page.locator('.source-service-button-modal .layout').first().locator('textarea'));
+      .locator(
+        'input[data-testid="source-service-description"], textarea[data-testid="source-service-description"]',
+      )
+      .or(
+        this.page
+          .locator('.source-service-button-modal .layout')
+          .first()
+          .locator('textarea'),
+      );
   }
   /** "With Source Connection" 토글 — 연결정보 등록 흐름을 켠다 */
   private get withConnectionToggle(): Locator {
-    return this.page
-      .getByTestId('source-service-with-connection');
+    return this.page.getByTestId('source-service-with-connection');
   }
   /** 연결정보 입력 화면으로 진입 "Go add Source Connection" */
   private get goAddConnectionButton(): Locator {
-    return this.page
-      .getByTestId('source-service-go-add-connection');
+    return this.page.getByTestId('source-service-go-add-connection');
   }
   /** 소스그룹 등록 모달 확정(footer의 "Add").
    *  mirinae PButtonModal의 #confirm-button 슬롯은 `<span data-testid=...>`로 라벨만 담고
@@ -117,38 +121,49 @@ export class SourceServicesPage {
 
   private get connNameInput(): Locator {
     return this.page
-      .locator('input[data-testid="source-connection-name"], textarea[data-testid="source-connection-name"]')
+      .locator(
+        'input[data-testid="source-connection-name"], textarea[data-testid="source-connection-name"]',
+      )
       .or(this.page.getByPlaceholder('Source Connection Name'));
   }
   private get connIpInput(): Locator {
     return this.page
-      .locator('input[data-testid="source-connection-ip"], textarea[data-testid="source-connection-ip"]')
+      .locator(
+        'input[data-testid="source-connection-ip"], textarea[data-testid="source-connection-ip"]',
+      )
       .or(this.page.getByPlaceholder('###.###.###.###'));
   }
   private get connPortInput(): Locator {
     return this.page
-      .locator('input[data-testid="source-connection-ssh-port"], textarea[data-testid="source-connection-ssh-port"]')
+      .locator(
+        'input[data-testid="source-connection-ssh-port"], textarea[data-testid="source-connection-ssh-port"]',
+      )
       .or(this.page.getByPlaceholder('1~65535'));
   }
   private get connUserInput(): Locator {
     return this.page
-      .locator('input[data-testid="source-connection-user"], textarea[data-testid="source-connection-user"]')
+      .locator(
+        'input[data-testid="source-connection-user"], textarea[data-testid="source-connection-user"]',
+      )
       .or(this.page.getByPlaceholder('User ID'));
   }
   private get connPasswordInput(): Locator {
     return this.page
-      .locator('input[data-testid="source-connection-password"], textarea[data-testid="source-connection-password"]')
+      .locator(
+        'input[data-testid="source-connection-password"], textarea[data-testid="source-connection-password"]',
+      )
       .or(this.page.getByPlaceholder('Password'));
   }
   private get connPrivateKeyInput(): Locator {
     return this.page
-      .locator('input[data-testid="source-connection-private-key"], textarea[data-testid="source-connection-private-key"]')
+      .locator(
+        'input[data-testid="source-connection-private-key"], textarea[data-testid="source-connection-private-key"]',
+      )
       .or(this.page.locator('.private-key textarea'));
   }
   /** 연결정보 폼 적용 "Apply" → 소스그룹 등록 모달로 복귀 */
   private get connApplyButton(): Locator {
-    return this.page
-      .getByTestId('source-connection-apply');
+    return this.page.getByTestId('source-connection-apply');
   }
 
   // ───────────────────────── 상세 / 연결 목록 / 수집 탭 ─────────────────────────
@@ -225,7 +240,11 @@ export class SourceServicesPage {
   private get deleteConfirmButton(): Locator {
     return this.page
       .getByTestId('delete-confirm')
-      .or(this.page.getByRole('button', { name: /^(Confirm|OK|Delete|확인|삭제)$/ }).last());
+      .or(
+        this.page
+          .getByRole('button', { name: /^(Confirm|OK|Delete|확인|삭제)$/ })
+          .last(),
+      );
   }
 
   // ───────────────────────── 액션 ─────────────────────────
@@ -259,7 +278,10 @@ export class SourceServicesPage {
    * 흐름: Add → 그룹명 입력 → With Source Connection 토글 → Go add Source Connection
    *      → 연결정보 폼 입력 → Apply → 그룹 모달 Add 확정.
    */
-  async createSourceGroupWithConnection(name: string, conn: Connection): Promise<void> {
+  async createSourceGroupWithConnection(
+    name: string,
+    conn: Connection,
+  ): Promise<void> {
     await this.addGroupButton.click();
     await this.serviceNameInput.fill(name);
     await this.withConnectionToggle.click();
@@ -344,7 +366,9 @@ export class SourceServicesPage {
   }
 
   async expectConnectionListed(name: string): Promise<void> {
-    await expect(this.connectionRow(name).first()).toBeVisible({ timeout: 15_000 });
+    await expect(this.connectionRow(name).first()).toBeVisible({
+      timeout: 15_000,
+    });
   }
 
   /** 인프라 수집 결과 조회 확인 — Collect Infra가 수집 후 Refine 팝업을 자동으로 열어

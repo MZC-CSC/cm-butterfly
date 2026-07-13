@@ -9,5 +9,7 @@
  */
 export default async function globalSetup(): Promise<void> {
   process.env.E2E_RUN_ID ||= String(Date.now()).slice(-6);
-  console.log(`[e2e] RUN_ID=${process.env.E2E_RUN_ID} (생성 리소스 이름 접미사)`);
+  console.log(
+    `[e2e] RUN_ID=${process.env.E2E_RUN_ID} (생성 리소스 이름 접미사)`,
+  );
 }

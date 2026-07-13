@@ -74,10 +74,16 @@ export default class SummaryReporter implements Reporter {
       feature,
       scenario: test.title,
       project,
-      status: result.status === 'timedOut' ? 'failed' : (result.status as Row['status']),
+      status:
+        result.status === 'timedOut'
+          ? 'failed'
+          : (result.status as Row['status']),
       durationSec: Math.round(result.duration / 1000),
       error: result.error?.message
-        ? this.stripAnsi(result.error.message).split('\n').slice(0, 6).join('\n')
+        ? this.stripAnsi(result.error.message)
+            .split('\n')
+            .slice(0, 6)
+            .join('\n')
         : undefined,
       shots,
       notes,
@@ -89,7 +95,9 @@ export default class SummaryReporter implements Reporter {
     fs.mkdirSync(OUT_DIR, { recursive: true });
     const file = path.join(OUT_DIR, 'index.html');
     fs.writeFileSync(file, this.html(result), 'utf8');
-    console.log(`\n📄 시나리오 보고서: ${file}  (브라우저에서 열면 그대로 인쇄/PDF 가능)`);
+    console.log(
+      `\n📄 시나리오 보고서: ${file}  (브라우저에서 열면 그대로 인쇄/PDF 가능)`,
+    );
   }
 
   // ── 내부 ────────────────────────────────────────────────────────────────
@@ -112,10 +120,7 @@ export default class SummaryReporter implements Reporter {
   }
 
   private esc(s: string): string {
-    return s
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   /** 마크다운 표를 간단히 HTML 로 (부하테스트 소요시간 첨부용 — 표·제목·목록만 다룬다) */
@@ -126,7 +131,10 @@ export default class SummaryReporter implements Reporter {
       const line = raw.trim();
       if (/^\|[\s-|:]+\|$/.test(line)) continue; // 표 구분선
       if (line.startsWith('|')) {
-        const cells = line.split('|').slice(1, -1).map(c => this.esc(c.trim()));
+        const cells = line
+          .split('|')
+          .slice(1, -1)
+          .map(c => this.esc(c.trim()));
         if (!inTable) {
           out.push('<table><tbody>');
           inTable = true;
@@ -138,9 +146,12 @@ export default class SummaryReporter implements Reporter {
         out.push('</tbody></table>');
         inTable = false;
       }
-      if (line.startsWith('## ')) out.push(`<h4>${this.esc(line.slice(3))}</h4>`);
-      else if (line.startsWith('# ')) out.push(`<h3>${this.esc(line.slice(2))}</h3>`);
-      else if (line.startsWith('- ')) out.push(`<div class="li">• ${this.esc(line.slice(2))}</div>`);
+      if (line.startsWith('## '))
+        out.push(`<h4>${this.esc(line.slice(3))}</h4>`);
+      else if (line.startsWith('# '))
+        out.push(`<h3>${this.esc(line.slice(2))}</h3>`);
+      else if (line.startsWith('- '))
+        out.push(`<div class="li">• ${this.esc(line.slice(2))}</div>`);
       else if (line) out.push(`<p>${this.esc(line)}</p>`);
     }
     if (inTable) out.push('</tbody></table>');
@@ -177,7 +188,9 @@ export default class SummaryReporter implements Reporter {
           )
           .join('');
         return `<li><a href="#${this.slug(feature)}"><b>${this.esc(feature)}</b></a> ${
-          ng ? `<span class="b ng">${ng} 실패</span>` : '<span class="b ok">전부 성공</span>'
+          ng
+            ? `<span class="b ng">${ng} 실패</span>`
+            : '<span class="b ok">전부 성공</span>'
         }<ul>${items}</ul></li>`;
       })
       .join('');
@@ -198,7 +211,9 @@ export default class SummaryReporter implements Reporter {
             const err = r.error
               ? `<pre class="err">${this.esc(r.error)}</pre>`
               : '';
-            const notes = r.notes.map(n => `<div class="note">${this.miniMarkdown(n)}</div>`).join('');
+            const notes = r.notes
+              .map(n => `<div class="note">${this.miniMarkdown(n)}</div>`)
+              .join('');
             return `
       <article id="${this.slug(feature)}-${i}" class="sc ${r.status}">
         <h3>${badge(r.status)} ${this.esc(r.scenario)}</h3>
