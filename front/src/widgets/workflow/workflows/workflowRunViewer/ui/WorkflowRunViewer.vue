@@ -273,6 +273,7 @@ async function onRunChange(runId: string) {
           <p-tooltip
             contents="Re-runs the tasks that failed in this run, and the ones that could not run because of them. You are shown the exact list and asked to confirm first."
             position="bottom"
+            :options="{ classes: ['p-tooltip', 'run-viewer-tooltip'] }"
           >
             <p-button
               data-testid="workflow-rerun-failed-btn"
@@ -288,6 +289,7 @@ async function onRunChange(runId: string) {
           <p-tooltip
             contents="Starts a new run of the whole workflow from the first task. This does not re-run the run selected above."
             position="bottom"
+            :options="{ classes: ['p-tooltip', 'run-viewer-tooltip'] }"
           >
             <p-button
               data-testid="workflow-viewer-run-btn"
@@ -303,6 +305,7 @@ async function onRunChange(runId: string) {
           <p-tooltip
             contents="Copies this workflow and opens the copy in the editor, so you can change values without touching the original or its run history."
             position="bottom"
+            :options="{ classes: ['p-tooltip', 'run-viewer-tooltip'] }"
           >
             <p-button
               data-testid="workflow-clone-edit-btn"
@@ -439,6 +442,7 @@ async function onRunChange(runId: string) {
                 <p-tooltip
                   contents="Saves the log of the selected try as a text file."
                   position="bottom"
+                  :options="{ classes: ['p-tooltip', 'run-viewer-tooltip'] }"
                 >
                   <p-button
                     data-testid="workflow-run-log-download"
@@ -476,6 +480,7 @@ async function onRunChange(runId: string) {
                 :key="scope.key"
                 :contents="scope.hint"
                 position="bottom"
+                :options="{ classes: ['p-tooltip', 'run-viewer-tooltip'] }"
               >
                 <p-button
                   data-testid="workflow-rerun-scope"
@@ -958,5 +963,25 @@ async function onRunChange(runId: string) {
 .run-viewer__deleted h5 {
   font-weight: 700;
   margin-bottom: 0.25rem;
+}
+</style>
+
+<!--
+  툴팁은 이 컴포넌트 바깥(body)에 그려지므로 scoped 스타일이 닿지 않는다.
+  기본값은 한 줄로만 나와 설명이 길면 잘린다 — 줄바꿈을 허용하고 폭을 준다.
+-->
+<style lang="postcss">
+.run-viewer-tooltip {
+  max-width: 22rem;
+}
+
+/* 설명이 한 줄로만 나와 잘리던 자리 — 줄바꿈을 허용해 전문이 보이게 한다 */
+.run-viewer-tooltip .tooltip-inner {
+  max-width: 22rem;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.45;
+  text-align: left;
 }
 </style>
