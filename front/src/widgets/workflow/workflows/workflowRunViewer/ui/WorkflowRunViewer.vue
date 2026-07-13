@@ -388,19 +388,20 @@ async function onRunChange(runId: string) {
         :style="{ flexBasis: graphFlexBasis }"
       >
         <!--
-          진행 상황은 그래프 *위쪽 줄*에 둔다. 그래프 위에 겹쳐 놓으면(모래시계 같은 것)
-          정작 봐야 할 태스크를 가린다. 실행할 태스크 수를 알고 있으므로 몇 개 중 몇 개가
-          끝났는지 그대로 센다.
+          진행 상황은 *도는 동안에만* 그래프 위쪽 줄에 나온다.
+          끝난 실행에까지 막대를 남기면 100%로 채워진 막대가 계속 붙어 있어 "지금도
+          뭔가 돌고 있나"로 읽힌다. 끝난 실행의 결과는 헤더의 상태 배지와 그래프 색이
+          이미 말해 준다. (그래프 *위에 겹치지* 않는 이유는 태스크를 가리기 때문이다.)
         -->
         <div
-          v-if="selectedRun && graph.nodes.length"
+          v-if="runInProgress && graph.nodes.length"
           class="run-viewer__progress"
           data-testid="workflow-run-progress"
-          :data-state="selectedRun.state ?? 'none'"
+          :data-state="selectedRun?.state ?? 'none'"
         >
           <span class="run-viewer__progress-state">
-            <span v-if="runInProgress" class="run-viewer__progress-dot" />
-            {{ taskStateLabel(selectedRun.state) }}
+            <span class="run-viewer__progress-dot" />
+            {{ taskStateLabel(selectedRun?.state) }}
           </span>
           <div class="run-viewer__progress-track">
             <div
