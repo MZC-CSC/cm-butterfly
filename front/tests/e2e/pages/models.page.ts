@@ -59,33 +59,31 @@ export class ModelsPage {
 
   /** 소스 모델 상세 — "Custom & View Source Model"(온프렘 정보 편집·저장 진입) */
   private get customViewSourceLink(): Locator {
-    return this.page
-      .getByTestId('source-detail-custom-view');
+    return this.page.getByTestId('source-detail-custom-view');
   }
 
   /** 소스 모델 상세 — "View Recommended List"(추천 모달 진입) */
   private get viewRecommendLink(): Locator {
-    return this.page
-      .getByTestId('source-detail-view-recommend');
+    return this.page.getByTestId('source-detail-view-recommend');
   }
 
   /** 모달(CreateForm) 내 SAVE 버튼 — Custom & View의 저장 */
   private get createFormSaveButton(): Locator {
-    return this.page
-      .getByTestId('create-form-save');
+    return this.page.getByTestId('create-form-save');
   }
 
   /** 이름 입력 모달(SimpleEditForm) — Model Name 인풋 */
   private get modelNameInput(): Locator {
     return this.page
-      .locator('input[data-testid="model-name-input"], textarea[data-testid="model-name-input"]')
+      .locator(
+        'input[data-testid="model-name-input"], textarea[data-testid="model-name-input"]',
+      )
       .or(this.page.getByPlaceholder(/model name/i));
   }
 
   /** 이름 입력 모달(SimpleEditForm) — 확정(Save) 버튼 */
   private get modelNameConfirmButton(): Locator {
-    return this.page
-      .getByTestId('model-name-save');
+    return this.page.getByTestId('model-name-save');
   }
 
   /** 저장 성공 아이콘 모달의 Confirm 버튼 */
@@ -104,40 +102,36 @@ export class ModelsPage {
 
   /** CSP(Provider) 선택 드롭다운 */
   private get providerDropdown(): Locator {
-    return this.page
-      .getByTestId('recommend-provider-select');
+    return this.page.getByTestId('recommend-provider-select');
   }
 
   /** Region 선택 드롭다운 */
   private get regionDropdown(): Locator {
-    return this.page
-      .getByTestId('recommend-region-select');
+    return this.page.getByTestId('recommend-region-select');
   }
 
   /** 추천 실행(Search) 버튼 */
   private get searchButton(): Locator {
-    return this.page
-      .getByTestId('recommend-search');
+    return this.page.getByTestId('recommend-search');
   }
 
   /** 후보 개수(Candidate Limit) 인풋 */
   private get candidateLimitInput(): Locator {
     return this.page
-      .locator('input[data-testid="recommend-candidate-limit"], textarea[data-testid="recommend-candidate-limit"]')
+      .locator(
+        'input[data-testid="recommend-candidate-limit"], textarea[data-testid="recommend-candidate-limit"]',
+      )
       .or(this.recommendModal.getByPlaceholder('3'));
   }
 
   /** 추천 결과 테이블 행 */
   private get recommendRows(): Locator {
-    return this.page
-      .getByTestId('recommend-result-table')
-      .locator('tbody tr');
+    return this.page.getByTestId('recommend-result-table').locator('tbody tr');
   }
 
   /** "Save as a Target Model" 버튼 */
   private get saveAsTargetButton(): Locator {
-    return this.page
-      .getByTestId('recommend-save-target');
+    return this.page.getByTestId('recommend-save-target');
   }
 
   // ───────────────────────────────────────────────────────────────────
@@ -251,7 +245,10 @@ export class ModelsPage {
    *   비용 셀 형식: "<monthly>/mon (<hourly>/hour)<currency>".
    *   반환: 선택한 후보의 spec 표기(급 검증용).
    */
-  async selectLowestCostCandidate(): Promise<{ spec: string; monthlyPrice: number }> {
+  async selectLowestCostCandidate(): Promise<{
+    spec: string;
+    monthlyPrice: number;
+  }> {
     const rows = this.recommendRows;
     const count = await rows.count();
     let minIndex = -1;
@@ -260,11 +257,14 @@ export class ModelsPage {
     let completeCount = 0;
 
     for (let i = 0; i < count; i++) {
-      const cellTexts = (await rows.nth(i).locator('td, [role="cell"]').allInnerTexts())
-        .map(t => t.trim());
+      const cellTexts = (
+        await rows.nth(i).locator('td, [role="cell"]').allInnerTexts()
+      ).map(t => t.trim());
       const text = cellTexts.join(' ');
       const priceMatch = text.match(/([\d.]+)\s*\/\s*mon/i);
-      const price = priceMatch ? parseFloat(priceMatch[1]) : Number.POSITIVE_INFINITY;
+      const price = priceMatch
+        ? parseFloat(priceMatch[1])
+        : Number.POSITIVE_INFINITY;
       const spec = this.parseSpecToken(text);
 
       // 값 완전성 판정 — cm-beetle 실측(2026-07-05)상 specId/imageId는 nano에서도 채워지고,
@@ -287,13 +287,72 @@ export class ModelsPage {
     if (minIndex < 0) {
       throw new Error(
         `추천 결과에 값이 모두 채워진 후보가 없음(후보 ${count}개 전부 불완전). ` +
-        `cm-beetle 추천 응답의 필드 범위를 소스레벨로 병행 검증 필요 — RecommendVmInfraCandidates가 빈 값을 반환하는 원인 확인.`,
+          `cm-beetle 추천 응답의 필드 범위를 소스레벨로 병행 검증 필요 — RecommendVmInfraCandidates가 빈 값을 반환하는 원인 확인.`,
       );
     }
 
     // 단일 선택 테이블 — (완전한 후보 중) 최저가 행 클릭
     await rows.nth(minIndex).click();
-    return { spec: minSpec, monthlyPrice: Number.isFinite(minPrice) ? minPrice : 0 };
+    return {
+      spec: minSpec,
+      monthlyPrice: Number.isFinite(minPrice) ? minPrice : 0,
+    };
+  }
+
+  /**
+   * 허용 급(maxClass) *안에서 가장 큰* 후보를 고른다.
+   *
+   * ★ 왜 최저가가 아닌가 — 소프트웨어 마이그레이션은 타깃에서 패키지를 하나씩 설치한다. 그런데 추천 목록에
+   *   OS 기반 패키지까지 통째로 들어와, micro급 타깃에서는 CPU가 포화돼 사실상 끝나지 않는다(실측: 40분에
+   *   39개 중 11개). 그러면 "마이그레이션이 되는가"를 확인할 수가 없다.
+   *
+   *   그래서 *요금 상한(maxClass)은 유지하되*, 그 안에서 가장 큰 것을 골라 마이그레이션이 실제로 끝날 수
+   *   있게 한다. 상한은 여전히 강제되므로 요금 보호는 그대로다.
+   */
+  async selectLargestCandidateWithinClass(
+    maxClass: string,
+  ): Promise<{ spec: string; monthlyPrice: number }> {
+    const rows = this.recommendRows;
+    const count = await rows.count();
+    let bestIndex = -1;
+    let bestRank = -1;
+    let bestSpec = '';
+    let bestPrice = 0;
+
+    for (let i = 0; i < count; i++) {
+      const text = (
+        await rows.nth(i).locator('td, [role="cell"]').allInnerTexts()
+      )
+        .map(t => t.trim())
+        .join(' ');
+      const spec = this.parseSpecToken(text);
+      if (!spec || /\bempty\b/i.test(text)) continue; // 값이 덜 채워진 후보는 쓸 수 없다
+      if (!isSpecWithinClass(spec, maxClass)) continue; // 요금 상한은 그대로 지킨다
+
+      const token = Object.keys(SPEC_CLASS_RANK).find(k =>
+        spec.toLowerCase().includes(k),
+      );
+      const rank = token ? SPEC_CLASS_RANK[token] : 0;
+      const priceMatch = text.match(/([\d.]+)\s*\/\s*mon/i);
+      if (rank > bestRank) {
+        bestRank = rank;
+        bestIndex = i;
+        bestSpec = spec;
+        bestPrice = priceMatch ? parseFloat(priceMatch[1]) : 0;
+      }
+    }
+
+    if (bestIndex < 0) {
+      throw new Error(
+        `추천 결과에 "${maxClass}" 급 이하의 쓸 만한 후보가 없다(후보 ${count}개).`,
+      );
+    }
+
+    await rows.nth(bestIndex).click();
+    console.log(
+      `[recommend] "${maxClass}" 급 이하 중 최대 스펙 선택: ${bestSpec}`,
+    );
+    return { spec: bestSpec, monthlyPrice: bestPrice };
   }
 
   /** 추천 결과를 지정 이름의 타깃 모델(클라우드 모델)로 저장 */
@@ -316,16 +375,13 @@ export class ModelsPage {
   // ── SW(소프트웨어) 모델 추천 (인프라와 동일 과정: 소스 SW 모델 → 추천 → 타깃 SW 모델 저장) ──
 
   private get swRecommendModal(): Locator {
-    return this.page
-      .getByTestId('sw-recommend-modal');
+    return this.page.getByTestId('sw-recommend-modal');
   }
   private get swGetRecommendButton(): Locator {
-    return this.page
-      .getByTestId('sw-recommend-get');
+    return this.page.getByTestId('sw-recommend-get');
   }
   private get swSaveTargetButton(): Locator {
-    return this.page
-      .getByTestId('sw-recommend-save-target');
+    return this.page.getByTestId('sw-recommend-save-target');
   }
 
   /** 소스 SW 모델 상세에서 SW 추천 모달을 연다 (인프라 openRecommend에 대응) */
@@ -366,7 +422,9 @@ export class ModelsPage {
   private parseSpecToken(rowText: string): string {
     // spec 셀은 "csp+region+spec" 중 마지막 조각을 표시. 공백 분해 후 spec처럼 보이는 토큰 우선.
     const tokens = rowText.split(/\s+/).filter(Boolean);
-    const specLike = tokens.find(t => /nano|micro|small|medium|large|\.|-/.test(t));
+    const specLike = tokens.find(t =>
+      /nano|micro|small|medium|large|\.|-/.test(t),
+    );
     return specLike ?? tokens[1] ?? tokens[0] ?? '';
   }
 }
@@ -389,7 +447,9 @@ export const SPEC_CLASS_RANK: Record<string, number> = {
 export function isSpecWithinClass(spec: string, maxClass: string): boolean {
   const maxRank = SPEC_CLASS_RANK[maxClass.toLowerCase()];
   if (maxRank === undefined) return true;
-  const found = Object.keys(SPEC_CLASS_RANK).find(k => spec.toLowerCase().includes(k));
+  const found = Object.keys(SPEC_CLASS_RANK).find(k =>
+    spec.toLowerCase().includes(k),
+  );
   if (!found) return true;
   return SPEC_CLASS_RANK[found] <= maxRank;
 }

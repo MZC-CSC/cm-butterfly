@@ -8,7 +8,12 @@ import {
   reportLoadTestTiming,
   LoadTestTiming,
 } from '../support/loadTestTiming';
-import { config, testNamespace, workload, getUser } from '../fixtures/test-data';
+import {
+  config,
+  testNamespace,
+  workload,
+  getUser,
+} from '../fixtures/test-data';
 
 const { Given, When, Then } = createBdd(test);
 
@@ -38,7 +43,10 @@ async function loginToken(request: APIRequestContext): Promise<string> {
  * 마이그레이션 직후 노드가 Creating이라 공인 IP가 아직 비어 있을 수 있으므로,
  * 채워질 때까지 폴링한다(최대 ~5분). IP가 있으면 SSH·원격명령이 가능한 상태로 본다.
  */
-async function fetchNodePublicIp(request: APIRequestContext, token: string): Promise<{ nodeId: string; ip: string }> {
+async function fetchNodePublicIp(
+  request: APIRequestContext,
+  token: string,
+): Promise<{ nodeId: string; ip: string }> {
   const nsId = testNamespace.id;
   const infraId = scenarioState.infraId ?? workload.infraName;
   let nodeId = '';
@@ -53,8 +61,10 @@ async function fetchNodePublicIp(request: APIRequestContext, token: string): Pro
     nodeId = node.id ?? nodeId;
     // 원격명령은 노드가 실제로 쓰는 계정으로 나가야 한다. tumblebug이 만든 노드의 계정은 `cb-user`이며,
     // 소스 서버의 SSH 계정(ubuntu)과 다르다 — 그걸 그대로 쓰면 명령이 붙지 못한다.
-    scenarioState.nodeUserName = node.nodeUserName ?? scenarioState.nodeUserName;
-    scenarioState.securityGroupIds = node.securityGroupIds ?? scenarioState.securityGroupIds;
+    scenarioState.nodeUserName =
+      node.nodeUserName ?? scenarioState.nodeUserName;
+    scenarioState.securityGroupIds =
+      node.securityGroupIds ?? scenarioState.securityGroupIds;
     const ip = node.publicIP ?? '';
     if (ip) return { nodeId, ip };
     await new Promise(r => setTimeout(r, 10_000));
@@ -87,7 +97,12 @@ async function openHttpPort(
           pathParams: { nsId, securityGroupId: sgId },
           request: {
             firewallRules: [
-              { protocol: 'TCP', ports: '80', direction: 'inbound', cidr: '0.0.0.0/0' },
+              {
+                protocol: 'TCP',
+                ports: '80',
+                direction: 'inbound',
+                cidr: '0.0.0.0/0',
+              },
             ],
           },
         },
@@ -96,60 +111,139 @@ async function openHttpPort(
     console.log(`[perf] 보안그룹 ${sgId} 80 포트 개방 → ${r.status()}`);
   }
   if (sgIds.length === 0) {
-    console.warn('[perf] 노드의 보안그룹 id를 찾지 못했다 — 80이 이미 열려 있길 기대하고 진행한다.');
+    console.warn(
+      '[perf] 노드의 보안그룹 id를 찾지 못했다 — 80이 이미 열려 있길 기대하고 진행한다.',
+    );
   }
 }
 
-/** "그리고 생성된 워크로드에 nginx를 설치한다" — 80 포트 개방 + cb-tumblebug 원격명령으로 nginx 설치 */
-Given('생성된 워크로드에 nginx를 설치한다', async ({ request }) => {
+/**
+ * "그리고 생성된 워크로드의 80 포트를 개방한다"
+ *
+ * 마이그레이션이 만든 보안그룹은 *소스 서버에서 수집한 것*을 따라간다. 소스의 인바운드에 80이 없으면
+ * 타깃에도 없고, 그러면 소프트웨어(nginx)가 올라가 있어도 밖에서 못 붙어 부하테스트를 할 수 없다.
+ *
+ * 콘솔에는 보안그룹 규칙을 손보는 화면이 없어, 이 단계만 API로 처리한다(테스트 전제조건).
+ * 노드 공인 IP도 여기서 확보해 이후 단계(외부 접근 확인·부하 대상)가 쓴다.
+ */
+Given('생성된 워크로드의 80 포트를 개방한다', async ({ request }) => {
   const token = await loginToken(request);
   const { nodeId, ip } = await fetchNodePublicIp(request, token);
   scenarioState.nodeId = nodeId;
   scenarioState.nodePublicIp = ip;
 
-  const nsId = testNamespace.id;
-  const infraId = scenarioState.infraId ?? workload.infraName;
+  expect(
+    ip,
+    '노드 공인 IP를 확인하지 못했다 — 인프라 생성이 끝나지 않았을 수 있다',
+  ).toBeTruthy();
 
-  // 부하테스트를 하려면 밖에서 80으로 붙을 수 있어야 한다.
-  await openHttpPort(request, token, nsId, infraId);
-  // ★ 서비스 접두어 필수 — 접두어 없이 부르면 백엔드가 operationId를 못 찾아 404다(전역 검색 폴백 제거됨).
-  const res = await request.post(`${config.baseURL}/api/cb-tumblebug/PostCmdInfra`, {
-    headers: { Authorization: `Bearer ${token}` },
-    // 원격명령(apt update + nginx 설치)은 수십 초~수 분 걸리므로 기본 30s로는 부족 → 넉넉히.
-    timeout: 300_000,
-    data: {
-      pathParams: { nsId, infraId },
-      request: {
-        // cb-tumblebug MciCmdReq — command 목록과 접속 계정.
-        // 계정은 GetInfra가 알려준 노드 계정(cb-user)을 쓴다. 소스 서버 계정(ubuntu)이 아니다.
-        userName: scenarioState.nodeUserName ?? 'cb-user',
-        command: [
-          'sudo apt-get update -y',
-          'sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nginx',
-          'sudo systemctl enable --now nginx',
-        ],
+  await openHttpPort(
+    request,
+    token,
+    testNamespace.id,
+    scenarioState.infraId ?? workload.infraName,
+  );
+});
+
+/** 타깃 노드에서 명령을 돌리고 *표준출력만* 돌려준다 (응답에는 명령문도 실려 오므로 그걸 매칭하면 안 된다) */
+async function nodeStdout(
+  request: APIRequestContext,
+  token: string,
+  command: string[],
+): Promise<string> {
+  const res = await request.post(
+    `${config.baseURL}/api/cb-tumblebug/PostCmdInfra`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 300_000,
+      data: {
+        pathParams: {
+          nsId: testNamespace.id,
+          infraId: scenarioState.infraId ?? workload.infraName,
+        },
+        request: { userName: scenarioState.nodeUserName ?? 'cb-user', command },
       },
     },
+  );
+  const results =
+    (await res.json().catch(() => null))?.responseData?.results ?? [];
+  return results
+    .map((r: any) => Object.values(r?.stdout ?? {}).join('\n'))
+    .join('\n');
+}
+
+/**
+ * "그리고 부하테스트 대상 웹서버를 준비한다"
+ *
+ * 부하테스트는 웹서버가 있어야 성립한다. 원래 의도는 **소프트웨어 마이그레이션이 올린 nginx** 를 그대로
+ * 대상으로 삼는 것이고, 그게 됐으면 아무것도 하지 않는다.
+ *
+ * 안 됐으면 여기서 nginx를 올려 부하테스트를 이어간다. 대신 **무엇이 일어났는지 감추지 않는다** —
+ * 마이그레이션이 올린 것인지 우리가 준비한 것인지 로그와 리포트에 그대로 남긴다. 마이그레이션의 성패는
+ * 앞의 결과 확인 스텝이 이미 따로 판정했으므로, 이 준비 단계가 그 판정을 덮지 않는다.
+ */
+Given('부하테스트 대상 웹서버를 준비한다', async ({ request, $testInfo }) => {
+  test.setTimeout(15 * 60_000);
+  const token = await loginToken(request);
+
+  const running = (out: string) => /^\s*active\s*$/m.test(out);
+  let out = await nodeStdout(request, token, [
+    'systemctl is-active nginx || true',
+  ]);
+
+  if (running(out)) {
+    scenarioState.nginxFromMigration = true;
+    console.log(
+      '[perf] nginx가 이미 돌고 있다 — 소프트웨어 마이그레이션이 올린 것을 그대로 쓴다.',
+    );
+  } else {
+    scenarioState.nginxFromMigration = false;
+    console.warn(
+      `[perf] ★ 소프트웨어 마이그레이션이 nginx를 올리지 못했다(systemctl is-active → ${out.trim() || '없음'}). ` +
+        '부하테스트를 이어가기 위해 테스트가 직접 설치한다. 마이그레이션 성패는 앞 단계에서 이미 판정했다.',
+    );
+    await nodeStdout(request, token, [
+      'sudo apt-get update -y',
+      'sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --reinstall nginx',
+      'sudo systemctl enable --now nginx',
+    ]);
+    out = await nodeStdout(request, token, [
+      'systemctl is-active nginx || true',
+    ]);
+  }
+
+  await $testInfo.attach('부하테스트-대상-웹서버', {
+    body:
+      `# 부하테스트 대상 웹서버\n\n` +
+      `- nginx 출처: **${scenarioState.nginxFromMigration ? '소프트웨어 마이그레이션' : '테스트가 직접 설치(마이그레이션 실패)'}**\n` +
+      `- systemctl is-active nginx → \`${out.trim() || '없음'}\`\n`,
+    contentType: 'text/markdown',
   });
-  // 실패하면 *왜* 실패했는지 본문을 그대로 남긴다. 상태코드만으로는 원인을 알 수 없다.
-  const bodyText = res.ok() ? '' : (await res.text()).slice(0, 400);
+
   expect(
-    res.ok(),
-    `nginx 설치(cb-tumblebug/PostCmdInfra) 요청 실패: ${res.status()}\n응답: ${bodyText}`,
+    running(out),
+    `부하테스트 대상 nginx를 띄우지 못했다: ${out.trim() || '응답 없음'}`,
   ).toBeTruthy();
 });
 
-/** "그러면 nginx가 외부에서 접근 가능하다" — 노드 공인 IP:80 접근 확인 */
+/**
+ * "그러면 nginx가 외부에서 접근 가능하다" — 노드 공인 IP:80 접근 확인
+ */
 Then('nginx가 외부에서 접근 가능하다', async ({ request }) => {
   const ip = scenarioState.nodePublicIp;
-  expect(ip, '노드 공인 IP를 확인하지 못함(인프라 생성/조회 확인 필요)').toBeTruthy();
-  // 원격명령 반영에 시간이 걸리므로 재시도
+  expect(
+    ip,
+    '노드 공인 IP를 확인하지 못함(인프라 생성/조회 확인 필요)',
+  ).toBeTruthy();
+  // 서비스 기동·보안그룹 반영에 시간이 걸리므로 재시도
   let ok = false;
   for (let i = 0; i < 12 && !ok; i++) {
     try {
       const r = await request.get(`http://${ip}:80/`, { timeout: 8000 });
       ok = r.status() < 500;
-    } catch { /* 재시도 */ }
+    } catch {
+      /* 재시도 */
+    }
     if (!ok) await new Promise(r => setTimeout(r, 10_000));
   }
   expect(ok, `nginx 외부 접근 실패: http://${ip}:80`).toBeTruthy();
