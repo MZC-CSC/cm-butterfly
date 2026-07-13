@@ -106,7 +106,7 @@ export function buildRunGraph(workflow: IWorkflowResponse | null): IRunGraph {
   flat.forEach(({ task }) => {
     // 엔진은 그룹을 가로질러 task 이름이 전역 유일할 것을 요구한다.
     if (idByName.has(task.name)) {
-      warnings.push(`태스크 이름이 중복됩니다: ${task.name}`);
+      warnings.push(`Duplicate task name: ${task.name}`);
     }
     idByName.set(task.name, taskIdOf(task));
   });
@@ -121,7 +121,7 @@ export function buildRunGraph(workflow: IWorkflowResponse | null): IRunGraph {
       const depId = idByName.get(String(depName));
       if (!depId) {
         warnings.push(
-          `${task.name}이(가) 존재하지 않는 태스크에 의존합니다: ${depName}`,
+          `${task.name} depends on a task that does not exist: ${depName}`,
         );
         return;
       }
@@ -170,7 +170,7 @@ function assignLevels(
       // 엔진이 순환 의존을 거부하므로 정상 워크플로우에서는 도달하지 않는다.
       // 그래도 화면이 멈추지 않도록 남은 노드를 마지막 level에 몰아 넣고 알린다.
       warnings.push(
-        '순환 의존이 있어 실행 순서를 확정할 수 없는 태스크가 있습니다.',
+        'Some tasks form a dependency cycle, so their execution order cannot be determined.',
       );
       const fallbackLevel = resolved.size
         ? Math.max(...[...resolved].map(id => nodeById.get(id)!.level)) + 1

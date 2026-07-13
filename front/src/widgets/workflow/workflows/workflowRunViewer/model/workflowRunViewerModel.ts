@@ -1,17 +1,27 @@
 import { computed, onScopeDispose, ref } from 'vue';
 import { useIntervalFn } from '@vueuse/core';
 import {
+  IClearTaskOption,
+  useClearTaskInstances,
+  useCloneWorkflow,
   useGetTaskInstances,
+  useGetTaskLogs,
   useGetWorkflow,
   useGetWorkflowRuns,
+  useRunWorkflow,
 } from '@/entities/workflow/api/index';
 import {
   ITaskInstance,
+  ITaskInstanceReference,
   IWorkflowResponse,
   IWorkflowRun,
 } from '@/entities/workflow/model/types';
 import { buildRunGraph, IRunGraph } from '@/entities/workflow/lib/runGraph';
 import { isRunFinished } from '@/entities/workflow/lib/taskState';
+import {
+  extractFailureSummary,
+  normalizeTaskLog,
+} from '@/entities/workflow/lib/taskLog';
 
 /**
  * 실행 상태를 주기적으로 조회한다.
@@ -32,6 +42,20 @@ export function useWorkflowRunViewerModel() {
   const selectedTaskId = ref<string | null>(null);
   const loadError = ref<string | null>(null);
   const isPolling = ref(false);
+
+  // 로그
+  const logText = ref('');
+  const logError = ref<string | null>(null);
+  const logLoading = ref(false);
+  const selectedTryNumber = ref<number | null>(null);
+
+  // 재실행
+  const rerunTargets = ref<ITaskInstanceReference[] | null>(null);
+  const rerunError = ref<string | null>(null);
+  const rerunPending = ref(false);
+  const rerunOption = ref<IClearTaskOption | null>(null);
+
+  const failureSummary = computed(() => extractFailureSummary(logText.value));
 
   const graph = computed<IRunGraph>(() => buildRunGraph(workflow.value));
 
@@ -98,7 +122,7 @@ export function useWorkflowRunViewerModel() {
     } catch (e: any) {
       // 실행 직후에는 엔진이 아직 준비되지 않아 실패할 수 있다.
       // 곧바로 에러로 단정하지 않고 다음 주기에 다시 시도한다.
-      loadError.value = e?.message ?? '실행 상태를 가져오지 못했습니다.';
+      loadError.value = e?.message ?? 'Failed to load run status.';
     } finally {
       inFlight = false;
     }
@@ -165,6 +189,156 @@ export function useWorkflowRunViewerModel() {
 
   function selectTask(taskId: string) {
     selectedTaskId.value = taskId;
+    logText.value = '';
+    logError.value = null;
+    selectedTryNumber.value = null;
+  }
+
+  /** 시도(try)별로 볼 수 있어야 한다 — 재실행 전후를 비교하려면 필요하다 */
+  async function loadLog(tryNumber?: number) {
+    const wfId = workflow.value?.id;
+    const runId = selectedRunId.value;
+    const instance = selectedInstance.value;
+    if (!wfId || !runId || !instance) return;
+
+    const target = tryNumber ?? instance.try_number;
+    if (!target) {
+      logError.value = 'This task has not run yet, so there is no log.';
+      return;
+    }
+
+    selectedTryNumber.value = target;
+    logLoading.value = true;
+    logError.value = null;
+    try {
+      const { data, execute } = useGetTaskLogs(
+        wfId,
+        runId,
+        instance.task_id,
+        String(target),
+      );
+      await execute();
+      const raw = data.value?.responseData;
+      if (raw === undefined || raw === null) {
+        // 로그가 없는 것과 조회에 실패한 것은 다르다. 빈 화면으로 얼버무리지 않는다.
+        logText.value = '';
+        logError.value = 'Failed to load the log.';
+        return;
+      }
+      logText.value = normalizeTaskLog(raw);
+    } catch (e: any) {
+      logText.value = '';
+      logError.value = e?.message ?? 'Failed to load the log.';
+    } finally {
+      logLoading.value = false;
+    }
+  }
+
+  /**
+   * 재실행 사전 확인.
+   *
+   * 어떤 태스크가 다시 도는지는 화면의 그림이 아니라 **엔진이 실제 실행 그래프를 보고**
+   * 정한다. 둘이 어긋날 수 있으므로 실행 전에 반드시 대상 목록을 받아 확인시킨다.
+   */
+  async function previewRerun(option: IClearTaskOption) {
+    const wfId = workflow.value?.id;
+    const runId = selectedRunId.value;
+    if (!wfId || !runId) return;
+
+    rerunError.value = null;
+    rerunTargets.value = null;
+    rerunPending.value = true;
+    try {
+      const { data, execute } = useClearTaskInstances(wfId, runId, {
+        ...option,
+        dryRun: true,
+        // 엔진은 사전 확인에 실행 상태 리셋을 함께 보내면 거부한다
+        // ("dry_run이 true이면 reset_dag_runs는 의미가 없습니다").
+        resetDagRuns: false,
+      });
+      await execute();
+      rerunTargets.value = data.value?.responseData ?? [];
+      rerunOption.value = option;
+    } catch (e: any) {
+      rerunError.value =
+        e?.message ?? 'Failed to check which tasks would run again.';
+    } finally {
+      rerunPending.value = false;
+    }
+  }
+
+  async function confirmRerun() {
+    const wfId = workflow.value?.id;
+    const runId = selectedRunId.value;
+    const option = rerunOption.value;
+    if (!wfId || !runId || !option) return;
+
+    rerunPending.value = true;
+    rerunError.value = null;
+    try {
+      const { execute } = useClearTaskInstances(wfId, runId, {
+        ...option,
+        dryRun: false,
+        resetDagRuns: true,
+      });
+      await execute();
+      cancelRerun();
+      await fetchInstances(wfId, runId);
+      startPolling();
+    } catch (e: any) {
+      rerunError.value = e?.message ?? 'Re-run failed.';
+    } finally {
+      rerunPending.value = false;
+    }
+  }
+
+  function cancelRerun() {
+    rerunTargets.value = null;
+    rerunOption.value = null;
+    rerunError.value = null;
+  }
+
+  /**
+   * 원본을 복제한다.
+   *
+   * 파라미터를 바꿔 실행하고 싶을 때 *원본을 고치면 안 된다* — 엔진은 "그 실행에 쓰인
+   * 정의"를 돌려주지 않으므로, 원본을 고치는 순간 그 워크플로우의 과거 실행이 화면에서
+   * 엉뚱한 값으로 보이게 된다. 복제본을 고치면 원본과 그 이력은 그대로 남는다.
+   */
+  const cloning = ref(false);
+
+  async function cloneForEdit(): Promise<string | null> {
+    const wfId = workflow.value?.id;
+    if (!wfId) return null;
+
+    cloning.value = true;
+    loadError.value = null;
+    try {
+      const { data, execute } = useCloneWorkflow(wfId);
+      await execute();
+      const cloned = data.value?.responseData;
+      if (!cloned?.id) {
+        loadError.value = 'Failed to clone this workflow.';
+        return null;
+      }
+      return cloned.id;
+    } catch (e: any) {
+      loadError.value = e?.message ?? 'Failed to clone this workflow.';
+      return null;
+    } finally {
+      cloning.value = false;
+    }
+  }
+
+  /** 뷰어에서 바로 실행 — 목록 화면까지 가지 않아도 된다 */
+  async function runWorkflow() {
+    const wfId = workflow.value?.id;
+    if (!wfId) return;
+    const { execute } = useRunWorkflow(wfId);
+    await execute();
+    // DAG 등록 직후에는 실행이 바로 보이지 않을 수 있으므로 잠시 뒤 다시 연다
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    await open(wfId);
   }
 
   // 화면을 벗어나면 조회가 남지 않게 한다
@@ -183,10 +357,26 @@ export function useWorkflowRunViewerModel() {
     definitionChangedAfterRun,
     graph,
     isPolling,
+    cloning,
     loadError,
+    logText,
+    logError,
+    logLoading,
+    selectedTryNumber,
+    failureSummary,
+    rerunTargets,
+    rerunError,
+    rerunPending,
+    rerunOption,
     open,
     selectRun,
     selectTask,
+    loadLog,
+    previewRerun,
+    confirmRerun,
+    cancelRerun,
+    cloneForEdit,
+    runWorkflow,
     stopPolling,
   };
 }

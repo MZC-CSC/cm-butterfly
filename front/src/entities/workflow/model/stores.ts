@@ -5,6 +5,7 @@ import {
   ITaskComponent,
 } from '@/entities/workflow/model/types';
 import { normalizeTaskComponentInPlace } from '@/entities/workflow/lib/schemaAdapter';
+import { useGetWorkflow } from '@/entities/workflow/api';
 import { ref } from 'vue';
 
 const NAMESPACE = 'WORKFLOW';
@@ -16,19 +17,61 @@ export const useWorkflowStore = defineStore(NAMESPACE, () => {
   const workflowTemplates = ref<IWorkflow[]>([]);
   const taskComponents = ref<ITaskComponent[]>([]);
 
-  function getWorkflowById(workflowId: string | null | undefined) {
-    return workflows.value.find(workflow => workflow.id === workflowId);
-  }
-
-  function setWorkFlows(_workflows: IWorkflowResponse[]) {
-    workflows.value = _workflows.map(workflow => ({
+  /**
+   * API 응답 → 스토어에 담는 형태.
+   *
+   * 담는 형태를 아는 곳은 여기 하나뿐이다. 목록으로 담든 한 건으로 담든 이 함수를
+   * 거치므로, 저장 구조가 바뀌어도 고칠 곳은 여기 한 곳이다.
+   */
+  function toWorkflowEntry(workflow: IWorkflowResponse): IWorkflow {
+    return {
       created_at: workflow.created_at,
       data: workflow.data,
       name: workflow.name,
       updated_at: workflow.updated_at,
       id: workflow.id,
       description: '',
-    }));
+    };
+  }
+
+  function getWorkflowById(workflowId: string | null | undefined) {
+    return workflows.value.find(workflow => workflow.id === workflowId);
+  }
+
+  function setWorkFlows(_workflows: IWorkflowResponse[]) {
+    workflows.value = _workflows.map(toWorkflowEntry);
+  }
+
+  /** 한 건 담기·갱신 */
+  function upsertWorkflow(workflow: IWorkflowResponse) {
+    const entry = toWorkflowEntry(workflow);
+    const index = workflows.value.findIndex(w => w.id === workflow.id);
+    if (index >= 0) workflows.value.splice(index, 1, entry);
+    else workflows.value.push(entry);
+  }
+
+  /**
+   * 워크플로우를 돌려준다. 캐시에 없으면 받아서 채운 뒤 돌려준다.
+   *
+   * 캐시 정책을 여기 한 곳에만 둔다. 호출자가 "없으면 목록을 다시 받아 넣는" 일을
+   * 각자 하기 시작하면, 워크플로우를 새로 만드는 기능이 생길 때마다 같은 코드가
+   * 늘어나고 어디선가 빠뜨린다 (복제본을 편집기로 열었을 때 빈 화면이 뜬 것이 그 예다).
+   */
+  async function ensureWorkflowById(
+    workflowId: string | null | undefined,
+  ): Promise<IWorkflow | undefined> {
+    if (!workflowId) return undefined;
+
+    const cached = getWorkflowById(workflowId);
+    if (cached) return cached;
+
+    const { data, execute } = useGetWorkflow(workflowId);
+    await execute();
+    const fetched = data.value?.responseData;
+    if (!fetched?.id) return undefined;
+
+    upsertWorkflow(fetched);
+    return getWorkflowById(workflowId);
   }
 
   function getWorkflowTemplateById(templateId: string | null | undefined) {
@@ -68,7 +111,7 @@ export const useWorkflowStore = defineStore(NAMESPACE, () => {
         spec: (taskComponent as any).spec,
       };
     });
-    
+
     // 각 task component의 model 정보를 콘솔에 출력
     console.log('=== Task Components Model Information ===');
     _taskComponents.forEach(taskComponent => {
@@ -76,12 +119,15 @@ export const useWorkflowStore = defineStore(NAMESPACE, () => {
         id: taskComponent.id,
         model: taskComponent.data,
         created_at: taskComponent.created_at,
-        updated_at: taskComponent.updated_at
+        updated_at: taskComponent.updated_at,
       });
-      
+
       // Task component의 body_params 모델 정보 상세 출력
       if (taskComponent.data && (taskComponent.data as any).body_params) {
-        console.log(`📋 ${taskComponent.name} Body Params Model:`, (taskComponent.data as any).body_params);
+        console.log(
+          `📋 ${taskComponent.name} Body Params Model:`,
+          (taskComponent.data as any).body_params,
+        );
       }
     });
     console.log('==========================================');
@@ -115,6 +161,8 @@ export const useWorkflowStore = defineStore(NAMESPACE, () => {
     taskComponents,
     setWorkFlows,
     getWorkflowById,
+    ensureWorkflowById,
+    upsertWorkflow,
     setWorkflowTemplates,
     getWorkflowTemplateById,
     setTaskComponents,

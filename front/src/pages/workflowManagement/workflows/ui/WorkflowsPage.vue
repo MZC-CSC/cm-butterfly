@@ -22,6 +22,20 @@ const updateWorkflow = useUpdateWorkflow(null, null);
 
 const pageName = 'Workflows';
 
+/**
+ * 실행 뷰어에서 복제해 편집하기.
+ *
+ * 값을 바꿔 다시 돌리고 싶을 때 *원본을 고치지 않는다* — 엔진은 "그 실행에 쓰인 정의"를
+ * 돌려주지 않으므로, 원본을 고치면 그 워크플로우의 과거 실행이 화면에서 엉뚱한 값으로
+ * 보이게 된다. 복제본을 선택 상태로 바꾸고 그것을 에디터로 연다.
+ */
+function handleEditClone(clonedWorkflowId: string) {
+  // 목록 갱신 트리거를 여기서 켜면 목록이 다시 그려지며 선택이 풀려, 방금 연 편집기가
+  // 곧바로 닫힌다. 목록 갱신은 편집기를 닫을 때(저장/취소) 어차피 일어난다.
+  selectedWorkflowId.value = clonedWorkflowId;
+  modalState.workflowToolModal.open = true;
+}
+
 const selectedWorkflowId = ref<string>('');
 const workflowName = ref<string>('');
 const workflowJson = ref<object>({});
@@ -210,7 +224,10 @@ async function handleUpdateWorkflow(updatedData: object) {
             <div class="tab-section-header">
               <p>Workflow Run Status</p>
             </div>
-            <workflow-run-viewer :workflow-id="selectedWorkflowId" />
+            <workflow-run-viewer
+              :workflow-id="selectedWorkflowId"
+              @edit-clone="handleEditClone"
+            />
           </template>
         </p-tab>
       </div>

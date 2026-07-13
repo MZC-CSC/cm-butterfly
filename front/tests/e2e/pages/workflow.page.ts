@@ -27,8 +27,10 @@ import { workflowData } from '../fixtures/test-data';
 export class WorkflowPage {
   /** ★ 화면 위치(URL) */
   static readonly workflowsPath = '/main/workflow-management/workflows';
-  static readonly templatesPath = '/main/workflow-management/workflow-templates';
-  static readonly taskComponentsPath = '/main/workflow-management/task-components';
+  static readonly templatesPath =
+    '/main/workflow-management/workflow-templates';
+  static readonly taskComponentsPath =
+    '/main/workflow-management/task-components';
 
   constructor(private readonly page: Page) {}
 
@@ -89,6 +91,106 @@ export class WorkflowPage {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // 0) 실행 상태 뷰어 (Run Status 탭)
+  //
+  //   상태를 *색*으로 확인하지 않는다. 노드가 자기 상태를 data-state로 내보내므로
+  //   그것을 그대로 단언한다 — 디자인이 바뀌어도 테스트는 살아 있다.
+  //   (규약: cm-butterfly/design/07-DESIGN/DESIGN-E2E-SELECTORS.md)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /** 워크플로우를 골라 Run Status 탭을 연다 */
+  async openRunViewer(workflowName: string): Promise<void> {
+    await this.revealWorkflow(workflowName);
+    await this.rowByText(workflowName).click();
+    await this.page.getByRole('tab', { name: 'Run Status' }).click();
+    await expect(this.page.getByTestId('workflow-run-viewer')).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(this.page.getByTestId('workflow-run-graph')).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
+  /** 그래프의 태스크 노드 */
+  runNode(taskName: string): Locator {
+    return this.page.locator(
+      `[data-testid="workflow-run-node"][data-task-name="${taskName}"]`,
+    );
+  }
+
+  /** 노드의 실행 상태가 기대와 같은가 (색이 아니라 상태 값으로 단언) */
+  async expectTaskState(taskName: string, state: string): Promise<void> {
+    await expect(this.runNode(taskName)).toHaveAttribute('data-state', state, {
+      timeout: 20_000,
+    });
+  }
+
+  async selectTask(taskName: string): Promise<void> {
+    await this.runNode(taskName).click();
+    await expect(
+      this.page.getByTestId('workflow-run-task-detail'),
+    ).toBeVisible();
+  }
+
+  /** 선택한 태스크의 로그를 연다 (시도 번호 지정 가능) */
+  async openTaskLog(tryNumber?: number): Promise<Locator> {
+    const button = tryNumber
+      ? this.page.locator(
+          `[data-testid="workflow-run-log-try"][data-try="${tryNumber}"]`,
+        )
+      : this.page.getByTestId('workflow-run-log-try').first();
+    await button.click();
+    // 전체 로그는 접혀 있다. 펼쳐야 내용이 보인다.
+    await this.page.getByText('Full log').click();
+    const log = this.page.getByTestId('workflow-run-log');
+    await expect(log).toBeVisible({ timeout: 20_000 });
+    return log;
+  }
+
+  get failureSummary(): Locator {
+    return this.page.getByTestId('workflow-run-failure');
+  }
+
+  /**
+   * 재실행 사전 확인을 연다.
+   *
+   * 무엇이 다시 도는지는 화면의 그림이 아니라 *엔진이 실제 실행 그래프를 보고* 정한다.
+   * 그래서 실행하지 않고 대상 목록을 먼저 받아 확인시키며, 이 메서드는 그 목록을 돌려준다.
+   */
+  async previewRerun(scope: 'only' | 'after' | 'failed'): Promise<Locator> {
+    await this.page
+      .locator(`[data-testid="workflow-rerun-scope"][data-scope="${scope}"]`)
+      .click();
+    await expect(this.page.getByTestId('workflow-rerun-confirm')).toBeVisible({
+      timeout: 20_000,
+    });
+    return this.page.getByTestId('workflow-rerun-target');
+  }
+
+  async confirmRerun(): Promise<void> {
+    await this.page.getByTestId('workflow-rerun-ok').click();
+    await expect(this.page.getByTestId('workflow-rerun-confirm')).toBeHidden();
+  }
+
+  async cancelRerun(): Promise<void> {
+    await this.page.getByTestId('workflow-rerun-cancel').click();
+    await expect(this.page.getByTestId('workflow-rerun-confirm')).toBeHidden();
+  }
+
+  /** 새 실행 — 선택된 실행을 다시 도는 것이 아니라 워크플로우를 처음부터 실행한다 */
+  async openNewRunConfirm(): Promise<Locator> {
+    await this.page.getByTestId('workflow-viewer-run-btn').click();
+    const modal = this.page.getByTestId('workflow-run-confirm');
+    await expect(modal).toBeVisible();
+    return modal;
+  }
+
+  async cancelNewRun(): Promise<void> {
+    await this.page.getByTestId('workflow-run-confirm-cancel').click();
+    await expect(this.page.getByTestId('workflow-run-confirm')).toBeHidden();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // 1) 워크플로우 목록
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -99,7 +201,9 @@ export class WorkflowPage {
 
   /** 목록 화면 로드 확인 — 헤더 "Workflows" + 테이블 노출 */
   async expectWorkflowsLoaded(): Promise<void> {
-    await expect(this.page.getByTestId('workflow-page-header')).toBeVisible({ timeout: 15_000 });
+    await expect(this.page.getByTestId('workflow-page-header')).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(this.workflowTable).toBeVisible({ timeout: 15_000 });
   }
 
@@ -128,25 +232,26 @@ export class WorkflowPage {
 
   /** 디자이너/에디터 모달의 루트 컨테이너 */
   private get designer(): Locator {
-    return this.page
-      .getByTestId('workflow-designer');
+    return this.page.getByTestId('workflow-designer');
   }
 
   private get designerNameInput(): Locator {
-    return this.page
-      .locator('input[data-testid="workflow-name-input"], textarea[data-testid="workflow-name-input"]')
-      // 에디터 헤더의 첫 텍스트 인풋(Workflow Name)
-      .or(this.page.locator('.workflow-tool-header input').first());
+    return (
+      this.page
+        .locator(
+          'input[data-testid="workflow-name-input"], textarea[data-testid="workflow-name-input"]',
+        )
+        // 에디터 헤더의 첫 텍스트 인풋(Workflow Name)
+        .or(this.page.locator('.workflow-tool-header input').first())
+    );
   }
 
   private get designerTemplateDropdown(): Locator {
-    return this.page
-      .getByTestId('workflow-template-select');
+    return this.page.getByTestId('workflow-template-select');
   }
 
   private get designerSaveButton(): Locator {
-    return this.page
-      .getByTestId('workflow-designer-save');
+    return this.page.getByTestId('workflow-designer-save');
   }
 
   /**
@@ -155,8 +260,7 @@ export class WorkflowPage {
    * (목록 툴박스의 Add 버튼은 아직 disabled) → data-testid `workflow-create` 부여 권장.
    */
   async openDesigner(): Promise<void> {
-    const createBtn = this.page
-      .getByTestId('workflow-create');
+    const createBtn = this.page.getByTestId('workflow-create');
     await createBtn.first().click();
     await expect(this.designer).toBeVisible({ timeout: 15_000 });
   }
@@ -235,7 +339,10 @@ export class WorkflowPage {
   }
 
   /** 편집 패널의 현재 값을 읽는다 — 기본값 시나리오에서 "무엇이 기본값인지" 확인용 */
-  async readTaskParam(kind: 'path' | 'query' | 'body', key: string): Promise<string> {
+  async readTaskParam(
+    kind: 'path' | 'query' | 'body',
+    key: string,
+  ): Promise<string> {
     const field =
       kind === 'path'
         ? this.pathParam(key)
@@ -282,7 +389,6 @@ export class WorkflowPage {
     await this.rowByText(name).getByTestId('workflow-run-btn').click();
   }
 
-
   /**
    * 요금 안전 워크플로우를 실행하고, 실행 이력이 실제로 잡힐 때까지 재시도한다.
    *
@@ -292,7 +398,10 @@ export class WorkflowPage {
    *
    * ⚠️ 요금 안전 워크플로우 전용이다. 마이그레이션 워크플로우에 쓰면 누를 때마다 EC2가 늘어난다.
    */
-  async runWorkflowUntilHistoryAppears(name: string, attempts = 6): Promise<void> {
+  async runWorkflowUntilHistoryAppears(
+    name: string,
+    attempts = 6,
+  ): Promise<void> {
     for (let i = 1; i <= attempts; i++) {
       await this.gotoWorkflows();
       await this.runWorkflow(name);
@@ -328,7 +437,9 @@ export class WorkflowPage {
     // 실행 이력의 State 셀로 확인한다.
     // 예전엔 this.rows(= *워크플로우 목록* 테이블의 행)를 봤는데, 그 테이블은 이력과 무관하게 늘 떠 있어서
     // 실행이 하나도 없어도 항상 통과했다(무의미한 검증).
-    await expect(this.page.getByTestId('workflow-run-state').first()).toBeVisible({
+    await expect(
+      this.page.getByTestId('workflow-run-state').first(),
+    ).toBeVisible({
       timeout: 60_000,
     });
   }
@@ -359,8 +470,7 @@ export class WorkflowPage {
 
   /** 최신(첫) 실행 행의 State 셀 텍스트 */
   private async latestRunStateText(): Promise<string> {
-    const stateCell = this.page
-      .getByTestId('workflow-run-state');
+    const stateCell = this.page.getByTestId('workflow-run-state');
     if ((await stateCell.count()) === 0) return '';
     return (await stateCell.first().textContent()) ?? '';
   }
@@ -370,8 +480,7 @@ export class WorkflowPage {
   // ─────────────────────────────────────────────────────────────────────────
 
   private get jsonViewer(): Locator {
-    return this.page
-      .getByTestId('workflow-json-viewer');
+    return this.page.getByTestId('workflow-json-viewer');
   }
 
   async expectJsonViewerVisible(): Promise<void> {
@@ -392,7 +501,9 @@ export class WorkflowPage {
   }
 
   async expectTemplateVisible(name: string): Promise<void> {
-    await expect(this.rowByTextIn(this.templateTable, name)).toBeVisible({ timeout: 15_000 });
+    await expect(this.rowByTextIn(this.templateTable, name)).toBeVisible({
+      timeout: 15_000,
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -405,7 +516,9 @@ export class WorkflowPage {
   }
 
   async expectTaskComponentsLoaded(): Promise<void> {
-    await expect(this.page.getByTestId('taskcomponent-page-header')).toBeVisible({ timeout: 15_000 });
+    await expect(
+      this.page.getByTestId('taskcomponent-page-header'),
+    ).toBeVisible({ timeout: 15_000 });
     await expect(this.taskComponentTable).toBeVisible({ timeout: 15_000 });
   }
 
@@ -414,7 +527,9 @@ export class WorkflowPage {
   }
 
   async expectTaskComponentVisible(name: string): Promise<void> {
-    await expect(this.rowByTextIn(this.taskComponentTable, name)).toBeVisible({ timeout: 15_000 });
+    await expect(this.rowByTextIn(this.taskComponentTable, name)).toBeVisible({
+      timeout: 15_000,
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -434,7 +549,9 @@ export class WorkflowPage {
     await expect(link).toBeVisible({ timeout: 15_000 });
     // 상세 패널이 뷰포트 밖에 있을 수 있어 DOM 클릭으로 연다
     await link.evaluate((el: HTMLElement) => el.click());
-    await expect(this.page.getByTestId('workflow-json-viewer')).toBeVisible({ timeout: 15_000 });
+    await expect(this.page.getByTestId('workflow-json-viewer')).toBeVisible({
+      timeout: 15_000,
+    });
   }
 
   /** 뷰어에 표시된 JSON 텍스트 */
@@ -447,9 +564,17 @@ export class WorkflowPage {
    * @param marker 스크립트 원문에 들어 있는 문구 (디코드되면 화면에 나타난다)
    * @param base64Prefix 인코딩된 원본의 앞부분 (디코드되면 화면에 나타나면 안 된다)
    */
-  async expectScriptDecoded(marker: string, base64Prefix: string): Promise<void> {
+  async expectScriptDecoded(
+    marker: string,
+    base64Prefix: string,
+  ): Promise<void> {
     const text = await this.jsonViewerText();
-    expect(text, 'run_script 내용이 디코드되어 보여야 한다(spec.request_body 경로)').toContain(marker);
-    expect(text, 'base64 원본이 그대로 노출되면 안 된다').not.toContain(base64Prefix);
+    expect(
+      text,
+      'run_script 내용이 디코드되어 보여야 한다(spec.request_body 경로)',
+    ).toContain(marker);
+    expect(text, 'base64 원본이 그대로 노출되면 안 된다').not.toContain(
+      base64Prefix,
+    );
   }
 }
