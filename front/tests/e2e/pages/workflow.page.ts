@@ -98,6 +98,11 @@ export class WorkflowPage {
   //   (규약: cm-butterfly/design/07-DESIGN/DESIGN-E2E-SELECTORS.md)
   // ─────────────────────────────────────────────────────────────────────────
 
+  /** 디버그용 — 목록에서 워크플로우 행을 노출시킨다 */
+  async revealWorkflowPublic(name: string): Promise<number> {
+    return this.revealWorkflow(name);
+  }
+
   /** 워크플로우를 골라 Run Status 탭을 연다 */
   async openRunViewer(workflowName: string): Promise<void> {
     await this.revealWorkflow(workflowName);

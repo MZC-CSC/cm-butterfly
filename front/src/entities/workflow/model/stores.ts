@@ -5,7 +5,8 @@ import {
   ITaskComponent,
 } from '@/entities/workflow/model/types';
 import { normalizeTaskComponentInPlace } from '@/entities/workflow/lib/schemaAdapter';
-import { useGetWorkflow } from '@/entities/workflow/api';
+import { axiosPost } from '@/shared/libs/api/request';
+import { IAxiosResponse } from '@/shared/libs';
 import { ref } from 'vue';
 
 const NAMESPACE = 'WORKFLOW';
@@ -65,9 +66,14 @@ export const useWorkflowStore = defineStore(NAMESPACE, () => {
     const cached = getWorkflowById(workflowId);
     if (cached) return cached;
 
-    const { data, execute } = useGetWorkflow(workflowId);
-    await execute();
-    const fetched = data.value?.responseData;
+    // 컴포저블(useGetWorkflow)은 컴포넌트 setup 맥락에서 쓰도록 만들어져 있다.
+    // 스토어 액션에서 부르면 요청이 정상적으로 끝나지 않아 호출자가 계속 기다리게 된다.
+    // 그래서 여기서는 axios 호출을 직접 쓴다.
+    const response = await axiosPost<IAxiosResponse<IWorkflowResponse>, any>(
+      'cm-cicada/get-workflow',
+      { pathParams: { wfId: workflowId } },
+    );
+    const fetched = response?.data?.responseData;
     if (!fetched?.id) return undefined;
 
     upsertWorkflow(fetched);
