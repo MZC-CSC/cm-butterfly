@@ -68,7 +68,12 @@ export class TablePagination {
     await this.waitForRows();
     for (;;) {
       // 이 페이지에 있나? (없으면 짧게 끊고 다음 페이지로 — 페이지마다 15초씩 기다리면 한없이 느려진다)
-      if (await row.first().isVisible({ timeout: 2_000 }).catch(() => false)) {
+      if (
+        await row
+          .first()
+          .isVisible({ timeout: 2_000 })
+          .catch(() => false)
+      ) {
         return (await this.status()).current;
       }
       if (!(await this.next())) return null;

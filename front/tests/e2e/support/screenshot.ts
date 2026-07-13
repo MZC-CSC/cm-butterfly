@@ -19,11 +19,18 @@ import path from 'node:path';
 const SCREEN_DIR = 'test-results/screens';
 
 function slug(s: string): string {
-  return s.replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 80);
+  return s
+    .replace(/[^\p{L}\p{N}_-]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
 }
 
 /** 현재 화면을 저장하고 리포트에 첨부한다. 증거 보존용 — 실패시키지 않는다. */
-export async function captureScreen(page: Page, testInfo: TestInfo, name: string): Promise<string> {
+export async function captureScreen(
+  page: Page,
+  testInfo: TestInfo,
+  name: string,
+): Promise<string> {
   const dir = path.join(SCREEN_DIR, slug(testInfo.title));
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `${slug(name)}.png`);
@@ -41,7 +48,10 @@ export async function captureScreen(page: Page, testInfo: TestInfo, name: string
 export async function expectScreenBaseline(
   page: Page,
   name: string,
-  opts: { maxDiffPixelRatio?: number; mask?: ReturnType<Page['locator']>[] } = {},
+  opts: {
+    maxDiffPixelRatio?: number;
+    mask?: ReturnType<Page['locator']>[];
+  } = {},
 ): Promise<void> {
   await expect(page).toHaveScreenshot(`${slug(name)}.png`, {
     fullPage: true,

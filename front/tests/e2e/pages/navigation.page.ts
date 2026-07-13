@@ -27,24 +27,53 @@ function register(target: NavTarget, ...names: string[]) {
 }
 
 register(
-  { path: '/main/source-computing/source-services', urlPattern: /\/main\/source-computing/ },
-  'Source Computing', '소스 컴퓨팅', 'sourcecomputing', 'source',
+  {
+    path: '/main/source-computing/source-services',
+    urlPattern: /\/main\/source-computing/,
+  },
+  'Source Computing',
+  '소스 컴퓨팅',
+  'sourcecomputing',
+  'source',
 );
 register(
   { path: '/main/models/source-models', urlPattern: /\/main\/models/ },
-  'Models', '모델', 'models', '소스 모델',
+  'Models',
+  '모델',
+  'models',
+  '소스 모델',
 );
 register(
-  { path: '/main/workflow-management/workflows', urlPattern: /\/main\/workflow-management/ },
-  'Workflow Management', '워크플로우 관리', 'workflowmanagement', 'workflow', '워크플로우',
+  {
+    path: '/main/workflow-management/workflows',
+    urlPattern: /\/main\/workflow-management/,
+  },
+  'Workflow Management',
+  '워크플로우 관리',
+  'workflowmanagement',
+  'workflow',
+  '워크플로우',
 );
 register(
-  { path: '/main/workload-operations/workloads', urlPattern: /\/main\/workload-operations/ },
-  'Workload Operations', '워크로드 운영', 'workloadoperations', 'workload', '워크로드',
+  {
+    path: '/main/workload-operations/workloads',
+    urlPattern: /\/main\/workload-operations/,
+  },
+  'Workload Operations',
+  '워크로드 운영',
+  'workloadoperations',
+  'workload',
+  '워크로드',
 );
 register(
-  { path: '/main/cloud-resources/cloud-credentials', urlPattern: /\/main\/cloud-resources/ },
-  'Cloud Resources', '클라우드 리소스', 'cloudresources', 'cloud',
+  {
+    path: '/main/cloud-resources/cloud-credentials',
+    urlPattern: /\/main\/cloud-resources/,
+  },
+  'Cloud Resources',
+  '클라우드 리소스',
+  'cloudresources',
+  'cloud',
 );
 
 export class NavigationPage {

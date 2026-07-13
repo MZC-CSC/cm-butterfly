@@ -43,12 +43,20 @@ export const useWorkflowStore = defineStore(NAMESPACE, () => {
     workflows.value = _workflows.map(toWorkflowEntry);
   }
 
-  /** 한 건 담기·갱신 */
+  /**
+   * 한 건 담기·갱신.
+   *
+   * 목록 화면은 이 배열을 watch 해서 표를 그린다. 그래서 자리를 바꿔 끼우지 않고
+   * *배열을 새로 만들어* 넣는다 — push로 밀어 넣으면 목록이 다시 그려지지 않아,
+   * 복제로 새로 생긴 워크플로우가 목록에 나타나지 않는다.
+   */
   function upsertWorkflow(workflow: IWorkflowResponse) {
     const entry = toWorkflowEntry(workflow);
     const index = workflows.value.findIndex(w => w.id === workflow.id);
-    if (index >= 0) workflows.value.splice(index, 1, entry);
-    else workflows.value.push(entry);
+    workflows.value =
+      index >= 0
+        ? workflows.value.map((w, i) => (i === index ? entry : w))
+        : [...workflows.value, entry];
   }
 
   /**

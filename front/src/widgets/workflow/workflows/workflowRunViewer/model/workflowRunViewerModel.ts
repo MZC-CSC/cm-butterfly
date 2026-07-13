@@ -17,6 +17,8 @@ import {
   IWorkflowRun,
 } from '@/entities/workflow/model/types';
 import { buildRunGraph, IRunGraph } from '@/entities/workflow/lib/runGraph';
+import { useWorkflowStore } from '@/entities';
+import { showSuccessMessage } from '@/shared/utils';
 import { isRunFinished } from '@/entities/workflow/lib/taskState';
 import {
   extractFailureSummary,
@@ -38,6 +40,8 @@ export function useWorkflowRunViewerModel() {
   const workflow = ref<IWorkflowResponse | null>(null);
   const runs = ref<IWorkflowRun[]>([]);
   const selectedRunId = ref<string | null>(null);
+  const workflowStore = useWorkflowStore();
+
   const instances = ref<ITaskInstance[]>([]);
   const selectedTaskId = ref<string | null>(null);
   const loadError = ref<string | null>(null);
@@ -56,6 +60,33 @@ export function useWorkflowRunViewerModel() {
   const rerunOption = ref<IClearTaskOption | null>(null);
 
   const failureSummary = computed(() => extractFailureSummary(logText.value));
+
+  /**
+   * 진행 상황. 실행해야 할 태스크 수를 알고 있으므로 "몇 개 중 몇 개가 끝났는지"를
+   * 그대로 셀 수 있다. 도는 동안 화면이 아무 말도 하지 않으면 멈춘 것처럼 보인다.
+   */
+  const TERMINAL_STATES = ['success', 'failed', 'skipped', 'upstream_failed'];
+
+  const progress = computed(() => {
+    const total = graph.value.nodes.length;
+    const stateOf = (id: string) =>
+      (instances.value.find(i => i.task_id === id)?.state ?? '').toLowerCase();
+
+    const states = graph.value.nodes.map(n => stateOf(n.id));
+    const done = states.filter(s => TERMINAL_STATES.includes(s)).length;
+    const running = states.filter(s => s === 'running').length;
+    const failed = states.filter(s =>
+      ['failed', 'upstream_failed'].includes(s),
+    ).length;
+
+    return {
+      total,
+      done,
+      running,
+      failed,
+      percent: total ? Math.round((done / total) * 100) : 0,
+    };
+  });
 
   const graph = computed<IRunGraph>(() => buildRunGraph(workflow.value));
 
@@ -321,6 +352,22 @@ export function useWorkflowRunViewerModel() {
         loadError.value = 'Failed to clone this workflow.';
         return null;
       }
+
+      /*
+        복제 응답이 워크플로우 전체(정의 포함)를 돌려주므로 그대로 캐시에 넣는다.
+        이렇게 하지 않으면 곧바로 편집기를 열 때 빈 화면이 뜬다 — 엔진은 워크플로우를
+        Airflow에서 읽어 오는데, 방금 만든 DAG를 Airflow가 아직 읽어들이지 않아
+        조회가 한동안 실패하기 때문이다("failed to get the workflow from the airflow
+        server"). 목록도 이 캐시를 보고 그리므로 복제본이 목록에도 함께 나타난다.
+      */
+      workflowStore.upsertWorkflow(cloned);
+
+      // 복제본은 이름으로 찾는다 — 목록은 만든 순서대로 쌓이므로 새 워크플로우가
+      // 첫 페이지에 있으리라는 보장이 없다. 무엇이 만들어졌는지 이름을 알려 준다.
+      showSuccessMessage(
+        'Workflow copied',
+        `Created "${cloned.name}". Opening it in the editor.`,
+      );
       return cloned.id;
     } catch (e: any) {
       loadError.value = e?.message ?? 'Failed to clone this workflow.';
@@ -376,6 +423,7 @@ export function useWorkflowRunViewerModel() {
     confirmRerun,
     cancelRerun,
     cloneForEdit,
+    progress,
     runWorkflow,
     stopPolling,
   };

@@ -29,20 +29,10 @@ const pageName = 'Workflows';
  * 돌려주지 않으므로, 원본을 고치면 그 워크플로우의 과거 실행이 화면에서 엉뚱한 값으로
  * 보이게 된다. 복제본을 선택 상태로 바꾸고 그것을 에디터로 연다.
  */
-/**
- * 편집기를 닫을 때 목록을 다시 받는다.
- *
- * 복제로 새로 만들어진 워크플로우는 목록에 없다. 닫는 시점에 갱신해야 목록에서 보인다.
- * (열 때 갱신하면 목록이 다시 그려지며 방금 연 편집기가 닫힌다.)
- */
-function handleWorkflowToolClose(open: boolean) {
-  modalState.workflowToolModal.open = open;
-  if (!open) modalState.addWorkflow.trigger = true;
-}
-
 function handleEditClone(clonedWorkflowId: string) {
-  // 목록 갱신 트리거를 여기서 켜면 목록이 다시 그려지며 선택이 풀려, 방금 연 편집기가
-  // 곧바로 닫힌다. 목록 갱신은 편집기를 닫을 때(저장/취소) 어차피 일어난다.
+  // 복제본은 뷰어가 이미 스토어에 넣었다. 목록도 편집기도 스토어를 보고 그리므로
+  // 여기서 목록을 다시 받아올 필요가 없다 — 목록을 다시 받으면 표가 다시 그려지며
+  // 방금 연 편집기가 닫힌다.
   selectedWorkflowId.value = clonedWorkflowId;
   modalState.workflowToolModal.open = true;
 }
@@ -276,7 +266,7 @@ async function handleUpdateWorkflow(updatedData: object) {
         v-if="modalState.workflowToolModal.open"
         :tool-type="'edit'"
         :wft-id="selectedWorkflowId"
-        @update:close-modal="handleWorkflowToolClose"
+        @update:close-modal="e => (modalState.workflowToolModal.open = e)"
         @update:trigger="modalState.addWorkflow.trigger = true"
       />
     </div>

@@ -152,6 +152,20 @@ export class WorkflowPage {
     return log;
   }
 
+  /** 진행 표시 — 실행 중인지, 몇 개 중 몇 개가 끝났는지 */
+  get runProgress() {
+    return this.page.getByTestId('workflow-run-progress');
+  }
+
+  get runProgressCount() {
+    return this.page.getByTestId('workflow-run-progress-count');
+  }
+
+  /** 지금 보고 있는 실행이 어느 실행인지 */
+  get runMeta() {
+    return this.page.getByTestId('workflow-run-meta');
+  }
+
   get failureSummary(): Locator {
     return this.page.getByTestId('workflow-run-failure');
   }

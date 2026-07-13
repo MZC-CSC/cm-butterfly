@@ -38,6 +38,7 @@ const {
   deletedTaskInstances,
   definitionChangedAfterRun,
   graph,
+  progress,
   isPolling,
   cloning,
   loadError,
@@ -149,6 +150,13 @@ function requestRerunFailed() {
     resetDagRuns: true,
   });
 }
+
+/** 지금 돌고 있는가 — 진행 표시와 버튼 잠금이 같은 근거를 쓴다 */
+const runInProgress = computed(() =>
+  ['running', 'queued'].includes(
+    (selectedRun.value?.state ?? '').toLowerCase(),
+  ),
+);
 
 const hasFailedTask = computed(() =>
   instances.value.some(i =>
@@ -279,7 +287,7 @@ async function onRunChange(runId: string) {
               data-testid="workflow-rerun-failed-btn"
               size="sm"
               style-type="tertiary"
-              :disabled="!hasFailedTask || rerunPending"
+              :disabled="!hasFailedTask || rerunPending || runInProgress"
               @click="requestRerunFailed"
             >
               Re-run failed tasks
@@ -295,7 +303,7 @@ async function onRunChange(runId: string) {
               data-testid="workflow-viewer-run-btn"
               size="sm"
               style-type="primary"
-              :disabled="isPolling"
+              :disabled="runInProgress"
               @click="showRunConfirm = true"
             >
               Start new run
@@ -320,11 +328,34 @@ async function onRunChange(runId: string) {
         </div>
       </div>
 
-      <div v-if="selectedRun" class="run-viewer__meta">
-        Start {{ selectedRun.start_date || '-' }} · End
-        {{ selectedRun.end_date || '-' }} · Duration
-        {{ formatDuration(selectedRun.duration_date) }}
-      </div>
+      <!--
+        고른 실행이 어떤 실행인지 화면에 남긴다. 드롭다운은 고르고 나면 접히므로,
+        지금 보고 있는 것이 언제 돌린 어느 실행인지 알 수 없게 된다.
+      -->
+      <dl
+        v-if="selectedRun"
+        class="run-viewer__meta"
+        data-testid="workflow-run-meta"
+      >
+        <div>
+          <dt>Run ID</dt>
+          <dd data-testid="workflow-run-meta-id">
+            {{ selectedRun.workflow_run_id }}
+          </dd>
+        </div>
+        <div>
+          <dt>Started</dt>
+          <dd>{{ selectedRun.start_date || '-' }}</dd>
+        </div>
+        <div>
+          <dt>Ended</dt>
+          <dd>{{ selectedRun.end_date || '-' }}</dd>
+        </div>
+        <div>
+          <dt>Duration</dt>
+          <dd>{{ formatDuration(selectedRun.duration_date) }}</dd>
+        </div>
+      </dl>
     </div>
 
     <div
@@ -356,6 +387,38 @@ async function onRunChange(runId: string) {
         data-testid="workflow-run-graph"
         :style="{ flexBasis: graphFlexBasis }"
       >
+        <!--
+          진행 상황은 그래프 *위쪽 줄*에 둔다. 그래프 위에 겹쳐 놓으면(모래시계 같은 것)
+          정작 봐야 할 태스크를 가린다. 실행할 태스크 수를 알고 있으므로 몇 개 중 몇 개가
+          끝났는지 그대로 센다.
+        -->
+        <div
+          v-if="selectedRun && graph.nodes.length"
+          class="run-viewer__progress"
+          data-testid="workflow-run-progress"
+          :data-state="selectedRun.state ?? 'none'"
+        >
+          <span class="run-viewer__progress-state">
+            <span v-if="runInProgress" class="run-viewer__progress-dot" />
+            {{ taskStateLabel(selectedRun.state) }}
+          </span>
+          <div class="run-viewer__progress-track">
+            <div
+              class="run-viewer__progress-fill"
+              :style="{ width: `${progress.percent}%` }"
+            />
+          </div>
+          <span
+            class="run-viewer__progress-count"
+            data-testid="workflow-run-progress-count"
+          >
+            {{ progress.done }} / {{ progress.total }} tasks
+            <template v-if="progress.failed">
+              · {{ progress.failed }} failed
+            </template>
+          </span>
+        </div>
+
         <div v-if="!graph.nodes.length" class="run-viewer__empty">
           No tasks to display.
         </div>
@@ -487,7 +550,7 @@ async function onRunChange(runId: string) {
                   :data-scope="scope.key"
                   size="sm"
                   style-type="tertiary"
-                  :disabled="rerunPending"
+                  :disabled="rerunPending || runInProgress"
                   @click="requestRerun(scope.key)"
                 >
                   {{ scope.label }}
@@ -970,6 +1033,96 @@ async function onRunChange(runId: string) {
   툴팁은 이 컴포넌트 바깥(body)에 그려지므로 scoped 스타일이 닿지 않는다.
   기본값은 한 줄로만 나와 설명이 길면 잘린다 — 줄바꿈을 허용하고 폭을 준다.
 -->
+<style scoped lang="postcss">
+.run-viewer__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.run-viewer__meta div {
+  display: flex;
+  gap: 0.375rem;
+}
+
+.run-viewer__meta dt {
+  color: #9ca3af;
+}
+
+.run-viewer__meta dd {
+  color: #374151;
+}
+
+/* 진행 상태 줄 — 그래프 박스 위 */
+.run-viewer__progress {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.run-viewer__progress-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.run-viewer__progress-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: #2563eb;
+  animation: run-viewer-blink 1s ease-in-out infinite;
+}
+
+.run-viewer__progress-track {
+  flex: 1 1 auto;
+  min-width: 4rem;
+  height: 0.375rem;
+  border-radius: 9999px;
+  background: #e5e7eb;
+  overflow: hidden;
+}
+
+.run-viewer__progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: #2563eb;
+  transition: width 0.4s ease;
+}
+
+/* 끝난 실행은 결과 색으로 — 도는 중에는 결과를 단정하지 않는다 */
+.run-viewer__progress[data-state='success'] .run-viewer__progress-fill {
+  background: #16a34a;
+}
+
+.run-viewer__progress[data-state='failed'] .run-viewer__progress-fill {
+  background: #dc2626;
+}
+
+.run-viewer__progress-count {
+  white-space: nowrap;
+}
+
+@keyframes run-viewer-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+</style>
+
 <style lang="postcss">
 .run-viewer-tooltip {
   max-width: 22rem;

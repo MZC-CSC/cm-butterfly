@@ -8,7 +8,12 @@ import {
   reportLoadTestTiming,
   LoadTestTiming,
 } from '../support/loadTestTiming';
-import { config, testNamespace, workload, getUser } from '../fixtures/test-data';
+import {
+  config,
+  testNamespace,
+  workload,
+  getUser,
+} from '../fixtures/test-data';
 
 const { Given, When, Then } = createBdd(test);
 
@@ -38,7 +43,10 @@ async function loginToken(request: APIRequestContext): Promise<string> {
  * 마이그레이션 직후 노드가 Creating이라 공인 IP가 아직 비어 있을 수 있으므로,
  * 채워질 때까지 폴링한다(최대 ~5분). IP가 있으면 SSH·원격명령이 가능한 상태로 본다.
  */
-async function fetchNodePublicIp(request: APIRequestContext, token: string): Promise<{ nodeId: string; ip: string }> {
+async function fetchNodePublicIp(
+  request: APIRequestContext,
+  token: string,
+): Promise<{ nodeId: string; ip: string }> {
   const nsId = testNamespace.id;
   const infraId = scenarioState.infraId ?? workload.infraName;
   let nodeId = '';
@@ -53,8 +61,10 @@ async function fetchNodePublicIp(request: APIRequestContext, token: string): Pro
     nodeId = node.id ?? nodeId;
     // 원격명령은 노드가 실제로 쓰는 계정으로 나가야 한다. tumblebug이 만든 노드의 계정은 `cb-user`이며,
     // 소스 서버의 SSH 계정(ubuntu)과 다르다 — 그걸 그대로 쓰면 명령이 붙지 못한다.
-    scenarioState.nodeUserName = node.nodeUserName ?? scenarioState.nodeUserName;
-    scenarioState.securityGroupIds = node.securityGroupIds ?? scenarioState.securityGroupIds;
+    scenarioState.nodeUserName =
+      node.nodeUserName ?? scenarioState.nodeUserName;
+    scenarioState.securityGroupIds =
+      node.securityGroupIds ?? scenarioState.securityGroupIds;
     const ip = node.publicIP ?? '';
     if (ip) return { nodeId, ip };
     await new Promise(r => setTimeout(r, 10_000));
@@ -87,7 +97,12 @@ async function openHttpPort(
           pathParams: { nsId, securityGroupId: sgId },
           request: {
             firewallRules: [
-              { protocol: 'TCP', ports: '80', direction: 'inbound', cidr: '0.0.0.0/0' },
+              {
+                protocol: 'TCP',
+                ports: '80',
+                direction: 'inbound',
+                cidr: '0.0.0.0/0',
+              },
             ],
           },
         },
@@ -96,7 +111,9 @@ async function openHttpPort(
     console.log(`[perf] 보안그룹 ${sgId} 80 포트 개방 → ${r.status()}`);
   }
   if (sgIds.length === 0) {
-    console.warn('[perf] 노드의 보안그룹 id를 찾지 못했다 — 80이 이미 열려 있길 기대하고 진행한다.');
+    console.warn(
+      '[perf] 노드의 보안그룹 id를 찾지 못했다 — 80이 이미 열려 있길 기대하고 진행한다.',
+    );
   }
 }
 
@@ -113,24 +130,27 @@ Given('생성된 워크로드에 nginx를 설치한다', async ({ request }) => 
   // 부하테스트를 하려면 밖에서 80으로 붙을 수 있어야 한다.
   await openHttpPort(request, token, nsId, infraId);
   // ★ 서비스 접두어 필수 — 접두어 없이 부르면 백엔드가 operationId를 못 찾아 404다(전역 검색 폴백 제거됨).
-  const res = await request.post(`${config.baseURL}/api/cb-tumblebug/PostCmdInfra`, {
-    headers: { Authorization: `Bearer ${token}` },
-    // 원격명령(apt update + nginx 설치)은 수십 초~수 분 걸리므로 기본 30s로는 부족 → 넉넉히.
-    timeout: 300_000,
-    data: {
-      pathParams: { nsId, infraId },
-      request: {
-        // cb-tumblebug MciCmdReq — command 목록과 접속 계정.
-        // 계정은 GetInfra가 알려준 노드 계정(cb-user)을 쓴다. 소스 서버 계정(ubuntu)이 아니다.
-        userName: scenarioState.nodeUserName ?? 'cb-user',
-        command: [
-          'sudo apt-get update -y',
-          'sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nginx',
-          'sudo systemctl enable --now nginx',
-        ],
+  const res = await request.post(
+    `${config.baseURL}/api/cb-tumblebug/PostCmdInfra`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      // 원격명령(apt update + nginx 설치)은 수십 초~수 분 걸리므로 기본 30s로는 부족 → 넉넉히.
+      timeout: 300_000,
+      data: {
+        pathParams: { nsId, infraId },
+        request: {
+          // cb-tumblebug MciCmdReq — command 목록과 접속 계정.
+          // 계정은 GetInfra가 알려준 노드 계정(cb-user)을 쓴다. 소스 서버 계정(ubuntu)이 아니다.
+          userName: scenarioState.nodeUserName ?? 'cb-user',
+          command: [
+            'sudo apt-get update -y',
+            'sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nginx',
+            'sudo systemctl enable --now nginx',
+          ],
+        },
       },
     },
-  });
+  );
   // 실패하면 *왜* 실패했는지 본문을 그대로 남긴다. 상태코드만으로는 원인을 알 수 없다.
   const bodyText = res.ok() ? '' : (await res.text()).slice(0, 400);
   expect(
@@ -142,14 +162,19 @@ Given('생성된 워크로드에 nginx를 설치한다', async ({ request }) => 
 /** "그러면 nginx가 외부에서 접근 가능하다" — 노드 공인 IP:80 접근 확인 */
 Then('nginx가 외부에서 접근 가능하다', async ({ request }) => {
   const ip = scenarioState.nodePublicIp;
-  expect(ip, '노드 공인 IP를 확인하지 못함(인프라 생성/조회 확인 필요)').toBeTruthy();
+  expect(
+    ip,
+    '노드 공인 IP를 확인하지 못함(인프라 생성/조회 확인 필요)',
+  ).toBeTruthy();
   // 원격명령 반영에 시간이 걸리므로 재시도
   let ok = false;
   for (let i = 0; i < 12 && !ok; i++) {
     try {
       const r = await request.get(`http://${ip}:80/`, { timeout: 8000 });
       ok = r.status() < 500;
-    } catch { /* 재시도 */ }
+    } catch {
+      /* 재시도 */
+    }
     if (!ok) await new Promise(r => setTimeout(r, 10_000));
   }
   expect(ok, `nginx 외부 접근 실패: http://${ip}:80`).toBeTruthy();

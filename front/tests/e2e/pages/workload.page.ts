@@ -43,8 +43,7 @@ export class WorkloadPage {
 
   /** 인프라 목록 테이블 (p-toolbox-table) */
   private get mciTable(): Locator {
-    return this.page
-      .getByTestId('mci-list-table');
+    return this.page.getByTestId('mci-list-table');
   }
 
   /** 이름으로 인프라 행 지정 — 단일 ARIA row(.or() 체인은 같은 행을 여러 locator로 매칭해 중복→strict 위반). */
@@ -64,7 +63,12 @@ export class WorkloadPage {
   async expectMciVisible(infraName: string): Promise<void> {
     const deadline = Date.now() + 600_000;
     for (;;) {
-      if (await this.mciRow(infraName).isVisible().catch(() => false)) return;
+      if (
+        await this.mciRow(infraName)
+          .isVisible()
+          .catch(() => false)
+      )
+        return;
       if (Date.now() > deadline) break;
       await this.page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
       await this.expectMciListLoaded().catch(() => {});
@@ -96,8 +100,7 @@ export class WorkloadPage {
       .or(this.page.getByRole('tab', { name: /server/i }));
   }
   private get mciDetailTable(): Locator {
-    return this.page
-      .getByTestId('mci-detail-table');
+    return this.page.getByTestId('mci-detail-table');
   }
 
   /** 상세 탭을 열고 상세 정보 테이블 확인 */
@@ -132,7 +135,9 @@ export class WorkloadPage {
    * 생성(vm-...)해 사전에 알 수 없으므로, 지정 이름 카드가 없으면 "노드 카드가 존재"로 확인한다.
    */
   async expectNodeVisible(nodeName: string): Promise<void> {
-    await expect(this.nodeCard(nodeName).or(this.anyNodeCard).first()).toBeVisible({
+    await expect(
+      this.nodeCard(nodeName).or(this.anyNodeCard).first(),
+    ).toBeVisible({
       timeout: 20_000,
     });
   }
@@ -147,8 +152,7 @@ export class WorkloadPage {
   // ─────────────────────────────────────────────────────────────
 
   private get actionDropdown(): Locator {
-    return this.page
-      .getByTestId('mci-action-dropdown');
+    return this.page.getByTestId('mci-action-dropdown');
   }
   /**
    * 액션 드롭다운의 Delete 항목.
@@ -167,12 +171,13 @@ export class WorkloadPage {
       .first();
   }
   private get deleteModal(): Locator {
-    return this.page
-      .getByTestId('mci-delete-modal');
+    return this.page.getByTestId('mci-delete-modal');
   }
   private get deleteConfirmInput(): Locator {
     return this.deleteModal
-      .locator('input[data-testid="mci-delete-confirm-keyword"], textarea[data-testid="mci-delete-confirm-keyword"]')
+      .locator(
+        'input[data-testid="mci-delete-confirm-keyword"], textarea[data-testid="mci-delete-confirm-keyword"]',
+      )
       .or(this.deleteModal.getByRole('textbox'))
       .or(this.deleteModal.locator('input').last());
   }
@@ -199,7 +204,9 @@ export class WorkloadPage {
   async openDeleteModal(): Promise<void> {
     await this.actionDropdown.click();
     await this.deleteMenuItem.click();
-    await expect(this.deleteConfirmInput.first()).toBeVisible({ timeout: 15_000 });
+    await expect(this.deleteConfirmInput.first()).toBeVisible({
+      timeout: 15_000,
+    });
   }
 
   /**
@@ -211,8 +218,9 @@ export class WorkloadPage {
     method: 'normal' | 'force' = 'normal',
   ): Promise<void> {
     if (method === 'force') {
-      const forceRadio = this.deleteModal
-        .getByTestId('mci-delete-method-force');
+      const forceRadio = this.deleteModal.getByTestId(
+        'mci-delete-method-force',
+      );
       await forceRadio.click();
     }
     await this.deleteConfirmInput.first().fill(infraName);
@@ -242,7 +250,10 @@ export class WorkloadPage {
    * 목록을 다시 방문해 인프라가 *실제로* 사라졌는지 확인한다.
    * 목록은 자동 갱신되지 않으므로 새로고침하며 본다. 이게 삭제의 진짜 결과다.
    */
-  async expectInfraGone(infraName: string, timeoutMs = 12 * 60_000): Promise<void> {
+  async expectInfraGone(
+    infraName: string,
+    timeoutMs = 12 * 60_000,
+  ): Promise<void> {
     const deadline = Date.now() + timeoutMs;
     for (;;) {
       await this.gotoMci().catch(() => {});
@@ -272,12 +283,10 @@ export class WorkloadPage {
       .first();
   }
   private get loadConfigModal(): Locator {
-    return this.page
-      .getByTestId('load-config-modal');
+    return this.page.getByTestId('load-config-modal');
   }
   private get scenarioTemplatesButton(): Locator {
-    return this.page
-      .getByTestId('vm-scenario-templates-open');
+    return this.page.getByTestId('vm-scenario-templates-open');
   }
 
   /** 노드 상세에서 Evaluate Perf(부하테스트) 탭 열기 */
@@ -318,7 +327,9 @@ export class WorkloadPage {
     //   "Test Run Time" 두 입력칸에 모두 걸려 strict mode 위반으로 죽었다. 화면 문구는 언제든 바뀌므로
     //   문구에 기대지 않는다. 필요한 testid는 이미 화면 소스에 전부 부여돼 있다.
     const field = (testid: string): Locator =>
-      m.locator(`input[data-testid="${testid}"], textarea[data-testid="${testid}"]`);
+      m.locator(
+        `input[data-testid="${testid}"], textarea[data-testid="${testid}"]`,
+      );
 
     await field('load-config-scenario-name').fill(cfg.scenarioName);
 
@@ -369,18 +380,15 @@ export class WorkloadPage {
 
   /** 집계 테이블(Aggregation Table) */
   private get aggregationTable(): Locator {
-    return this.page
-      .getByTestId('load-test-aggregation-table');
+    return this.page.getByTestId('load-test-aggregation-table');
   }
   /** 결과 메트릭(Result metric) 차트 */
   private get resultMetric(): Locator {
-    return this.page
-      .getByTestId('load-test-result-metric');
+    return this.page.getByTestId('load-test-result-metric');
   }
   /** 리소스 메트릭(Resource Metric) 차트 */
   private get resourceMetric(): Locator {
-    return this.page
-      .getByTestId('load-test-resource-metric');
+    return this.page.getByTestId('load-test-resource-metric');
   }
 
   /**
@@ -441,8 +449,7 @@ export class WorkloadPage {
   // ─────────────────────────────────────────────────────────────
 
   private get scenarioTemplateModal(): Locator {
-    return this.page
-      .getByTestId('scenario-template-modal');
+    return this.page.getByTestId('scenario-template-modal');
   }
 
   /** 시나리오 템플릿(카탈로그) 관리 모달 열기 */
@@ -456,7 +463,9 @@ export class WorkloadPage {
     const m = this.scenarioTemplateModal;
     // testid 전용 — 화면 문구(placeholder)에 기대지 않는다.
     await m
-      .locator('input[data-testid="scenario-template-name"], textarea[data-testid="scenario-template-name"]')
+      .locator(
+        'input[data-testid="scenario-template-name"], textarea[data-testid="scenario-template-name"]',
+      )
       .fill(name);
     // 예전엔 여기서 locator만 만들고 끝나서(.click() 없음) 저장이 실제로 일어나지 않았다.
     await m.getByTestId('scenario-template-save').click();
@@ -495,7 +504,10 @@ export class WorkloadPage {
     // 프로비저닝은 시간이 걸린다 — Running이 될 때까지 새로고침하며 기다린다.
     const deadline = Date.now() + 15 * 60_000;
     for (;;) {
-      const text = (await this.mciRow(infraName).innerText().catch(() => '')) || '';
+      const text =
+        (await this.mciRow(infraName)
+          .innerText()
+          .catch(() => '')) || '';
       if (/Running:\s*[1-9]/.test(text)) break;
       expect(
         Date.now() < deadline,
@@ -522,10 +534,16 @@ export class WorkloadPage {
   async removeStaleInfra(infraName: string): Promise<void> {
     await this.gotoMci();
     await this.expectMciListLoaded();
-    if (!(await this.mciRow(infraName).isVisible({ timeout: 5_000 }).catch(() => false))) {
+    if (
+      !(await this.mciRow(infraName)
+        .isVisible({ timeout: 5_000 })
+        .catch(() => false))
+    ) {
       return; // 남은 게 없다 — 그대로 진행
     }
-    console.log(`[scenario] 앞선 실행이 남긴 "${infraName}" 인프라를 정리하고 시작한다.`);
+    console.log(
+      `[scenario] 앞선 실행이 남긴 "${infraName}" 인프라를 정리하고 시작한다.`,
+    );
     await this.selectMci(infraName);
     await this.openDeleteModal();
     await this.confirmDelete(infraName, 'force');

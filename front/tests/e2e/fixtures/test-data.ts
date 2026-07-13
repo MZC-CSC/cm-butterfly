@@ -174,5 +174,10 @@ export const vpc = {
 
 /** 로그인 계정 헬퍼 */
 export function getUser(id: string) {
-  return users[id] ?? { id, password: process.env.TEST_PASSWORD || 'cmiguserPassword!' };
+  return (
+    users[id] ?? {
+      id,
+      password: process.env.TEST_PASSWORD || 'cmiguserPassword!',
+    }
+  );
 }

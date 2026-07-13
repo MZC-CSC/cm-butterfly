@@ -32,7 +32,9 @@ function connectionFromFixture(name: string): Connection {
     sshPort: sourceServer.sshPort,
     user: sourceServer.sshUser,
     // privateKey가 있으면 key 인증을 우선(둘 다 채우면 인증 방식이 모호해짐)
-    password: sourceServer.privateKey ? undefined : sourceServer.password || undefined,
+    password: sourceServer.privateKey
+      ? undefined
+      : sourceServer.password || undefined,
     privateKey: sourceServer.privateKey || undefined,
   };
 }
@@ -44,14 +46,20 @@ function connectionFromFixture(name: string): Connection {
  * → 소스 서비스 화면으로 이동해 소스그룹 {string} 을 만들고, 같은 이름의 연결정보를 함께 등록한다.
  *   (온프렘 소스 서버 자리 = fixtures sourceServer)
  */
-Given('소스 서비스에 {string} 소스서버를 등록한다', async ({ page }, name: string) => {
-  const source = new SourceServicesPage(page);
-  await source.goto();
-  await source.createSourceGroupWithConnection(uniqueName(name), connectionFromFixture(name));
-  // 뒤따르는 수집·저장 스텝이 *방금 등록한 그룹*을 대상으로 삼도록 기억해 둔다.
-  // (예전엔 fixtures의 sourceServer.name을 그대로 박아 써서, 다른 이름으로 등록해도 엉뚱한 그룹을 집었다.)
-  scenarioState.sourceGroupName = uniqueName(name);
-});
+Given(
+  '소스 서비스에 {string} 소스서버를 등록한다',
+  async ({ page }, name: string) => {
+    const source = new SourceServicesPage(page);
+    await source.goto();
+    await source.createSourceGroupWithConnection(
+      uniqueName(name),
+      connectionFromFixture(name),
+    );
+    // 뒤따르는 수집·저장 스텝이 *방금 등록한 그룹*을 대상으로 삼도록 기억해 둔다.
+    // (예전엔 fixtures의 sourceServer.name을 그대로 박아 써서, 다른 이름으로 등록해도 엉뚱한 그룹을 집었다.)
+    scenarioState.sourceGroupName = uniqueName(name);
+  },
+);
 
 /**
  * "그리고 소스 인프라를 수집한다"
@@ -86,9 +94,12 @@ Given('소스 서비스 화면을 연다', async ({ page }) => {
 });
 
 /** "만약 \"e2e-src\" 이름으로 소스그룹을 생성하면" — 연결정보 없이 그룹만 */
-When('{string} 이름으로 소스그룹을 생성하면', async ({ page }, name: string) => {
-  await new SourceServicesPage(page).createSourceGroup(uniqueName(name));
-});
+When(
+  '{string} 이름으로 소스그룹을 생성하면',
+  async ({ page }, name: string) => {
+    await new SourceServicesPage(page).createSourceGroup(uniqueName(name));
+  },
+);
 
 /** "만약 \"e2e-src\" 소스그룹에 \"e2e-conn\" 연결정보를 등록하면" — 그룹+연결정보 동시 등록 */
 When(
@@ -96,7 +107,10 @@ When(
   async ({ page }, groupName: string, connName: string) => {
     const source = new SourceServicesPage(page);
     await source.goto();
-    await source.createSourceGroupWithConnection(uniqueName(groupName), connectionFromFixture(connName));
+    await source.createSourceGroupWithConnection(
+      uniqueName(groupName),
+      connectionFromFixture(connName),
+    );
   },
 );
 
@@ -118,15 +132,23 @@ When('인프라 수집을 실행하면', async ({ page }) => {
 // ───────────────────────── 검증 스텝 ─────────────────────────
 
 /** "그러면 소스그룹 목록에 \"e2e-src\" 이\\(가\\) 보인다" */
-Then('소스그룹 목록에 {string} 이\\(가\\) 보인다', async ({ page }, name: string) => {
-  // 생성은 uniqueName으로 하는데 확인은 원래 이름으로 하고 있었다 — 같은 이름으로 맞춘다.
-  await new SourceServicesPage(page).expectGroupListed(uniqueName(name));
-});
+Then(
+  '소스그룹 목록에 {string} 이\\(가\\) 보인다',
+  async ({ page }, name: string) => {
+    // 생성은 uniqueName으로 하는데 확인은 원래 이름으로 하고 있었다 — 같은 이름으로 맞춘다.
+    await new SourceServicesPage(page).expectGroupListed(uniqueName(name));
+  },
+);
 
 /** "그러면 연결정보 목록에 \"e2e-conn\" 이\\(가\\) 보인다" */
-Then('연결정보 목록에 {string} 이\\(가\\) 보인다', async ({ page }, connName: string) => {
-  await new SourceServicesPage(page).expectConnectionListed(uniqueName(connName));
-});
+Then(
+  '연결정보 목록에 {string} 이\\(가\\) 보인다',
+  async ({ page }, connName: string) => {
+    await new SourceServicesPage(page).expectConnectionListed(
+      uniqueName(connName),
+    );
+  },
+);
 
 /** "그러면 인프라 수집 결과가 조회된다" (정제 결과 링크 노출) */
 Then('인프라 수집 결과가 조회된다', async ({ page }) => {

@@ -128,4 +128,20 @@ test.describe('워크플로우 실행 상태 뷰어', () => {
     await expect(modal).toContainText(/new run/i);
     await workflow.cancelNewRun();
   });
+
+  test('진행 상황과 어느 실행을 보고 있는지가 화면에 남는다', async ({
+    page,
+  }) => {
+    const workflow = new WorkflowPage(page);
+    await workflow.gotoWorkflows();
+    await workflow.openRunViewer(WORKFLOW);
+
+    // 몇 개 중 몇 개가 끝났는지 — 도는 중에도 멈춘 것처럼 보이지 않게 하는 근거
+    await expect(workflow.runProgressCount).toContainText(/\d+ \/ \d+ tasks/);
+    await expect(workflow.runProgress).toHaveAttribute('data-state', /\w+/);
+
+    // 드롭다운은 고르고 나면 접힌다. 무엇을 보고 있는지는 화면에 남아야 한다
+    await expect(workflow.runMeta).toContainText('Run ID');
+    await expect(page.getByTestId('workflow-run-meta-id')).not.toBeEmpty();
+  });
 });

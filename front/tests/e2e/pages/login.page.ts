@@ -20,17 +20,20 @@ export class LoginPage {
    */
   private get idInput(): Locator {
     return this.page
-      .locator('input[data-testid="login-id"], textarea[data-testid="login-id"]')
+      .locator(
+        'input[data-testid="login-id"], textarea[data-testid="login-id"]',
+      )
       .or(this.page.getByPlaceholder('id'));
   }
   private get passwordInput(): Locator {
     return this.page
-      .locator('input[data-testid="login-password"], textarea[data-testid="login-password"]')
+      .locator(
+        'input[data-testid="login-password"], textarea[data-testid="login-password"]',
+      )
       .or(this.page.getByPlaceholder(/password/i));
   }
   private get submitButton(): Locator {
-    return this.page
-      .getByTestId('login-submit');
+    return this.page.getByTestId('login-submit');
   }
 
   /** 로그인 화면으로 이동 — 여기서 "어디"가 결정됨 */

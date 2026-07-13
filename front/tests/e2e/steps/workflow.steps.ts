@@ -30,9 +30,12 @@ Then('워크플로우 목록이 조회된다', async ({ page }) => {
   expect(await wf.workflowCount()).toBeGreaterThanOrEqual(0);
 });
 
-Then('워크플로우 목록에 {string} 워크플로우가 보인다', async ({ page }, name: string) => {
-  await new WorkflowPage(page).expectWorkflowVisible(name);
-});
+Then(
+  '워크플로우 목록에 {string} 워크플로우가 보인다',
+  async ({ page }, name: string) => {
+    await new WorkflowPage(page).expectWorkflowVisible(name);
+  },
+);
 
 // ── 워크플로우 템플릿 ─────────────────────────────────────────────────────
 
@@ -45,9 +48,12 @@ Then('워크플로우 템플릿 목록이 조회된다', async ({ page }) => {
   expect(await wf.templateCount()).toBeGreaterThanOrEqual(0);
 });
 
-Then('워크플로우 템플릿에 {string} 템플릿이 보인다', async ({ page }, name: string) => {
-  await new WorkflowPage(page).expectTemplateVisible(name);
-});
+Then(
+  '워크플로우 템플릿에 {string} 템플릿이 보인다',
+  async ({ page }, name: string) => {
+    await new WorkflowPage(page).expectTemplateVisible(name);
+  },
+);
 
 // ── Task Component (type/spec 스키마) ─────────────────────────────────────
 
@@ -61,9 +67,12 @@ Then('Task Component 목록이 조회된다', async ({ page }) => {
   expect(await wf.taskComponentCount()).toBeGreaterThanOrEqual(0);
 });
 
-Then('Task Component 목록에 {string} 컴포넌트가 보인다', async ({ page }, name: string) => {
-  await new WorkflowPage(page).expectTaskComponentVisible(name);
-});
+Then(
+  'Task Component 목록에 {string} 컴포넌트가 보인다',
+  async ({ page }, name: string) => {
+    await new WorkflowPage(page).expectTaskComponentVisible(name);
+  },
+);
 
 // ── 워크플로우 생성 — 디자이너/에디터 (type/spec task) ─────────────────────
 
@@ -109,7 +118,9 @@ When('{string} 워크플로우를 실행하면', async ({ page }, name: string) 
 
 Then('워크플로우 실행 이력이 생성된다', async ({ page }) => {
   const wf = new WorkflowPage(page);
-  await wf.selectWorkflow(uniqueName(workflowData.safeRunWorkflowName)).catch(() => {});
+  await wf
+    .selectWorkflow(uniqueName(workflowData.safeRunWorkflowName))
+    .catch(() => {});
   await wf.openHistoryTab();
   await wf.expectRunHistoryPresent();
 });
@@ -232,7 +243,9 @@ const RUN_SCRIPT_PLAIN = `#!/bin/bash\necho "${RUN_SCRIPT_MARKER}"\nuptime`;
 const RUN_SCRIPT_B64 = Buffer.from(RUN_SCRIPT_PLAIN).toString('base64');
 
 Then('콘솔이 구 스키마 요청을 보내지 않는다', async () => {
-  const legacy = getSentRequests().filter(r => /"data"\s*:\s*\{[^}]*"options"/.test(r.body));
+  const legacy = getSentRequests().filter(r =>
+    /"data"\s*:\s*\{[^}]*"options"/.test(r.body),
+  );
   expect(
     legacy.map(r => r.url),
     '구 options/{data} 래핑 payload를 보내면 cm-cicada가 거부한다',
@@ -244,72 +257,86 @@ Then('콘솔이 구 스키마 요청을 보내지 않는다', async () => {
  * 콘솔이 쓰는 프록시(operationId `create-workflow`)를 그대로 호출해, 로그인 세션·경로를
  * 실제 사용 흐름과 동일하게 태운다.
  */
-Given('run_script 스크립트가 담긴 {string} 워크플로우가 있다', async ({ page }, name: string) => {
-  // cm-cicada는 워크플로우 이름에 UNIQUE 제약이 있다. 고정 이름으로 만들면 두 번째 실행부터
-  // "UNIQUE constraint failed: workflows.name"으로 준비 단계가 항상 깨진다.
-  // 런별 접미사를 붙여 매번 새로 만든다(같은 런 안에서는 uniqueName이 같은 값을 주므로
-  // 뒤따르는 뷰어 열기 스텝이 같은 이름으로 찾아간다).
-  const body = {
-    name: uniqueName(name),
-    description: 'e2e — cm-cicada run_script decode check',
-    data: {
-      task_groups: [
-        {
-          name: 'tg1',
-          description: 'task group',
-          tasks: [
-            {
-              name: 'run-script-task',
-              task_component: 'cicada_task_run_script',
-              spec: {
-                request_body: JSON.stringify({
-                  ns_id: 'default',
-                  infra_id: 'infra101',
-                  node_id: 'node1',
-                  content: RUN_SCRIPT_B64,
-                }),
+Given(
+  'run_script 스크립트가 담긴 {string} 워크플로우가 있다',
+  async ({ page }, name: string) => {
+    // cm-cicada는 워크플로우 이름에 UNIQUE 제약이 있다. 고정 이름으로 만들면 두 번째 실행부터
+    // "UNIQUE constraint failed: workflows.name"으로 준비 단계가 항상 깨진다.
+    // 런별 접미사를 붙여 매번 새로 만든다(같은 런 안에서는 uniqueName이 같은 값을 주므로
+    // 뒤따르는 뷰어 열기 스텝이 같은 이름으로 찾아간다).
+    const body = {
+      name: uniqueName(name),
+      description: 'e2e — cm-cicada run_script decode check',
+      data: {
+        task_groups: [
+          {
+            name: 'tg1',
+            description: 'task group',
+            tasks: [
+              {
+                name: 'run-script-task',
+                task_component: 'cicada_task_run_script',
+                spec: {
+                  request_body: JSON.stringify({
+                    ns_id: 'default',
+                    infra_id: 'infra101',
+                    node_id: 'node1',
+                    content: RUN_SCRIPT_B64,
+                  }),
+                },
+                dependencies: [],
               },
-              dependencies: [],
-            },
-          ],
-        },
-      ],
-    },
-  };
+            ],
+          },
+        ],
+      },
+    };
 
-  // 콘솔은 프록시 호출에 Bearer 토큰을 붙인다. 로그인 세션이 localStorage에 보관한 토큰을 그대로 쓴다.
-  const token = await page.evaluate(() => {
-    for (const k of Object.keys(localStorage)) {
-      const v = localStorage.getItem(k) ?? '';
-      const m = v.match(/"access_token"\s*:\s*"([^"]+)"/);
-      if (m) return m[1];
-    }
-    return '';
-  });
-  expect(token, '로그인 세션에서 access token을 찾지 못했다').not.toEqual('');
+    // 콘솔은 프록시 호출에 Bearer 토큰을 붙인다. 로그인 세션이 localStorage에 보관한 토큰을 그대로 쓴다.
+    const token = await page.evaluate(() => {
+      for (const k of Object.keys(localStorage)) {
+        const v = localStorage.getItem(k) ?? '';
+        const m = v.match(/"access_token"\s*:\s*"([^"]+)"/);
+        if (m) return m[1];
+      }
+      return '';
+    });
+    expect(token, '로그인 세션에서 access token을 찾지 못했다').not.toEqual('');
 
-  const res = await page.request.post('/api/cm-cicada/create-workflow', {
-    data: { request: body },
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-  });
-  expect(res.ok(), `워크플로우 준비 실패: ${res.status()} ${await res.text()}`).toBeTruthy();
-});
+    const res = await page.request.post('/api/cm-cicada/create-workflow', {
+      data: { request: body },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    expect(
+      res.ok(),
+      `워크플로우 준비 실패: ${res.status()} ${await res.text()}`,
+    ).toBeTruthy();
+  },
+);
 
-When('{string} 워크플로우의 JSON 뷰어를 연다', async ({ page }, name: string) => {
-  const wf = new WorkflowPage(page);
-  await wf.gotoWorkflows();
-  // 준비 스텝이 uniqueName으로 만들었으니 같은 이름으로 찾는다.
-  await wf.openJsonViewer(uniqueName(name));
-});
+When(
+  '{string} 워크플로우의 JSON 뷰어를 연다',
+  async ({ page }, name: string) => {
+    const wf = new WorkflowPage(page);
+    await wf.gotoWorkflows();
+    // 준비 스텝이 uniqueName으로 만들었으니 같은 이름으로 찾는다.
+    await wf.openJsonViewer(uniqueName(name));
+  },
+);
 
 Then('JSON 뷰어에 스크립트가 디코드되어 보인다', async ({ page }) => {
-  await new WorkflowPage(page).expectScriptDecoded(RUN_SCRIPT_MARKER, RUN_SCRIPT_B64.slice(0, 20));
+  await new WorkflowPage(page).expectScriptDecoded(
+    RUN_SCRIPT_MARKER,
+    RUN_SCRIPT_B64.slice(0, 20),
+  );
 });
 
 Then('화면을 {string} 이름으로 캡처한다', async ({ page }, name: string) => {
   await captureScreen(page, test.info(), name);
 });
-
 
 /**
  * "만약 워크플로우 툴을 열고 마이그레이션 태스크를 선택하면"
@@ -317,13 +344,16 @@ Then('화면을 {string} 이름으로 캡처한다', async ({ page }, name: stri
  * 저장하지 않고 편집 패널만 연다. 워크플로우 툴이 *무엇을 기본값으로 보여주는지* 확인하기 위한 경로라,
  * 클라우드 자원을 만들지 않는다.
  */
-When('워크플로우 툴을 열고 마이그레이션 태스크를 선택하면', async ({ page }) => {
-  const models = new ModelsPage(page);
-  const wf = new WorkflowPage(page);
+When(
+  '워크플로우 툴을 열고 마이그레이션 태스크를 선택하면',
+  async ({ page }) => {
+    const models = new ModelsPage(page);
+    const wf = new WorkflowPage(page);
 
-  await models.openWorkflowEditorFromTarget(
-    uniqueName(process.env.TEST_TARGET_MODEL_NAME || 'e2e-lowcost-target'),
-  );
-  await wf.expectDesignerOpen();
-  await wf.selectTaskInDesigner(workflowData.infraMigrationTask);
-});
+    await models.openWorkflowEditorFromTarget(
+      uniqueName(process.env.TEST_TARGET_MODEL_NAME || 'e2e-lowcost-target'),
+    );
+    await wf.expectDesignerOpen();
+    await wf.selectTaskInDesigner(workflowData.infraMigrationTask);
+  },
+);
