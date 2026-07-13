@@ -247,8 +247,8 @@ async function onRunChange(runId: string) {
           <!-- 실행 전체의 실패분을 다시 돌린다 — 선택한 태스크와 무관하다 -->
           <p-button
             data-testid="workflow-rerun-failed-btn"
+            size="sm"
             style-type="tertiary"
-            icon-left="ic_refresh"
             :disabled="!hasFailedTask || rerunPending"
             @click="requestRerunFailed"
           >
@@ -260,8 +260,8 @@ async function onRunChange(runId: string) {
           -->
           <p-button
             data-testid="workflow-clone-edit-btn"
+            size="sm"
             style-type="tertiary"
-            icon-left="ic_duplicate"
             :disabled="cloning"
             @click="cloneAndEdit"
           >
@@ -269,8 +269,8 @@ async function onRunChange(runId: string) {
           </p-button>
           <p-button
             data-testid="workflow-viewer-run-btn"
+            size="sm"
             style-type="primary"
-            icon-left="ic_play"
             :disabled="isPolling"
             @click="showRunConfirm = true"
           >
