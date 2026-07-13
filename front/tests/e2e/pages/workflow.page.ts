@@ -520,6 +520,67 @@ export class WorkflowPage {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // 3-1) 소프트웨어 마이그레이션 결과 화면 (History → View SW)
+  //
+  // 실행 이력 행의 "View SW" 버튼은 그 실행에 소프트웨어 마이그레이션 태스크가 있을 때만 뜬다.
+  // 누르면 소프트웨어별 결과(이름·버전·설치방식·상태·에러)가 표로 나온다 — 마이그레이션이 됐는지
+  // *사용자가 확인하는 화면*이 바로 여기다.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  private get viewSwButton(): Locator {
+    return this.page.getByTestId('workflow-view-sw').first();
+  }
+  private get swOverlay(): Locator {
+    return this.page.getByTestId('sw-migration-overlay');
+  }
+  private get swTable(): Locator {
+    return this.page.getByTestId('sw-migration-table');
+  }
+  private get swError(): Locator {
+    return this.page.getByTestId('sw-migration-error');
+  }
+
+  /** "View SW" 버튼이 실행 이력에 떠 있는지 (= 콘솔이 SW 마이그레이션 태스크를 인식했는지) */
+  async hasSoftwareMigrationResult(): Promise<boolean> {
+    return this.viewSwButton.isVisible({ timeout: 30_000 }).catch(() => false);
+  }
+
+  /** 실행 이력에서 소프트웨어 마이그레이션 결과 화면을 연다 */
+  async openSoftwareMigrationResult(): Promise<void> {
+    await this.viewSwButton.click();
+    await expect(this.swOverlay).toBeVisible({ timeout: 20_000 });
+    // 표가 그려지거나, 못 가져왔으면 오류가 뜨거나 — 둘 중 하나는 나와야 한다.
+    await expect(this.swTable.or(this.swError).first()).toBeVisible({
+      timeout: 60_000,
+    });
+  }
+
+  /** 결과 화면이 오류를 띄웠으면 그 문구 (없으면 빈 문자열) */
+  async softwareMigrationErrorText(): Promise<string> {
+    if (!(await this.swError.isVisible().catch(() => false))) return '';
+    return ((await this.swError.textContent()) ?? '').trim();
+  }
+
+  /**
+   * 결과 표의 행을 읽는다 — 컬럼 순서: No · Software · Version · Install Type · Status · NS · Infra · Node · Error
+   * 화면이 보여주는 것을 그대로 가져와 API 응답과 대조한다(둘이 다르면 화면이 거짓말을 하고 있는 것).
+   */
+  async readSoftwareMigrationRows(): Promise<
+    { name: string; status: string; error: string }[]
+  > {
+    const rows = this.swTable.locator('tbody tr');
+    const out: { name: string; status: string; error: string }[] = [];
+    for (let i = 0; i < (await rows.count()); i++) {
+      const cells = (await rows.nth(i).locator('td').allInnerTexts()).map(t =>
+        t.trim(),
+      );
+      if (cells.length < 5) continue;
+      out.push({ name: cells[1], status: cells[4], error: cells[8] ?? '' });
+    }
+    return out;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // 4) JSON 뷰어 (Custom & View Workflow)
   // ─────────────────────────────────────────────────────────────────────────
 

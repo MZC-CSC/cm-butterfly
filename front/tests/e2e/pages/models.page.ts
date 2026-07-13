@@ -299,6 +299,62 @@ export class ModelsPage {
     };
   }
 
+  /**
+   * 허용 급(maxClass) *안에서 가장 큰* 후보를 고른다.
+   *
+   * ★ 왜 최저가가 아닌가 — 소프트웨어 마이그레이션은 타깃에서 패키지를 하나씩 설치한다. 그런데 추천 목록에
+   *   OS 기반 패키지까지 통째로 들어와, micro급 타깃에서는 CPU가 포화돼 사실상 끝나지 않는다(실측: 40분에
+   *   39개 중 11개). 그러면 "마이그레이션이 되는가"를 확인할 수가 없다.
+   *
+   *   그래서 *요금 상한(maxClass)은 유지하되*, 그 안에서 가장 큰 것을 골라 마이그레이션이 실제로 끝날 수
+   *   있게 한다. 상한은 여전히 강제되므로 요금 보호는 그대로다.
+   */
+  async selectLargestCandidateWithinClass(
+    maxClass: string,
+  ): Promise<{ spec: string; monthlyPrice: number }> {
+    const rows = this.recommendRows;
+    const count = await rows.count();
+    let bestIndex = -1;
+    let bestRank = -1;
+    let bestSpec = '';
+    let bestPrice = 0;
+
+    for (let i = 0; i < count; i++) {
+      const text = (
+        await rows.nth(i).locator('td, [role="cell"]').allInnerTexts()
+      )
+        .map(t => t.trim())
+        .join(' ');
+      const spec = this.parseSpecToken(text);
+      if (!spec || /\bempty\b/i.test(text)) continue; // 값이 덜 채워진 후보는 쓸 수 없다
+      if (!isSpecWithinClass(spec, maxClass)) continue; // 요금 상한은 그대로 지킨다
+
+      const token = Object.keys(SPEC_CLASS_RANK).find(k =>
+        spec.toLowerCase().includes(k),
+      );
+      const rank = token ? SPEC_CLASS_RANK[token] : 0;
+      const priceMatch = text.match(/([\d.]+)\s*\/\s*mon/i);
+      if (rank > bestRank) {
+        bestRank = rank;
+        bestIndex = i;
+        bestSpec = spec;
+        bestPrice = priceMatch ? parseFloat(priceMatch[1]) : 0;
+      }
+    }
+
+    if (bestIndex < 0) {
+      throw new Error(
+        `추천 결과에 "${maxClass}" 급 이하의 쓸 만한 후보가 없다(후보 ${count}개).`,
+      );
+    }
+
+    await rows.nth(bestIndex).click();
+    console.log(
+      `[recommend] "${maxClass}" 급 이하 중 최대 스펙 선택: ${bestSpec}`,
+    );
+    return { spec: bestSpec, monthlyPrice: bestPrice };
+  }
+
   /** 추천 결과를 지정 이름의 타깃 모델(클라우드 모델)로 저장 */
   async saveAsTargetModel(name: string): Promise<void> {
     await this.saveAsTargetButton.click(); // → SimpleEditForm(Save Target Model)

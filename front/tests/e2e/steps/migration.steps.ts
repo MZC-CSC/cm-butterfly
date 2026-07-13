@@ -37,7 +37,12 @@ Given('생성된 리소스를 정리한다', async ({ page }) => {
   await wl.expectMciListLoaded();
   await wl.selectMci(infraName);
   await wl.openDeleteModal();
-  await wl.confirmDelete(infraName, 'force');
+  // ★ Normal Delete 여야 한다(= cb-tumblebug `option=terminate`). 실제 VM을 종료하고 지운다.
+  //
+  //   Force Delete(`option=force`)는 **CSP 삭제 결과와 무관하게 메타데이터만 지운다** — 모달의 경고 배너가
+  //   그렇게 적혀 있다. 그걸로 정리하면 목록에서는 사라지는데 EC2는 계속 떠서 요금을 먹는다. 실제로 그렇게
+  //   버려진 인스턴스들이 며칠째 돌고 있었다. 정리는 *자원이 정말 없어지는* 것이어야 한다.
+  await wl.confirmDelete(infraName, 'normal');
 
   const modalClosed = await wl.deleteModalClosed();
 
@@ -49,8 +54,10 @@ Given('생성된 리소스를 정리한다', async ({ page }) => {
   expect(
     modalClosed,
     '삭제는 됐지만 삭제 모달이 스스로 닫히지 않았다 — 화면 결함이다.\n' +
-      'MciDeleteModal.handleConfirm 이 삭제 요청 하나를 동기로 붙들고 기다리는데, 인프라 삭제는 수 분이 걸린다.\n' +
-      '실패하면 모달을 닫지도 않아 사용자가 갇힌다. (cb-tumblebug 의 force delete 는 간헐적으로 실패한다)',
+      'MciDeleteModal.handleConfirm 이 삭제 요청 하나를 동기로 붙들고 기다린다. 그런데 인프라 삭제는 클라우드\n' +
+      '자원을 실제로 거둬들이는 일이라 수 분이 걸리고, 게이트웨이가 60초에 끊는다(같은 요청을 API로 직접\n' +
+      '쏘면 504가 떨어지고, 그 뒤에 보면 자원은 지워져 있다). 그래서 화면은 응답을 영영 못 받고 모달이 닫히지\n' +
+      '않는다. 삭제를 비동기(접수 → 상태 폴링)로 바꿔야 한다.',
   ).toBeTruthy();
 
   // 2) 소스그룹 삭제 — 소스 모델까지 만들었으면 커넥션 서버는 지운다(시나리오 7단계)

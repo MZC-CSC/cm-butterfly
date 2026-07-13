@@ -1,4 +1,5 @@
 import { Page, expect, Locator } from '@playwright/test';
+import { TablePagination } from '../support/pagination';
 
 /**
  * WorkloadPage — 워크로드 운영(인프라 MCI + 노드 VM + 부하테스트) 화면의 Page Object.
@@ -249,6 +250,10 @@ export class WorkloadPage {
   /**
    * 목록을 다시 방문해 인프라가 *실제로* 사라졌는지 확인한다.
    * 목록은 자동 갱신되지 않으므로 새로고침하며 본다. 이게 삭제의 진짜 결과다.
+   *
+   * ★ 반드시 *전 페이지*를 훑는다. 목록은 15행씩 끊기므로 1페이지만 보고 "없다"고 하면, 뒤 페이지에
+   *   멀쩡히 살아 있는 인프라를 지웠다고 오판한다. 실제로 그렇게 통과한 적이 있고, 그동안 EC2가
+   *   계속 떠 있었다. 삭제 확인은 *자원이 정말 없어졌다*는 뜻이어야 한다.
    */
   async expectInfraGone(
     infraName: string,
@@ -257,7 +262,9 @@ export class WorkloadPage {
     const deadline = Date.now() + timeoutMs;
     for (;;) {
       await this.gotoMci().catch(() => {});
-      if ((await this.mciRow(infraName).count()) === 0) return;
+      await this.expectMciListLoaded().catch(() => {});
+      const pager = new TablePagination(this.page, this.mciTable);
+      if (await pager.isRowAbsent(this.mciRow(infraName))) return;
       expect(
         Date.now() < deadline,
         `"${infraName}" 인프라가 끝내 지워지지 않았다(목록에 그대로 남아 있다).`,
@@ -534,11 +541,9 @@ export class WorkloadPage {
   async removeStaleInfra(infraName: string): Promise<void> {
     await this.gotoMci();
     await this.expectMciListLoaded();
-    if (
-      !(await this.mciRow(infraName)
-        .isVisible({ timeout: 5_000 })
-        .catch(() => false))
-    ) {
+    // 잔재도 전 페이지를 훑어 찾는다 — 1페이지만 보면 뒤 페이지의 잔재를 못 지우고 지나간다.
+    const pager = new TablePagination(this.page, this.mciTable);
+    if (await pager.isRowAbsent(this.mciRow(infraName))) {
       return; // 남은 게 없다 — 그대로 진행
     }
     console.log(
@@ -546,7 +551,8 @@ export class WorkloadPage {
     );
     await this.selectMci(infraName);
     await this.openDeleteModal();
-    await this.confirmDelete(infraName, 'force');
+    // Force Delete 는 메타데이터만 지우고 EC2를 남긴다(요금이 계속 나간다). 사전 정리도 Normal 로 한다.
+    await this.confirmDelete(infraName, 'normal');
 
     // 모달이 안 닫히는 건 알려진 화면 결함이다(요청 하나를 동기로 붙들고, 실패해도 닫지 않는다).
     // 여기서는 시나리오를 세우기 위한 *사전 정리*이므로 결함을 기록만 하고 진행한다.

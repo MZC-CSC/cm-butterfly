@@ -4,6 +4,7 @@ import { SourceServicesPage } from '../pages/sourceServices.page';
 import { ModelsPage } from '../pages/models.page';
 import { sourceServer, workflowData } from '../fixtures/test-data';
 import { uniqueName } from '../support/naming';
+import { scenarioState } from '../support/world';
 
 const { Given, Then } = createBdd(test);
 
@@ -14,11 +15,19 @@ const { Given, Then } = createBdd(test);
  * 여기에는 시드에만 필요한 것(소프트웨어 수집·SW 소스모델·요금 안전 워크플로우)을 둔다.
  */
 
-/** "그리고 소스 소프트웨어를 수집한다" — 인프라 수집과 같은 절차(Collect Software) */
+/**
+ * "그리고 소스 소프트웨어를 수집한다" — 인프라 수집과 같은 절차(Collect Software)
+ *
+ * 대상 그룹은 *이번 시나리오가 등록한* 그룹이다. 시드는 e2e-nano-source를, 마이그레이션 시나리오는
+ * e2e-scn-source를 등록하는데, 예전엔 여기서 fixtures의 이름을 그대로 박아 써서 시나리오가
+ * 엉뚱한(시드가 만든) 그룹의 소프트웨어를 수집했다.
+ */
 Given('소스 소프트웨어를 수집한다', async ({ page }) => {
   const source = new SourceServicesPage(page);
   await source.goto();
-  await source.selectGroup(uniqueName(sourceServer.name));
+  await source.selectGroup(
+    scenarioState.sourceGroupName ?? uniqueName(sourceServer.name),
+  );
   await source.collectSoftware();
 });
 
@@ -26,9 +35,10 @@ Given('소스 소프트웨어를 수집한다', async ({ page }) => {
 Given(
   '수집된 소프트웨어를 {string} 소스 모델로 저장한다',
   async ({ page }, name: string) => {
-    await new SourceServicesPage(page).saveCollectedSwAsSourceModel(
-      uniqueName(name),
-    );
+    const modelName = uniqueName(name);
+    await new SourceServicesPage(page).saveCollectedSwAsSourceModel(modelName);
+    // SW 추천 스텝이 이 모델을 집는다.
+    scenarioState.softwareSourceModelName = modelName;
   },
 );
 

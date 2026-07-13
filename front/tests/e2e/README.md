@@ -5,11 +5,13 @@
 
 ```gherkin
 # language: ko
-시나리오: 온프렘 소스를 저비용 클라우드 인프라로 마이그레이션하고 부하테스트까지 확인
+시나리오: 온프렘 소스를 저비용 클라우드로 마이그레이션하고 소프트웨어까지 옮겨 부하테스트를 확인
   먼저 "cmiguser"로 로그인한다
   그리고 소스 서비스에 "e2e-scn-source" 소스서버를 등록한다
   그리고 소스 인프라를 수집한다
   ...
+  만약 "e2e-scn-sw-target" 타깃 SW 모델로 소프트웨어 마이그레이션 워크플로우를 생성하고 실행하면
+  그러면 소스의 소프트웨어가 타깃 노드에 설치된다
 ```
 
 ---
@@ -40,6 +42,10 @@ E2E_INCLUDE_COSTLY=1 npx playwright test --config=tests/e2e/playwright.config.ts
 
 > ⚠️ **소스 서버 VM 이 없으면 대부분 실패한다.** cm-honeybee 가 그 서버에 SSH로 붙어 수집하기 때문이다.
 > 준비 방법 → [01-설치](docs/01-설치.md)
+>
+> ⚠️ **소스 서버에 옮길 소프트웨어가 있어야 한다.** 소프트웨어 마이그레이션은 "소스에서 돌던 것이
+> 타깃으로 옮겨졌는가"를 확인하므로, 빈 서버로 돌리면 아무것도 증명하지 못한다.
+> `TEST_SOURCE_IP=… TEST_SOURCE_KEY=… ./scripts/prepare-source-server.sh` (nginx 설치)
 
 ---
 

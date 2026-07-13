@@ -82,20 +82,17 @@ async function fetchTaskInstancesForRun(run: IWorkflowRun) {
       );
 
       if (swTasks.length > 0) {
-        // 객체 전체를 재할당해서 reactivity 트리거
+        // Reassign the whole object so reactivity picks it up.
         runHasSwTask.value = {
           ...runHasSwTask.value,
           [run.workflow_run_id]: true,
         };
 
-        // 모든 execution_id 수집
-        const executionIds = swTasks.map((task: any) => {
-          // TODO: execution_id가 없으면 임시 ID 사용
-          return (
-            task.software_migration_execution_id ||
-            '0132478a-345a-458a-acce-3be7aa16f481'
-          );
-        });
+        // A task without an execution id has nothing to show. This used to fall back to a hardcoded
+        // id, so the screen would render some other migration's status as if it belonged to this run.
+        const executionIds = swTasks
+          .map((task: any) => task.software_migration_execution_id)
+          .filter(Boolean);
 
         runExecutionIds.value = {
           ...runExecutionIds.value,
@@ -166,6 +163,7 @@ const handleCloseSwOverlay = () => {
           v-if="runHasSwTask[item.workflow_run_id]"
           style-type="tertiary"
           size="sm"
+          data-testid="workflow-view-sw"
           @click="handleViewSw(item)"
         >
           View SW

@@ -139,12 +139,16 @@ When(
       Number(process.env.TEST_RECOMMEND_LIMIT || 20),
     );
     await models.runRecommend();
-    const chosen = await models.selectLowestCostCandidate();
+    // 요금 상한(maxClass) 안에서 *가장 큰* 후보를 고른다. 최저가(micro급)를 고르면 소프트웨어 마이그레이션이
+    // CPU 포화로 끝나지 않아, 정작 확인하려던 "마이그레이션이 되는가"를 볼 수가 없다.
+    const chosen = await models.selectLargestCandidateWithinClass(
+      targetSpec.maxClass,
+    );
     lastRecommendedSpec = chosen.spec;
-    // 저비용 강제 확인(급 판별 가능할 때만)
+    // 요금 상한 확인(급 판별 가능할 때만)
     expect(
       isSpecWithinClass(chosen.spec, targetSpec.maxClass),
-      `추천 최저가 스펙 "${chosen.spec}" 이(가) "${targetSpec.maxClass}" 급 이하가 아님`,
+      `추천 스펙 "${chosen.spec}" 이(가) "${targetSpec.maxClass}" 급 이하가 아님`,
     ).toBeTruthy();
     const targetName = uniqueName(
       process.env.TEST_TARGET_MODEL_NAME || 'e2e-lowcost-target',

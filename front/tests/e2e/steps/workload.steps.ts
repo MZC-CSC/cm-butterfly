@@ -160,6 +160,11 @@ Then('타깃 EC2 인스턴스가 정상 생성된다', async ({ page }) => {
     infraName,
     workload.nodeName,
   );
+
+  // 여기서 확인된 인프라가 이후 단계(소프트웨어 마이그레이션·원격명령·부하테스트)의 대상이다.
+  // cb-tumblebug/cm-beetle 에서 인프라의 id는 곧 이름이다.
+  scenarioState.infraName = infraName;
+  scenarioState.infraId = infraName;
 });
 
 /**

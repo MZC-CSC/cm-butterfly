@@ -3,7 +3,7 @@ import { test, expect, getSentRequests } from '../support/fixtures';
 import { captureScreen } from '../support/screenshot';
 import { WorkflowPage } from '../pages/workflow.page';
 import { ModelsPage } from '../pages/models.page';
-import { workflowData } from '../fixtures/test-data';
+import { workflowData, testNamespace } from '../fixtures/test-data';
 import { uniqueName } from '../support/naming';
 import { scenarioState } from '../support/world';
 
@@ -213,6 +213,73 @@ When(
   '워크플로우 툴에서 인프라 이름을 {string} 로 바꿔 마이그레이션 워크플로우를 생성하고 실행하면',
   async ({ page }, infraName: string) => {
     await createAndRunMigrationWorkflow(page, uniqueName(infraName));
+  },
+);
+
+// ── 소프트웨어 마이그레이션 ──────────────────────────────────────────────
+/**
+ * 소프트웨어 마이그레이션 워크플로우를 만들고 실행한다.
+ *
+ * 인프라 마이그레이션과 결정적으로 다른 점 — **어느 인프라에 설치할지를 워크플로우 툴에서 지정해야 한다.**
+ * grasshopper_task_software_migration 은 `nsId`·`infraId` 를 *필수 query 파라미터*로 받는데, 타깃 SW
+ * 모델은 "무엇을 설치할지"만 알고 "어디에 설치할지"는 모른다. 그래서 앞선 인프라 마이그레이션이 만든
+ * 인프라의 id 를 여기서 채워 넣는다. 비워 두면 grasshopper 가 대상을 못 찾는다.
+ */
+async function createAndRunSoftwareMigrationWorkflow(
+  page: import('@playwright/test').Page,
+  targetModelName: string,
+): Promise<void> {
+  const models = new ModelsPage(page);
+  const wf = new WorkflowPage(page);
+  const name = `${workflowData.createNamePrefix}-swmigrate-${Date.now()}`;
+
+  const infraId = scenarioState.infraId ?? scenarioState.infraName;
+  expect(
+    infraId,
+    'SW 마이그레이션은 설치 대상 인프라가 있어야 한다 — 인프라 마이그레이션이 먼저 성공해야 한다',
+  ).toBeTruthy();
+
+  // 타깃 SW 모델 상세의 "Make Workflow" → 디자이너가 migrate_software_workflow 템플릿과
+  // grasshopper_task_software_migration 태스크를 모델 타입(software)에 따라 자동 구성한다.
+  await models.openWorkflowEditorFromTarget(targetModelName);
+  await wf.expectDesignerOpen();
+  await wf.fillWorkflowName(name);
+
+  await wf.selectTaskInDesigner(workflowData.softwareMigrationTask);
+  await wf.setTaskParam('query', 'nsId', testNamespace.id);
+  await wf.setTaskParam('query', 'infraId', infraId!);
+
+  await wf.saveWorkflow();
+  scenarioState.softwareWorkflowName = name;
+
+  // 인프라 마이그레이션과 같은 이유로 DAG 등록을 기다린다(cm-cicada는 YAML만 쓰고 airflow가 파싱).
+  await wf.gotoWorkflows();
+  await wf.expectWorkflowVisible(name);
+  await new Promise(r => setTimeout(r, 120_000));
+
+  // ★ 실행 직전 시각을 기록한다. grasshopper 실행 기록을 우리 것으로 가려낼 유일한 열쇠다 —
+  //   인프라 이름도 노드 id도 cb-tumblebug이 같은 값을 다시 쓰기 때문에, 앞선 실행이 남긴 기록과
+  //   구분되지 않는다(실제로 지난 실행의 기록이 이번 것으로 잡혔다).
+  scenarioState.swRunStartedAt = Date.now();
+  await wf.runWorkflow(name);
+
+  await wf.selectWorkflow(name);
+  await wf.openHistoryTab();
+  await wf.expectRunHistoryPresent();
+}
+
+/**
+ * "만약 {string} 타깃 SW 모델로 소프트웨어 마이그레이션 워크플로우를 생성하고 실행하면"
+ *
+ * 설치 대상 인프라(infraId)는 앞선 인프라 마이그레이션이 만든 것을 쓴다 — 워크플로우 툴에서 채운다.
+ */
+When(
+  '{string} 타깃 SW 모델로 소프트웨어 마이그레이션 워크플로우를 생성하고 실행하면',
+  async ({ page }, targetModelName: string) => {
+    await createAndRunSoftwareMigrationWorkflow(
+      page,
+      uniqueName(targetModelName),
+    );
   },
 );
 

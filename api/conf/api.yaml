@@ -92,7 +92,7 @@ services:
       type: none
 
   cm-damselfly:
-    version: 0.5.1(latest)
+    version: 0.5.2(latest)
     baseurl: http://cm-damselfly:8088/damselfly
     auth: # cm-damselfly checks these only when DAMSELFLY_API_AUTH_ENABLED=true; otherwise they are ignored.
       type: basic
@@ -2875,6 +2875,10 @@ serviceActions:
       method: post
       resourcePath: /cloudmodel
       description: "Create a new cloud user model with the given information."
+    CreateInfraModel:
+      method: post
+      resourcePath: /infra-model
+      description: "Create a new infra migration user model. Use 'modelType' to select on-premise or cloud, and 'isTargetModel' to select source or target model."
     CreateOnPremModel:
       method: post
       resourcePath: /onpremmodel
@@ -2891,6 +2895,10 @@ serviceActions:
       method: delete
       resourcePath: /cloudmodel/{id}
       description: "Delete a cloud user model with the given information."
+    DeleteInfraModel:
+      method: delete
+      resourcePath: /infra-model/{id}
+      description: "Delete a specific infra migration user model by ID. Works for both on-premise and cloud models without requiring the caller to specify the model type."
     DeleteOnPremModel:
       method: delete
       resourcePath: /onpremmodel/{id}
@@ -2911,6 +2919,14 @@ serviceActions:
       method: get
       resourcePath: /cloudmodel
       description: "Get a list of cloud user models."
+    GetInfraModel:
+      method: get
+      resourcePath: /infra-model/{id}
+      description: "Get a specific infra migration user model by ID. Use 'modelType' to specify whether it is an on-premise or cloud model."
+    GetInfraModels:
+      method: get
+      resourcePath: /infra-model
+      description: "Get a list of infra migration user models filtered by model type and source/target classification."
     GetModels:
       method: get
       resourcePath: /model/{isTargetModel}
@@ -2955,6 +2971,10 @@ serviceActions:
       method: put
       resourcePath: /cloudmodel/{id}
       description: "Update a cloud user model with the given information."
+    UpdateInfraModel:
+      method: put
+      resourcePath: /infra-model/{id}
+      description: "Update a specific infra migration user model by ID. Use 'modelType' to specify whether it is an on-premise or cloud model."
     UpdateOnPremModel:
       method: put
       resourcePath: /onpremmodel/{id}
