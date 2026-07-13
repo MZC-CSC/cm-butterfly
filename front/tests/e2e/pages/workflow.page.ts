@@ -162,10 +162,22 @@ export class WorkflowPage {
    * 무엇이 다시 도는지는 화면의 그림이 아니라 *엔진이 실제 실행 그래프를 보고* 정한다.
    * 그래서 실행하지 않고 대상 목록을 먼저 받아 확인시키며, 이 메서드는 그 목록을 돌려준다.
    */
-  async previewRerun(scope: 'only' | 'after' | 'failed'): Promise<Locator> {
+  async previewRerun(scope: 'only' | 'after'): Promise<Locator> {
     await this.page
       .locator(`[data-testid="workflow-rerun-scope"][data-scope="${scope}"]`)
       .click();
+    await expect(this.page.getByTestId('workflow-rerun-confirm')).toBeVisible({
+      timeout: 20_000,
+    });
+    return this.page.getByTestId('workflow-rerun-target');
+  }
+
+  /**
+   * 실행 전체의 실패분 재실행 — 선택한 태스크와 무관하므로 실행 단위 동작들과
+   * 같은 자리에 있다(태스크 상세 패널이 아니다).
+   */
+  async previewRerunFailed(): Promise<Locator> {
+    await this.page.getByTestId('workflow-rerun-failed-btn').click();
     await expect(this.page.getByTestId('workflow-rerun-confirm')).toBeVisible({
       timeout: 20_000,
     });

@@ -74,7 +74,6 @@ async function cloneAndEdit() {
 const RERUN_SCOPES = [
   { key: 'only', label: 'This task only' },
   { key: 'after', label: 'This task and everything after it' },
-  { key: 'failed', label: 'All failed tasks in this run' },
 ] as const;
 
 // 워크플로우 전체를 실행하는 것이므로 확인 없이 시작하지 않는다
@@ -94,24 +93,47 @@ function downloadLog() {
   URL.revokeObjectURL(link.href);
 }
 
+/** 태스크 단위 재실행 — 선택한 태스크가 기준이다 */
 function requestRerun(scope: (typeof RERUN_SCOPES)[number]['key']) {
   const taskId = selectedTaskId.value;
-  if (!taskId && scope !== 'failed') return;
-
-  // 'failed'는 선택한 태스크와 무관하게 *이 실행 전체*가 대상이다. 엔진은 대상
-  // 목록을 비워 보내면 거부하므로, 이 실행의 모든 태스크를 넘기고 실패한 것만
-  // 고르게 한다. 그러면 실패한 태스크와 그것 때문에 막혀 있던 태스크가 잡힌다.
-  const allTaskIds = instances.value.map(i => i.task_id);
+  if (!taskId) return;
 
   previewRerun({
     dryRun: true,
-    taskIds: scope === 'failed' ? allTaskIds : [taskId as string],
+    taskIds: [taskId],
     includeDownstream: scope === 'after',
     includeUpstream: false,
-    onlyFailed: scope === 'failed',
+    onlyFailed: false,
     resetDagRuns: true,
   });
 }
+
+/**
+ * 실행 단위 재실행 — 선택한 태스크와 무관하게 *이 실행 전체*의 실패분이 대상이다.
+ * 태스크를 골라야 나오는 상세 패널이 아니라 실행 단위 동작들과 같은 자리에 둔다.
+ *
+ * 엔진은 대상 목록을 비워 보내면 거부하므로, 이 실행의 모든 태스크를 넘기고 실패한
+ * 것만 고르게 한다. 그러면 실패한 태스크와 그것 때문에 막혀 있던 태스크가 잡힌다.
+ */
+function requestRerunFailed() {
+  // 상태를 아직 못 받았으면 대상 목록이 비어 엔진이 거부한다. 그 전에는 누를 수 없다.
+  if (!instances.value.length) return;
+
+  previewRerun({
+    dryRun: true,
+    taskIds: instances.value.map(i => i.task_id),
+    includeDownstream: false,
+    includeUpstream: false,
+    onlyFailed: true,
+    resetDagRuns: true,
+  });
+}
+
+const hasFailedTask = computed(() =>
+  instances.value.some(i =>
+    ['failed', 'upstream_failed'].includes((i.state ?? '').toLowerCase()),
+  ),
+);
 
 /**
  * 확인 모달이 떠 있는 동안, 다시 돌 태스크를 그래프에서도 보여준다.
@@ -222,6 +244,16 @@ async function onRunChange(runId: string) {
         </div>
 
         <div class="run-viewer__actions">
+          <!-- 실행 전체의 실패분을 다시 돌린다 — 선택한 태스크와 무관하다 -->
+          <p-button
+            data-testid="workflow-rerun-failed-btn"
+            style-type="tertiary"
+            icon-left="ic_refresh"
+            :disabled="!hasFailedTask || rerunPending"
+            @click="requestRerunFailed"
+          >
+            Re-run failed tasks
+          </p-button>
           <!--
             원본을 고치면 그 워크플로우의 과거 실행이 화면에서 엉뚱한 값으로 보이게
             된다. 값을 바꿔 돌리려면 복제본을 고친다.
@@ -390,10 +422,11 @@ async function onRunChange(runId: string) {
             class="run-viewer__rerun"
             data-testid="workflow-rerun"
           >
-            <h5>Re-run</h5>
+            <h5>Re-run from this task</h5>
             <p class="run-viewer__hint">
               You will be shown exactly which tasks would run again, and asked
-              to confirm, before anything is executed.
+              to confirm, before anything is executed. To re-run every failed
+              task in this run, use "Re-run failed tasks" above.
             </p>
             <div class="run-viewer__rerun-buttons">
               <p-button
@@ -568,11 +601,14 @@ async function onRunChange(runId: string) {
   gap: 0.25rem;
 }
 
+/*
+  버튼을 오른쪽 끝으로 밀면 실행 선택과 버튼 사이에 빈 공간이 크게 남는다.
+  왼쪽으로 붙여 두고, 폭이 모자라면 버튼 묶음이 아래 줄로 내려가게 한다.
+*/
 .run-viewer__header-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 0.75rem;
 }
 
@@ -589,7 +625,7 @@ async function onRunChange(runId: string) {
 
 .run-viewer__run-select {
   display: flex;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   align-items: center;
   gap: 0.5rem;
@@ -597,7 +633,7 @@ async function onRunChange(runId: string) {
 
 /* 드롭다운이 폭을 다 먹으면 좁은 화면에서 버튼이 아래로 밀린다 */
 .run-viewer__dropdown {
-  flex: 0 1 20rem;
+  flex: 0 1 18rem;
   min-width: 10rem;
 }
 

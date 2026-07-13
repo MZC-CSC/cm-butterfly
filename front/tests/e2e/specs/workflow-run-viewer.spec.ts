@@ -85,6 +85,26 @@ test.describe('워크플로우 실행 상태 뷰어', () => {
     await workflow.expectTaskState('data-branch-fails', 'failed');
   });
 
+  test('실행 전체의 실패분 재실행은 태스크를 고르지 않아도 된다', async ({
+    page,
+  }) => {
+    const workflow = new WorkflowPage(page);
+    await workflow.gotoWorkflows();
+    await workflow.openRunViewer(WORKFLOW);
+
+    // 실행 상태가 들어온 뒤에 누른다 (대상은 이 실행의 태스크들에서 정해진다)
+    await workflow.expectTaskState('data-branch-fails', 'failed');
+
+    // 태스크를 선택하지 않은 상태에서도 눌러야 한다 — 실행 단위 동작이기 때문이다
+    const targets = await workflow.previewRerunFailed();
+    await expect(targets).toContainText([
+      /data-branch-fails/,
+      /verify/,
+      /report/,
+    ]);
+    await workflow.cancelRerun();
+  });
+
   test('새 실행은 재실행과 구분되고, 확인 없이 시작하지 않는다', async ({
     page,
   }) => {
