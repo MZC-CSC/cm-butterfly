@@ -32,7 +32,9 @@ export interface IRunGraphEdge {
 }
 
 /** 그래프 렌더 치수 — 뷰어가 그래프에 얼마나 폭을 내줄지 계산할 때도 쓴다 */
-export const GRAPH_NODE_WIDTH = 190;
+/* 190px에서는 beetle_task_infra_migration 같은 이름이 상자 밖으로 삐져나왔다.
+   SVG text는 상자에 맞춰 접히거나 잘리지 않으므로 상자를 이름에 맞춘다. */
+export const GRAPH_NODE_WIDTH = 240;
 export const GRAPH_NODE_HEIGHT = 52;
 export const GRAPH_GAP_X = 44;
 export const GRAPH_GAP_Y = 60;
