@@ -8,7 +8,7 @@ import {
 import { IWorkflowRun, ITaskInstance } from '@/entities/workflow/model/types';
 import { useGetTaskInstances } from '@/entities/workflow/api/index';
 import { useDefinitionTableModel } from '@/shared/hooks/table/definitionTable/useDefinitionTableModel';
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import TaskLogModal from './TaskLogModal.vue';
 import SoftwareMigrationOverlay from './SoftwareMigrationOverlay.vue';
 
@@ -42,6 +42,14 @@ const currentLogTask = ref<ITaskInstance>();
 // SW 마이그레이션 모달 상태 관리
 const showSWModal = ref(false);
 const currentSWTask = ref<ITaskInstance>();
+
+// 실행 ID가 없으면 조회할 것이 없다. 예전에는 코드에 박아 둔 다른 실행의 ID로
+// 조회해서, 남의 설치 결과가 이 실행의 결과인 것처럼 보였다.
+const swExecutionIds = computed(() =>
+  currentSWTask.value?.software_migration_execution_id
+    ? [currentSWTask.value.software_migration_execution_id]
+    : [],
+);
 
 // 테이블 필드 정의
 const tableFields = ref([
@@ -219,11 +227,7 @@ const updateRunInfoData = () => {
         <SoftwareMigrationOverlay
           :is-visible="showSWModal"
           :selected-run="props.selectedRun"
-          :execution-ids="
-            currentSWTask?.software_migration_execution_id
-              ? [currentSWTask.software_migration_execution_id]
-              : ['0132478a-345a-458a-acce-3be7aa16f481']
-          "
+          :execution-ids="swExecutionIds"
           @close="closeSWModal"
         />
       </div>
