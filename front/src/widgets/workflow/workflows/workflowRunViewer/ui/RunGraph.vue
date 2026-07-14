@@ -19,6 +19,11 @@ interface Props {
   graph: IRunGraph;
   instances: ITaskInstance[];
   selectedTaskId: string | null;
+  /**
+   * 재실행 미리보기. 값이 있으면 *다시 돌 태스크만* 살리고 나머지는 흐리게 한다.
+   * 무엇이 다시 도는지는 엔진이 정하므로, 이 목록도 엔진이 돌려준 것이다.
+   */
+  rerunPreviewIds?: string[] | null;
 }
 
 const props = defineProps<Props>();
@@ -33,6 +38,9 @@ const PADDING = GRAPH_PADDING;
 const instanceByTaskId = computed(
   () => new Map(props.instances.map(i => [i.task_id, i])),
 );
+
+const previewing = computed(() => !!props.rerunPreviewIds);
+const previewSet = computed(() => new Set(props.rerunPreviewIds ?? []));
 
 // 같은 level의 노드는 서로 의존하지 않으므로 가로로 나란히 둔다.
 // 그래서 병렬이 병렬로 보인다.
@@ -88,7 +96,7 @@ const positioned = computed(() =>
       tryNumber,
       tooltip:
         tryNumber > 1
-          ? `${node.name} — ${label} (시도 ${tryNumber}회)`
+          ? `${node.name} — ${label} (try ${tryNumber})`
           : `${node.name} — ${label}`,
     };
   }),
@@ -123,6 +131,7 @@ const edgePaths = computed(() =>
 <template>
   <div class="run-graph">
     <svg
+      data-testid="workflow-run-graph-svg"
       :width="canvasWidth"
       :height="canvasHeight"
       :viewBox="`0 0 ${canvasWidth} ${canvasHeight}`"
@@ -152,9 +161,22 @@ const edgePaths = computed(() =>
         v-for="item in positioned"
         :key="item.node.id"
         class="run-graph__node"
+        data-testid="workflow-run-node"
+        :data-preview="
+          previewing ? (previewSet.has(item.node.id) ? 'on' : 'off') : undefined
+        "
+        :data-task-name="item.node.name"
+        :data-task-id="item.node.id"
+        :data-state="item.state ?? 'none'"
         :class="[
           `run-graph__node--${item.kind}`,
-          { 'run-graph__node--selected': item.node.id === selectedTaskId },
+          {
+            'run-graph__node--selected': item.node.id === selectedTaskId,
+            'run-graph__node--preview':
+              previewing && previewSet.has(item.node.id),
+            'run-graph__node--dimmed':
+              previewing && !previewSet.has(item.node.id),
+          },
         ]"
         @click="emit('select', item.node.id)"
       >
@@ -173,7 +195,7 @@ const edgePaths = computed(() =>
         <text :x="item.x + 14" :y="item.y + 39" class="run-graph__state">
           {{ item.label }}
           <template v-if="item.tryNumber > 1">
-            · 시도 {{ item.tryNumber }}
+            · try {{ item.tryNumber }}
           </template>
         </text>
       </g>
@@ -216,6 +238,20 @@ const edgePaths = computed(() =>
 .run-graph__state {
   font-size: 0.6875rem;
   fill: #6b6e78;
+}
+
+/* 재실행 미리보기 — 다시 돌 태스크만 살리고 나머지는 물러나게 한다 */
+.run-graph__node--dimmed {
+  opacity: 0.25;
+}
+
+.run-graph__node--preview .run-graph__box {
+  stroke: #4e42d4;
+  stroke-width: 3;
+}
+
+.run-graph__node--preview .run-graph__name {
+  fill: #4e42d4;
 }
 
 .run-graph__node--selected .run-graph__box {

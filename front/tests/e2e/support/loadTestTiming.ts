@@ -98,7 +98,8 @@ export async function watchLoadTest(
         finishAt: state.finishAt,
       });
 
-      if (status && timing.runningAtSec === undefined) timing.runningAtSec = atSec;
+      if (status && timing.runningAtSec === undefined)
+        timing.runningAtSec = atSec;
       if (status && /success|fail/i.test(status)) {
         timing.finishedAtSec = atSec;
         return;
@@ -131,9 +132,15 @@ export async function reportLoadTestTiming(
   lines.push('');
   lines.push('| 구간 | 경과 |');
   lines.push('|------|------|');
-  lines.push(`| 실행 요청 → cm-ant가 실행을 인지 | ${secs(timing.runningAtSec)} |`);
-  lines.push(`| 실행 요청 → cm-ant 실행 종료 | ${secs(timing.finishedAtSec)} |`);
-  lines.push(`| 실행 요청 → **화면에 결과 표시** | ${secs(timing.visibleAtSec)} |`);
+  lines.push(
+    `| 실행 요청 → cm-ant가 실행을 인지 | ${secs(timing.runningAtSec)} |`,
+  );
+  lines.push(
+    `| 실행 요청 → cm-ant 실행 종료 | ${secs(timing.finishedAtSec)} |`,
+  );
+  lines.push(
+    `| 실행 요청 → **화면에 결과 표시** | ${secs(timing.visibleAtSec)} |`,
+  );
   lines.push('');
 
   // 판단 — 어디서 늦어졌나
@@ -166,7 +173,9 @@ export async function reportLoadTestTiming(
   lines.push('| 경과 | 상태 | cm-ant executionDuration |');
   lines.push('|------|------|--------------------------|');
   for (const s of timing.snapshots) {
-    lines.push(`| ${s.atSec}초 | ${s.status ?? '-'} | ${s.executionDuration ?? '-'} |`);
+    lines.push(
+      `| ${s.atSec}초 | ${s.status ?? '-'} | ${s.executionDuration ?? '-'} |`,
+    );
   }
 
   const md = lines.join('\n');

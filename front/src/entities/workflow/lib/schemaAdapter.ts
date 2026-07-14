@@ -123,7 +123,8 @@ export function normalizeWorkflowTaskInPlace(
   const spec = task.spec ?? {};
   task.spec = spec;
   if (task.type === undefined) task.type = component?.type ?? 'http';
-  if (task.request_body === undefined) task.request_body = spec.request_body ?? '';
+  if (task.request_body === undefined)
+    task.request_body = spec.request_body ?? '';
   if (task.path_params === undefined) task.path_params = spec.path_params;
   if (task.query_params === undefined) task.query_params = spec.query_params;
   return task;

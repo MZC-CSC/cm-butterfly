@@ -39,14 +39,14 @@ export function taskStateKind(state?: string | null): TaskStateKind {
 }
 
 const LABEL_BY_KIND: Record<TaskStateKind, string> = {
-  running: '실행 중',
-  success: '성공',
-  failed: '실패',
-  upstreamFailed: '앞 태스크 실패로 미실행',
-  retry: '재시도 대기',
-  skipped: '건너뜀',
-  pending: '대기',
-  unknown: '알 수 없는 상태',
+  running: 'Running',
+  success: 'Success',
+  failed: 'Failed',
+  upstreamFailed: 'Not run (upstream failed)',
+  retry: 'Waiting for retry',
+  skipped: 'Skipped',
+  pending: 'Pending',
+  unknown: 'Unknown state',
 };
 
 /** 모르는 상태는 원래 문자열을 그대로 보여준다 */

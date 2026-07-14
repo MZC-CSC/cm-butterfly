@@ -225,6 +225,7 @@ function handleCreateTargetModel(e) {
                 :navigation-bar="true"
                 :status-bar="false"
                 height="600px"
+                file-name="source-software-model"
               />
             </div>
           </p-pane-layout>
@@ -262,6 +263,7 @@ function handleCreateTargetModel(e) {
                 :navigation-bar="true"
                 :status-bar="false"
                 height="600px"
+                file-name="recommended-software-model"
               />
             </div>
           </p-pane-layout>

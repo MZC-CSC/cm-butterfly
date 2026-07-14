@@ -48,16 +48,22 @@ Then('인프라 상세 정보가 보인다', async ({ page }) => {
 });
 
 /** "\"e2e-target-infra\" 인프라의 서버 목록을 연다" — 인프라 선택 후 서버 탭 진입 */
-When('{string} 인프라의 서버 목록을 연다', async ({ page }, infraName: string) => {
-  const wl = new WorkloadPage(page);
-  await wl.selectMci(infraName);
-  await wl.openServerTab();
-});
+When(
+  '{string} 인프라의 서버 목록을 연다',
+  async ({ page }, infraName: string) => {
+    const wl = new WorkloadPage(page);
+    await wl.selectMci(infraName);
+    await wl.openServerTab();
+  },
+);
 
 /** "\"e2e-target-node\" 노드가 서버 목록에 보인다" */
-Then('{string} 노드가 서버 목록에 보인다', async ({ page }, nodeName: string) => {
-  await new WorkloadPage(page).expectNodeVisible(nodeName);
-});
+Then(
+  '{string} 노드가 서버 목록에 보인다',
+  async ({ page }, nodeName: string) => {
+    await new WorkloadPage(page).expectNodeVisible(nodeName);
+  },
+);
 
 /** "\"e2e-target-node\" 노드를 선택한다" — 노드 카드 클릭(정보/부하테스트 탭 활성화) */
 When('{string} 노드를 선택한다', async ({ page }, nodeName: string) => {
@@ -77,27 +83,33 @@ When('{string} 인프라를 삭제한다', async ({ page }, infraName: string) =
 });
 
 /** "\"e2e-target-infra\" 인프라가 목록에서 사라진다" — 삭제 후 목록 재조회 확인 */
-Then('{string} 인프라가 목록에서 사라진다', async ({ page }, infraName: string) => {
-  const wl = new WorkloadPage(page);
-  await wl.gotoMci();
-  await wl.expectMciListLoaded();
-  // 재조회 후 행 부재 확인
-  await expect(wl.mciRow(infraName)).toHaveCount(0, { timeout: 20_000 });
-});
+Then(
+  '{string} 인프라가 목록에서 사라진다',
+  async ({ page }, infraName: string) => {
+    const wl = new WorkloadPage(page);
+    await wl.gotoMci();
+    await wl.expectMciListLoaded();
+    // 재조회 후 행 부재 확인
+    await expect(wl.mciRow(infraName)).toHaveCount(0, { timeout: 20_000 });
+  },
+);
 
 // ─────────────────────────────────────────────────────────────
 // 부하테스트 — Runloadtest / Getlastloadtest* (@costly)
 // ─────────────────────────────────────────────────────────────
 
 /** "\"e2e-target-node\" 노드로 부하테스트를 실행한다" — Evaluate Perf 탭→Load Config→실행 */
-When('{string} 노드로 부하테스트를 실행한다', async ({ page }, nodeName: string) => {
-  const wl = new WorkloadPage(page);
-  await wl.selectNode(nodeName);
-  await wl.openEvaluatePerfTab();
-  await wl.openLoadConfig();
-  await wl.fillLoadConfig(workload.loadTest);
-  await wl.submitLoadConfig();
-});
+When(
+  '{string} 노드로 부하테스트를 실행한다',
+  async ({ page }, nodeName: string) => {
+    const wl = new WorkloadPage(page);
+    await wl.selectNode(nodeName);
+    await wl.openEvaluatePerfTab();
+    await wl.openLoadConfig();
+    await wl.fillLoadConfig(workload.loadTest);
+    await wl.submitLoadConfig();
+  },
+);
 
 /** "부하테스트 결과가 표시된다" — 집계 테이블·결과/리소스 메트릭 렌더 확인 */
 Then('부하테스트 결과가 표시된다', async ({ page }) => {
@@ -144,7 +156,15 @@ Then('타깃 EC2 인스턴스가 정상 생성된다', async ({ page }) => {
   // 워크플로우 툴에서 인프라 이름을 바꿨다면 *그 이름*으로 확인해야 한다.
   // 고정 이름(infra101)만 보면, 이름을 바꾼 게 실제로 반영됐는지 알 수 없다.
   const infraName = scenarioState.infraName ?? workload.infraName;
-  await new WorkloadPage(page).expectInstanceCreated(infraName, workload.nodeName);
+  await new WorkloadPage(page).expectInstanceCreated(
+    infraName,
+    workload.nodeName,
+  );
+
+  // 여기서 확인된 인프라가 이후 단계(소프트웨어 마이그레이션·원격명령·부하테스트)의 대상이다.
+  // cb-tumblebug/cm-beetle 에서 인프라의 id는 곧 이름이다.
+  scenarioState.infraName = infraName;
+  scenarioState.infraId = infraName;
 });
 
 /**

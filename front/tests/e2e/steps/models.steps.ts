@@ -69,13 +69,16 @@ Given('{string} 소스 모델을 선택한다', async ({ page }, name: string) =
 // "수집된 정보를 소스 모델로 저장한다"는 소스 서비스 화면(수집 결과 Refine 팝업) 흐름이라 source.steps.ts에 정의한다.
 
 /** 유닛(파라미터) — "수집된 정보를 {string} 소스 모델로 저장하면" */
-When('수집된 정보를 {string} 소스 모델로 저장하면', async ({ page }, name: string) => {
-  const models = new ModelsPage(page);
-  await models.gotoSourceModels();
-  await models.selectFirstModel();
-  await models.saveAsSourceModel(uniqueName(name));
-  scenarioState.sourceModelName = uniqueName(name);
-});
+When(
+  '수집된 정보를 {string} 소스 모델로 저장하면',
+  async ({ page }, name: string) => {
+    const models = new ModelsPage(page);
+    await models.gotoSourceModels();
+    await models.selectFirstModel();
+    await models.saveAsSourceModel(uniqueName(name));
+    scenarioState.sourceModelName = uniqueName(name);
+  },
+);
 
 // ───────────────────────────────────────────────────────────────────────
 // 추천(저비용) → 타깃 모델 저장 (유닛 + 마이그레이션 재사용)
@@ -132,16 +135,24 @@ When(
     await models.selectProvider(targetSpec.csp);
     await models.selectRegion(targetSpec.region);
     // 후보 개수를 늘려 cm-beetle이 값이 채워진 후보를 반환할 확률을 높인다(소스 스펙이 낮으면 그래도 빌 수 있음).
-    await models.setCandidateLimit(Number(process.env.TEST_RECOMMEND_LIMIT || 20));
+    await models.setCandidateLimit(
+      Number(process.env.TEST_RECOMMEND_LIMIT || 20),
+    );
     await models.runRecommend();
-    const chosen = await models.selectLowestCostCandidate();
+    // 요금 상한(maxClass) 안에서 *가장 큰* 후보를 고른다. 최저가(micro급)를 고르면 소프트웨어 마이그레이션이
+    // CPU 포화로 끝나지 않아, 정작 확인하려던 "마이그레이션이 되는가"를 볼 수가 없다.
+    const chosen = await models.selectLargestCandidateWithinClass(
+      targetSpec.maxClass,
+    );
     lastRecommendedSpec = chosen.spec;
-    // 저비용 강제 확인(급 판별 가능할 때만)
+    // 요금 상한 확인(급 판별 가능할 때만)
     expect(
       isSpecWithinClass(chosen.spec, targetSpec.maxClass),
-      `추천 최저가 스펙 "${chosen.spec}" 이(가) "${targetSpec.maxClass}" 급 이하가 아님`,
+      `추천 스펙 "${chosen.spec}" 이(가) "${targetSpec.maxClass}" 급 이하가 아님`,
     ).toBeTruthy();
-    const targetName = uniqueName(process.env.TEST_TARGET_MODEL_NAME || 'e2e-lowcost-target');
+    const targetName = uniqueName(
+      process.env.TEST_TARGET_MODEL_NAME || 'e2e-lowcost-target',
+    );
     await models.saveAsTargetModel(targetName);
   },
 );
@@ -151,7 +162,9 @@ When(
 // ───────────────────────────────────────────────────────────────────────
 
 /** 현재 선택된 소스 모델로 추천 모달을 열고 CSP/Region 지정 후 실행. 최저가 후보 스펙 반환. */
-async function recommend(page: import('@playwright/test').Page): Promise<string> {
+async function recommend(
+  page: import('@playwright/test').Page,
+): Promise<string> {
   const models = new ModelsPage(page);
   await models.openRecommend();
   await models.selectProvider(targetSpec.csp);
@@ -166,11 +179,14 @@ async function recommend(page: import('@playwright/test').Page): Promise<string>
 // ───────────────────────────────────────────────────────────────────────
 
 /** "{string} 소프트웨어 소스 모델을 선택한다" */
-Given('{string} 소프트웨어 소스 모델을 선택한다', async ({ page }, name: string) => {
-  const models = new ModelsPage(page);
-  await models.gotoSourceModels();
-  await models.selectModel(uniqueName(name));
-});
+Given(
+  '{string} 소프트웨어 소스 모델을 선택한다',
+  async ({ page }, name: string) => {
+    const models = new ModelsPage(page);
+    await models.gotoSourceModels();
+    await models.selectModel(uniqueName(name));
+  },
+);
 
 /**
  * "소프트웨어 마이그레이션을 추천받아 {string} 타깃 SW 모델로 저장하면"
@@ -187,11 +203,14 @@ When(
 );
 
 /** "타깃 SW 모델 목록에 {string} 이 보인다" */
-Then('타깃 SW 모델 목록에 {string} 이 보인다', async ({ page }, name: string) => {
-  const models = new ModelsPage(page);
-  await models.gotoTargetModels();
-  await models.expectModelInList(uniqueName(name));
-});
+Then(
+  '타깃 SW 모델 목록에 {string} 이 보인다',
+  async ({ page }, name: string) => {
+    const models = new ModelsPage(page);
+    await models.gotoTargetModels();
+    await models.expectModelInList(uniqueName(name));
+  },
+);
 
 // ───────────────────────────────────────────────────────────────────────
 // 커스텀 모델 — 소스 모델을 제목만 바꿔 저장하면 커스텀 모델이 된다

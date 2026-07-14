@@ -43,16 +43,18 @@ export function registerHoneybeeMocks(mock: ApiMock): ApiMock {
     'cm-honeybee/register-source-group': ({ body }) => {
       const req = body?.request ?? body ?? {};
       const id = `sg-${seq++}`;
-      const conns: Conn[] = (req.connection_info ?? []).map((c: any, i: number) => ({
-        id: `${id}-conn-${i + 1}`,
-        name: c.name ?? `conn-${i + 1}`,
-        description: c.description ?? '',
-        ip_address: c.ip_address ?? c.ip ?? '',
-        user: c.user ?? '',
-        ssh_port: String(c.ssh_port ?? '22'),
-        status: 'Success',
-        source_group_id: id,
-      }));
+      const conns: Conn[] = (req.connection_info ?? []).map(
+        (c: any, i: number) => ({
+          id: `${id}-conn-${i + 1}`,
+          name: c.name ?? `conn-${i + 1}`,
+          description: c.description ?? '',
+          ip_address: c.ip_address ?? c.ip ?? '',
+          user: c.user ?? '',
+          ssh_port: String(c.ssh_port ?? '22'),
+          status: 'Success',
+          source_group_id: id,
+        }),
+      );
       groups.push({
         id,
         name: req.name,
@@ -81,7 +83,8 @@ export function registerHoneybeeMocks(mock: ApiMock): ApiMock {
 
     // 소스그룹 상세
     'get-source-group': ({ body }) => {
-      const id = body?.pathParams?.sgId ?? body?.pathParams?.id ?? body?.request?.id;
+      const id =
+        body?.pathParams?.sgId ?? body?.pathParams?.id ?? body?.request?.id;
       return ok(findGroup(id) ?? latest() ?? null);
     },
 

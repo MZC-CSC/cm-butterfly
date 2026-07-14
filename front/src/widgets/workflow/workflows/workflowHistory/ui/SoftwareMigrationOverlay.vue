@@ -216,7 +216,11 @@ onBeforeMount(() => {
 
 <template>
   <transition name="slide-down-up" @after-leave="handleClose">
-    <div v-show="props.isVisible" class="page-layer">
+    <div
+      v-show="props.isVisible"
+      class="page-layer"
+      data-testid="sw-migration-overlay"
+    >
       <div class="page-top">
         <p-icon-button
           style-type="transparent"
@@ -278,7 +282,7 @@ onBeforeMount(() => {
             </div>
           </div>
 
-          <div class="table-section">
+          <div class="table-section" data-testid="sw-migration-table">
             <h3>Software Migration Details</h3>
             <p-toolbox-table
               :fields="swTableModel.tableState.fields"

@@ -82,18 +82,17 @@ async function fetchTaskInstancesForRun(run: IWorkflowRun) {
       );
 
       if (swTasks.length > 0) {
-        // 객체 전체를 재할당해서 reactivity 트리거
+        // Reassign the whole object so reactivity picks it up.
         runHasSwTask.value = {
           ...runHasSwTask.value,
           [run.workflow_run_id]: true,
         };
 
-        // 실행 ID가 없는 태스크는 조회 대상에서 뺀다. 예전에는 코드에 박아 둔
-        // 다른 실행의 ID로 조회해서, 남의 설치 결과가 이 실행의 결과인 것처럼
-        // 보였다.
+        // A task without an execution id has nothing to show. This used to fall back to a hardcoded
+        // id, so the screen would render some other migration's status as if it belonged to this run.
         const executionIds = swTasks
           .map((task: any) => task.software_migration_execution_id)
-          .filter((id: string | undefined): id is string => !!id);
+          .filter(Boolean);
 
         runExecutionIds.value = {
           ...runExecutionIds.value,
@@ -164,6 +163,7 @@ const handleCloseSwOverlay = () => {
           v-if="runHasSwTask[item.workflow_run_id]"
           style-type="tertiary"
           size="sm"
+          data-testid="workflow-view-sw"
           @click="handleViewSw(item)"
         >
           View SW

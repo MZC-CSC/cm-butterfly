@@ -53,7 +53,11 @@ export const test = base.extend<{ mockApi: ApiMock | null; screens: boolean }>({
       sentRequests = [];
       page.on('request', req => {
         if (req.url().includes('/api/') && req.method() !== 'GET') {
-          sentRequests.push({ method: req.method(), url: req.url(), body: req.postData() ?? '' });
+          sentRequests.push({
+            method: req.method(),
+            url: req.url(),
+            body: req.postData() ?? '',
+          });
         }
       });
 
