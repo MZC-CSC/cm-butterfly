@@ -11,6 +11,7 @@ import {
   insertDynamicComponent,
   showErrorMessage,
   showSuccessMessage,
+  toErrorMessage,
 } from '@/shared/utils';
 import { useSourceServiceListModel } from '@/widgets/source/sourceServices/sourceServiceList/model/sourceServiceListModel';
 import DynamicTableIconButton from '@/shared/ui/Button/dynamicIconButton/DynamicTableIconButton.vue';
@@ -131,7 +132,7 @@ function getSourceServiceList() {
       });
     })
     .catch(e => {
-      if (e.errorMsg.value) showErrorMessage('Error', e.errorMsg.value);
+      showErrorMessage('Error', toErrorMessage(e, 'Failed to load the source group list.'));
       isDataLoaded.value = true;
     });
 }
@@ -180,6 +181,7 @@ watch(
         
         <!-- 로딩 완료 후 테이블 표시 -->
         <p-toolbox-table
+          data-testid="source-group-list-table"
           v-if="!resSourceServiceList.isLoading.value"
           ref="toolboxTableRef"
           :items="tableModel.tableState.displayItems"

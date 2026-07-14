@@ -4,7 +4,7 @@ import { useToolboxTableModel } from '@/shared/hooks/table/toolboxTable/useToolb
 import { IMci, McisTableType, useMCIStore } from '@/entities/mci/model';
 import { useGetMciInfo, useGetMciList } from '@/entities/mci/api';
 import { getCloudProvidersInVms } from '@/shared/hooks/vm';
-import { showErrorMessage } from '@/shared/utils';
+import { showErrorMessage, toErrorMessage } from '@/shared/utils';
 import { AxiosResponse } from 'axios';
 import { IAxiosResponse } from '@/shared/libs';
 
@@ -51,6 +51,9 @@ export function useMciListModel(props: IProps) {
   }
 
   function organizeResponseMciList(mciRes: IMci) {
+    // An infra with no nodes omits node/statusCount entirely. Absent means zero, not broken,
+    // so render it as empty rather than throwing.
+    const statusCount = mciRes.statusCount ?? ({} as IMci['statusCount']);
     const organizedDatum: Partial<Record<McisTableType | 'originalData', any>> =
       {
         name: mciRes.name,
@@ -58,10 +61,10 @@ export function useMciListModel(props: IProps) {
         id: mciRes.id,
         status: mciRes.status,
         provider: getCloudProvidersInVms(mciRes.vm),
-        countTotal: mciRes.statusCount.countTotal ?? '',
-        countRunning: mciRes.statusCount.countRunning ?? '',
-        countSuspended: mciRes.statusCount.countSuspended ?? '',
-        countTerminated: mciRes.statusCount.countTerminated ?? '',
+        countTotal: statusCount.countTotal ?? '',
+        countRunning: statusCount.countRunning ?? '',
+        countSuspended: statusCount.countSuspended ?? '',
+        countTerminated: statusCount.countTerminated ?? '',
         originalData: mciRes,
       };
 
@@ -78,7 +81,7 @@ export function useMciListModel(props: IProps) {
           // 래퍼(responseData.data.infra[])로 온다. 구 tumblebug 직접 응답(responseData.infra)도
           // fallback으로 허용해 양쪽을 안전하게 읽는다. (mci→infra 키 전환 + data 래퍼 반영)
           const infraList =
-            res.data.responseData.data?.infra ?? res.data.responseData.infra ?? [];
+            res.data.responseData.data?.infra ?? [];
           mciStore.setMcis(infraList);
 
           const PromiseArr: any = [];
@@ -86,18 +89,30 @@ export function useMciListModel(props: IProps) {
             PromiseArr.push(fetchMciById(mci.id)());
           });
 
-          Promise.all<Promise<AxiosResponse<IAxiosResponse<any>>>>(
-            PromiseArr,
-          ).then(res => {
-            console.log(res);
-            res.forEach(el => {
-              mciStore.setMci(el.data.responseData);
+          Promise.all<Promise<AxiosResponse<IAxiosResponse<any>>>>(PromiseArr)
+            .then(res => {
+              res.forEach(el => {
+                // Skip infras whose detail comes back empty (just deleted, or not ready yet).
+                const detail = el?.data?.responseData;
+                if (detail) mciStore.setMci(detail);
+              });
+            })
+            .catch(e => {
+              showErrorMessage(
+                'Error',
+                toErrorMessage(e, 'Failed to load infrastructure details.'),
+              );
             });
-          });
+        } else {
+          // Having no infrastructure at all is not an error — leave the list empty.
+          mciStore.setMcis([]);
         }
       })
       .catch(e => {
-        showErrorMessage('Error', e.errorMsg.value);
+        showErrorMessage(
+          'Error',
+          toErrorMessage(e, 'Failed to load the infrastructure list.'),
+        );
       })
       .finally(() => {
         loading.value = false;

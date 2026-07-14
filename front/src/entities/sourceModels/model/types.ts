@@ -31,7 +31,8 @@ export interface ISourceModelResponse {
 
 interface OnPremiseInfraModel {
   network: Network;
-  servers: Server[];
+  // cm-beetle/imdl 모델의 필드. cm-honeybee·cm-damselfly가 이 구조체를 그대로 응답에 싣는다.
+  nodes: Server[];
 }
 
 export interface Network {
@@ -105,7 +106,7 @@ interface RoutingTableEntry {
 
 export interface IOnpremModelPayload {
   onpremiseInfraModel: {
-    servers: any[];
+    nodes: any[];
     network: {
       ipv4Networks: any[];
       ipv6Networks: any[];

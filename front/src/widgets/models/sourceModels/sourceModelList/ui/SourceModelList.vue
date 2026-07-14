@@ -78,9 +78,12 @@ function getTableList() {
   resSourceList
     .execute()
     .then(res => {
-      if (res.data.responseData) {
-        sourceModelStore.setSourceModel(res.data.responseData);
-      }
+      // cm-damselfly returns 200 with a null body when there are no models, not an empty array.
+      // Guarding with `if (responseData)` therefore skipped the update and left the previous fetch's
+      // rows on screen. Always write, coercing to [].
+      sourceModelStore.setSourceModel(
+        Array.isArray(res.data.responseData) ? res.data.responseData : [],
+      );
       nextTick(() => {
         isDataLoaded.value = true;
         // 데이터 로드 후 컴포넌트 재렌더링

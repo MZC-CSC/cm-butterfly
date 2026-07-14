@@ -1,6 +1,6 @@
 import { IAxiosResponse, useAxiosPost } from '@/shared/libs';
 
-const GET_TASK_COMPONENT_LIST = 'list-task-component';
+const GET_TASK_COMPONENT_LIST = 'cm-cicada/list-task-component';
 
 export interface ITaskComponentInfoResponse {
   created_at: string;

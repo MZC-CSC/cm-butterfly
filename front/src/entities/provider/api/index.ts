@@ -8,8 +8,8 @@ import {
   IRegionOfProviderResponse,
 } from '@/entities/provider/model/types';
 
-const GET_PROVIDER_LIST = 'GetProviderList';
-const GET_REGION_LIST = 'GetRegions';
+const GET_PROVIDER_LIST = 'cb-tumblebug/GetProviderList';
+const GET_REGION_LIST = 'cb-tumblebug/GetRegions';
 
 export function useGetProviderList() {
   return useAxiosPost<IAxiosResponse<IProviderResponse>, null>(

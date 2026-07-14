@@ -3,22 +3,18 @@ import {
   RequestBodyWrapper,
   useAxiosPost,
 } from '@/shared/libs';
-import {
-  IInfraSourceGroupResponse,
-  ISourceAgentAndConnectionStatusResponse,
-} from '@/entities/sourceService/model/types';
+import { IInfraSourceGroupResponse } from '@/entities/sourceService/model/types';
 import { axiosInstance } from '@/shared/libs/api/instance';
 import type { ISourceGroup } from '@/entities/sourceService/model/types';
 
 const REGISTER_SOURCE_GROUP = 'cm-honeybee/register-source-group';
-const UPDATE_SOURCE_GROUP = 'Update-Source-Group';
-const GET_SOURCE_SERVICE_LIST = 'list-source-group';
-const GET_SOURCE_SERVICE = 'get-source-group';
-const GET_SOURCE_SERVICE_STATUS = 'agent-and-connection-check';
-const DELETE_SOURCE_SERVICE = 'delete-source-group';
-const GET_INFRA_SOURCE_GROUP = 'import-infra-source-group';
+const UPDATE_SOURCE_GROUP = 'cm-honeybee/Update-Source-Group';
+const GET_SOURCE_SERVICE_LIST = 'cm-honeybee/list-source-group';
+const GET_SOURCE_SERVICE = 'cm-honeybee/get-source-group';
+const DELETE_SOURCE_SERVICE = 'cm-honeybee/delete-source-group';
+const GET_INFRA_SOURCE_GROUP = 'cm-honeybee/import-infra-source-group';
 const GET_INFRA_INFO_SOURCE_GROUP_REFINE =
-  'get-infra-info-source-group-refined';
+  'cm-honeybee/get-infra-info-source-group-refined';
 
 export function useRegisterSourceGroup<T, D>(
   sourceGroupData: D | ISourceGroup,
@@ -68,18 +64,6 @@ export function useGetSourceService(sgId: string | null) {
 }
 
 // deprecated
-export function useGetSourceGroupStatus(sourceGroupId: string | null) {
-  const requestWrapper: Required<
-    Pick<RequestBodyWrapper<{ sgId: string | null }>, 'pathParams'>
-  > = {
-    pathParams: { sgId: sourceGroupId },
-  };
-
-  return useAxiosPost<
-    IAxiosResponse<ISourceAgentAndConnectionStatusResponse>,
-    Required<Pick<RequestBodyWrapper<{ sgId: string | null }>, 'pathParams'>>
-  >(GET_SOURCE_SERVICE_STATUS, requestWrapper);
-}
 
 export function useBulkDeleteSourceGroup(sourceGroupIds: string[]) {
   const promiseArr = sourceGroupIds.map(sourceGroupId => {

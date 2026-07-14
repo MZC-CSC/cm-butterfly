@@ -4,6 +4,7 @@ import {
   insertDynamicComponent,
   showErrorMessage,
   showSuccessMessage,
+  toErrorMessage,
 } from '@/shared/utils';
 import { onBeforeMount, onMounted, reactive, watch, computed, ref, nextTick } from 'vue';
 import TableLoadingSpinner from '@/shared/ui/LoadingSpinner/TableLoadingSpinner.vue';
@@ -83,15 +84,15 @@ function getSourceConnectionList() {
       pathParams: { sgId: props.selectedServiceId },
     })
     .then(res => {
-      if (res.data.responseData) {
-        sourceConnectionStore.setConnections(res.data.responseData);
+      // A source group with no connections returns connection_info as null or omits it.
+      // Absent means none, not broken, so treat it as an empty list.
+      sourceConnectionStore.setConnections(res.data.responseData);
 
-        const connectionIds = res.data.responseData.connection_info.map(
-          el => el.id,
-        );
-        setTargetConnections(connectionIds);
-      }
-      
+      const connectionIds = (
+        res.data.responseData?.connection_info ?? []
+      ).map(el => el.id);
+      setTargetConnections(connectionIds);
+
       nextTick(() => {
         isDataLoaded.value = true;
         // 데이터 로드 후 컴포넌트 재렌더링
@@ -99,7 +100,10 @@ function getSourceConnectionList() {
       });
     })
     .catch(e => {
-      if (e.errorMsg.value) showErrorMessage('Error', e.errorMsg.value);
+      showErrorMessage(
+        'Error',
+        toErrorMessage(e, 'Failed to load the connection list.'),
+      );
       isDataLoaded.value = true;
     });
 }

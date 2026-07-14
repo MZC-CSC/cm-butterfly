@@ -3,7 +3,9 @@ import { PButton, PDefinitionTable, PStatus } from '@cloudforet-test/mirinae';
 import { onBeforeMount, watch } from 'vue';
 import { useSourceInfraCollectModel } from '@/widgets/source/sourceConnections/sourceConnectionDetail/infraCollect/model/sourceInfraCollectModel';
 import { useCollectInfra } from '@/entities/sourceConnection/api';
-import { showErrorMessage } from '@/shared/utils';
+import { showErrorMessage,
+  toErrorMessage,
+} from '@/shared/utils';
 
 interface IProps {
   sourceGroupId: string | null;
@@ -57,7 +59,7 @@ function handleCollectInfra() {
       }
     })
     .catch(e => {
-      if (e.errorMsg.value) showErrorMessage('Error', e.errorMsg.value);
+      showErrorMessage('Error', toErrorMessage(e, 'Failed to load collected infrastructure information.'));
     });
 }
 </script>

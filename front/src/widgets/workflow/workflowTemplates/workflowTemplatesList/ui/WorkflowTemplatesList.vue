@@ -100,12 +100,11 @@ async function fetchWorkflowTemplateList() {
   isDataLoaded.value = false;
   try {
     const { data } = await getworkflowTemplateList.execute();
-    if (
-      data.status?.code === 200 &&
-      data.responseData &&
-      data.responseData.length > 0
-    ) {
-      workflowStore.setWorkflowTemplates(data.responseData);
+    if (data.status?.code === 200) {
+      // Clear the store even on an empty result so the previous fetch does not linger.
+      workflowStore.setWorkflowTemplates(
+        Array.isArray(data.responseData) ? data.responseData : [],
+      );
     }
     nextTick(() => {
       isDataLoaded.value = true;
@@ -142,9 +141,9 @@ watch(
         
         <!-- 로딩 완료 후 테이블 표시 -->
         <p-toolbox-table
+          data-testid="workflow-template-list-table"
           v-if="!getworkflowTemplateList.isLoading.value"
           ref="toolboxTableRef"
-          data-testid="workflow-list-table"
           :items="tableModel.tableState.displayItems"
           :fields="tableModel.tableState.fields"
           :total-count="tableModel.tableState.tableCount"

@@ -8,7 +8,9 @@ import {
 } from '@cloudforet-test/mirinae';
 import { computed, reactive, watch } from 'vue';
 import { useDeleteMci } from '@/entities/mci/api';
-import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
+import { showErrorMessage, showSuccessMessage,
+  toErrorMessage,
+} from '@/shared/utils';
 
 interface IProps {
   visible: boolean;
@@ -78,7 +80,12 @@ async function handleConfirm() {
     state.deleteMethod = 'normal';
     state.confirmKeyword = '';
   } catch (error: any) {
-    showErrorMessage('Error', error);
+    // The error object was passed straight through, so the toast rendered "[object Object]" and told
+    // the user nothing. Pull out a readable message.
+    //
+    // Note the modal deliberately stays open here: the delete did not go through, so the user should
+    // be able to see why and retry. Closing it would hide the failure.
+    showErrorMessage('Error', toErrorMessage(error, 'Failed to delete the workload.'));
   } finally {
     state.isDeleting = false;
   }

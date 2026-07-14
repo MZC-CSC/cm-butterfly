@@ -53,7 +53,7 @@ export function useRecommendedSoftwareModel() {
   const getSoftwareMigrationList = useAxiosPost<
     IAxiosResponse<ISoftwareMigrationListResponse>,
     RequestBodyWrapper<{ sourceSoftwareModel: any }>
-  >('Get-Migration-List', {
+  >('cm-grasshopper/Get-Migration-List', {
     request: {
       sourceSoftwareModel: null
     }
@@ -118,7 +118,8 @@ export function useRecommendedSoftwareModel() {
   ): Array<ISelectMenu> {
     const menu: Array<ISelectMenu> = [];
 
-    providerResponse.output.forEach(provider => {
+    // With no registered provider the output is empty — that is an empty menu, not an error.
+    (providerResponse?.output ?? []).forEach(provider => {
       menu.push({
         name: provider,
         label: provider,

@@ -1,0 +1,49 @@
+/**
+ * 시나리오 전역 상태 — 스텝 간 공유(생성된 인프라·노드 식별, 추천 결과 등).
+ * 마이그레이션 시나리오는 여러 화면·단계를 거치므로, 생성된 리소스 식별자를 여기에 모아
+ * 후속 단계(nginx 설치·부하테스트·정리)가 참조한다.
+ */
+export const scenarioState: {
+  /** 지금 다루는 소스그룹 이름(등록 스텝이 기록 → 수집·저장 스텝이 참조) */
+  sourceGroupName?: string;
+  /** 지금 다루는 소스 모델 이름(소스모델/커스텀모델 저장 스텝이 기록 → 추천 스텝이 참조).
+   *  스텝 파일이 달라도 같은 값을 봐야 해서 모듈 지역변수가 아니라 여기에 둔다. */
+  sourceModelName?: string;
+  /** 생성된 타깃 인프라(MCI) 이름 */
+  infraName?: string;
+  /** 생성된 인프라 ID(nsId 내) */
+  infraId?: string;
+  /** 부하/명령 대상 노드 ID */
+  nodeId?: string;
+  /** 노드 공인 IP (nginx 외부 접근·부하 대상 호스트) */
+  nodePublicIp?: string;
+  /** 노드의 SSH 계정 — tumblebug이 만든 노드는 cb-user다(소스 서버의 ubuntu와 다르다) */
+  nodeUserName?: string;
+  /** 노드의 보안그룹 id 목록 — 80 포트를 열 대상 */
+  securityGroupIds?: string[];
+  /** 마지막 추천 스펙(검증용) */
+  lastRecommendedSpec?: string;
+  /** 소프트웨어 소스 모델 이름 (SW 수집 → SW 추천 스텝이 참조) */
+  softwareSourceModelName?: string;
+  /** 소프트웨어 마이그레이션 워크플로우 이름 (실행 → 상태 확인 스텝이 참조) */
+  softwareWorkflowName?: string;
+  /**
+   * 소프트웨어 마이그레이션 워크플로우를 *실행한 시각*.
+   *
+   * grasshopper 실행을 우리 것으로 가려내는 유일한 열쇠다. 인프라 이름(`infra101`)도, 노드 id도
+   * cb-tumblebug이 같은 값을 다시 쓰기 때문에, 앞선 실행이 남긴 기록과 구분되지 않는다.
+   */
+  swRunStartedAt?: number;
+  /** cm-grasshopper 실행 id (이번 실행으로 시작된 것만) */
+  swExecutionIds?: string[];
+  /** API가 알려준 소프트웨어별 결과 — 결과 화면과 대조한다 */
+  swMigrationRows?: any[];
+  /** 부하테스트 대상 nginx가 *소프트웨어 마이그레이션으로* 올라왔는지 */
+  nginxFromMigration?: boolean;
+} = {};
+
+export function resetScenarioState(): void {
+  for (const k of Object.keys(scenarioState)) {
+    delete (scenarioState as Record<string, unknown>)[k];
+  }
+}

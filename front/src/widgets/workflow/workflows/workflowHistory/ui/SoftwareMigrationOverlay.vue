@@ -12,7 +12,6 @@ import { useDefinitionTableModel } from '@/shared/hooks/table/definitionTable/us
 import { ref, watch, onBeforeMount } from 'vue';
 import { useToolboxTableModel } from '@/shared/hooks/table/toolboxTable/useToolboxTableModel';
 import { useGetSoftwareMigrationStatus } from '@/entities/workflow/api/index';
-import mockData from './mock-data.json';
 
 interface Props {
   isVisible: boolean;
@@ -33,6 +32,7 @@ const emit = defineEmits(['close']);
 // SW 마이그레이션 상태 데이터 관리 (여러 execution ID의 결과를 저장)
 const swMigrationDataList = ref<any[]>([]);
 const swLoading = ref(false);
+const swError = ref<string>('');
 
 // Run Information definition table 모델
 const { tableState: runInfoTableState } = useDefinitionTableModel<IRunInfo>();
@@ -49,8 +49,8 @@ function initSwTable() {
     { label: 'Install Type', name: 'software_install_type' },
     { label: 'Status', name: 'status' },
     { label: 'Target Namespace', name: 'target_namespace_id' },
-    { label: 'Target MCI', name: 'target_mci_id' },
-    { label: 'Target VM', name: 'target_vm_id' },
+    { label: 'Target Infra', name: 'target_infra_id' },
+    { label: 'Target Node', name: 'target_node_id' },
     { label: 'Error', name: 'error_message', width: '450px' },
   ] as any;
 
@@ -91,6 +91,7 @@ const loadSwMigrationStatus = async () => {
   if (!props.executionIds || props.executionIds.length === 0) return;
 
   swLoading.value = true;
+  swError.value = '';
   try {
     const results = await Promise.all(
       props.executionIds.map(async executionId => {
@@ -102,26 +103,32 @@ const loadSwMigrationStatus = async () => {
             return data.value.responseData;
           }
 
-          return {
-            ...mockData,
-            execution_id: executionId,
-          };
+          // 응답이 비어 있으면 그대로 드러낸다. 예전에는 목업으로 대체해서
+          // 마이그레이션이 성공한 것처럼 보였다.
+          throw new Error(
+            `소프트웨어 마이그레이션 상태를 가져오지 못했습니다 (execution ${executionId})`,
+          );
         } catch (apiError) {
-          return {
-            ...mockData,
-            execution_id: executionId,
-          };
+          swError.value =
+            apiError instanceof Error
+              ? apiError.message
+              : `소프트웨어 마이그레이션 상태를 가져오지 못했습니다 (execution ${executionId})`;
+          return null;
         }
       }),
     );
 
-    swMigrationDataList.value = results;
+    swMigrationDataList.value = results.filter(r => r !== null);
 
     if (swMigrationDataList.value.length > 0) {
       updateRunInfoData(props.executionIds.join(', '));
     }
   } catch (error) {
     swMigrationDataList.value = [];
+    swError.value =
+      error instanceof Error
+        ? error.message
+        : '소프트웨어 마이그레이션 상태를 가져오지 못했습니다';
   } finally {
     swLoading.value = false;
   }
@@ -163,8 +170,8 @@ watch(
         mapping.software_migration_status_list.forEach((sw: any) => {
           allRows.push({
             ...sw,
-            target_vm_id: mapping.target.vm_id,
-            target_mci_id: mapping.target.mci_id,
+            target_node_id: mapping.target.node_id,
+            target_infra_id: mapping.target.infra_id,
             target_namespace_id: mapping.target.namespace_id,
             overall_status: mapping.status,
             execution_id: swMigrationData.execution_id,
@@ -202,7 +209,11 @@ onBeforeMount(() => {
 
 <template>
   <transition name="slide-down-up" @after-leave="handleClose">
-    <div v-show="props.isVisible" class="page-layer">
+    <div
+      v-show="props.isVisible"
+      class="page-layer"
+      data-testid="sw-migration-overlay"
+    >
       <div class="page-top">
         <p-icon-button
           style-type="transparent"
@@ -230,6 +241,16 @@ onBeforeMount(() => {
           <p>Loading software migration status...</p>
         </div>
 
+        <!-- Error — 실패를 목업으로 덮지 않고 그대로 알린다 -->
+        <div
+          v-else-if="swError"
+          class="error-section"
+          data-testid="sw-migration-error"
+        >
+          <p-i name="ic_error-filled" width="1.5rem" height="1.5rem" />
+          <p>{{ swError }}</p>
+        </div>
+
         <!-- SW Migration Status -->
         <div
           v-else-if="
@@ -254,7 +275,7 @@ onBeforeMount(() => {
             </div>
           </div>
 
-          <div class="table-section">
+          <div class="table-section" data-testid="sw-migration-table">
             <h3>Software Migration Details</h3>
             <p-toolbox-table
               :fields="swTableModel.tableState.fields"
