@@ -297,6 +297,7 @@ function getFieldModel(field: any) {
             :navigation-bar="true"
             :status-bar="false"
             height="600px"
+            file-name="software-model"
             @update:modelValue="handleModelUpdate"
           />
         </div>

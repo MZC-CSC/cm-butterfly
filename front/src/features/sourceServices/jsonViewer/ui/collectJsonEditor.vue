@@ -50,6 +50,7 @@ function handleUpdate(value: string) {
         :navigation-bar="true"
         :status-bar="false"
         height="100%"
+        file-name="collected-source"
         @update:model-value="handleUpdate"
       />
     </div>
