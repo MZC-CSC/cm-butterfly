@@ -164,6 +164,21 @@ const hasFailedTask = computed(() =>
   ),
 );
 
+/*
+  버튼이 회색이면 사용자는 기능이 고장 났다고 읽는다 — 실제로는 다시 돌릴 것이 없거나
+  아직 돌고 있는 것뿐인데, 화면이 그 이유를 어디에도 말하지 않았다. 왜 못 누르는지를
+  버튼 자신이 말하게 한다.
+*/
+const rerunFailedHint = computed(() => {
+  if (runInProgress.value) {
+    return 'This run is still going. You can re-run its failed tasks once it finishes.';
+  }
+  if (!hasFailedTask.value) {
+    return 'Nothing failed in this run, so there is nothing to re-run. To run the workflow again from the start, use "Start new run".';
+  }
+  return 'Re-runs the tasks that failed in this run, and the ones that could not run because of them. You are shown the exact list and asked to confirm first.';
+});
+
 /**
  * 확인 모달이 떠 있는 동안, 다시 돌 태스크를 그래프에서도 보여준다.
  * 목록만으로는 "어디가 다시 도는지"가 그림으로 안 들어온다.
@@ -287,7 +302,7 @@ async function onRunChange(runId: string) {
             세 동작이 헷갈리기 쉬워 각각 무엇을 하는지 hover로 설명한다.
           -->
           <p-tooltip
-            contents="Re-runs the tasks that failed in this run, and the ones that could not run because of them. You are shown the exact list and asked to confirm first."
+            :contents="rerunFailedHint"
             position="bottom"
             :options="{ classes: ['p-tooltip', 'run-viewer-tooltip'] }"
           >
