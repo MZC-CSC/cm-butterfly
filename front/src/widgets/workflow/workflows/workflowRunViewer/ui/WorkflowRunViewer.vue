@@ -165,19 +165,16 @@ const hasFailedTask = computed(() =>
 );
 
 /*
-  버튼이 회색이면 사용자는 기능이 고장 났다고 읽는다 — 실제로는 다시 돌릴 것이 없거나
-  아직 돌고 있는 것뿐인데, 화면이 그 이유를 어디에도 말하지 않았다. 왜 못 누르는지를
-  버튼 자신이 말하게 한다.
+  회색 버튼은 고장 난 기능처럼 읽힌다. 실제로는 다시 돌릴 것이 없을 뿐인데 화면이 그
+  사실을 어디에도 말하지 않았다. 실패한 태스크가 있는지 없는지 — 그 하나로만 문구를
+  가른다. 실행이 도는 중에도 버튼은 잠기지만, 그때까지 문구를 따로 두면 상태가 바뀔
+  때마다 맞춰야 할 경로가 늘고 로직이 바뀌면 어긋난다. 시작과 끝만 본다.
 */
-const rerunFailedHint = computed(() => {
-  if (runInProgress.value) {
-    return 'This run is still going. You can re-run its failed tasks once it finishes.';
-  }
-  if (!hasFailedTask.value) {
-    return 'Nothing failed in this run, so there is nothing to re-run. To run the workflow again from the start, use "Start new run".';
-  }
-  return 'Re-runs the tasks that failed in this run, and the ones that could not run because of them. You are shown the exact list and asked to confirm first.';
-});
+const rerunFailedHint = computed(() =>
+  hasFailedTask.value
+    ? 'Re-runs the tasks that failed in this run, and the ones that could not run because of them. You are shown the exact list and asked to confirm first.'
+    : 'Nothing failed in this run, so there is nothing to re-run. To run the workflow again from the start, use "Start new run".',
+);
 
 /**
  * 확인 모달이 떠 있는 동안, 다시 돌 태스크를 그래프에서도 보여준다.
