@@ -3,9 +3,38 @@
  * 민감정보/환경 의존값은 환경변수로 오버라이드.
  */
 
+/**
+ * 대상 서버 baseURL 을 환경변수에서 조립한다.
+ *
+ * 우선순위:
+ *  1) `BASE_URL` 이 있으면 그대로 사용(프로토콜·호스트·포트 전부 지정한 완전 오버라이드).
+ *  2) 없으면 `E2E_PROTOCOL`(기본 http)·`E2E_HOST`(기본 localhost)·`E2E_PORT`(선택)로 조립.
+ *     포트만 바꾸고 싶을 때 `E2E_PORT=8080` 처럼 지정하면 된다. 포트가 없으면 프로토콜
+ *     기본 포트(80/443)를 쓴다.
+ *
+ * 예:
+ *   BASE_URL=https://cmig.dev.cscmzc.com   → 그대로 사용
+ *   E2E_PORT=8080                          → http://localhost:8080
+ *   E2E_HOST=10.0.0.5 E2E_PORT=80          → http://10.0.0.5:80
+ */
+function resolveBaseURL(): string {
+  const explicit = process.env.BASE_URL;
+  if (explicit && explicit.trim() !== '') return explicit;
+
+  const protocol = process.env.E2E_PROTOCOL || 'http';
+  const host = process.env.E2E_HOST || 'localhost';
+  const port = process.env.E2E_PORT;
+  return port && port.trim() !== ''
+    ? `${protocol}://${host}:${port}`
+    : `${protocol}://${host}`;
+}
+
 export const config = {
-  /** 대상 서버. 기본은 로컬 nginx. 배포 검증은 BASE_URL로 cm-mayfly 기동 인프라 서버 주소를 지정. */
-  baseURL: process.env.BASE_URL || 'http://localhost',
+  /**
+   * 대상 서버. 기본은 로컬 nginx(http://localhost). 배포 검증은 `BASE_URL` 로 cm-mayfly 기동
+   * 인프라 서버 주소를 지정하거나, 포트만 바꿀 땐 `E2E_PORT`(+`E2E_HOST`/`E2E_PROTOCOL`) 사용.
+   */
+  baseURL: resolveBaseURL(),
 };
 
 /** 로그인 계정 (id → 자격증명). 기본 cmiguser */

@@ -12,7 +12,10 @@ import {
 } from '@/entities/workflow/model/types';
 import getRandomId from '@/shared/utils/uuid';
 import { toolboxSteps } from '@/features/sequential/designer/toolbox/model/toolboxSteps';
-import { parseRequestBody } from '@/shared/utils/stringToObject';
+import {
+  parseRequestBody,
+  isReferenceRequestBody,
+} from '@/shared/utils/stringToObject';
 import { ITaskComponentInfoResponse } from '@/features/sequential/designer/toolbox/model/api';
 import { isNullOrUndefined } from '@/shared/utils';
 import { reactive } from 'vue';
@@ -221,6 +224,16 @@ export function useWorkflowToolModel() {
       taskType,
     };
 
+    // request_body 가 cm-cicada 런타임 참조였다면(위 getMapping...에서 스켈레톤으로
+    // 폴백된 경우), 원본 참조 문자열과 폴백 스켈레톤 model 을 함께 보관한다.
+    // 저장 시(convertToCicadaTaskWithDependencies) 사용자가 body 를 손대지 않았으면
+    // 스켈레톤 리터럴("{}" 등)로 덮어쓰지 않고 원본 참조를 그대로 재출력해
+    // cicada 의 출력 주입 의미를 보존한다(D-2 라운드트립).
+    if (taskType === 'http' && isReferenceRequestBody(task.request_body)) {
+      stepProperties.referenceRequestBody = task.request_body;
+      stepProperties.referenceSkeletonModel = model;
+    }
+
     // Task component data 추가 (schema 정보 — http 폼 렌더링용 + 타입별 고정 필드 표시용)
     if (taskComponent) {
       stepProperties.taskComponentData = {
@@ -360,11 +373,34 @@ export function useWorkflowToolModel() {
       }
 
       // cm-cicada Type/Spec 스키마로 task spec 생성 (타입별 task-level 필드)
-      const spec = buildTaskSpecFromStep(
-        taskType,
-        modelToSend,
-        step.properties.fixedModel,
-      );
+      let spec: any;
+
+      // D-2 라운드트립: 원본 request_body 가 런타임 참조였고 사용자가 body 를 손대지
+      // 않았다면(현재 model 이 로드 시 폴백된 스켈레톤 그대로), 스켈레톤 리터럴로
+      // 덮어쓰지 않고 원본 참조 문자열을 그대로 재출력한다. 그래야 cicada 가 앞선
+      // task 출력을 주입하는 참조 의미를 잃지 않는다.
+      const referenceRequestBody = step.properties.referenceRequestBody;
+      const referenceSkeletonModel = step.properties.referenceSkeletonModel;
+      const bodyUntouched =
+        typeof referenceRequestBody === 'string' &&
+        referenceRequestBody !== '' &&
+        JSON.stringify(modelToSend) ===
+          JSON.stringify(referenceSkeletonModel ?? {});
+
+      if (taskType === 'http' && bodyUntouched) {
+        const fixedModel = step.properties.fixedModel;
+        spec = {
+          request_body: referenceRequestBody,
+          path_params: fixedModel?.path_params ?? {},
+          query_params: fixedModel?.query_params ?? {},
+        };
+      } else {
+        spec = buildTaskSpecFromStep(
+          taskType,
+          modelToSend,
+          step.properties.fixedModel,
+        );
+      }
 
       console.log('\n=== Task Conversion ===');
       console.log('Task:', step.name);
@@ -392,10 +428,27 @@ export function useWorkflowToolModel() {
     taskComponentList: Array<ITaskComponentInfoResponse>,
     taskList: Array<ITaskResponse>,
   ): string {
-    //request_body가 공백인 경우, 다른 task의 이름인 경우
+    // request_body 는 다음 중 하나다:
+    //  (a) 빈 문자열 — 컴포넌트 스켈레톤을 사용한다.
+    //  (b) cm-cicada 런타임 참조 — 앞선 task 의 출력을 주입한다. task 이름 그대로거나
+    //      (v0.5.1 부터) "<task>.<jsonpath>"(예: "infra_recommend_get.cloudInfraModel")·
+    //      "${...}" 같은 형태로 온다. 이 문자열은 유효 JSON 이 아니다.
+    //  (c) 실제 리터럴 JSON body.
+    //
+    // (a)(b) 는 컴포넌트 스켈레톤으로 폴백해 우측 폼이 필드/값을 정상으로 그리게 하고,
+    // (c) 만 원문 그대로 반환한다. (b) 를 그대로 반환하면 convertToDesignerTask 의
+    // parseRequestBody 가 JSON.parse 에 실패해 model 이 {} 가 되어 값이 전부 공란이 된다.
+    //
+    // 기존 조건은 "정확한 task 이름 일치"만 봐서 점 경로 참조(.cloudInfraModel 접미사)를
+    // 놓쳤다. 참조의 head(`<task>` 부분)가 task 이름과 일치하는지, 그리고 유효 JSON 이
+    // 아닌지까지 확인해 참조를 폭넓게 인식한다.
+    const bodyRef = String(task.request_body ?? '');
+    const refHead = bodyRef.split('.')[0];
+    const isTaskRef = taskList.some(
+      el => el.name === bodyRef || el.name === refHead,
+    );
     const condition =
-      taskList.findIndex(el => el.name === task.request_body) !== -1 ||
-      task.request_body === '';
+      bodyRef === '' || isTaskRef || isReferenceRequestBody(bodyRef);
 
     if (condition) {
       const taskInstance = taskComponentList.find(
@@ -403,7 +456,7 @@ export function useWorkflowToolModel() {
       );
       return taskInstance?.data.options.request_body ?? '';
     }
-    return task.request_body;
+    return bodyRef;
   }
 
   function designerFormDataReordering(sequence: Step[]) {
