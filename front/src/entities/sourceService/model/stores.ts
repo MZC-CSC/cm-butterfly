@@ -14,7 +14,9 @@ export const useSourceServiceStore = defineStore(NAMESPACE, () => {
   const serviceWithStatus = ref<ISourceServiceResponseElement | null>();
 
   function setService(_services: ISourceServiceResponse) {
-    services.value = _services.source_group.map(service => ({
+    // honeybee는 소스 그룹이 하나도 없을 때 빈 배열이 아니라 null 을 돌려준다.
+    // 클린 환경(0개)에서 null.map 크래시를 막기 위해 빈 배열로 대체한다.
+    services.value = (_services.source_group ?? []).map(service => ({
       id: service.id,
       name: service.name,
       description: service.description,

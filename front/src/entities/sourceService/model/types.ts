@@ -55,7 +55,8 @@ export interface ISourceServiceResponseElement {
 }
 
 export interface ISourceServiceResponse {
-  source_group: Array<ISourceServiceResponseElement>;
+  // 소스 그룹이 없으면 honeybee가 null 을 반환한다(빈 배열 아님).
+  source_group: Array<ISourceServiceResponseElement> | null;
 }
 
 export type IInfraSourceGroupResponse = Array<IInfraConnectionData>;

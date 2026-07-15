@@ -103,6 +103,7 @@ import RecursiveFormField from './RecursiveFormField.vue';
 import { useWorkflowStore } from '@/entities/workflow/model/stores';
 import { storeToRefs } from 'pinia';
 import { decodeBase64, encodeBase64 } from '@/shared/utils/base64';
+import { isReferenceRequestBody } from '@/shared/utils/stringToObject';
 import { getPropertyOrder, sortPropertiesByOrder } from '../config/taskPropertyOrderConfig';
 
 export default defineComponent({
@@ -744,9 +745,20 @@ export default defineComponent({
           console.log('   request_body type:', typeof originalData.request_body);
           
           let requestBody = originalData.request_body;
-          
-          // JSON 문자열이면 파싱
-          if (typeof requestBody === 'string') {
+
+          // cm-cicada 런타임 참조("infra_recommend_get.cloudInfraModel" 등)는 리터럴
+          // 값이 아니므로 파싱하지 않는다. 파싱하면 {}로 떨어져 값이 사라진다. 참조인
+          // 경우 originalData 폴백을 건너뛰고 컴포넌트 스키마/스켈레톤 기반 렌더링에 맡긴다.
+          if (
+            typeof requestBody === 'string' &&
+            isReferenceRequestBody(requestBody)
+          ) {
+            console.log(
+              '   ↪️ request_body is a cm-cicada runtime reference — skip parsing:',
+              requestBody,
+            );
+          } else if (typeof requestBody === 'string') {
+            // JSON 문자열이면 파싱
             try {
               console.log('   📦 Parsing JSON string (length:', requestBody.length, ')');
               requestBody = JSON.parse(requestBody);

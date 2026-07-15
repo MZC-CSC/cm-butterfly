@@ -98,12 +98,15 @@ When('저비용 타깃 인프라를 추천받으면', async ({ page }) => {
 });
 
 /** "추천 스펙이 {string} 급 이하이다" — 최저가 후보 스펙이 maxClass 급 이하인지 검증 */
-Then('추천 스펙이 {string} 급 이하이다', async ({}, maxClass: string) => {
-  expect(
-    isSpecWithinClass(lastRecommendedSpec, maxClass),
-    `추천 스펙 "${lastRecommendedSpec}" 이(가) "${maxClass}" 급 이하가 아님`,
-  ).toBeTruthy();
-});
+Then(
+  '추천 스펙이 {string} 급 이하이다',
+  async (_fixtures, maxClass: string) => {
+    expect(
+      isSpecWithinClass(lastRecommendedSpec, maxClass),
+      `추천 스펙 "${lastRecommendedSpec}" 이(가) "${maxClass}" 급 이하가 아님`,
+    ).toBeTruthy();
+  },
+);
 
 /** 유닛 — "추천 결과 중 가장 저렴한 스펙을 {string} 타깃 모델로 저장하면" */
 When(
@@ -149,6 +152,44 @@ When(
     expect(
       isSpecWithinClass(chosen.spec, targetSpec.maxClass),
       `추천 스펙 "${chosen.spec}" 이(가) "${targetSpec.maxClass}" 급 이하가 아님`,
+    ).toBeTruthy();
+    const targetName = uniqueName(
+      process.env.TEST_TARGET_MODEL_NAME || 'e2e-lowcost-target',
+    );
+    await models.saveAsTargetModel(targetName);
+  },
+);
+
+/**
+ * ★ 완전 후보 재사용 스텝 —
+ * "만약 타깃 인프라를 완전한 후보로 추천받아 타깃 모델로 저장하면"
+ *
+ * 저비용 추천과 같은 과정이되, 결과에서 프론트가 붙인 `data-complete="true"` 마커로 *값이 모두 채워진*
+ * 후보만 고른다(§4 근본원인: 이미지/스펙 이상값 후보를 저장하면 이후 인프라가 안 만들어진다).
+ * 완전 후보가 하나도 없으면 selectCompleteCandidate 가 명확한 메시지로 실패한다 — 그 자체가
+ * cm-beetle 추천 응답 결함의 증거다.
+ */
+When(
+  '타깃 인프라를 완전한 후보로 추천받아 타깃 모델로 저장하면',
+  async ({ page }) => {
+    const models = new ModelsPage(page);
+    await models.gotoSourceModels();
+    await models.selectModel(
+      scenarioState.sourceModelName ?? uniqueName(sourceServer.name),
+    );
+    await models.openRecommend();
+    await models.selectProvider(targetSpec.csp);
+    await models.selectRegion(targetSpec.region);
+    // 후보를 넉넉히 받아 완전 후보가 섞여 나올 확률을 높인다.
+    await models.setCandidateLimit(
+      Number(process.env.TEST_RECOMMEND_LIMIT || 20),
+    );
+    await models.runRecommend();
+    const chosen = await models.selectCompleteCandidate(targetSpec.maxClass);
+    lastRecommendedSpec = chosen.spec;
+    expect(
+      isSpecWithinClass(chosen.spec, targetSpec.maxClass),
+      `선택한 완전 후보 스펙 "${chosen.spec}" 이(가) "${targetSpec.maxClass}" 급 이하가 아님`,
     ).toBeTruthy();
     const targetName = uniqueName(
       process.env.TEST_TARGET_MODEL_NAME || 'e2e-lowcost-target',

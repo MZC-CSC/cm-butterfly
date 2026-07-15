@@ -168,11 +168,32 @@ Then('타깃 EC2 인스턴스가 정상 생성된다', async ({ page }) => {
 });
 
 /**
+ * "그러면 생성된 인프라가 Running 상태가 된다"
+ * 노드 이름은 cm-beetle이 정하는 값이라 사전에 단정하기 어렵다. 그래서 여기서는 *인프라(MCI)가 실재하고
+ * 노드가 Running 인지*까지만 확인한다(노드 이름 대조는 하지 않는다). 워크플로우 툴에서 바꾼 이름
+ * (scenarioState.infraName)으로 조회한다.
+ */
+Then('생성된 인프라가 Running 상태가 된다', async ({ page }) => {
+  const infraName = scenarioState.infraName ?? workload.infraName;
+  await new WorkloadPage(page).expectInstanceCreated(infraName);
+  scenarioState.infraId = infraName;
+});
+
+/**
  * "그리고 생성된 인스턴스를 중지한다"
  * 요금 보호 — terminate 금지, suspend/stop 만. 마이그레이션 시나리오 정리 단계에서 재사용.
  */
 Given('생성된 인스턴스를 중지한다', async ({ page }) => {
   await new WorkloadPage(page).stopInstance(workload.infraName);
+});
+
+/**
+ * "그리고 생성된 인프라를 중지한다" — 워크플로우 툴에서 바꾼 이름(scenarioState.infraName)으로 중지한다.
+ * §6-4 방침: 검증 후 인프라는 *삭제하지 않고 중지만* 한다(모델·커넥션도 보존).
+ */
+Given('생성된 인프라를 중지한다', async ({ page }) => {
+  const infraName = scenarioState.infraName ?? workload.infraName;
+  await new WorkloadPage(page).stopInstance(infraName);
 });
 
 // ─────────────────────────────────────────────────────────────

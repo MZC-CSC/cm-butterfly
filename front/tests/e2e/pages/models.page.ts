@@ -355,6 +355,88 @@ export class ModelsPage {
     return { spec: bestSpec, monthlyPrice: bestPrice };
   }
 
+  /**
+   * ★ 완전(complete) 후보 선택 — 프론트가 붙인 `data-complete="true"` 마커로 고른다.
+   *
+   *   왜 이 경로가 필요한가 — 추천 응답 중 일부 후보는 spec/image에 이상값(빈 값 또는 `string`·`npt`·
+   *   `undefined` 같은 가짜 타입)이 들어와 있다. 그런 후보를 타깃 모델로 저장하면 저장은 되지만, 이후
+   *   마이그레이션(MCI 생성) 때 cm-beetle이 이미지를 못 풀어 조용히 실패한다(인프라 0대). 실제로 지난
+   *   검증에서 이 이유로 인프라가 만들어지지 않았다.
+   *
+   *   기존 `selectLargestCandidateWithinClass` 는 화면에 렌더된 리터럴 "empty" 텍스트로만 걸렀는데,
+   *   `string` 같은 *가짜 값*은 "empty"가 아니라 통과했다. 그래서 프론트가 모델 값 자체를 검사해 붙이는
+   *   `data-complete` 마커(useRecommendedInfraModel.hasMissingRequiredFields 기준)로 판정한다.
+   *
+   *   선택 정책 — 완전한 후보 중에서 요금 상한(maxClass) 이하이면서 *가장 큰* 스펙을 고른다(상한은 그대로
+   *   지켜 요금 보호). 완전한 후보가 하나도 없으면 예외를 던진다 — 그 경우 문제는 프론트가 아니라
+   *   cm-beetle 추천 응답이 값을 채우지 못하는 것이므로, 소스레벨로 병행 검증해야 한다.
+   */
+  async selectCompleteCandidate(
+    maxClass: string,
+  ): Promise<{ spec: string; monthlyPrice: number }> {
+    const rows = this.recommendRows;
+    const count = await rows.count();
+    let bestIndex = -1;
+    let bestRank = -1;
+    let bestSpec = '';
+    let bestPrice = 0;
+    let completeCount = 0;
+    let incompleteCount = 0;
+
+    for (let i = 0; i < count; i++) {
+      const marker = rows
+        .nth(i)
+        .locator('[data-testid="recommend-candidate"]')
+        .first();
+      const dataComplete =
+        (await marker.getAttribute('data-complete').catch(() => null)) ?? '';
+      const isComplete = dataComplete === 'true';
+
+      const text = (
+        await rows.nth(i).locator('td, [role="cell"]').allInnerTexts()
+      )
+        .map(t => t.trim())
+        .join(' ');
+      const spec = this.parseSpecToken(text);
+
+      if (!isComplete) {
+        incompleteCount++;
+        continue;
+      }
+      completeCount++;
+
+      // 요금 상한은 그대로 지킨다(급 판별 가능할 때만). 판별 불가면 통과시킨다.
+      if (spec && !isSpecWithinClass(spec, maxClass)) continue;
+
+      const token = Object.keys(SPEC_CLASS_RANK).find(k =>
+        spec.toLowerCase().includes(k),
+      );
+      const rank = token ? SPEC_CLASS_RANK[token] : 0;
+      const priceMatch = text.match(/([\d.]+)\s*\/\s*mon/i);
+      if (rank > bestRank) {
+        bestRank = rank;
+        bestIndex = i;
+        bestSpec = spec;
+        bestPrice = priceMatch ? parseFloat(priceMatch[1]) : 0;
+      }
+    }
+
+    if (bestIndex < 0) {
+      throw new Error(
+        `추천 결과에 완전한(data-complete=true) 후보가 "${maxClass}" 급 이하로 없다 — ` +
+          `후보 ${count}개 중 완전 ${completeCount}·불완전 ${incompleteCount}. ` +
+          `완전 후보가 0개이면 문제는 프론트가 아니라 cm-beetle 추천 응답이 spec/image를 ` +
+          `채우지 못하는 것이므로 RecommendVmInfraCandidates 응답을 소스레벨로 병행 검증해야 한다.`,
+      );
+    }
+
+    await rows.nth(bestIndex).click();
+    console.log(
+      `[recommend] 완전 후보 선택(마커 기준): ${bestSpec} — 완전 ${completeCount}/${count}, 불완전 ${incompleteCount}`,
+    );
+    return { spec: bestSpec, monthlyPrice: bestPrice };
+  }
+
   /** 추천 결과를 지정 이름의 타깃 모델(클라우드 모델)로 저장 */
   async saveAsTargetModel(name: string): Promise<void> {
     await this.saveAsTargetButton.click(); // → SimpleEditForm(Save Target Model)
