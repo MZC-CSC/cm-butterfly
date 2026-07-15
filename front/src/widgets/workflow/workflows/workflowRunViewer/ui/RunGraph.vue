@@ -29,6 +29,21 @@ interface Props {
 const props = defineProps<Props>();
 const emit = defineEmits<{ (e: 'select', taskId: string): void }>();
 
+/*
+  SVG <text>는 상자에 맞춰 접히지도, 잘리지도 않는다 — 이름이 길면 그대로 상자 밖으로
+  삐져나온다. 상자 폭(GRAPH_NODE_WIDTH)은 흔한 태스크명을 담도록 잡아 두었고, 그보다
+  더 긴 이름은 여기서 말줄임한다. 전체 이름은 노드 툴팁과 우측 상세 패널에 그대로 있다.
+*/
+const NAME_PADDING_X = 14;
+const NAME_CHAR_WIDTH = 7.1; // 13px semibold 기준 평균 글자 폭
+
+function fitName(name: string): string {
+  const max = Math.floor(
+    (GRAPH_NODE_WIDTH - NAME_PADDING_X * 2) / NAME_CHAR_WIDTH,
+  );
+  return name.length <= max ? name : `${name.slice(0, max - 1)}…`;
+}
+
 const NODE_WIDTH = GRAPH_NODE_WIDTH;
 const NODE_HEIGHT = GRAPH_NODE_HEIGHT;
 const GAP_X = GRAPH_GAP_X;
@@ -190,7 +205,7 @@ const edgePaths = computed(() =>
           class="run-graph__box"
         />
         <text :x="item.x + 14" :y="item.y + 22" class="run-graph__name">
-          {{ item.node.name }}
+          {{ fitName(item.node.name) }}
         </text>
         <text :x="item.x + 14" :y="item.y + 39" class="run-graph__state">
           {{ item.label }}

@@ -538,10 +538,27 @@ defineExpose({
     --jse-theme-color-highlight: #e0e7ff;
   }
 
+  /*
+    The bar is light, so its buttons must be dark — set both, never just one.
+    vanilla-jsoneditor colours its menu buttons white to sit on its own dark bar.
+    Under 0.23 the background rule below lost to the library's stylesheet, so the
+    bar stayed dark and the white buttons were legible. Under 3.x it wins: the bar
+    turned light, the buttons stayed white, and they were invisible until hovered.
+  */
   :deep(.jse-menu) {
     background-color: #f9fafb;
     border-bottom: 1px solid #e5e7eb;
     display: flex !important; /* Force menu to show even in readOnly mode */
+  }
+
+  /* Leave .jse-selected alone — that is how the current mode is marked. */
+  :deep(.jse-menu .jse-button:not(.jse-selected)) {
+    color: #374151 !important;
+  }
+
+  :deep(.jse-menu .jse-button:not(.jse-selected):hover) {
+    background-color: #e5e7eb !important;
+    color: #111827 !important;
   }
 
   :deep(.jse-contents) {

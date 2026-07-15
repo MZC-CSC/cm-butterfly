@@ -164,6 +164,18 @@ const hasFailedTask = computed(() =>
   ),
 );
 
+/*
+  회색 버튼은 고장 난 기능처럼 읽힌다. 실제로는 다시 돌릴 것이 없을 뿐인데 화면이 그
+  사실을 어디에도 말하지 않았다. 실패한 태스크가 있는지 없는지 — 그 하나로만 문구를
+  가른다. 실행이 도는 중에도 버튼은 잠기지만, 그때까지 문구를 따로 두면 상태가 바뀔
+  때마다 맞춰야 할 경로가 늘고 로직이 바뀌면 어긋난다. 시작과 끝만 본다.
+*/
+const rerunFailedHint = computed(() =>
+  hasFailedTask.value
+    ? 'Re-runs the tasks that failed in this run, and the ones that could not run because of them. You are shown the exact list and asked to confirm first.'
+    : 'Nothing failed in this run, so there is nothing to re-run. To run the workflow again from the start, use "Start new run".',
+);
+
 /**
  * 확인 모달이 떠 있는 동안, 다시 돌 태스크를 그래프에서도 보여준다.
  * 목록만으로는 "어디가 다시 도는지"가 그림으로 안 들어온다.
@@ -186,12 +198,20 @@ const tryNumbers = computed(() => {
   return Array.from({ length: total }, (_, i) => i + 1);
 });
 
+/* 2026-07-14T07:35:52.138528Z → 2026-07-14 07:35:52. 마이크로초까지 붙은 원문은
+   드롭다운 폭을 넘겨 상태 글자가 다음 줄로 밀렸다. */
+function formatRunTime(value?: string): string {
+  if (!value) return '-';
+  const m = value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})/);
+  return m ? `${m[1]} ${m[2]}` : value;
+}
+
 const runOptions = computed(() =>
   [...runs.value]
     .sort((a, b) => (b.start_date ?? '').localeCompare(a.start_date ?? ''))
     .map(run => ({
       name: run.workflow_run_id,
-      label: `${run.start_date ?? run.execution_date} · ${taskStateLabel(run.state)}`,
+      label: `${formatRunTime(run.start_date ?? run.execution_date)} · ${taskStateLabel(run.state)}`,
     })),
 );
 
@@ -279,7 +299,7 @@ async function onRunChange(runId: string) {
             세 동작이 헷갈리기 쉬워 각각 무엇을 하는지 hover로 설명한다.
           -->
           <p-tooltip
-            contents="Re-runs the tasks that failed in this run, and the ones that could not run because of them. You are shown the exact list and asked to confirm first."
+            :contents="rerunFailedHint"
             position="bottom"
             :options="{ classes: ['p-tooltip', 'run-viewer-tooltip'] }"
           >
@@ -767,6 +787,7 @@ async function onRunChange(runId: string) {
 .run-viewer__label {
   font-size: 0.75rem;
   color: #6b6e78;
+  white-space: nowrap; /* "Run history"가 두 줄로 접히지 않게 */
 }
 
 .run-viewer__actions {
@@ -786,7 +807,12 @@ async function onRunChange(runId: string) {
 /* 드롭다운이 폭을 다 먹으면 좁은 화면에서 버튼이 아래로 밀린다 */
 .run-viewer__dropdown {
   flex: 0 1 18rem;
-  min-width: 10rem;
+  min-width: 14rem;
+}
+
+/* 선택된 실행 라벨은 한 줄로. 넘치면 줄바꿈이 아니라 말줄임으로 처리한다 */
+.run-viewer__dropdown :deep(.p-select-dropdown) {
+  white-space: nowrap;
 }
 
 .run-viewer__polling {
@@ -828,8 +854,13 @@ async function onRunChange(runId: string) {
   뷰포트가 아니라 실제 남은 폭에 반응하도록 미디어 쿼리 대신 wrap을 쓴다.
 */
 .run-viewer__graph {
-  /* flex-basis는 병렬 갈래 수에 따라 스크립트에서 정한다 */
-  flex-grow: 1;
+  /*
+    flex-basis는 병렬 갈래 수에 따라 스크립트에서 정한다. 여기서 grow까지 켜 두면
+    그 계산이 무의미해진다 — 태스크가 하나뿐인 직렬 워크플로우에서도 그래프가 남는
+    폭을 상세 패널과 반씩 나눠 먹어, 2560px 화면에서 노드 한 개를 그리는 데 1094px을
+    썼다. 그래프는 제 폭만 쓰고, 남는 가로 공간은 상세 패널로 보낸다.
+  */
+  flex-grow: 0;
   flex-shrink: 1;
   min-width: 0;
   max-width: 100%;
@@ -861,13 +892,16 @@ async function onRunChange(runId: string) {
 
 .run-viewer__dl {
   display: grid;
-  grid-template-columns: 4.5rem 1fr;
+  /* 고정 4.5rem에서는 "Component"가 안 들어가 't'가 다음 줄로 넘어갔다 */
+  grid-template-columns: max-content 1fr;
+  column-gap: 0.75rem;
   row-gap: 0.375rem;
   font-size: 0.8125rem;
 }
 
 .run-viewer__dl dt {
   color: #6b6e78;
+  white-space: nowrap;
 }
 
 .run-viewer__hint {
