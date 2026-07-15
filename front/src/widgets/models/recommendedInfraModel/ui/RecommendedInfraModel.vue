@@ -503,6 +503,36 @@ function handleSave(e: { name: string; description: string }) {
             :multi-select="false"
             @change="recommendInfraModel.tableModel.handleChange"
           >
+            <!--
+              첫 컬럼(No.)에 후보의 완전/불완전 마커를 함께 싣는다.
+              - 사람용: 스펙·이미지에 이상값이 있으면 번호 앞에 빨간 "!" 를 붙이고,
+                호버 시 실제로 빈 컬럼명을 안내한다(경고만, 저장은 막지 않는다).
+              - E2E용: data-complete="true|false" 로 완전한 후보만 기계적으로 선택하게 한다.
+              판정은 model의 hasMissingRequiredFields 와 동일 기준(item.hasMissingInfo).
+            -->
+            <template #col-index-format="{ item }">
+              <span
+                class="recommend-candidate"
+                :class="{
+                  'recommend-candidate--invalid': item.hasMissingInfo,
+                }"
+                data-testid="recommend-candidate"
+                :data-complete="item.hasMissingInfo ? 'false' : 'true'"
+                :data-id="item.name || ''"
+                :title="
+                  item.hasMissingInfo
+                    ? `필수정보가 누락돼 있습니다. 워크플로우 구현할 때 해당 항목(${item.missingFields || 'Spec, Image'})을 채워야 합니다`
+                    : undefined
+                "
+              >
+                <span
+                  v-if="item.hasMissingInfo"
+                  class="recommend-candidate__flag"
+                  data-testid="recommend-candidate-invalid"
+                  >!</span
+                >{{ item.index }}
+              </span>
+            </template>
             <template #col-spec-format="{ item }">
               <span v-html="formatEmptyValue(item.spec)"></span>
             </template>
@@ -578,5 +608,14 @@ function handleSave(e: { name: string; description: string }) {
 
 .parameter-input input {
   width: 120px;
+}
+
+.recommend-candidate--invalid {
+  color: red;
+  font-weight: bold;
+}
+
+.recommend-candidate__flag {
+  margin-right: 2px;
 }
 </style>
