@@ -60,6 +60,7 @@ E2E_INCLUDE_COSTLY=1 npx playwright test --config=tests/e2e/playwright.config.ts
 | [05-증거와리포트](docs/05-증거와리포트.md) | **성공한 테스트도 화면·영상을 남기는 이유** |
 | [06-테스트작성](docs/06-테스트작성.md) | 3계층 구조 · **폴백 금지 · testid 원칙 · 거짓 통과 경계** |
 | [07-설계배경](docs/07-설계배경.md) | 왜 BDD인가 · 초기 설계 정본 |
+| [08-주의사항](docs/08-주의사항.md) | **3분류(더미 `@dummy`/기능/시나리오)** · 에이전트별 반복 실수(cm-beetle 인프라 이름 · cm-cicada 워크플로우 이름/request_body · **추천 후보 스펙·이미지 충전**) |
 
 ---
 
