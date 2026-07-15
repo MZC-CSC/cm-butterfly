@@ -7,6 +7,7 @@ import {
   PTooltip,
 } from '@cloudforet-test/mirinae';
 import RunGraph from './RunGraph.vue';
+import SoftwareMigrationOverlay from '../../workflowHistory/ui/SoftwareMigrationOverlay.vue';
 import { graphPixelWidth } from '@/entities/workflow/lib/runGraph';
 import { useWorkflowRunViewerModel } from '../model/workflowRunViewerModel';
 import {
@@ -22,9 +23,14 @@ interface Props {
 
 const props = defineProps<Props>();
 
-// 복제본으로 에디터를 여는 것은 페이지의 일이다 (에디터 모달이 거기 있다)
+// 에디터(그래픽/JSON)를 여는 것은 페이지의 일이다 (에디터 모달이 거기 있다).
+// - edit-original: 미실행 원본을 그래픽 에디터로
+// - edit-clone   : 실행됨 복제본을 그래픽 에디터로 (기존)
+// - edit-json    : 병렬이라 그래픽이 못 다루는 것을 JSON 에디터로 (원본 또는 복제본 id)
 const emit = defineEmits<{
+  (e: 'edit-original', workflowId: string): void;
   (e: 'edit-clone', clonedWorkflowId: string): void;
+  (e: 'edit-json', workflowId: string): void;
 }>();
 
 const {
@@ -38,6 +44,8 @@ const {
   deletedTaskInstances,
   definitionChangedAfterRun,
   graph,
+  hasRuns,
+  isParallel,
   progress,
   isPolling,
   cloning,
@@ -64,11 +72,45 @@ const {
 /**
  * 값을 바꿔 다시 돌리고 싶을 때 원본을 고치지 않는다.
  * 복제본을 만들어 그것을 편집한다 — 원본과 그 실행 이력은 그대로 남는다.
+ *
+ * 병렬 워크플로우는 그래픽 에디터가 아직 다루지 못하므로 복제본을 JSON 에디터로 연다.
+ * (워크플로우 툴이 병렬을 지원하면 이 분기를 걷어내고 항상 그래픽으로 — BAR-1454)
  */
 async function cloneAndEdit() {
   const clonedId = await cloneForEdit();
-  if (clonedId) emit('edit-clone', clonedId);
+  if (!clonedId) return;
+  if (isParallel.value) emit('edit-json', clonedId);
+  else emit('edit-clone', clonedId);
 }
+
+/**
+ * 미실행 원본 편집. 실행 이력이 없으니 복제 없이 원본을 직접 연다.
+ * 병렬이면 그래픽 에디터가 못 다루므로 확인 후 JSON 에디터로 유도한다.
+ */
+const showEditJsonConfirm = ref(false);
+function requestEdit() {
+  if (isParallel.value) {
+    showEditJsonConfirm.value = true;
+    return;
+  }
+  if (props.workflowId) emit('edit-original', props.workflowId);
+}
+function confirmEditJson() {
+  showEditJsonConfirm.value = false;
+  if (props.workflowId) emit('edit-json', props.workflowId);
+}
+
+/**
+ * 태스크가 만든 결과. 오늘은 SW 마이그레이션만 — 엔진이 태스크에 실어 준 실행 ID가
+ * 있을 때만 조회한다. 컴포넌트 이름이 아니라 그 ID의 유무로 판정하므로, 엔진이 다른
+ * 컴포넌트의 반환값을 실어 주기 시작하면 같은 자리에 붙는다.
+ */
+const showSwResult = ref(false);
+const swExecutionIds = computed(() =>
+  selectedInstance.value?.software_migration_execution_id
+    ? [selectedInstance.value.software_migration_execution_id]
+    : [],
+);
 
 /**
  * 재실행 범위. 기준이 무엇인지 이름에 담는다.
@@ -294,57 +336,96 @@ async function onRunChange(runId: string) {
 
         <div class="run-viewer__actions">
           <!--
-            순서: 이 실행의 실패분을 다시 → 이 워크플로우를 새로 → 값을 바꿔 쓰려면 복제.
-            왼쪽일수록 지금 보고 있는 실행에 가깝고, 오른쪽으로 갈수록 새 것을 만든다.
-            세 동작이 헷갈리기 쉬워 각각 무엇을 하는지 hover로 설명한다.
+            실행 이력이 없는 워크플로우에는 "다시 돌린다"가 없다 — 실행할지, 내용을
+            고칠지 둘뿐이다. 이력이 있으면 지금까지의 버튼(실패분 다시 → 새로 → 복제)을
+            그대로 둔다. 실행된 워크플로우는 원본 직접 수정을 막으므로 여기엔 Edit이 없다.
           -->
-          <p-tooltip
-            :contents="rerunFailedHint"
-            position="bottom"
-            :options="{ classes: ['p-tooltip', 'run-viewer-tooltip'] }"
-          >
-            <p-button
-              data-testid="workflow-rerun-failed-btn"
-              size="sm"
-              style-type="tertiary"
-              :disabled="!hasFailedTask || rerunPending || runInProgress"
-              @click="requestRerunFailed"
+          <template v-if="!hasRuns">
+            <p-tooltip
+              contents="Runs this workflow for the first time."
+              position="bottom"
+              :options="{ classes: ['p-tooltip', 'run-viewer-tooltip'] }"
             >
-              Re-run failed tasks
-            </p-button>
-          </p-tooltip>
+              <p-button
+                data-testid="workflow-viewer-run-first-btn"
+                size="sm"
+                style-type="primary"
+                :disabled="runInProgress"
+                @click="showRunConfirm = true"
+              >
+                Run
+              </p-button>
+            </p-tooltip>
 
-          <p-tooltip
-            contents="Starts a new run of the whole workflow from the first task. This does not re-run the run selected above."
-            position="bottom"
-            :options="{ classes: ['p-tooltip', 'run-viewer-tooltip'] }"
-          >
-            <p-button
-              data-testid="workflow-viewer-run-btn"
-              size="sm"
-              style-type="primary"
-              :disabled="runInProgress"
-              @click="showRunConfirm = true"
+            <p-tooltip
+              contents="Opens this workflow in the editor to change its content. Available before the first run — once a workflow has run, edit a copy instead."
+              position="bottom"
+              :options="{ classes: ['p-tooltip', 'run-viewer-tooltip'] }"
             >
-              Start new run
-            </p-button>
-          </p-tooltip>
+              <p-button
+                data-testid="workflow-viewer-edit-btn"
+                size="sm"
+                style-type="tertiary"
+                @click="requestEdit"
+              >
+                Edit
+              </p-button>
+            </p-tooltip>
+          </template>
 
-          <p-tooltip
-            contents="Copies this workflow and opens the copy in the editor, so you can change values without touching the original or its run history."
-            position="bottom"
-            :options="{ classes: ['p-tooltip', 'run-viewer-tooltip'] }"
-          >
-            <p-button
-              data-testid="workflow-clone-edit-btn"
-              size="sm"
-              style-type="tertiary"
-              :disabled="cloning"
-              @click="showCloneConfirm = true"
+          <template v-else>
+            <!--
+              순서: 이 실행의 실패분을 다시 → 이 워크플로우를 새로 → 값을 바꿔 쓰려면 복제.
+              왼쪽일수록 지금 보고 있는 실행에 가깝고, 오른쪽으로 갈수록 새 것을 만든다.
+            -->
+            <p-tooltip
+              :contents="rerunFailedHint"
+              position="bottom"
+              :options="{ classes: ['p-tooltip', 'run-viewer-tooltip'] }"
             >
-              Clone &amp; Edit
-            </p-button>
-          </p-tooltip>
+              <p-button
+                data-testid="workflow-rerun-failed-btn"
+                size="sm"
+                style-type="tertiary"
+                :disabled="!hasFailedTask || rerunPending || runInProgress"
+                @click="requestRerunFailed"
+              >
+                Re-run failed tasks
+              </p-button>
+            </p-tooltip>
+
+            <p-tooltip
+              contents="Starts a new run of the whole workflow from the first task. This does not re-run the run selected above."
+              position="bottom"
+              :options="{ classes: ['p-tooltip', 'run-viewer-tooltip'] }"
+            >
+              <p-button
+                data-testid="workflow-viewer-run-btn"
+                size="sm"
+                style-type="primary"
+                :disabled="runInProgress"
+                @click="showRunConfirm = true"
+              >
+                Start new run
+              </p-button>
+            </p-tooltip>
+
+            <p-tooltip
+              contents="Copies this workflow and opens the copy in the editor, so you can change values without touching the original or its run history."
+              position="bottom"
+              :options="{ classes: ['p-tooltip', 'run-viewer-tooltip'] }"
+            >
+              <p-button
+                data-testid="workflow-clone-edit-btn"
+                size="sm"
+                style-type="tertiary"
+                :disabled="cloning"
+                @click="showCloneConfirm = true"
+              >
+                Clone &amp; Edit
+              </p-button>
+            </p-tooltip>
+          </template>
         </div>
       </div>
 
@@ -479,6 +560,31 @@ async function onRunChange(runId: string) {
             <dt>Duration</dt>
             <dd>{{ formatDuration(selectedInstance?.duration_date) }}</dd>
           </dl>
+
+          <!--
+            이 태스크가 무엇을 만들었는지. 오늘은 SW 마이그레이션 결과만 — 엔진이 태스크에
+            실어 준 실행 ID가 있을 때만 조회한다. 없으면 조용히 빈 화면을 두지 않고 그렇게
+            말한다(빈 화면은 "설치된 소프트웨어가 없다"로 읽힌다).
+          -->
+          <div class="run-viewer__result" data-testid="workflow-run-result">
+            <h5>Result</h5>
+            <p-button
+              v-if="swExecutionIds.length"
+              data-testid="workflow-run-result-sw-btn"
+              size="sm"
+              style-type="tertiary"
+              @click="showSwResult = true"
+            >
+              View installed software
+            </p-button>
+            <p
+              v-else
+              class="run-viewer__hint"
+              data-testid="workflow-run-result-empty"
+            >
+              No result to show for this task.
+            </p>
+          </div>
 
           <!-- 실패했으면 왜 실패했는지를 그 자리에서 -->
           <div
@@ -738,6 +844,18 @@ async function onRunChange(runId: string) {
           Each copy is kept as its own workflow, so make one when you actually
           intend to change values — not to look around.
         </p>
+        <!--
+          병렬 워크플로우는 그래픽 에디터가 아직 다루지 못한다 — 복제본은 JSON
+          에디터로 연다. (툴이 병렬을 지원하면 이 안내는 사라진다 — BAR-1454)
+        -->
+        <p
+          v-if="isParallel"
+          class="run-viewer__hint"
+          data-testid="workflow-clone-parallel-note"
+        >
+          This workflow runs tasks in parallel, which the graphical editor
+          cannot edit yet, so the copy opens in the JSON editor.
+        </p>
         <div class="run-viewer__modal-actions">
           <p-button
             data-testid="workflow-clone-confirm-cancel"
@@ -757,6 +875,49 @@ async function onRunChange(runId: string) {
         </div>
       </div>
     </div>
+
+    <!--
+      미실행 원본을 편집하려는데 병렬이라 그래픽 에디터가 못 다루는 경우. JSON 에디터로
+      갈지 물어본다. (툴이 병렬을 지원하면 이 모달과 폴백을 함께 걷어낸다 — BAR-1454)
+    -->
+    <div
+      v-if="showEditJsonConfirm"
+      class="run-viewer__modal"
+      data-testid="workflow-parallel-edit-confirm"
+    >
+      <div class="run-viewer__modal-box">
+        <h4>Edit in the JSON editor?</h4>
+        <p class="run-viewer__hint">
+          This workflow runs tasks in parallel. The graphical editor cannot edit
+          parallel workflows yet, so its structure would be lost. You can edit
+          it directly in the JSON editor instead.
+        </p>
+        <div class="run-viewer__modal-actions">
+          <p-button
+            data-testid="workflow-parallel-edit-cancel-btn"
+            style-type="tertiary"
+            @click="showEditJsonConfirm = false"
+          >
+            Cancel
+          </p-button>
+          <p-button
+            data-testid="workflow-parallel-edit-json-btn"
+            style-type="primary"
+            @click="confirmEditJson"
+          >
+            Edit in JSON editor
+          </p-button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 태스크가 만든 결과(SW 마이그레이션 설치 목록) — 기존 결과 화면을 재사용한다 -->
+    <software-migration-overlay
+      :is-visible="showSwResult"
+      :selected-run="selectedRun"
+      :execution-ids="swExecutionIds"
+      @close="showSwResult = false"
+    />
   </div>
 </template>
 

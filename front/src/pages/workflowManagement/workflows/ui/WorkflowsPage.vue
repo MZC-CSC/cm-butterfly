@@ -9,7 +9,11 @@ import {
   WorkflowRunViewer,
 } from '@/widgets/workflow';
 import { SimpleEditForm } from '@/widgets/layout';
-import { useGetWorkflow, useUpdateWorkflow } from '@/entities';
+import {
+  useGetWorkflow,
+  useUpdateWorkflow,
+  useWorkflowStore,
+} from '@/entities';
 import {
   showErrorMessage,
   showSuccessMessage,
@@ -19,6 +23,7 @@ import WorkflowEditor from '@/features/workflow/workflowEditor/ui/WorkflowEditor
 
 const getWorkflow = useGetWorkflow(null);
 const updateWorkflow = useUpdateWorkflow(null, null);
+const workflowStore = useWorkflowStore();
 
 const pageName = 'Workflows';
 
@@ -35,6 +40,27 @@ function handleEditClone(clonedWorkflowId: string) {
   // 방금 연 편집기가 닫힌다.
   selectedWorkflowId.value = clonedWorkflowId;
   modalState.workflowToolModal.open = true;
+}
+
+/**
+ * 미실행 원본을 그래픽 에디터로 (복제 없이). 실행 이력이 없어 원본을 직접 고쳐도 된다.
+ */
+function handleEditOriginal(workflowId: string) {
+  selectedWorkflowId.value = workflowId;
+  modalState.workflowToolModal.open = true;
+}
+
+/**
+ * 병렬이라 그래픽 에디터가 못 다루는 워크플로우를 JSON 에디터로 연다.
+ * 원본(미실행 Edit) 또는 복제본(실행됨 Clone&Edit) — 어느 쪽이든 id로 스토어에서
+ * 정의를 꺼내 JSON 에디터에 넘긴다. (복제본은 뷰어가 이미 스토어에 넣었다.)
+ */
+function handleEditJson(workflowId: string) {
+  selectedWorkflowId.value = workflowId;
+  const wf = workflowStore.getWorkflowById(workflowId);
+  workflowName.value = wf?.name ?? '';
+  workflowJson.value = wf?.data ?? {};
+  modalState.workflowJsonModal.open = true;
 }
 
 const selectedWorkflowId = ref<string>('');
@@ -228,6 +254,8 @@ async function handleUpdateWorkflow(updatedData: object) {
             <workflow-run-viewer
               :workflow-id="selectedWorkflowId"
               @edit-clone="handleEditClone"
+              @edit-original="handleEditOriginal"
+              @edit-json="handleEditJson"
             />
           </template>
         </p-tab>
