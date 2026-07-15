@@ -97,74 +97,30 @@ onBeforeMount(function () {
         zone: props.targetModel.zone,
       });
 
-      // Determine if this is infra or software model based on migrationType
-      // Note: migrationType should be passed from the parent component
-      // For now, fallback to the existing logic if migrationType is not available
-      let isInfraModel = false;
-      let isSoftwareModel = false;
-
-      // Check if migrationType is available (this should be passed from parent)
-      if (props.targetModel.migrationType) {
-        isInfraModel = props.targetModel.migrationType === 'infra';
-        isSoftwareModel = props.targetModel.migrationType === 'software';
-        console.log('Using migrationType for classification:', {
-          migrationType: props.targetModel.migrationType,
-          isInfraModel,
-          isSoftwareModel,
-        });
-      } else {
-        // Fallback to existing logic based on cloudInfraModel
-        isInfraModel =
-          !!props.targetModel.cloudInfraModel && props.targetModel.isCloudModel;
-        isSoftwareModel =
-          !props.targetModel.cloudInfraModel && props.targetModel.isCloudModel;
-        console.log(
-          'Using fallback logic (cloudInfraModel) for classification:',
-          {
-            isInfraModel,
-            isSoftwareModel,
-          },
-        );
-      }
-
-      console.log('Final model classification:', {
-        isInfraModel,
-        isSoftwareModel,
-      });
-
-      if (isInfraModel) {
-        // Select migrate_infra_workflow template
-        const infraTemplate =
-          workflowToolModel.workflowStore.workflowTemplates.find(
-            template => template.name === 'migrate_infra_workflow',
-          );
-        if (infraTemplate) {
-          workflowToolModel.dropDownModel.selectedItemId = infraTemplate.id;
-          console.log('Selected infra workflow template:', infraTemplate);
-        } else {
-          console.warn('migrate_infra_workflow template not found');
-        }
-      } else if (isSoftwareModel) {
-        // Select migrate_software_workflow template
-        const softwareTemplate =
-          workflowToolModel.workflowStore.workflowTemplates.find(
-            template => template.name === 'migrate_software_workflow',
-          );
-        if (softwareTemplate) {
-          workflowToolModel.dropDownModel.selectedItemId = softwareTemplate.id;
-          console.log('Selected software workflow template:', softwareTemplate);
-        } else {
-          console.warn('migrate_software_workflow template not found');
-        }
-      }
-
-      // Load workflow after template selection
-      load();
-
+      // ── 타깃 모델 흐름은 cicada 템플릿을 로드하지 않는다 (BAR-1493 P0, ST3 설계 §4 A-1) ──
+      //
+      // 콘솔은 이미 완성된 cloudInfraModel(스펙·이미지·네트워크 등 전부 채워짐)을 손에 쥐고
+      // 있으므로, 마이그레이션을 '단일 리터럴 task'(beetle_task_infra_migration /
+      // grasshopper_task_software_migration, 값이 다 든 request_body)로 구성한다.
+      // cm-cicada v0.5.1 엔진의 '리터럴 모드'가 이 본문을 그대로 대상 API 로 보낸다
+      // (docs/task-response-passing.md — task 이름과 매칭되지 않는 JSON 은 그대로 전송).
+      //
+      // 이전에는 여기서 migrate_infra_workflow 템플릿을 selectedItemId 로 지정해 load() 했는데,
+      //   (1) load() 가 비동기라 아래 단일 task 구성을 마이크로태스크로 덮어써(결정적 race)
+      //       저장물이 다중-task 템플릿이 되고,
+      //   (2) v0.5.1 템플릿의 infra_migration 본문은 참조 문자열
+      //       ("infra_recommend_get.cloudInfraModel")이라 콘솔이 JSON 으로 파싱하지 못해
+      //       본문이 {}/스켈레톤으로 소실 → 마이그레이션이 빈/이상값 본문으로 실행돼 실패했다.
+      //
+      // 앞 task(damselfly 재조회)는 콘솔 흐름에 불필요하고(모델을 이미 쥠), 참조·조합 본문을
+      // 콘솔이 다루는 것은 0.6.0 범위다. 그래서 여기서는 템플릿을 로드하지 않고 리터럴 단일
+      // task 만 구성한다. mapTargetModelToTaskComponent 가 migrationType(infra/software)을
+      // 스스로 판정해 알맞은 컴포넌트로 본문을 채운다.
       mapTargetModelToTaskComponent(
         props.targetModel,
         workflowToolModel.taskComponentList,
       );
+      loading.value = false;
     } else if (props.toolType === 'add') {
       // For add mode, use recommendedModel from props
       console.log('Add mode detected, using recommendedModel from props...');
