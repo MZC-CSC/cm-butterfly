@@ -97,30 +97,39 @@ onBeforeMount(function () {
         zone: props.targetModel.zone,
       });
 
-      // ── 타깃 모델 흐름은 cicada 템플릿을 로드하지 않는다 (BAR-1493 P0, ST3 설계 §4 A-1) ──
+      // ── 타깃 모델 흐름: 템플릿을 로드하되, 마이그레이션 task 본문을 타깃 모델의 리터럴 값으로
+      //    채우고 앞 조회 task 에는 선택한 타깃 모델 id 를 넣는다 (BAR-1493 P0) ──
       //
-      // 콘솔은 이미 완성된 cloudInfraModel(스펙·이미지·네트워크 등 전부 채워짐)을 손에 쥐고
-      // 있으므로, 마이그레이션을 '단일 리터럴 task'(beetle_task_infra_migration /
-      // grasshopper_task_software_migration, 값이 다 든 request_body)로 구성한다.
-      // cm-cicada v0.5.1 엔진의 '리터럴 모드'가 이 본문을 그대로 대상 API 로 보낸다
-      // (docs/task-response-passing.md — task 이름과 매칭되지 않는 JSON 은 그대로 전송).
+      // cm-cicada v0.5.1 마이그레이션 템플릿은 두 개의 마이그레이션 task 로 나뉜다:
+      //   ① damselfly 조회 task(path_params.id 로 타깃 모델을 실행 시점에 조회)
+      //   ② 마이그레이션 task(beetle/grasshopper) — 본문이 "①.결과" 참조로 돼 있음.
+      // 콘솔은 이미 완성된 타깃 모델을 손에 쥐고 있고, 사용자가 우측 테이블로 값을 편집해야 하므로,
+      // ②의 본문을 참조가 아니라 타깃 모델의 리터럴 값으로 직접 채운다(엔진의 리터럴 모드가 그대로
+      // 대상 API 로 보낸다 — docs/task-response-passing.md). ①에는 선택한 타깃 모델 id 를 넣어
+      // 그대로 성공하게 둔다(②가 리터럴이라 ①의 결과는 쓰이지 않지만 템플릿 구조상 실행은 성공해야
+      // 하므로). 실제 주입은 시퀀스를 세운 직후 loadSequence() 끝에서 한다.
       //
-      // 이전에는 여기서 migrate_infra_workflow 템플릿을 selectedItemId 로 지정해 load() 했는데,
-      //   (1) load() 가 비동기라 아래 단일 task 구성을 마이크로태스크로 덮어써(결정적 race)
-      //       저장물이 다중-task 템플릿이 되고,
-      //   (2) v0.5.1 템플릿의 infra_migration 본문은 참조 문자열
-      //       ("infra_recommend_get.cloudInfraModel")이라 콘솔이 JSON 으로 파싱하지 못해
-      //       본문이 {}/스켈레톤으로 소실 → 마이그레이션이 빈/이상값 본문으로 실행돼 실패했다.
-      //
-      // 앞 task(damselfly 재조회)는 콘솔 흐름에 불필요하고(모델을 이미 쥠), 참조·조합 본문을
-      // 콘솔이 다루는 것은 0.6.0 범위다. 그래서 여기서는 템플릿을 로드하지 않고 리터럴 단일
-      // task 만 구성한다. mapTargetModelToTaskComponent 가 migrationType(infra/software)을
-      // 스스로 판정해 알맞은 컴포넌트로 본문을 채운다.
-      mapTargetModelToTaskComponent(
-        props.targetModel,
-        workflowToolModel.taskComponentList,
-      );
-      loading.value = false;
+      // 이전에는 여기서 mapTargetModelToTaskComponent() 로 '단일 리터럴 task'를 만들면서
+      // 동시에 load() 로 템플릿을 비동기 로드해, load 가 나중에 그 단일 task 를 덮어썼다(race).
+      // 그 결과 저장물이 참조 본문 그대로인 다중-task 템플릿이 돼 콘솔이 {}/스켈레톤으로 소실시켰다.
+      const migrationType =
+        props.targetModel.migrationType ||
+        (props.targetModel.cloudInfraModel ? 'infra' : 'software');
+      const templateName =
+        migrationType === 'software'
+          ? 'migrate_software_workflow'
+          : 'migrate_infra_workflow';
+      const migrationTemplate =
+        workflowToolModel.workflowStore.workflowTemplates.find(
+          template => template.name === templateName,
+        );
+      if (migrationTemplate) {
+        workflowToolModel.dropDownModel.selectedItemId = migrationTemplate.id;
+      } else {
+        console.warn(`${templateName} template not found`);
+      }
+      // 템플릿 로드 → 시퀀스 구성 → (loadSequence 끝에서) 타깃 모델 주입.
+      load();
     } else if (props.toolType === 'add') {
       // For add mode, use recommendedModel from props
       console.log('Add mode detected, using recommendedModel from props...');
@@ -722,7 +731,61 @@ function loadSequence() {
         workflowData.value,
         resTaskComponentList.data.value?.responseData!,
       ).sequence;
+    // 타깃 모델에서 진입한 경우, 조회 task 에 타깃 모델 id 를, 마이그레이션 task 에 리터럴 본문을 주입한다.
+    // 시퀀스를 세운 직후(디자이너 렌더 전) 주입하므로 저장 시 그대로 반영된다.
+    if (props.targetModel) {
+      injectTargetModelIntoSequence();
+    }
   }
+}
+
+/**
+ * 타깃 모델 흐름 전용 주입 — 로드된 템플릿 시퀀스에서
+ *  ① 조회 task(damselfly_task_get_cloud_infra_model / _get_target_software_model)의
+ *     path_params.id 를 선택한 타깃 모델 id 로 채우고,
+ *  ② 마이그레이션 task(beetle_task_infra_migration / grasshopper_task_software_migration)의
+ *     본문(model)을 타깃 모델의 리터럴 값으로 덮어써, 참조가 아니라 실제 값이 저장되게 한다.
+ * 나머지 task(sleep/install_docker/email 등)는 템플릿 그대로 둔다.
+ *
+ * ②가 리터럴이면 ①의 조회 결과는 실제로 쓰이지 않지만, 템플릿 구조상 ①도 성공해야 실행이 끝나므로
+ * 유효한 타깃 모델 id 를 넣어 둔다(하드코딩된 예시 id 를 그대로 저장하던 문제도 함께 해소).
+ */
+function injectTargetModelIntoSequence() {
+  const tm = props.targetModel;
+  if (!tm) return;
+  const isInfra =
+    tm.migrationType === 'infra' ||
+    (!!tm.cloudInfraModel && tm.migrationType !== 'software');
+  const lookupComponent = isInfra
+    ? 'damselfly_task_get_cloud_infra_model'
+    : 'damselfly_task_get_target_software_model';
+  const migrationComponent = isInfra
+    ? 'beetle_task_infra_migration'
+    : 'grasshopper_task_software_migration';
+  const literalBody = isInfra
+    ? tm.cloudInfraModel
+    : (tm as any).targetSoftwareModel;
+
+  const visit = (steps: any[] | undefined) => {
+    for (const step of steps ?? []) {
+      const component = step?.properties?.originalData?.task_component;
+      if (component === lookupComponent) {
+        step.properties.fixedModel = step.properties.fixedModel ?? {
+          path_params: {},
+          query_params: {},
+        };
+        step.properties.fixedModel.path_params = {
+          ...(step.properties.fixedModel.path_params ?? {}),
+          id: tm.id,
+        };
+      } else if (component === migrationComponent && literalBody) {
+        // 참조 본문 대신 타깃 모델의 리터럴 값을 넣는다(우측 테이블도 이 값으로 채워진다).
+        step.properties.model = { ...literalBody };
+      }
+      if (step?.sequence) visit(step.sequence);
+    }
+  };
+  visit(sequentialSequence.value);
 }
 
 function reorderingSequence() {
