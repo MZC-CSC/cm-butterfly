@@ -803,7 +803,40 @@ async function onRunChange(runId: string) {
       class="run-viewer__modal"
       data-testid="workflow-run-confirm"
     >
-      <div class="run-viewer__modal-box">
+      <!--
+        같은 모달을 최초 실행(Run)과 이후 실행(Start new run)이 함께 쓴다. 두 경우는
+        사용자가 아는 것이 다르다 — 최초 실행에는 "고를 실행"도 "다시 돌릴 것"도 없으므로
+        새 실행 기준으로 설명하면 틀린 말이 된다. 대신 이 시점에만 할 수 있는 것,
+        즉 *수정은 지금까지만 가능하다*를 알려 준다.
+      -->
+      <div v-if="!hasRuns" class="run-viewer__modal-box">
+        <h4>Run this workflow?</h4>
+        <p class="run-viewer__hint">
+          The tasks will do their work on the target systems.
+        </p>
+        <p class="run-viewer__hint run-viewer__hint--caution">
+          You can edit this workflow only before its first run. Once it has run,
+          edit a copy instead — use Clone &amp; Edit.
+        </p>
+        <div class="run-viewer__modal-actions">
+          <p-button
+            data-testid="workflow-run-confirm-cancel"
+            style-type="tertiary"
+            @click="showRunConfirm = false"
+          >
+            Cancel
+          </p-button>
+          <p-button
+            data-testid="workflow-run-confirm-ok"
+            style-type="primary"
+            @click="confirmRun"
+          >
+            Run
+          </p-button>
+        </div>
+      </div>
+
+      <div v-else class="run-viewer__modal-box">
         <h4>Start a new run of this workflow?</h4>
         <p class="run-viewer__hint">
           This does not re-run the run selected above. It starts a new run of
@@ -1075,6 +1108,14 @@ async function onRunChange(runId: string) {
 .run-viewer__hint {
   font-size: 0.8125rem;
   color: #6b6e78;
+}
+
+/* 되돌릴 수 없는 것을 알리는 줄 — 나머지 설명과 같은 회색이면 그냥 지나친다 */
+.run-viewer__hint--caution {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.25rem;
+  background: #fff8ef;
+  color: #8a5a17;
 }
 
 .run-viewer__params {
