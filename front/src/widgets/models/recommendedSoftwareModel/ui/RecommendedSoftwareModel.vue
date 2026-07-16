@@ -6,7 +6,11 @@ import { useRecommendedSoftwareModel } from '@/widgets/models/recommendedSoftwar
 import { useSourceModelStore } from '@/entities';
 import { EnhancedJsonEditor } from '@/shared/ui/EnhancedJsonEditor';
 import { createTargetSoftwareModel } from '@/entities/targetModels/api';
-import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
+import {
+  showErrorMessage,
+  showSuccessMessage,
+  toErrorMessage,
+} from '@/shared/utils';
 import { useAuthStore } from '@/shared/libs/store/auth';
 
 interface IProps {
@@ -81,26 +85,34 @@ onMounted(() => {
 });
 
 // Watch for source model changes and expand all
-watch(sourceSoftwareModelData, (newVal) => {
-  if (newVal) {
-    console.log('Source model data changed, expanding...');
-    setTimeout(() => {
-      sourceEditorRef.value?.expandAll();
-    }, 300);
-  }
-}, { immediate: true, deep: true });
+watch(
+  sourceSoftwareModelData,
+  newVal => {
+    if (newVal) {
+      console.log('Source model data changed, expanding...');
+      setTimeout(() => {
+        sourceEditorRef.value?.expandAll();
+      }, 300);
+    }
+  },
+  { immediate: true, deep: true },
+);
 
 // Watch for recommended model changes and expand all
-watch(recommendedModelData, (newVal) => {
-  if (newVal) {
-    console.log('Recommended model data changed, expanding...');
-    setTimeout(() => {
-      recommendedEditorRef.value?.expandAll();
-    }, 300);
-  }
-}, { immediate: true, deep: true });
+watch(
+  recommendedModelData,
+  newVal => {
+    if (newVal) {
+      console.log('Recommended model data changed, expanding...');
+      setTimeout(() => {
+        recommendedEditorRef.value?.expandAll();
+      }, 300);
+    }
+  },
+  { immediate: true, deep: true },
+);
 
-// Get-Migration-List API 호출 (실패 시 더미 데이터 사용)
+// Get-Migration-List API 호출 — 실패하면 실패한 이유를 그대로 보여준다
 async function handleGetMigrationList() {
   if (!sourceSoftwareModelData.value) {
     console.warn('Source software model data is not available');
@@ -111,32 +123,41 @@ async function handleGetMigrationList() {
 
   try {
     // 먼저 실제 API 호출 시도
-    const response = await recommendSoftwareModel.getSoftwareMigrationListData(sourceSoftwareModelData.value);
+    const response = await recommendSoftwareModel.getSoftwareMigrationListData(
+      sourceSoftwareModelData.value,
+    );
 
     // 응답의 status.code를 확인하여 에러 여부 판단
     const statusCode = response?.data?.status?.code;
     if (statusCode && statusCode >= 400) {
-      console.warn(
-        'API returned error status, using dummy data:',
-        response.data.status,
-      );
+      // 백엔드가 준 사유(예: connection info (ID=…) not found)를 그대로 들고 올라간다.
+      // 이것을 버리면 화면에 남는 건 "실패했다"뿐이라 사용자가 원인을 알 수 없다.
       throw new Error(
-        `API Error: ${statusCode} - ${response.data.status?.message || 'Unknown error'}`,
+        response.data.status?.message || `Request failed (${statusCode}).`,
       );
     }
 
     // API 응답 데이터를 recommendedModelData에 저장
-    recommendedModelData.value = recommendSoftwareModel.tableModel.tableState.items[0]?.originalData || null;
+    recommendedModelData.value =
+      recommendSoftwareModel.tableModel.tableState.items[0]?.originalData ||
+      null;
 
     console.log('API migration data loaded:', recommendedModelData.value);
   } catch (error) {
     // Let a failure look like a failure. This used to fall back to dummy recommendations, so a dead
     // cm-grasshopper still rendered a plausible-looking result and the breakage went unnoticed.
+    //
+    // 실패를 드러내는 것만으로는 부족하다 — *왜* 실패했는지까지 보여준다. 이 화면의 실패는
+    // 대개 소스 모델이 가리키는 커넥션이 이미 지워진 경우라, 사유를 감추면 사용자는 고칠
+    // 방법이 없다("connection info (ID=…) not found" ↔ "그냥 실패"의 차이).
     console.error('Failed to load software migration list:', error);
     recommendedModelData.value = null;
     showErrorMessage(
-      'Error',
       'Failed to load the software migration recommendations.',
+      toErrorMessage(
+        error,
+        'The server did not say why. See the browser console for details.',
+      ),
     );
   } finally {
     isLoading.value = false;
@@ -168,7 +189,8 @@ function handleCreateTargetModel(e) {
   saveTargetModelModal.context.description = e.description;
 
   // Source Software Model에서 isInitUserModel 값 가져오기
-  const isInitUserModel = sourceSoftwareModelData.value?.isInitUserModel ?? false;
+  const isInitUserModel =
+    sourceSoftwareModelData.value?.isInitUserModel ?? false;
   const userId = authStore.id; // 로그인 유저의 ID 사용
   const userModelVersion = sourceModel.value?.userModelVersion ?? 'v0.1';
 
@@ -329,7 +351,7 @@ function handleCreateTargetModel(e) {
     font-size: 0.75rem;
     color: #6b7280;
     font-weight: 700;
-    background-color: #F7F7F7;
+    background-color: #f7f7f7;
     padding: 0.25rem 0.75rem;
     border-radius: 6px 0;
   }
