@@ -38,10 +38,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # front/Dockerfile 의 빌드 이미지(node:20-alpine)와 같은 메이저를 쓴다.
+      # Node 버전을 여기에 적지 않고 front/Dockerfile 에서 읽는다. 선언처가 둘이면 보안 패치로
+      # 버전이 오를 때 한쪽만 바뀌어 반드시 어긋난다. Dockerfile 을 단일 출처로 두면 그것만
+      # 고쳐도 CI 가 따라온다 — api/ 쪽이 go-version-file: api/go.mod 로 하는 것과 같은 취지다.
+      - name: Resolve Node version from front/Dockerfile
+        id: node
+        run: |
+          v=$(sed -n 's/^FROM node:\([0-9][0-9.]*\).*/\1/p' Dockerfile | head -1)
+          if [ -z "$v" ]; then
+            echo "::error::front/Dockerfile 에서 node 버전을 읽지 못했다. FROM 줄 형식이 바뀌었는지 확인한다."
+            exit 1
+          fi
+          echo "resolved node version: $v (front/Dockerfile)"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ steps.node.outputs.version }}
           cache: npm
           cache-dependency-path: front/package-lock.json
 
