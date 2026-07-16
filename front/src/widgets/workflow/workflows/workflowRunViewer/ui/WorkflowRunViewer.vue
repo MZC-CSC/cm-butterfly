@@ -262,7 +262,12 @@ const runOptions = computed(() =>
   한 줄로만 이어지는 워크플로우는 좁게 잡히므로 남는 폭이 상세 패널로 가고, 병렬이
   많으면 그래프가 넓게 자리를 잡는다. 폭이 모자라면 패널이 아래로 내려간다.
 */
-const graphFlexBasis = computed(() => `${graphPixelWidth(graph.value)}px`);
+const graphFlexBasis = computed(
+  // graphPixelWidth는 SVG 자체 폭이다. 그래프 박스는 그 위에 RunGraph의 안쪽 여백
+  // (0.5rem 좌우)과 박스 테두리(1px 좌우)를 더 차지하므로, 그만큼을 flex-basis에
+  // 얹지 않으면 넉넉한 화면에서도 SVG가 상시 잘려 가로 스크롤이 생긴다.
+  () => `calc(${graphPixelWidth(graph.value)}px + 1rem + 2px)`,
+);
 
 /** 값이 JSON 문자열이면 읽기 좋게 펼친다 (cicada는 request_body를 문자열로 담는다) */
 function formatParamValue(value: any): string {
@@ -926,6 +931,8 @@ async function onRunChange(runId: string) {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  /* 다른 탭 내용과 같은 좌우 여백 — 없으면 Run history·그래프가 왼쪽에 바싹 붙는다 */
+  padding: 0 1rem 1rem;
 }
 
 .run-viewer__header {
