@@ -1,0 +1,64 @@
+# ------------------------------------------------------------
+# Front E2E Gate — 프론트 의존성 정합과 e2e 생성이 깨진 채 머지되는 것을 막는다.
+#
+# 왜 필요한가:
+#   - package-lock.json 이 package.json 과 어긋나면 npm ci 가 거부해 재현 가능한 설치가
+#     불가능해진다. 그동안 CI 가 npm install 로 우회할 수 있어 이 파손이 드러나지 않았다.
+#   - bddgen 은 .feature 를 spec 으로 생성하는 단계다. step 시그니처 하나만 잘못돼도
+#     생성물이 0건이 되어 e2e 전 계층이 조용히 멈춘다. 실제로 그렇게 머지된 적이 있다.
+#
+# 브라우저도 백엔드도 띄우지 않으므로 수 초면 끝난다. 실제 e2e 실행(실 서버·소스 VM 필요)은
+# 여기서 하지 않는다 — 이 게이트는 "설치와 생성이 되는가"만 본다.
+# ------------------------------------------------------------
+
+name: Front E2E Gate
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - "front/**"
+      - ".github/workflows/front-e2e-gate.yml"
+  push:
+    branches: [develop, main]
+    paths:
+      - "front/**"
+      - ".github/workflows/front-e2e-gate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  front-e2e-gate:
+    name: Front deps + e2e generation
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: ./front
+    steps:
+      - uses: actions/checkout@v4
+
+      # front/Dockerfile 의 빌드 이미지(node:20-alpine)와 같은 메이저를 쓴다.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: front/package-lock.json
+
+      # lock 과 package.json 의 정합을 검사한다. 어긋나면 여기서 실패한다.
+      - name: Install with npm ci (lockfile integrity)
+        run: npm ci
+
+      # .feature -> spec 생성. step 시그니처·feature 문법·미정의 step 이 여기서 걸린다.
+      - name: Generate e2e specs (bddgen)
+        run: npx bddgen --config tests/e2e/playwright.config.ts
+
+      # 생성물이 0건이면 grep 조건 문제든 무엇이든 e2e 가 사실상 멈춘 것이다.
+      - name: Fail if no spec was generated
+        run: |
+          count=$(find tests/e2e/.features-gen -name '*.spec.js' | wc -l)
+          echo "generated specs: $count"
+          if [ "$count" -eq 0 ]; then
+            echo "::error::bddgen produced no specs — e2e would report 'No tests found'"
+            exit 1
+          fi
