@@ -186,6 +186,8 @@ function handleSoftwareModal() {
         >
           View Infra(Meta) -&gt;
         </p>
+        <!-- keep the slot non-empty so PDefinitionTable does not fall back to dumping the raw cell object -->
+        <span v-else />
       </template>
 
       <template #data-viewSoftware="{ data }">
@@ -197,6 +199,8 @@ function handleSoftwareModal() {
         >
           View Software(Meta) -&gt;
         </p>
+        <!-- keep the slot non-empty so PDefinitionTable does not fall back to dumping the raw cell object -->
+        <span v-else />
       </template>
 
       <template #extra="{ name }">
