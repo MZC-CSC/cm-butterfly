@@ -762,9 +762,21 @@ function injectTargetModelIntoSequence() {
   const migrationComponent = isInfra
     ? 'beetle_task_infra_migration'
     : 'grasshopper_task_software_migration';
+  /*
+    두 마이그레이션의 본문 형태가 다르다 — 같은 모양으로 넣으면 안 된다.
+     - 인프라(beetle): cloudInfraModel 의 *내용*(targetInfra/targetVNet 등)이 곧 본문이다.
+     - 소프트웨어(grasshopper): 본문을 `targetSoftwareModel` 로 한 겹 *감싼* 형태로 받는다
+       (smdl `TargetSoftwareModel{ TargetSoftwareModel ... json:"targetSoftwareModel" }`).
+    안쪽 객체({servers:[...]})만 넣으면 grasshopper 가 servers 를 빈 값으로 바인딩해
+    아무 소프트웨어도 처리하지 않은 채 200 + execution_id 를 돌려준다. 그러면 태스크는
+    성공으로 보이는데 결과(target_mappings)는 비어 원인을 찾기 어렵다.
+  */
+  const softwareModel = (tm as any).targetSoftwareModel;
   const literalBody = isInfra
     ? tm.cloudInfraModel
-    : (tm as any).targetSoftwareModel;
+    : softwareModel
+      ? { targetSoftwareModel: softwareModel }
+      : undefined;
 
   const visit = (steps: any[] | undefined) => {
     for (const step of steps ?? []) {

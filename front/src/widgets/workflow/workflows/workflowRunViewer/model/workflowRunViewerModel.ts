@@ -90,6 +90,21 @@ export function useWorkflowRunViewerModel() {
 
   const graph = computed<IRunGraph>(() => buildRunGraph(workflow.value));
 
+  /**
+   * 이 워크플로우가 한 번이라도 실행됐는가. 뷰어의 버튼 구성이 여기서 갈린다 —
+   * 실행된 적 없으면 Run·Edit만, 있으면 Start new run·Clone&Edit·Re-run failed.
+   * `Start new run`은 매 실행마다 새 이력을 쌓는 동작이라 쌓을 이력이 있어야 의미가 있고,
+   * 실행된 워크플로우는 원본 직접 수정을 막으므로(엔진이 실행별 정의를 남기지 않는다) Edit도 없다.
+   */
+  const hasRuns = computed(() => runs.value.length > 0);
+
+  /**
+   * 병렬 갈래가 있는가. 그래픽 에디터는 아직 병렬을 다루지 못하므로, Edit·Clone&Edit가
+   * 이 워크플로우를 그래픽으로 열지 JSON으로 열지를 여기서 가른다.
+   * 워크플로우 툴이 병렬 편집을 지원하면(BAR-1454) 이 판정과 폴백을 함께 걷어낸다.
+   */
+  const isParallel = computed(() => graph.value.maxParallel > 1);
+
   const selectedRun = computed(
     () =>
       runs.value.find(r => r.workflow_run_id === selectedRunId.value) ?? null,
@@ -403,6 +418,8 @@ export function useWorkflowRunViewerModel() {
     deletedTaskInstances,
     definitionChangedAfterRun,
     graph,
+    hasRuns,
+    isParallel,
     isPolling,
     cloning,
     loadError,
