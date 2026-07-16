@@ -72,7 +72,9 @@ watch(
 );
 
 watchEffect(() => {
-  const serviceName = sourceServiceStore.getServiceById(props.selectedServiceId)?.name;
+  const serviceName = sourceServiceStore.getServiceById(
+    props.selectedServiceId,
+  )?.name;
   if (serviceName) {
     emit('update:source-connection-name', serviceName);
   }
@@ -93,7 +95,7 @@ function getSourceGroupInfras() {
         );
         infraModel.value = res.data.responseData;
         loadSourceServiceData(props.selectedServiceId);
-        
+
         // 데이터를 가져온 후 자동으로 모달 열기
         modalState.open = true;
       }
@@ -119,7 +121,7 @@ function getSourceGroupSoftware() {
         );
         softwareModel.value = res.data.responseData;
         loadSourceServiceData(props.selectedServiceId);
-        
+
         // 데이터를 가져온 후 자동으로 모달 열기
         softwareModalState.open = true;
       }
@@ -184,6 +186,8 @@ function handleSoftwareModal() {
         >
           View Infra(Meta) -&gt;
         </p>
+        <!-- keep the slot non-empty so PDefinitionTable does not fall back to dumping the raw cell object -->
+        <span v-else />
       </template>
 
       <template #data-viewSoftware="{ data }">
@@ -195,6 +199,8 @@ function handleSoftwareModal() {
         >
           View Software(Meta) -&gt;
         </p>
+        <!-- keep the slot non-empty so PDefinitionTable does not fall back to dumping the raw cell object -->
+        <span v-else />
       </template>
 
       <template #extra="{ name }">
