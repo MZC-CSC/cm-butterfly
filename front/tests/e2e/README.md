@@ -20,7 +20,8 @@
 
 ```bash
 cd front
-npm install --legacy-peer-deps
+nvm install && nvm use                               # node 버전은 .nvmrc 가 정본 (셸마다 nvm use)
+npm ci
 npx playwright install --with-deps chromium
 
 export BASE_URL=http://cmig.dev.cscmzc.com           # 대상 콘솔
