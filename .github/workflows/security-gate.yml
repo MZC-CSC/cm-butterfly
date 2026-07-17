@@ -8,9 +8,12 @@
 #   - 이미지 CVE는 cm-butterfly-api·cm-butterfly-front 2종을 빌드 파이프라인(onecloud-ci)의
 #     2개 dispatch에 각각 security-image-scan-step.yml 로 추가(소스 CI에서 빌드하지 않음).
 #
-# 도입 단계(Phase A): 시크릿만 차단, 나머지(gosec·govulncheck·Semgrep·Trivy)는 경고.
-# 기준선 정리 후 신규분 차단으로 승격(GUIDE-보안게이트-기준선및롤아웃).
-# first-party 액션은 commit SHA pin. 정책: POLICY-SECURITY.md
+# 차단 범위: 시크릿(gitleaks) + 의존성·Dockerfile(Trivy, 신규분만). gosec·govulncheck·Semgrep 은 경고.
+#   - gitleaks 는 job 이 직접 실패시킨다(--exit-code 1).
+#   - Trivy 는 job 이 아니라 SARIF 업로드로 생기는 `Trivy` 체크가 차단한다. 이 체크는 diff-aware 라
+#     PR 이 건드린 코드의 *새* 알림에만 실패하고, 기존 findings 는 .trivyignore.yaml 로 수용한다.
+#     (job 자체는 --exit-code 0 이라 항상 성공한다 — 차단은 required status check 쪽에 걸려 있다.)
+# first-party 액션은 commit SHA pin.
 # 대상 경로: .github/workflows/security-gate.yml
 # ------------------------------------------------------------
 
@@ -31,7 +34,7 @@ env:
   TRIVY_VERSION: "0.71.2"
 
 jobs:
-  # 시크릿 — 차단(Phase A). 저장소 전체(api+front) 파일시스템 스캔.
+  # 시크릿 — 차단. 저장소 전체(api+front) 파일시스템 스캔.
   secret-scan:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest
@@ -53,7 +56,7 @@ jobs:
           sarif_file: gitleaks.sarif
           category: gitleaks
 
-  # Go(api) SAST + 취약점 — 경고(Phase A). Go 모듈이 api/ 에 있으므로 거기서 실행.
+  # Go(api) SAST + 취약점 — 경고. Go 모듈이 api/ 에 있으므로 거기서 실행.
   go-security:
     name: Go SAST + vuln (api/, gosec·govulncheck)
     runs-on: ubuntu-latest
@@ -101,7 +104,8 @@ jobs:
           sarif_file: semgrep.sarif
           category: semgrep
 
-  # 의존성/Dockerfile — 경고. Go(api/go.mod) + npm(front/package-lock.json) + Dockerfile 2종.
+  # 의존성/Dockerfile — 차단(신규분). Go(api/go.mod) + npm(front/package-lock.json) + Dockerfile 2종.
+  # 아래 job 은 항상 성공하고, 차단은 SARIF 업로드로 생기는 `Trivy` 체크가 한다(파일 상단 주석 참고).
   trivy:
     name: Dependencies + Dockerfile (Trivy fs)
     runs-on: ubuntu-latest
@@ -112,7 +116,7 @@ jobs:
           curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" -o trivy.tgz
           tar -xzf trivy.tgz trivy
           sudo mv trivy /usr/local/bin/
-      - name: Trivy filesystem (의존성·Dockerfile·시크릿, 경고)
+      - name: Trivy filesystem (의존성·Dockerfile·시크릿)
         continue-on-error: true
         run: |
           # --ignorefile 을 줘야 .trivyignore.yaml 을 읽는다. trivy 는 기본으로 `.trivyignore`
