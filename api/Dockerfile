@@ -8,7 +8,9 @@ ENV CGO_ENABLED=0
 
 RUN mkdir -p /src/cm-butterfly
 WORKDIR /src/cm-butterfly
-ADD . .
+# ADD 는 로컬 파일 복사 외에 URL 다운로드·아카이브 자동 해제까지 하므로, 소스를 그대로
+# 넣기만 하면 되는 자리에는 COPY 를 쓴다(의도한 것만 일어난다).
+COPY . .
 
 RUN go mod download
 RUN go build -ldflags="-s -w" -o /src/cm-butterfly/butterfly ./cmd/app/main.go
