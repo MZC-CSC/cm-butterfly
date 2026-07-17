@@ -14,7 +14,15 @@ RUN go mod download
 RUN go build -ldflags="-s -w" -o /src/cm-butterfly/butterfly ./cmd/app/main.go
 
 ## Stage 2 - Application Deploy
-FROM debian:buster-slim AS deploy
+#
+# 정적 바이너리(CGO_ENABLED=0)라 런타임 베이스에 libc 의존이 없다. build 스테이지가 이미
+# alpine 이고, cb-tumblebug·cm-honeybee·cm-butterfly front 도 alpine 을 쓴다.
+# 직전까지 쓰던 debian:buster-slim 은 Debian 10 으로 EOL 이라 apt 저장소가 내려가
+# 패키지 설치조차 되지 않는 상태였다.
+FROM alpine:3.20 AS deploy
+
+# TLS 로 나가는 호출을 위해 루트 인증서가 필요하다(정적 바이너리는 이것까지 담지 않는다).
+RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
 
@@ -34,6 +42,13 @@ ENV POSTGRES_USER=${POSTGRES_USER:-butterflyadmin}
 ENV POSTGRES_DATABASE_HOST=${POSTGRES_DATABASE_HOST:-cm-butterfly-db}
 ENV POSTGRES_PORT=${POSTGRES_PORT:-5432}
 ENV POSTGRES_DB=${POSTGRES_DB:-butterfly-db}
+
+# root 로 돌지 않는다. 앱이 기동 시 conf/ 에 user.dat 를 만들므로 /app 소유권을 넘긴다.
+# 4000 번은 비특권 포트라 포트 관련 추가 설정은 필요 없다.
+RUN addgroup -S butterfly && adduser -S -G butterfly butterfly \
+ && chown -R butterfly:butterfly /app
+
+USER butterfly
 
 EXPOSE 4000
 
