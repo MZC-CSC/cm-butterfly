@@ -1,4 +1,11 @@
-FROM node:20-alpine AS build
+# Node 버전은 front/.nvmrc 가 단일 출처다. 아래 기본값은 .nvmrc 와 **같아야 하며**,
+# 다르면 이미지 빌드가 차단된다(cm-butterfly 의 Front E2E Gate, onecloud-ci 의 빌드 전 검사).
+# .nvmrc 를 올리면 이 기본값도 함께 올린다.
+#
+# 기본값을 두는 이유: 업스트림(cloud-barista) CD 와 일반 `docker build` 는 build-arg 를
+# 넘기지 않으므로, 기본값이 없으면 그쪽 빌드가 깨진다.
+ARG NODE_VERSION=20
+FROM node:${NODE_VERSION}-alpine AS build
 
 WORKDIR /app
 

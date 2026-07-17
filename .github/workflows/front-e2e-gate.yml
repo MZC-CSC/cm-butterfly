@@ -38,23 +38,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Node 버전을 여기에 적지 않고 front/Dockerfile 에서 읽는다. 선언처가 둘이면 보안 패치로
-      # 버전이 오를 때 한쪽만 바뀌어 반드시 어긋난다. Dockerfile 을 단일 출처로 두면 그것만
-      # 고쳐도 CI 가 따라온다 — api/ 쪽이 go-version-file: api/go.mod 로 하는 것과 같은 취지다.
-      - name: Resolve Node version from front/Dockerfile
-        id: node
+      # Node 버전 선언은 front/.nvmrc 하나다. Dockerfile 의 ARG 기본값은 그 사본일 뿐이라
+      # 둘이 벌어지면 여기서 막는다. 기본값을 없앨 수는 없다 — 업스트림 CD 와 일반 docker build
+      # 는 build-arg 를 넘기지 않으므로 기본값이 없으면 그쪽 빌드가 깨진다.
+      - name: Check the Dockerfile node version matches .nvmrc
         run: |
-          v=$(sed -n 's/^FROM node:\([0-9][0-9.]*\).*/\1/p' Dockerfile | head -1)
-          if [ -z "$v" ]; then
-            echo "::error::front/Dockerfile 에서 node 버전을 읽지 못했다. FROM 줄 형식이 바뀌었는지 확인한다."
+          want=$(tr -d ' \t\n\r' < .nvmrc)
+          got=$(sed -n 's/^ARG NODE_VERSION=\([0-9][0-9.]*\).*/\1/p' Dockerfile | head -1)
+
+          if [ -z "$want" ]; then
+            echo "::error file=front/.nvmrc::front/.nvmrc 가 비었다. 사용할 node 메이저 버전을 적는다 (예: 20)."
             exit 1
           fi
-          echo "resolved node version: $v (front/Dockerfile)"
-          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if [ -z "$got" ]; then
+            echo "::error file=front/Dockerfile::front/Dockerfile 에서 'ARG NODE_VERSION=<버전>' 을 찾지 못했다."
+            echo "::error::해결: FROM 앞에 'ARG NODE_VERSION=${want}' 를 두고 'FROM node:\${NODE_VERSION}-alpine' 으로 쓴다."
+            exit 1
+          fi
+          if [ "$want" != "$got" ]; then
+            echo "::error file=front/Dockerfile::node 버전이 어긋나 이미지 빌드를 막는다 — front/.nvmrc=${want} 인데 front/Dockerfile 의 ARG NODE_VERSION=${got} 이다."
+            echo "::error::왜 막나: .nvmrc 는 개발·CI 가 쓰는 버전이고, Dockerfile 기본값은 업스트림 CD 와 일반 docker build 가 쓰는 버전이다. 어긋나면 개발과 이미지가 서로 다른 node 로 돌아간다."
+            echo "::error::해결: front/Dockerfile 의 'ARG NODE_VERSION=${got}' 을 'ARG NODE_VERSION=${want}' 로 고쳐 .nvmrc 에 맞춘다. (버전을 올리려는 것이라면 .nvmrc 와 Dockerfile 을 같은 값으로 함께 올린다)"
+            exit 1
+          fi
+          echo "node version ok: ${want} (.nvmrc == Dockerfile ARG NODE_VERSION)"
 
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ steps.node.outputs.version }}
+          node-version-file: front/.nvmrc
           cache: npm
           cache-dependency-path: front/package-lock.json
 
