@@ -11,7 +11,10 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 
-RUN npm install --legacy-peer-deps --save-prod
+# lock 이 고정한 트리를 그대로 설치한다. npm install 은 lock 을 재해석·갱신할 수 있어
+# 이미지가 개발·CI 와 다른 패키지로 빌드될 수 있다 — lock 을 복사해 놓고 무시하는 셈이 된다.
+# devDependencies 도 함께 깔린다(아래 npm run build 의 vite 가 devDependency 다).
+RUN npm ci
 
 COPY . .
 
