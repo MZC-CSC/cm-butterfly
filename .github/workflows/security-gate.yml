@@ -115,7 +115,10 @@ jobs:
       - name: Trivy filesystem (의존성·Dockerfile·시크릿, 경고)
         continue-on-error: true
         run: |
-          trivy fs --scanners vuln,misconfig,secret --format sarif --output trivy-fs.sarif --exit-code 0 .
+          # --ignorefile 을 줘야 .trivyignore.yaml 을 읽는다. trivy 는 기본으로 `.trivyignore`
+          # (평문, ID만) 만 자동으로 찾는데, 그 형식은 규칙을 저장소 전체에서 꺼 버린다.
+          # YAML 형식이라야 paths 로 대상을 좁히고 수용 근거(statement)를 함께 남길 수 있다.
+          trivy fs --scanners vuln,misconfig,secret --ignorefile .trivyignore.yaml --format sarif --output trivy-fs.sarif --exit-code 0 .
       - name: Upload Trivy fs SARIF
         if: always() && hashFiles('trivy-fs.sarif') != ''
         uses: github/codeql-action/upload-sarif@dd903d2e4f5405488e5ef1422510ee31c8b32357 # v3

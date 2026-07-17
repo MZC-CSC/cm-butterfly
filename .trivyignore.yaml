@@ -1,0 +1,69 @@
+# trivy baseline — 근거를 남겨 수용한 항목만 적는다.
+# 신규 유입은 계속 잡히고, 여기 적힌 것만 예외 처리된다. 검토일 2026-07-17 (BAR-1519).
+#
+# 넣는 기준은 셋 중 하나다.
+#   (a) 오탐
+#   (b) 우리 설계상 따르지 않기로 한 권고
+#   (c) 상향으로는 닫을 수 없는 항목
+# 고칠 수 있는 것은 여기 넣지 않고 고친다 — root 실행(DS-0002)·이미지에 구워진
+# 비밀번호(DS-0031 POSTGRES_PASSWORD)·ADD 사용(DS-0005)은 예외로 넘기지 않고
+# 수정해서 닫았다.
+#
+# paths 로 대상을 좁힌다. ID 만 적으면 규칙이 저장소 전체에서 꺼져,
+# 나중에 다른 파일에 들어오는 진짜 문제까지 놓친다.
+
+misconfigurations:
+  # 우리 이미지는 healthcheck 도구를 담지 않는 것이 의도된 설계다. 실행은 cm-mayfly
+  # docker-compose 가 하고, compose 가 외부에서 주입한 mayfly 바이너리로 각 서비스를
+  # 검사한다(`mayfly rest get http://<svc>/readyz` — 14개 서비스 동일 방식).
+  #
+  # 게다가 compose 의 healthcheck 는 이미지의 HEALTHCHECK 를 덮어쓴다. 이미지에 넣어도
+  # 실사용에서는 쓰이지 않는다. 넣으려면 curl 같은 도구를 설치해야 하는데, curl 은
+  # healthcheck 용도엔 기능이 과하고 보안 패치가 잦아 나올 때마다 이미지를 다시 올려야
+  # 하고 용량도 는다. 런타임 이득 없이 CVE 표면만 늘리는 셈이라 받지 않는다.
+  - id: DS-0026
+    paths:
+      - "api/Dockerfile"
+      - "front/Dockerfile"
+    statement: "healthcheck 는 이미지가 아니라 compose 가 외부 주입한 mayfly 로 수행한다(compose 가 이미지 HEALTHCHECK 를 덮어쓴다). 이미지에 넣으려면 curl 설치가 필요해 CVE 표면·용량만 늘고 런타임 이득이 없다."
+
+  # Trivy 가 변수 *이름* 의 AUTH 만 보고 시크릿으로 추정하지만 실제 값은 파일 경로다.
+  #   USER_AUTH_DATA_PATH = conf/user.dat
+  #   USER_AUTH_CONF_PATH = conf/authsetting.yaml
+  #
+  # 같은 규칙이 잡았던 POSTGRES_PASSWORD 는 진짜였고, 그건 예외로 넘기지 않고 기본값을
+  # 제거해서 닫았다. 이 예외는 api/Dockerfile 로만 좁혔지만 그 파일 안에서는 규칙이 꺼지므로,
+  # 여기에 ENV 를 추가할 때는 시크릿이 섞이지 않는지 사람이 확인해야 한다.
+  - id: DS-0031
+    paths:
+      - "api/Dockerfile"
+    statement: "USER_AUTH_DATA_PATH·USER_AUTH_CONF_PATH 는 값이 conf/user.dat·conf/authsetting.yaml 경로다. 변수 이름의 AUTH 만 보고 시크릿으로 추정한 오탐."
+
+vulnerabilities:
+  # 우리는 이 패키지를 쓰지 않는다.
+  #   $ go mod why golang.org/x/crypto/openpgp
+  #   (main module does not need package golang.org/x/crypto/openpgp)
+  #
+  # go.mod 에 golang.org/x/crypto *모듈* 이 있다는 이유로 잡힌 것이고, 취약한 것은 그
+  # 모듈의 openpgp *하위 패키지* 뿐이다. Fixed Version 이 비어 있는 것도 "고칠 버전이
+  # 없다 = 쓰지 말라" 는 뜻이라 상향으로는 닫을 수 없다.
+  - id: GO-2026-5932
+    paths:
+      - "api/go.mod"
+    statement: "go mod why 로 openpgp 패키지 미사용 확인. x/crypto 모듈이 있다는 이유로 잡힌 것이며 Fixed Version 이 없어 상향으로 닫을 수 없다."
+
+  # 개별 상향으로 해결 가능한 것은 이미 전부 처리했다(npm audit 53 -> 19).
+  # 아래 3건은 프레임워크·라이브러리 마이그레이션이 선행돼야 닫힌다.
+  # 해소 경로(Vue 3 마이그레이션 / mirinae 갱신·대체)가 끝나면 이 항목들을 지운다.
+  - id: CVE-2026-41907
+    paths:
+      - "front/package-lock.json"
+    statement: "uuid 8.3.2 — @cloudforet-test/mirinae 가 uuid ^8.3.2 를 요구한다. 강제 override 하면 mirinae 내부 사용과 충돌해 UI 가 깨진다. mirinae 갱신·대체가 선행돼야 한다."
+  - id: CVE-2024-6783
+    paths:
+      - "front/package-lock.json"
+    statement: "vue-template-compiler 2.7.16 — 수정 버전이 3.0.0 으로 Vue 3 계열에만 존재한다. Vue 3 마이그레이션이 선행돼야 한다."
+  - id: CVE-2024-9506
+    paths:
+      - "front/package-lock.json"
+    statement: "vue 2.7.16 — 수정 버전이 3.0.0-alpha.0 으로 Vue 3 계열에만 존재한다. Vue 3 마이그레이션이 선행돼야 한다."
