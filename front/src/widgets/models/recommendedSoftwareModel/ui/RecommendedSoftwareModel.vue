@@ -81,26 +81,50 @@ onMounted(() => {
 });
 
 // Watch for source model changes and expand all
-watch(sourceSoftwareModelData, (newVal) => {
-  if (newVal) {
-    console.log('Source model data changed, expanding...');
-    setTimeout(() => {
-      sourceEditorRef.value?.expandAll();
-    }, 300);
-  }
-}, { immediate: true, deep: true });
+watch(
+  sourceSoftwareModelData,
+  newVal => {
+    if (newVal) {
+      console.log('Source model data changed, expanding...');
+      setTimeout(() => {
+        sourceEditorRef.value?.expandAll();
+      }, 300);
+    }
+  },
+  { immediate: true, deep: true },
+);
 
 // Watch for recommended model changes and expand all
-watch(recommendedModelData, (newVal) => {
-  if (newVal) {
-    console.log('Recommended model data changed, expanding...');
-    setTimeout(() => {
-      recommendedEditorRef.value?.expandAll();
-    }, 300);
-  }
-}, { immediate: true, deep: true });
+watch(
+  recommendedModelData,
+  newVal => {
+    if (newVal) {
+      console.log('Recommended model data changed, expanding...');
+      setTimeout(() => {
+        recommendedEditorRef.value?.expandAll();
+      }, 300);
+    }
+  },
+  { immediate: true, deep: true },
+);
 
-// Get-Migration-List API 호출 (실패 시 더미 데이터 사용)
+/**
+ * 실패 사유를 화면에 남긴다. 토스트는 5초 뒤 사라지는데, 사용자가 결과를 기다리는 자리는
+ * 오른쪽 결과 패널이다. 사유가 거기 남아 있지 않으면 "그냥 빈 화면"으로만 보인다.
+ */
+const loadErrorReason = ref<string | null>(null);
+
+/**
+ * 백엔드가 준 실패 사유를 꺼낸다. 두 가지 형태로 들어온다:
+ *  - HTTP 오류 → execute()가 `{ error, errorMsg, status }`(ref)로 reject
+ *  - 본문에 에러 상태가 실려 온 경우 → 아래에서 Error로 던진 것
+ */
+function toFailureReason(e: any): string | null {
+  const fromRequest = e?.errorMsg?.value ?? e?.errorMsg;
+  const reason = fromRequest ?? e?.message ?? null;
+  return typeof reason === 'string' && reason.trim() ? reason.trim() : null;
+}
+
 async function handleGetMigrationList() {
   if (!sourceSoftwareModelData.value) {
     console.warn('Source software model data is not available');
@@ -108,35 +132,39 @@ async function handleGetMigrationList() {
   }
 
   isLoading.value = true;
+  loadErrorReason.value = null;
 
   try {
-    // 먼저 실제 API 호출 시도
-    const response = await recommendSoftwareModel.getSoftwareMigrationListData(sourceSoftwareModelData.value);
+    const response = await recommendSoftwareModel.getSoftwareMigrationListData(
+      sourceSoftwareModelData.value,
+    );
 
     // 응답의 status.code를 확인하여 에러 여부 판단
     const statusCode = response?.data?.status?.code;
     if (statusCode && statusCode >= 400) {
-      console.warn(
-        'API returned error status, using dummy data:',
-        response.data.status,
-      );
       throw new Error(
-        `API Error: ${statusCode} - ${response.data.status?.message || 'Unknown error'}`,
+        response.data.status?.message ||
+          `The server returned status ${statusCode}.`,
       );
     }
 
     // API 응답 데이터를 recommendedModelData에 저장
-    recommendedModelData.value = recommendSoftwareModel.tableModel.tableState.items[0]?.originalData || null;
-
-    console.log('API migration data loaded:', recommendedModelData.value);
+    recommendedModelData.value =
+      recommendSoftwareModel.tableModel.tableState.items[0]?.originalData ||
+      null;
   } catch (error) {
     // Let a failure look like a failure. This used to fall back to dummy recommendations, so a dead
     // cm-grasshopper still rendered a plausible-looking result and the breakage went unnoticed.
+    //
+    // 사유까지 함께 보여준다 — cm-grasshopper는 소스 그룹·커넥션을 실행 시점에 다시 조회하므로,
+    // 수집 당시엔 있었으나 그 뒤 지워진 커넥션을 참조하는 소스 모델은 "not found"로 정당하게 실패한다.
+    // 그때 사유가 없으면 사용자는 무엇이 없어서 실패했는지 알 길이 없다.
     console.error('Failed to load software migration list:', error);
     recommendedModelData.value = null;
+    loadErrorReason.value = toFailureReason(error);
     showErrorMessage(
-      'Error',
       'Failed to load the software migration recommendations.',
+      loadErrorReason.value ?? 'The server did not say why.',
     );
   } finally {
     isLoading.value = false;
@@ -168,7 +196,8 @@ function handleCreateTargetModel(e) {
   saveTargetModelModal.context.description = e.description;
 
   // Source Software Model에서 isInitUserModel 값 가져오기
-  const isInitUserModel = sourceSoftwareModelData.value?.isInitUserModel ?? false;
+  const isInitUserModel =
+    sourceSoftwareModelData.value?.isInitUserModel ?? false;
   const userId = authStore.id; // 로그인 유저의 ID 사용
   const userModelVersion = sourceModel.value?.userModelVersion ?? 'v0.1';
 
@@ -253,7 +282,31 @@ function handleCreateTargetModel(e) {
           <!-- 오른쪽: Recommended Model 결과 JSON Viewer -->
           <p-pane-layout class="json-editor-pane">
             <p class="editor-title">Migration Recommendations</p>
-            <div class="editor-wrapper">
+            <!--
+              실패하면 빈 뷰어 대신 사유를 이 자리에 남긴다. 사용자가 결과를 기다리는 자리가
+              여기이고, 토스트는 5초 뒤 사라져 "왜 비었는지"가 남지 않는다.
+            -->
+            <div
+              v-if="loadErrorReason"
+              class="recommend-error"
+              data-testid="sw-recommend-error"
+            >
+              <p class="recommend-error__title">
+                Could not load the migration recommendations.
+              </p>
+              <p
+                class="recommend-error__reason"
+                data-testid="sw-recommend-error-reason"
+              >
+                {{ loadErrorReason }}
+              </p>
+              <p class="recommend-error__hint">
+                The recommendations are built from the source group and
+                connection this model was collected from. If either no longer
+                exists, collect the source again and retry.
+              </p>
+            </div>
+            <div v-else class="editor-wrapper">
               <EnhancedJsonEditor
                 ref="recommendedEditorRef"
                 :model-value="recommendedModelString"
@@ -329,7 +382,7 @@ function handleCreateTargetModel(e) {
     font-size: 0.75rem;
     color: #6b7280;
     font-weight: 700;
-    background-color: #F7F7F7;
+    background-color: #f7f7f7;
     padding: 0.25rem 0.75rem;
     border-radius: 6px 0;
   }
@@ -340,6 +393,41 @@ function handleCreateTargetModel(e) {
     width: 100%;
     min-width: 280px;
     min-height: 400px;
+  }
+
+  /* 실패 사유 — 결과 뷰어와 같은 자리를 차지해 "빈 화면"이 되지 않게 한다 */
+  .recommend-error {
+    background-color: white;
+    padding: 1.25rem;
+    width: 100%;
+    min-width: 280px;
+    min-height: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+
+  .recommend-error__title {
+    color: #b93c3c;
+    font-weight: 700;
+    font-size: 0.875rem;
+  }
+
+  /* 서버가 준 문구는 그대로 보여준다 — 길거나 식별자가 섞여 있어도 잘리지 않게 */
+  .recommend-error__reason {
+    color: #3b3b3b;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    word-break: break-word;
+    background-color: #fdf3f3;
+    border-radius: 0.25rem;
+    padding: 0.625rem 0.75rem;
+  }
+
+  .recommend-error__hint {
+    color: #6b6e78;
+    font-size: 0.75rem;
+    line-height: 1.5;
   }
 }
 
