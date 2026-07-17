@@ -41,6 +41,7 @@ api/conf/serverinfo
 
 ## env
 front/.env
+api/.env
 
 ## Logs
 front/logs

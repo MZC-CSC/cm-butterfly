@@ -15,14 +15,15 @@
     - [Recommend Envionment (Test Finished)](#recommend-envionment-test-finished)
   - [How to Run](#how-to-run)
     - [1. Project clone from remote git repository](#1-project-clone-from-remote-git-repository)
-    - [2. CM-Butterfly needs to run with cloud-migrator subsystems.](#2-cm-butterfly-needs-to-run-with-cloud-migrator-subsystems)
-    - [3.CSP User credential registration ⭐⭐](#3csp-user-credential-registration-)
-    - [4. Subsystem's api host and endpoint configuration](#4-subsystems-api-host-and-endpoint-configuration)
-    - [5. Self auth settings (Optional)](#5-self-auth-settings-optional)
-    - [6. Configure Nginx for Backend API and Access Control](#6-configure-nginx-for-backend-api-and-access-control)
+    - [2. Create the api environment file ⭐](#2-create-the-api-environment-file)
+    - [3. CM-Butterfly needs to run with cloud-migrator subsystems.](#3-cm-butterfly-needs-to-run-with-cloud-migrator-subsystems)
+    - [4. CSP User credential registration ⭐⭐](#4-csp-user-credential-registration)
+    - [5. Subsystem's api host and endpoint configuration](#5-subsystems-api-host-and-endpoint-configuration)
+    - [6. Self auth settings (Optional)](#6-self-auth-settings-optional)
+    - [7. Configure Nginx for Backend API and Access Control](#7-configure-nginx-for-backend-api-and-access-control)
       - [Update backend url nginx reverse proxy configuration](#update-backend-url-nginx-reverse-proxy-configuration)
       - [Restrict aceess based on the `Origin` header](#restrict-aceess-based-on-the-origin-header)
-    - [7. Explore Awesome cm-butterfly](#7-explore-awesome-cm-butterfly)
+    - [8. Explore Awesome cm-butterfly](#8-explore-awesome-cm-butterfly)
 ***
 
 # cm-butterfly
@@ -49,7 +50,17 @@ or if you need specific version with minimize the size
 git clone --depth 1 --branch v0.3.0 https://github.com/cloud-barista/cm-butterfly.git
 ```
 
-### 2. CM-Butterfly needs to run with cloud-migrator subsystems.
+### 2. Create the api environment file ⭐
+
+The api reads its database connection and file paths from environment variables. `api/.env` is not tracked by git, so create it from the sample before running anything that loads it (for example `api/docker-compose.dev.yaml`, which reads it through `env_file`).
+
+```bash
+cp api/.env.sample api/.env
+```
+
+The sample ships development defaults, so it runs as-is for local development. **Change them for any real use** — `POSTGRES_PASSWORD` in particular. If you run the api through cm-mayfly, the compose file supplies these values and you do not need `api/.env`.
+
+### 3. CM-Butterfly needs to run with cloud-migrator subsystems.
 cm-butterfly requires execution on each server because it uses the open APIs of several subsystems that make up the cloud migrator project.
 
 To execute each subsystem, you can clone it from the repository of each subsystem.
@@ -74,7 +85,7 @@ If you want to check the detailed information about each subsystem, please visit
 
 
 
-### 3.CSP User credential registration ⭐⭐
+### 4. CSP User credential registration ⭐⭐
 > This step is very important, so I've marked it with stars. 
 
 In cm-butterfly, it is necessary to register user credentials for each CSP. Registered user's CSP credentials are used for tasks such as provisioning virtual machines in CSP's remote environment while executing workflow, performnace test preperation, or for retrieving price or cost information from CSP.
@@ -86,7 +97,7 @@ Follow the guide for initializing CB-Tumblebug to configure multi-cloud informat
 > 👉 [Initialize CB-Tumblebug to configure Multi-Cloud info](https://github.com/cloud-barista/cb-tumblebug?tab=readme-ov-file#3-initialize-cb-tumblebug-to-configure-multi-cloud-info)
 
 
-### 4. Subsystem's api host and endpoint configuration
+### 5. Subsystem's api host and endpoint configuration
 
 ⭐ cm-butterfly reads the `cm-butterfly/api/conf/api.yaml` file to configure the host of the subsystem called by cm-butterfly and the API endpoint of each subsystem.
 
@@ -128,7 +139,7 @@ Modify the value of services.{subsystem-name}.baseurl. The host currently in use
 ```
  
 
-### 5. Self auth settings (Optional)
+### 6. Self auth settings (Optional)
 By default, cm-butterfly supports one user with migration privileges. (The featrue that add and delete users are not currently provided.)
 
 When the application starts, it reads `./api/conf/authsetting.yaml`, creates `user.dat` in the same conf folder, and then reads the dat file to process user login.
@@ -152,7 +163,7 @@ sed -i 's/password: cmiguserPassword!/password: what-ever-you-want-password/' ./
 
 
 
-### 6. Configure Nginx for Backend API and Access Control
+### 7. Configure Nginx for Backend API and Access Control
 #### Update backend url nginx reverse proxy configuration
 The frontend of cm-butterfly includes a web server, `nginx`. It uses nginx's reverse proxy to make http calls to the backend API.
 
@@ -188,6 +199,6 @@ To enable this functionaliy, simply remove the `#` symbols.
 ---
 
 
-### 7. Explore Awesome cm-butterfly
+### 8. Explore Awesome cm-butterfly
 If you run it through docker compose, you can see the login page by accessing `http://localhost/auth/login`. The user credentials are registered with the default ID and password, and if you log in, you can use cm-butterfly, which supports cloud migration.
 
