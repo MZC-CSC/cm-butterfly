@@ -1,0 +1,88 @@
+# ------------------------------------------------------------
+# Front E2E Gate — 프론트 의존성 정합과 e2e 생성이 깨진 채 머지되는 것을 막는다.
+#
+# 왜 필요한가:
+#   - package-lock.json 이 package.json 과 어긋나면 npm ci 가 거부해 재현 가능한 설치가
+#     불가능해진다. 그동안 CI 가 npm install 로 우회할 수 있어 이 파손이 드러나지 않았다.
+#   - bddgen 은 .feature 를 spec 으로 생성하는 단계다. step 시그니처 하나만 잘못돼도
+#     생성물이 0건이 되어 e2e 전 계층이 조용히 멈춘다. 실제로 그렇게 머지된 적이 있다.
+#
+# 브라우저도 백엔드도 띄우지 않으므로 수 초면 끝난다. 실제 e2e 실행(실 서버·소스 VM 필요)은
+# 여기서 하지 않는다 — 이 게이트는 "설치와 생성이 되는가"만 본다.
+# ------------------------------------------------------------
+
+name: Front E2E Gate
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - "front/**"
+      - ".github/workflows/front-e2e-gate.yml"
+  push:
+    branches: [develop, main]
+    paths:
+      - "front/**"
+      - ".github/workflows/front-e2e-gate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  front-e2e-gate:
+    name: Front deps + e2e generation
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: ./front
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 버전 선언은 front/.nvmrc 하나다. Dockerfile 의 ARG 기본값은 그 사본일 뿐이라
+      # 둘이 벌어지면 여기서 막는다. 기본값을 없앨 수는 없다 — 업스트림 CD 와 일반 docker build
+      # 는 build-arg 를 넘기지 않으므로 기본값이 없으면 그쪽 빌드가 깨진다.
+      - name: Check the Dockerfile node version matches .nvmrc
+        run: |
+          want=$(tr -d ' \t\n\r' < .nvmrc)
+          got=$(sed -n 's/^ARG NODE_VERSION=\([0-9][0-9.]*\).*/\1/p' Dockerfile | head -1)
+
+          if [ -z "$want" ]; then
+            echo "::error file=front/.nvmrc::front/.nvmrc 가 비었다. 사용할 node 메이저 버전을 적는다 (예: 20)."
+            exit 1
+          fi
+          if [ -z "$got" ]; then
+            echo "::error file=front/Dockerfile::front/Dockerfile 에서 'ARG NODE_VERSION=<버전>' 을 찾지 못했다."
+            echo "::error::해결: FROM 앞에 'ARG NODE_VERSION=${want}' 를 두고 'FROM node:\${NODE_VERSION}-alpine' 으로 쓴다."
+            exit 1
+          fi
+          if [ "$want" != "$got" ]; then
+            echo "::error file=front/Dockerfile::node 버전이 어긋나 이미지 빌드를 막는다 — front/.nvmrc=${want} 인데 front/Dockerfile 의 ARG NODE_VERSION=${got} 이다."
+            echo "::error::왜 막나: .nvmrc 는 개발·CI 가 쓰는 버전이고, Dockerfile 기본값은 업스트림 CD 와 일반 docker build 가 쓰는 버전이다. 어긋나면 개발과 이미지가 서로 다른 node 로 돌아간다."
+            echo "::error::해결: front/Dockerfile 의 'ARG NODE_VERSION=${got}' 을 'ARG NODE_VERSION=${want}' 로 고쳐 .nvmrc 에 맞춘다. (버전을 올리려는 것이라면 .nvmrc 와 Dockerfile 을 같은 값으로 함께 올린다)"
+            exit 1
+          fi
+          echo "node version ok: ${want} (.nvmrc == Dockerfile ARG NODE_VERSION)"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: front/.nvmrc
+          cache: npm
+          cache-dependency-path: front/package-lock.json
+
+      # lock 과 package.json 의 정합을 검사한다. 어긋나면 여기서 실패한다.
+      - name: Install with npm ci (lockfile integrity)
+        run: npm ci
+
+      # .feature -> spec 생성. step 시그니처·feature 문법·미정의 step 이 여기서 걸린다.
+      - name: Generate e2e specs (bddgen)
+        run: npx bddgen --config tests/e2e/playwright.config.ts
+
+      # 생성물이 0건이면 grep 조건 문제든 무엇이든 e2e 가 사실상 멈춘 것이다.
+      - name: Fail if no spec was generated
+        run: |
+          count=$(find tests/e2e/.features-gen -name '*.spec.js' | wc -l)
+          echo "generated specs: $count"
+          if [ "$count" -eq 0 ]; then
+            echo "::error::bddgen produced no specs — e2e would report 'No tests found'"
+            exit 1
+          fi

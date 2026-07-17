@@ -98,9 +98,12 @@ When('저비용 타깃 인프라를 추천받으면', async ({ page }) => {
 });
 
 /** "추천 스펙이 {string} 급 이하이다" — 최저가 후보 스펙이 maxClass 급 이하인지 검증 */
+// 첫 인자는 fixture 객체 자리다. 이 step 은 fixture 를 쓰지 않지만, playwright-bdd 가
+// 첫 인자를 파싱해 주입할 fixture 를 정하므로 빈 구조분해라도 반드시 있어야 한다.
 Then(
   '추천 스펙이 {string} 급 이하이다',
-  async (_fixtures, maxClass: string) => {
+  // eslint-disable-next-line no-empty-pattern
+  async ({}, maxClass: string) => {
     expect(
       isSpecWithinClass(lastRecommendedSpec, maxClass),
       `추천 스펙 "${lastRecommendedSpec}" 이(가) "${maxClass}" 급 이하가 아님`,
