@@ -23,7 +23,12 @@ export type MockContext = {
   operationId: string;
 };
 
-export type MockHandler = (ctx: MockContext) => unknown;
+/**
+ * 응답 핸들러. **Promise 를 돌려줘도 된다** — 오래 걸리는 API 를 흉내내려면 필요하다.
+ * (예: 삭제는 실제로 완료까지 응답을 붙들고 있어서, 즉시 응답하면 화면이 "진행 중" 상태를
+ *  거치지 않고 곧장 완료로 넘어가 버린다.)
+ */
+export type MockHandler = (ctx: MockContext) => unknown | Promise<unknown>;
 
 /** 기록된 outbound 요청(계약 검증용) */
 export type RecordedCall = { operationId: string; url: string; body: any };
@@ -70,7 +75,7 @@ export class ApiMock {
         // 매칭 안 된 opId는 실제 백엔드로 통과(로그인·메뉴 등 로컬 api가 처리)
         return route.fallback();
       }
-      const result = handler({ body, request: req, operationId });
+      const result = await handler({ body, request: req, operationId });
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
