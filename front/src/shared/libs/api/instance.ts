@@ -6,6 +6,7 @@ import axios, {
 import { McmpRouter } from '@/app/providers/router';
 import { AUTH_ROUTE } from '@/pages/auth/auth.route';
 import JwtTokenProvider from '@/shared/libs/token';
+import { clearSession } from '@/shared/libs/auth/session';
 
 const url = import.meta.env.VITE_BACKEND_ENDPOINT;
 const createInstance = () => {
@@ -52,6 +53,8 @@ axiosInstance.interceptors.response.use(
       const { refresh_token } = jwtTokenProvider.getTokens();
 
       if (!refresh_token) {
+        // 되살릴 방법이 없는 세션이다. 흔적을 지우지 않으면 라우터 가드가 살아 있는 것으로 본다.
+        clearSession();
         McmpRouter.getRouter()
           .replace({ name: AUTH_ROUTE.LOGIN._NAME })
           .catch(() => {});
@@ -79,7 +82,8 @@ axiosInstance.interceptors.response.use(
         }
       }
     } else if (error.response?.status === 403) {
-      alert('User Session Expired.\n Pleas login again');
+      clearSession();
+      alert('User Session Expired.\n Please login again');
       McmpRouter.getRouter()
         .replace({ name: AUTH_ROUTE.LOGIN._NAME })
         .catch(() => {});

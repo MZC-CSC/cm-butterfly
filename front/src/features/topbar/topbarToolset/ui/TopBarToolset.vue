@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { PTooltip, PI } from '@cloudforet-test/mirinae';
+import { PTooltip } from '@cloudforet-test/mirinae';
 import TopBarNotifications from '@/features/topbar/topbarNotifications/ui/TopBarNotifications.vue';
-import { McmpRouter } from '@/app/providers/router';
+import { logout } from '@/features/auth/model/useLogout';
 
 const props = withDefaults(
   defineProps<{
@@ -29,19 +29,46 @@ const updateOpenedMenu = (menu: string, visible: boolean) => {
   else hideMenu();
 };
 
-const gotoLoginPage = () => {
-  McmpRouter.getRouter().push({ name: 'login' });
+const onLogoutClick = () => {
+  void logout();
 };
 </script>
 
 <template>
   <div class="top-bar-toolset">
-    <div class="top-bar-icons-wrapper" @click="gotoLoginPage">
+    <div class="top-bar-icons-wrapper">
       <top-bar-notifications
         :visible="props.openedMenu === 'notifications'"
         @update:visible="updateOpenedMenu('notifications', $event)"
       />
-      <p-i name="ic_gnb_bell" />
+      <!--
+        종 아이콘 자리에 로그아웃을 숨겨 두고 있었다. 하는 일과 보이는 모양을 맞춘다.
+        미리내에는 로그아웃 아이콘이 없어 svg 를 직접 넣는다 — 미리내를 걷어낼 때도 그대로 남는다.
+        클릭은 아이콘 자신이 받는다. 예전처럼 감싼 div 가 받으면 알림을 눌러도 로그아웃될 수 있다.
+      -->
+      <button
+        type="button"
+        class="logout-button"
+        data-testid="topbar-logout"
+        title="Logout"
+        aria-label="Logout"
+        @click="onLogoutClick"
+      >
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <polyline points="16 17 21 12 16 7" />
+          <line x1="21" y1="12" x2="9" y2="12" />
+        </svg>
+      </button>
     </div>
     <p-tooltip position="bottom">
       <!-- TODO: TopBar Admin toggle button -->
@@ -56,6 +83,16 @@ const gotoLoginPage = () => {
 
   .top-bar-icons-wrapper {
     @apply flex items-center gap-2;
+
+    .logout-button {
+      @apply flex items-center justify-center;
+      color: inherit;
+      cursor: pointer;
+
+      &:hover {
+        @apply text-blue-600;
+      }
+    }
   }
 }
 </style>

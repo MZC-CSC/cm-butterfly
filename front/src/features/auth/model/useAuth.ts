@@ -2,6 +2,7 @@ import { IUserLoginResponse } from '@/entities/user/model/types';
 import { useAuthStore } from '@/shared/libs/store/auth';
 import JwtTokenProvider from '@/shared/libs/token';
 import LocalStorageConnector from '@/shared/libs/access-localstorage/localStorageConnector';
+import { startSessionExpiryWatch } from '@/features/auth/model/useLogout';
 
 const LOGIN_AUTH = 'LOGIN_AUTH';
 
@@ -29,8 +30,9 @@ export function useAuth() {
       expires_in: props.expires_in,
     };
     localStorageConnector.setItem(userData);
-    console.log(props);
     authStore.onLogin(props);
+    // 만료를 화면에 머문 채로도 알아채도록 감시를 건다.
+    startSessionExpiryWatch();
   }
 
   function getUser(): Omit<

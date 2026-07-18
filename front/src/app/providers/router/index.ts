@@ -9,6 +9,7 @@ import { cloudResourcesRoutes } from '@/app/providers/router/routes/cloudResourc
 import { MainLayout } from '@/app/Layouts';
 import { Route } from 'vue-router';
 import { AUTH_ROUTE } from '@/pages/auth/auth.route';
+import { isSessionAlive } from '@/shared/libs/auth/session';
 import { ROLE_TYPE } from '@/shared/libs/accessControl/pageAccessHelper/constant';
 import { RoleType } from '@/shared/libs/accessControl/pageAccessHelper/types';
 import { tempRoutes } from '@/app/providers/router/routes/temp';
@@ -27,6 +28,10 @@ export class McmpRouter {
     {
       path: '/main',
       component: MainLayout,
+      // 로그인 없이는 어떤 화면도 열리지 않아야 한다. 하위 라우트마다 붙이지 않고 여기에 한 번
+      // 붙이는 것으로 충분하다 — 가드는 `to.matched` 로 부모까지 훑기 때문이다.
+      // 새 화면을 추가할 때 표시를 빠뜨려 구멍이 생기는 일도 이 방식이면 없다.
+      meta: { requiresAuth: true },
       children: [
         ...sourceComputingRoutes,
         ...modelRoutes,
@@ -40,6 +45,7 @@ export class McmpRouter {
     {
       path: '/test',
       component: MainLayout,
+      meta: { requiresAuth: true },
     },
     { path: '/:pathMatch(.*)*', name: 'NotFound', component: NotFound },
   ];
@@ -62,8 +68,8 @@ export class McmpRouter {
         const requiresAuth = to.matched.some(
           record => record.meta?.requiresAuth,
         );
-        // const isAuthenticated = useAuthenticationStore().login;
-        const isAuthenticated = true; // temporary value
+        // 판정은 토큰으로 한다. 스토어는 새로고침을 넘기지 못해 멀쩡한 사용자를 쫓아낸다.
+        const isAuthenticated = isSessionAlive();
 
         // TODO: 인증된 유저의 role 목록. (우선 static data)
         const userRoles: RoleType[] = Object.values(ROLE_TYPE); // temporary value
@@ -90,18 +96,14 @@ export class McmpRouter {
         //     next();
         //   }
 
-        // 1. 인증되지 않은 사용자가 접근하려 할 때 ()
+        // 인증이 필요한 화면인데 로그인 상태가 아니면 로그인 화면으로 보낸다.
+        // 역할(role)별 접근 제어는 아직 없다 — 로그인만 확인한다.
         if (requiresAuth && !isAuthenticated) {
           next({ name: AUTH_ROUTE.LOGIN._NAME });
           return;
-          // 2-2. 접근 불가능한 role인 경우 next(false)로 막기 - option: forbidden page로 이동
-          // && !to.meta?.role.includes(userRole)
-        } else if (requiresAuth) {
-          next(false);
-          alert('권한이 없습니다.');
-        } else {
-          next();
         }
+
+        next();
       });
 
       // getMinimalPageAccessPermissionList(userRole).forEach(
