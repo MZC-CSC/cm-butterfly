@@ -144,7 +144,13 @@ export function useWorkflowToolModel() {
      * 같은 그룹 이름이 연달아 나오면 TaskGroup 상자 하나로 묶는다 — 그룹은 이름표일
      * 뿐이라 실행에는 영향이 없고, 보기 좋으라고 저장돼 있던 묶음을 되살리는 것이다.
      */
-    const materialize = (items: ITopologyItem[]): Step[] => {
+    const materialize = (
+      items: ITopologyItem[],
+      // 갈래를 그릴 때 그 갈래를 감싼 병렬 상자의 이름. 갈래 안 task 가 같은 그룹에
+      // 속해 있으면 상자를 또 두르지 않는다 — 같은 이름의 상자가 겹쳐 보일 뿐이고,
+      // 저장할 때 어차피 병렬 상자 이름으로 묶이므로 선도 달라지지 않는다.
+      enclosingGroupName: string | null = null,
+    ): Step[] => {
       const out: Step[] = [];
       let openGroup: Step | null = null;
       const closeGroup = () => {
@@ -163,7 +169,7 @@ export function useWorkflowToolModel() {
           });
 
           parallel.sequence = item.branches.map((branch, index) => {
-            const inner = materialize(branch);
+            const inner = materialize(branch, boxName);
             // 갈래에 하나만 있으면 그대로 놓는다. 여러 개면 한 줄로 이어 보이도록
             // 상자에 담는다 — 상자는 보기 좋으라고 두는 것이고 실행에는 영향이 없다.
             if (inner.length === 1) return inner[0];
@@ -181,7 +187,7 @@ export function useWorkflowToolModel() {
           return;
         }
 
-        if (!item.groupName) {
+        if (!item.groupName || item.groupName === enclosingGroupName) {
           closeGroup();
           out.push(toStep(item.task));
           return;

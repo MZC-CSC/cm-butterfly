@@ -109,14 +109,17 @@ export function useSequentialDesignerModel(refs: any) {
         if (step.componentType === 'task') {
           return String(step.name ?? '').trim().length > 0;
         }
-        const inner = step.sequence ?? [];
-        // 빈 상자는 저장되지 않는다
-        if (!inner.length) return false;
-        // 병렬 상자 안에는 상자를 넣을 수 없다 — 저장 형식에서 그룹은 중첩되지 않는다
-        if (step.componentType === 'launchPad') {
-          return inner.every((child: any) => child.componentType === 'task');
-        }
-        return true;
+        // 상자 안에 (몇 겹이든) task 가 하나도 없으면 저장되지 않는다.
+        // 상자를 겹쳐 놓는 것 자체는 막지 않는다 — 저장되는 것은 선뿐이라
+        // 겹친 모양에서 선만 뽑아내면 되기 때문이다.
+        const countTasks = (node: any): number =>
+          node.componentType === 'task'
+            ? 1
+            : (node.sequence ?? []).reduce(
+                (sum: number, child: any) => sum + countTasks(child),
+                0,
+              );
+        return countTasks(step) > 0;
       },
       // 전체를 두고 보는 검사 — 이름은 워크플로우 안에서 하나여야 한다
       root: (currentDefinition: any) => {
