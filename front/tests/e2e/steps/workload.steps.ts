@@ -94,6 +94,55 @@ Then(
   },
 );
 
+// ── BAR-1444 비동기 삭제 흐름 ──────────────────────────────────────────────
+
+/** "\"e2e-del-infra\" 인프라를 삭제하면 삭제 처리 중 화면이 뜬다" — 선택→모달→confirm→progress 확인 */
+When(
+  '{string} 인프라를 삭제하면 삭제 처리 중 화면이 뜬다',
+  async ({ page }, infraName: string) => {
+    const wl = new WorkloadPage(page);
+    await wl.selectMci(infraName);
+    await wl.openDeleteModal();
+    await wl.confirmDelete(infraName, 'normal');
+    await wl.expectDeleteInProgress();
+  },
+);
+
+/** "\"e2e-del-infra\" 인프라가 삭제되어 목록에서 사라진다" — 완료까지 목록을 새로고침하며 부재 확인(전 페이지) */
+Then(
+  '{string} 인프라가 삭제되어 목록에서 사라진다',
+  async ({ page }, infraName: string) => {
+    await new WorkloadPage(page).expectInfraGone(infraName);
+  },
+);
+
+/** "삭제 처리 중 모달을 닫는다" — progress 단계 [닫기]. 목록으로 돌아가 삭제 상태 컬럼을 본다. */
+When('삭제 처리 중 모달을 닫는다', async ({ page }) => {
+  await new WorkloadPage(page).closeDeleteModal();
+});
+
+/** "목록에서 \"e2e-dup-infra\" 의 삭제 상태가 \"진행 중\" 으로 보인다" */
+Then(
+  '목록에서 {string} 의 삭제 상태가 {string} 으로 보인다',
+  async ({ page }, _infraName: string, status: string) => {
+    const wl = new WorkloadPage(page);
+    await wl.gotoMci();
+    await wl.expectMciListLoaded();
+    await wl.expectRowDeleteStatus(status as '진행 중' | '에러');
+  },
+);
+
+/** "\"e2e-dup-infra\" 인프라를 다시 삭제하려 하면 이미 처리 중 안내가 나온다" — 중복 삭제 방어 */
+When(
+  '{string} 인프라를 다시 삭제하려 하면 이미 처리 중 안내가 나온다',
+  async ({ page }, infraName: string) => {
+    const wl = new WorkloadPage(page);
+    await wl.selectMci(infraName);
+    await wl.triggerDeleteMenu();
+    await wl.expectDeleteAlreadyInProgress();
+  },
+);
+
 // ─────────────────────────────────────────────────────────────
 // 부하테스트 — Runloadtest / Getlastloadtest* (@costly)
 // ─────────────────────────────────────────────────────────────

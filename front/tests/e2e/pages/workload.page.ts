@@ -306,6 +306,26 @@ export class WorkloadPage {
   }
 
   /**
+   * 액션 드롭다운 → Delete 로 모달을 열되, confirm 입력칸을 기다리지 않는다.
+   * 이미 삭제가 진행 중인 대상이면 모달이 confirm 이 아니라 progress 단계로 바로 열리기 때문이다.
+   */
+  async triggerDeleteMenu(): Promise<void> {
+    await this.actionDropdown.click();
+    await this.deleteMenuItem.click();
+  }
+
+  /**
+   * "이미 처리 중" — 진행 중인 삭제 대상을 다시 삭제하려 하면 모달이 새로 시작하지 않고
+   * progress 단계로 열리며 안내 배너를 보인다.
+   */
+  async expectDeleteAlreadyInProgress(): Promise<void> {
+    await expect(this.deleteProgress).toBeVisible({ timeout: 15_000 });
+    await expect(
+      this.page.getByText('이미 처리 중인 삭제가 있습니다').first(),
+    ).toBeVisible({ timeout: 10_000 });
+  }
+
+  /**
    * 목록을 다시 방문해 인프라가 *실제로* 사라졌는지 확인한다.
    * 목록은 자동 갱신되지 않으므로 새로고침하며 본다. 이게 삭제의 진짜 결과다.
    *
