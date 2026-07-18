@@ -85,6 +85,10 @@ func TestParseCSVRejectsHeaderOnly(t *testing.T) {
 	if !isFileProblem(err) {
 		t.Errorf("error = %T, want a user-fixable file problem", err)
 	}
+	// The message must tell the user what to do, not just what is wrong.
+	if !strings.Contains(err.Error(), "one row per server") {
+		t.Errorf("message = %q, want guidance on how to fix it", err.Error())
+	}
 }
 
 func TestParseCSVReportsUnclosedQuote(t *testing.T) {

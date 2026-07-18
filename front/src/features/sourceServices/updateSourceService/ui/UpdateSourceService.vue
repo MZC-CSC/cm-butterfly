@@ -107,6 +107,9 @@ interface PreviewRow {
 const previewRows = ref<PreviewRow[]>([]);
 const previewFileErrors = ref<string[]>([]);
 const importedFileName = ref<string>('');
+// 파일 자체의 문제(데이터 없음·형식 미지원·손상 등). 사용자가 파일을 고쳐
+// 해결하는 내용이라 팝업이 아니라 임포트 영역 안에 표시한다.
+const importFileProblem = ref<string>('');
 const isParsing = ref<boolean>(false);
 
 const hasPreview = computed(() => previewRows.value.length > 0);
@@ -123,6 +126,7 @@ const isPreviewValid = computed(
 const clearPreview = () => {
   previewRows.value = [];
   previewFileErrors.value = [];
+  importFileProblem.value = '';
   importedFileName.value = '';
   sourceConnectionStore.editConnections = [];
 };
@@ -215,10 +219,9 @@ const handleFileChange = async (event: Event) => {
     // 파일 자체의 문제는 정상 응답에 실패 상태로 담겨 온다. 사용자가 고칠 수
     // 있는 내용이므로 그대로 보여준다.
     if (data?.status?.code !== 200) {
-      showErrorMessage(
-        'Import Failed',
-        data?.status?.message || 'The file could not be read.',
-      );
+      importedFileName.value = file.name;
+      importFileProblem.value =
+        data?.status?.message || 'The file could not be read.';
       return;
     }
 
@@ -226,6 +229,7 @@ const handleFileChange = async (event: Event) => {
     importedFileName.value = file.name;
     buildPreview(result?.rows ?? [], result?.fileErrors ?? []);
   } catch (error) {
+    // 통신 실패처럼 파일을 고쳐 해결할 수 없는 문제만 팝업으로 알린다.
     showErrorMessage(
       'Import Failed',
       toErrorMessage(error, 'The file could not be read.'),
@@ -388,6 +392,14 @@ watch(
       </div>
 
       <div
+        v-else-if="importFileProblem"
+        class="import-problem"
+        data-testid="source-import-problem"
+      >
+        <strong>{{ importedFileName }}</strong> — {{ importFileProblem }}
+      </div>
+
+      <div
         v-else-if="hasPreview"
         class="import-preview"
         data-testid="source-import-preview"
@@ -526,6 +538,9 @@ watch(
     }
     .import-status {
       @apply text-[0.8125rem] text-gray-600 py-[0.75rem];
+    }
+    .import-problem {
+      @apply text-[0.8125rem] text-red-600 mt-[0.5rem] py-[0.5rem];
     }
     .import-preview {
       @apply mt-[0.5rem];

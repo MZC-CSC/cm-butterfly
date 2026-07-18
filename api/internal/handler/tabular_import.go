@@ -220,7 +220,7 @@ func buildResult(format string, records [][]string) (*TabularImportResult, error
 		}
 	}
 	if len(nonEmpty) == 0 {
-		return nil, fileProblemf("The file is empty.")
+		return nil, fileProblemf("The file is empty. Use the downloaded template as a starting point.")
 	}
 
 	headers := make([]string, 0, len(nonEmpty[0]))
@@ -233,7 +233,7 @@ func buildResult(format string, records [][]string) (*TabularImportResult, error
 
 	dataRows := nonEmpty[1:]
 	if len(dataRows) == 0 {
-		return nil, fileProblemf("The file has a header row but no data rows.")
+		return nil, fileProblemf("The file has no connections. Fill in one row per server below the header and upload it again.")
 	}
 	if len(dataRows) > maxImportRows {
 		return nil, fileProblemf("The file has too many rows. (limit: %d)", maxImportRows)
