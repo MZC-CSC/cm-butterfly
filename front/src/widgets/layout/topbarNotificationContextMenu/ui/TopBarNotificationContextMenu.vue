@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { PButton, PI } from '@cloudforet-test/mirinae';
+import { red, gray } from '@/app/style/colors';
 import {
   notifications,
   readNotification,
@@ -23,6 +24,9 @@ import {
  */
 
 withDefaults(defineProps<{ visible?: boolean }>(), { visible: false });
+
+const errorColor = red[500];
+const infoColor = gray[500];
 
 const items = computed<NotificationRecord[]>(() => notifications.value);
 const expandedId = ref<string | null>(null);
@@ -100,11 +104,16 @@ const shortMessage = (message: string): string =>
           :data-notification-id="item.id"
         >
           <button type="button" class="item-row" @click="toggle(item.id)">
+            <!--
+              색은 클래스가 아니라 `color` prop 으로 준다. 미리내 아이콘은 색을 아이콘 정의 안에
+              칠해 두기 때문에, CSS 로 덮어도 **아무 일도 일어나지 않고 조용히 원래 색으로 나온다.**
+            -->
             <p-i
               class="level-icon"
               :name="
                 item.level === 'Error' ? 'ic_error-filled' : 'ic_info-circle'
               "
+              :color="item.level === 'Error' ? errorColor : infoColor"
               width="1rem"
               height="1rem"
             />
@@ -181,7 +190,7 @@ const shortMessage = (message: string): string =>
       }
 
       .level-icon {
-        @apply flex-shrink-0 text-gray-500;
+        @apply flex-shrink-0;
       }
 
       /* 카테고리는 폭을 고정한다. 오른쪽에 두거나 폭이 흔들리면 눈으로 훑기 어렵다. */
@@ -200,10 +209,6 @@ const shortMessage = (message: string): string =>
         @apply flex-shrink-0 text-gray-400;
         font-size: 0.75rem;
       }
-    }
-
-    &.error .item-row .level-icon {
-      @apply text-red-500;
     }
 
     .item-detail {
