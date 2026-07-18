@@ -1,10 +1,17 @@
 import { createBdd } from 'playwright-bdd';
 import { test, expect } from '../support/fixtures';
 import { WorkloadPage } from '../pages/workload.page';
-import { workload } from '../fixtures/test-data';
+import { workload, testNamespace } from '../fixtures/test-data';
 import { scenarioState } from '../support/world';
+import { snapshotCspResources, orphanReport } from '../support/orphanResources';
 
 const { Given, When, Then } = createBdd(test);
+
+/**
+ * 강제 삭제 대상 인프라. 실패 사유를 확인하는 스텝에서 정해지고, 강제 삭제 실행·고아 리포트 스텝이 쓴다.
+ * (강제 삭제는 CSP 자원을 남기므로 어떤 인프라였는지 끝까지 붙들고 있어야 리포트를 만들 수 있다.)
+ */
+let forceDeleteTarget: string | null = null;
 
 /**
  * 워크로드(인프라 MCI + 노드 VM + 부하테스트) 스텝.
@@ -142,6 +149,58 @@ When(
     await wl.expectDeleteAlreadyInProgress();
   },
 );
+
+/** 조사 "로/으로" 차이를 흡수하기 위한 같은 뜻의 스텝("에러 로 보인다"). */
+Then(
+  '목록에서 {string} 의 삭제 상태가 {string} 로 보인다',
+  async ({ page }, _infraName: string, status: string) => {
+    const wl = new WorkloadPage(page);
+    await wl.gotoMci();
+    await wl.expectMciListLoaded();
+    await wl.expectRowDeleteStatus(status as '진행 중' | '에러');
+  },
+);
+
+/** "\"e2e-del-infra\" 인프라를 다시 삭제하려 하면 실패 사유와 함께 복구 선택지가 나온다" */
+When(
+  '{string} 인프라를 다시 삭제하려 하면 실패 사유와 함께 복구 선택지가 나온다',
+  async ({ page }, infraName: string) => {
+    const wl = new WorkloadPage(page);
+    forceDeleteTarget = infraName;
+    await wl.selectMci(infraName);
+    await wl.triggerDeleteMenu();
+    await wl.expectDeleteErrorDialog();
+  },
+);
+
+/**
+ * "강제 삭제를 실행하면 삭제 처리 중 화면이 뜬다"
+ *
+ * ★ 강제 삭제는 CSP 자원을 남긴다. 지우고 나면 무엇이 남았는지 알 수 없으므로, 실행 *직전에*
+ *   자원 ID 스냅샷을 떠 둔다(아래 고아 리포트 스텝이 이 스냅샷을 쓴다).
+ */
+When('강제 삭제를 실행하면 삭제 처리 중 화면이 뜬다', async ({ page }) => {
+  const wl = new WorkloadPage(page);
+  const target = forceDeleteTarget;
+  if (target) {
+    await snapshotCspResources(page, testNamespace.id, target);
+  }
+  await wl.forceDeleteFromError();
+  await wl.expectDeleteInProgress();
+});
+
+/** "강제 삭제로 남은 CSP 리소스를 결과서에 기록한다" — 고아 리소스 후처리 리포트 */
+Then('강제 삭제로 남은 CSP 리소스를 결과서에 기록한다', async () => {
+  if (!forceDeleteTarget) {
+    throw new Error('대상 인프라를 알 수 없어 고아 리포트를 만들 수 없다.');
+  }
+  const md = orphanReport(
+    forceDeleteTarget,
+    '강제 삭제(force) 수행 — 시나리오',
+  );
+  // 리포트 본문을 테스트 로그에 남겨, 결과서에 그대로 옮길 수 있게 한다.
+  console.log(md);
+});
 
 // ─────────────────────────────────────────────────────────────
 // 부하테스트 — Runloadtest / Getlastloadtest* (@costly)
