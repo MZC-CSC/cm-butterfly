@@ -59,6 +59,9 @@ export function useMciListModel(props: IProps) {
         name: mciRes.name,
         description: mciRes.description,
         id: mciRes.id,
+        // 삭제 추적의 키. id 는 곧 이름이라 지우고 같은 이름으로 다시 만들면 겹치므로,
+        // 행을 고유하게 가리키려면 uid 가 필요하다(BAR-1531).
+        uid: mciRes.uid,
         status: mciRes.status,
         provider: getCloudProvidersInVms(mciRes.vm),
         countTotal: statusCount.countTotal ?? '',
@@ -80,8 +83,7 @@ export function useMciListModel(props: IProps) {
           // tb-0.12.9 현행화: MCI 목록이 cm-beetle ListInfra 경유로 바뀌며 응답이 cm-beetle 표준
           // 래퍼(responseData.data.infra[])로 온다. 구 tumblebug 직접 응답(responseData.infra)도
           // fallback으로 허용해 양쪽을 안전하게 읽는다. (mci→infra 키 전환 + data 래퍼 반영)
-          const infraList =
-            res.data.responseData.data?.infra ?? [];
+          const infraList = res.data.responseData.data?.infra ?? [];
           mciStore.setMcis(infraList);
 
           const PromiseArr: any = [];
