@@ -11,7 +11,11 @@ import JwtTokenProvider from '@/shared/libs/token';
 import { AUTH_ROUTE } from '@/pages/auth/auth.route';
 import { clearSession } from '@/shared/libs/auth/session';
 import { startSessionExpiryWatch } from '@/features/auth/model/useLogout';
-import { startDeleteTracking } from '@/entities/mci/lib/deleteTracker';
+import { startTracking } from '@/shared/libs/tracking/runner';
+import { startNotificationPolling } from '@/entities/notification/lib/notificationStore';
+// 체커는 import 되는 순간 러너에 자기를 등록한다. 아무도 이 모듈을 부르지 않으면 번들에서
+// 통째로 사라지므로(BAR-1531 에서 겪었다) 여기서 명시적으로 들여온다.
+import '@/entities/mci/lib/deleteTracker';
 
 const pinia = createPinia();
 Vue.use(PiniaVuePlugin);
@@ -25,7 +29,8 @@ async function init() {
     await JwtTokenProvider.validateToken();
     // 새로고침·새 탭으로 들어온 경우다. 로그인 절차를 다시 타지 않으므로 여기서 이어 붙인다.
     startSessionExpiryWatch();
-    void startDeleteTracking();
+    void startTracking();
+    void startNotificationPolling();
   } catch (e) {
     // 서버가 거절한 토큰을 그대로 두면 라우터 가드가 살아 있는 세션으로 오인한다.
     clearSession();

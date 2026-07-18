@@ -8,6 +8,8 @@ import {
   type DeleteRequestStatus,
 } from '@/entities/mci/api/deleteRequest';
 import { useGetBeetleRequest, useGetMciList } from '@/entities/mci/api';
+import { notify } from '@/entities/notification/lib/notificationStore';
+import { registerTracker } from '@/shared/libs/tracking/runner';
 
 /**
  * 워크로드(인프라) 삭제 추적 (BAR-1444 → BAR-1531)
@@ -152,16 +154,11 @@ export async function loadDeleteRecords(): Promise<void> {
   }
 }
 
-// ── 폴링 ────────────────────────────────────────────────────────────────────
-
-/**
- * 삭제는 오래 걸리므로 자주 물을 이유가 없다. 그리고 **이전 조회가 끝난 뒤 다음을 예약**한다 —
- * setInterval 로 두면 응답이 주기보다 느릴 때 조회가 겹친다.
- */
-const POLL_INTERVAL_MS = 10_000;
-
-let pollTimer: ReturnType<typeof setTimeout> | null = null;
-let running = false;
+// ── 러너 등록 ───────────────────────────────────────────────────────────────
+//
+// 주기·중첩 방지·로그인/로그아웃 생명주기는 러너가 맡는다([runner](@/shared/libs/tracking/runner)).
+// 여기는 *무엇을 물어볼지* 만 안다 — 삭제는 cm-beetle 의 요청 조회로 끝을 판정하는데, 부하 테스트도
+// 워크플로우도 각자 다른 것을 본다. 한곳에 모으면 공통이 아니라 종류별 분기 덩어리가 된다.
 
 /** 해당 인프라가 아직 목록에 있는지 확인한다(판단 불가 상황을 가르는 기준). */
 async function infraStillListed(rec: DeleteRecord): Promise<boolean> {
@@ -192,10 +189,13 @@ async function checkOne(rec: DeleteRecord): Promise<void> {
     const status = String(details?.status ?? '').toLowerCase();
 
     if (status === 'success') {
+      await notifyDone(rec);
       // 성공은 남길 것이 없다 — 인프라가 목록에서 사라지므로 보여줄 대상도 없다.
       await clearDeleteRecord(rec.uid);
     } else if (status === 'error') {
-      await markStatus(rec.uid, 'Error', details?.errorResponse || undefined);
+      const reason = details?.errorResponse || undefined;
+      await markStatus(rec.uid, 'Error', reason);
+      await notifyFailed(rec, reason);
     }
     // Handling 이면 그대로 두고 다음 주기에 다시 본다.
   } catch {
@@ -204,50 +204,27 @@ async function checkOne(rec: DeleteRecord): Promise<void> {
     const listed = await infraStillListed(rec);
     if (!listed) {
       // 인프라가 없다 = 어떤 경로로든 지워졌다. 남겨 둘 이유가 없다.
+      await notifyDone(rec);
       await clearDeleteRecord(rec.uid);
     } else {
       // 인프라는 있는데 요청 기록이 없다 → 성공인지 실패인지 알 수 없다.
       await markStatus(rec.uid, 'Unknown');
+      await notifyUnknown(rec);
     }
   }
 }
 
-/** 한 바퀴 — 진행 중인 것만 순서대로 확인한다. */
-async function pollOnce(): Promise<void> {
-  const handling = allDeleteRecords().filter(r => r.status === 'Handling');
-  for (const rec of handling) {
-    await checkOne(rec);
-  }
-}
-
-function scheduleNext(): void {
-  if (!running) return;
-  pollTimer = setTimeout(async () => {
-    await pollOnce();
-    scheduleNext();
-  }, POLL_INTERVAL_MS);
-}
-
-/**
- * 추적을 시작한다 — 앱이 뜰 때와 로그인 직후에 부른다.
- *
- * 먼저 서버 기록을 받아 **즉시 한 번 확인**한다. 주기만 걸어 두면 첫 확인까지 그 시간만큼 낡은
- * 상태를 보여주게 되는데, 서버에서는 이미 끝났을 수 있다.
- */
-export async function startDeleteTracking(): Promise<void> {
-  if (running) return;
-  running = true;
-  await loadDeleteRecords();
-  await pollOnce();
-  scheduleNext();
-}
-
-/** 추적을 멈춘다(로그아웃 시). */
-export function stopDeleteTracking(): void {
-  running = false;
-  if (pollTimer) {
-    clearTimeout(pollTimer);
-    pollTimer = null;
-  }
-  state.records = {};
-}
+registerTracker({
+  id: 'mci-delete',
+  check: async () => {
+    const handling = allDeleteRecords().filter(r => r.status === 'Handling');
+    for (const rec of handling) {
+      await checkOne(rec);
+    }
+  },
+  hasWork: hasPendingDeletes,
+  resume: loadDeleteRecords,
+  reset: () => {
+    state.records = {};
+  },
+});

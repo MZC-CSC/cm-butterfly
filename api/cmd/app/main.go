@@ -107,6 +107,12 @@ func main() {
 	api.POST("/updatedeleterequeststatus", deleteRequestHandler.UpdateDeleteRequestStatus)
 	api.POST("/removedeleterequest", deleteRequestHandler.RemoveDeleteRequest)
 
+	notificationHandler := handler.NewNotificationHandler(db)
+	api.POST("/listnotifications", notificationHandler.ListNotifications)
+	api.POST("/addnotification", notificationHandler.AddNotification)
+	api.POST("/readnotification", notificationHandler.ReadNotification)
+	api.POST("/readallnotifications", notificationHandler.ReadAllNotifications)
+
 	api.POST("/test", handler.ApiTestController)
 
 	// API list endpoint (no auth required)
