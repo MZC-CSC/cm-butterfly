@@ -16,6 +16,7 @@ import {
   IWorkflowResponse,
   IWorkflowRun,
 } from '@/entities/workflow/model/types';
+import { checkDesignerSupport } from '@/entities/workflow/lib/designerSupport';
 import { buildRunGraph, IRunGraph } from '@/entities/workflow/lib/runGraph';
 import { useWorkflowStore } from '@/entities';
 import { showSuccessMessage } from '@/shared/utils';
@@ -91,19 +92,26 @@ export function useWorkflowRunViewerModel() {
   const graph = computed<IRunGraph>(() => buildRunGraph(workflow.value));
 
   /**
+   * 워크플로우 툴로 열 수 있는 그래프인가. Edit·Clone&Edit 가 툴로 갈지 JSON 으로 갈지를
+   * 여기서 가른다.
+   *
+   * 판정은 **워크플로우 툴이 읽어 올릴 때와 똑같은 함수**로 한다([[designerSupport]]).
+   * 두 곳이 다르게 판단하면, 툴로 보냈는데 툴이 못 여는(또는 그 반대인) 상황이 생긴다.
+   * 예전에는 여기서 "병렬이면 무조건 JSON"으로 갈랐는데, 이제 툴이 병렬을 그리므로
+   * 기준이 "병렬이냐"가 아니라 **"우리가 그대로 옮길 수 있느냐"** 로 바뀌었다.
+   */
+  const designerSupport = computed(() =>
+    checkDesignerSupport(workflow.value?.data?.task_groups),
+  );
+  const canEditInDesigner = computed(() => designerSupport.value.canEdit);
+
+  /**
    * 이 워크플로우가 한 번이라도 실행됐는가. 뷰어의 버튼 구성이 여기서 갈린다 —
    * 실행된 적 없으면 Run·Edit만, 있으면 Start new run·Clone&Edit·Re-run failed.
    * `Start new run`은 매 실행마다 새 이력을 쌓는 동작이라 쌓을 이력이 있어야 의미가 있고,
    * 실행된 워크플로우는 원본 직접 수정을 막으므로(엔진이 실행별 정의를 남기지 않는다) Edit도 없다.
    */
   const hasRuns = computed(() => runs.value.length > 0);
-
-  /**
-   * 병렬 갈래가 있는가. 그래픽 에디터는 아직 병렬을 다루지 못하므로, Edit·Clone&Edit가
-   * 이 워크플로우를 그래픽으로 열지 JSON으로 열지를 여기서 가른다.
-   * 워크플로우 툴이 병렬 편집을 지원하면(BAR-1454) 이 판정과 폴백을 함께 걷어낸다.
-   */
-  const isParallel = computed(() => graph.value.maxParallel > 1);
 
   const selectedRun = computed(
     () =>
@@ -419,7 +427,8 @@ export function useWorkflowRunViewerModel() {
     definitionChangedAfterRun,
     graph,
     hasRuns,
-    isParallel,
+    canEditInDesigner,
+    designerSupport,
     isPolling,
     cloning,
     loadError,

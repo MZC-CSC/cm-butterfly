@@ -8,9 +8,15 @@ import getRandomId from '@/shared/utils/uuid';
 import { toolboxSteps } from '@/features/sequential/designer/toolbox/model/toolboxSteps';
 import { editorProviders } from '@/features/sequential/designer/editor/model/editorProviders';
 import testSvg from '@/shared/asset/image/testSvg.svg';
+import {
+  collectStepNames,
+  nextAvailableName,
+} from '@/entities/workflow/lib/stepNaming';
 
 export function useSequentialDesignerModel(refs: any) {
   let designer: Designer | null = null;
+  // 저장된 워크플로우를 올리는 동안에는 이름 짓기를 멈춘다
+  let isLoading = false;
   const placeholder = refs.placeholder;
   const designerOptionsState: any = {
     id: '',
@@ -73,60 +79,17 @@ export function useSequentialDesignerModel(refs: any) {
         return true;
       },
       canInsertStep: (step, targetSequence, targetIndex) => {
-        // 중복 이름 체크 함수 (재귀적으로 전체 workflow 검사)
-        function isNameDuplicate(sequence: any[], name: string, excludeId?: string): boolean {
-          for (const s of sequence) {
-            if (s.id !== excludeId && s.name === name) {
-              return true;
-            }
-            if (s.sequence && s.sequence.length > 0) {
-              if (isNameDuplicate(s.sequence, name, excludeId)) {
-                return true;
-              }
-            }
-          }
-          return false;
-        }
+        // 저장된 워크플로우를 여는 중에는 이름을 건드리지 않는다. 다른 task 의 의존
+        // 관계가 지금 이름을 가리키고 있으므로, 여기서 바꾸면 연결이 끊어진다.
+        if (isLoading) return true;
 
-        // 고유한 이름 생성 함수
-        function generateUniqueName(baseName: string): string {
-          let newName = `${baseName}_${getRandomId().substring(0, 4)}`;
-          // definition이 존재하면 중복 체크
-          if (definition && definition.sequence) {
-            while (isNameDuplicate(definition.sequence, newName)) {
-              newName = `${baseName}_${getRandomId().substring(0, 4)}`;
-            }
-          }
-          return newName;
-        }
+        // 팔레트에서 갓 꺼낸 것인지(이름이 아직 종류 이름 그대로), 아니면 사람이
+        // 지어 준 이름인지로 가른다. 후자는 겹칠 때만 손댄다.
+        const taken = collectStepNames(definition?.sequence);
+        const isFreshFromToolbox = step.name === step.type;
 
-        if (step.componentType === 'container') {
-          const baseName = step.name.replace(/_[a-z0-9]{4}$/i, ''); // 기존 suffix 제거
-          step.name = generateUniqueName(baseName);
-          console.log('🏷️ Container name set to:', step.name);
-        } else if (step.componentType === 'launchPad') {
-          const baseName = step.name.replace(/_[a-z0-9]{4}$/i, ''); // 기존 suffix 제거
-          step.name = generateUniqueName(baseName);
-          console.log('🏷️ Parrel name set to:', step.name);
-          console.log('🚀 Parrel created - tasks will run in parallel (horizontal layout)');
-        } else if (step.componentType === 'task') {
-          // Toolbox에서 추가하는 경우 (step.name === step.type)
-          if (step.name === step.type) {
-            step.name = generateUniqueName(step.type);
-            console.log('🏷️ Task name auto-generated:', step.name);
-            console.log('   step.type:', step.type);
-          } 
-          // Duplicate하는 경우 또는 저장된 workflow 로드하는 경우
-          else {
-            // 중복 체크: definition이 있고 이름이 중복되면 새로운 이름 생성
-            if (definition && definition.sequence && isNameDuplicate(definition.sequence, step.name, step.id)) {
-              const baseName = step.name.replace(/_[a-z0-9]{4}$/i, ''); // 기존 suffix 제거
-              step.name = generateUniqueName(baseName);
-              console.log('🏷️ Task name regenerated (duplicate detected):', step.name);
-            } else {
-              console.log('🏷️ Task name preserved:', step.name);
-            }
-          }
+        if (isFreshFromToolbox || taken.has(step.name)) {
+          step.name = nextAvailableName(step.name, taken);
         }
         return true;
       },
@@ -141,14 +104,31 @@ export function useSequentialDesignerModel(refs: any) {
 
   function defineStepValidate() {
     return {
-      step: (step, parentSequence, definition) => {
-        // console.log('parentSequence');
-        // console.log(parentSequence);
-        // console.log(definition);
+      // 상자 하나를 두고 보는 검사. 저장 형식으로 옮길 수 없는 모양을 여기서 알린다.
+      step: (step: any) => {
+        if (step.componentType === 'task') {
+          return String(step.name ?? '').trim().length > 0;
+        }
+        const inner = step.sequence ?? [];
+        // 빈 상자는 저장되지 않는다
+        if (!inner.length) return false;
+        // 병렬 상자 안에는 상자를 넣을 수 없다 — 저장 형식에서 그룹은 중첩되지 않는다
+        if (step.componentType === 'launchPad') {
+          return inner.every((child: any) => child.componentType === 'task');
+        }
         return true;
       },
-      root: definition => {
-        return true;
+      // 전체를 두고 보는 검사 — 이름은 워크플로우 안에서 하나여야 한다
+      root: (currentDefinition: any) => {
+        const names: string[] = [];
+        const walk = (steps: any[] | undefined) => {
+          (steps ?? []).forEach(step => {
+            if (step.componentType === 'task') names.push(step.name);
+            walk(step.sequence);
+          });
+        };
+        walk(currentDefinition?.sequence);
+        return names.length > 0 && new Set(names).size === names.length;
       },
     };
   }
@@ -172,17 +152,13 @@ export function useSequentialDesignerModel(refs: any) {
             'taskGroup',
             { model: {} },
           ),
-          // Parrel과 If는 현재 지원하지 않으므로 숨김
-          // toolboxSteps().defineParrelStep(
-          //   getRandomId(),
-          //   'Parrel',
-          //   { model: {} },
-          // ),
-          // toolboxSteps().defineIfStep(
-          //   getRandomId(),
-          //   [],
-          //   [],
-          // ),
+          // 병렬 상자 — 안에 넣은 task 가 동시에 실행되고, 다음 단계는 전부
+          // 끝나야 시작한다. 엔진은 원래 이렇게 실행할 수 있었는데 화면이
+          // 만들지 못해 직선만 그려졌다.
+          toolboxSteps().defineParrelStep(getRandomId(), 'Parallel', {
+            model: {},
+          }),
+          // 조건 분기(If)는 엔진에 대응하는 개념이 없어 아직 내놓지 않는다.
         ],
       },
       {
@@ -242,7 +218,9 @@ export function useSequentialDesignerModel(refs: any) {
   }
 
   function draw() {
+    isLoading = true;
     designer = Designer.create(placeholder, definition, configuration);
+    isLoading = false;
     designer.onDefinitionChanged.subscribe(newDefinition => {});
   }
 

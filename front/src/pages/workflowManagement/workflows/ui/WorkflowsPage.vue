@@ -55,6 +55,7 @@ function handleEditOriginal(workflowId: string) {
  * 원본(미실행 Edit) 또는 복제본(실행됨 Clone&Edit) — 어느 쪽이든 id로 스토어에서
  * 정의를 꺼내 JSON 에디터에 넘긴다. (복제본은 뷰어가 이미 스토어에 넣었다.)
  */
+/** 워크플로우 툴이 그대로 옮길 수 없는 그래프는 JSON 에디터로 연다 */
 function handleEditJson(workflowId: string) {
   selectedWorkflowId.value = workflowId;
   const wf = workflowStore.getWorkflowById(workflowId);
@@ -253,9 +254,9 @@ async function handleUpdateWorkflow(updatedData: object) {
             </div>
             <workflow-run-viewer
               :workflow-id="selectedWorkflowId"
+              @edit-json="handleEditJson"
               @edit-clone="handleEditClone"
               @edit-original="handleEditOriginal"
-              @edit-json="handleEditJson"
             />
           </template>
         </p-tab>
