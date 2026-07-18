@@ -11,7 +11,8 @@ import { computed, reactive, ref, watch } from 'vue';
 import { useDeleteMci } from '@/entities/mci/api';
 import {
   putDeleteRecord,
-  updateDeleteStatus,
+  clearDeleteRecord,
+  markDeleteFailed,
   getDeleteRecord,
   isDeleteInProgress,
   type DeleteRecord,
@@ -92,46 +93,45 @@ function newReqId(): string {
 }
 
 // 지정한 인프라들에 삭제 요청을 낸다(옵션: terminate|force). 진행 기록을 남기고 추적한다.
-function fireDeletes(mciNames: string[], option: string): string[] {
-  const ids: string[] = [];
-  for (const infraId of mciNames) {
+function fireDeletes(mciList: any[], option: string): string[] {
+  const uids: string[] = [];
+  for (const mci of mciList) {
+    const uid = mci?.uid as string;
+    const infraId = mci?.name as string;
+    // uid 가 없으면 추적할 방법이 없다(이름은 재사용되므로 키가 될 수 없다).
+    if (!uid) continue;
+
     // 이미 진행 중이면 새 요청을 내지 않고(중복 방어) 그 기록을 그대로 추적한다.
-    if (isDeleteInProgress(infraId)) {
-      ids.push(infraId);
+    if (isDeleteInProgress(uid)) {
+      uids.push(uid);
       continue;
     }
     const reqId = newReqId();
     putDeleteRecord({
+      uid,
       infraId,
       nsId: props.nsId,
       reqId,
       option,
-      requestedAt: Date.now(),
       status: 'Handling',
     });
     useDeleteMci({ nsId: props.nsId, infraId, option }, reqId)
       .execute()
-      .then(() => updateDeleteStatus(infraId, 'Success'))
+      // 성공은 기록을 남기지 않는다 — 인프라가 목록에서 사라지므로 보여줄 대상이 없다.
+      .then(() => clearDeleteRecord(uid))
       .catch((error: any) =>
-        updateDeleteStatus(
-          infraId,
-          'Error',
-          extractErrorMessage(error) ?? undefined,
-        ),
+        markDeleteFailed(uid, extractErrorMessage(error) ?? undefined),
       );
-    ids.push(infraId);
+    uids.push(uid);
   }
-  return ids;
+  return uids;
 }
 
 // confirm 단계에서 삭제 실행 — 요청을 내고 progress 단계로 전환한다(즉시 닫지 않는다).
 function handleConfirm() {
   if (state.phase !== 'confirm') return;
   const option = state.deleteMethod === 'force' ? 'force' : 'terminate';
-  trackedIds.value = fireDeletes(
-    props.selectedMciList.map(m => m.name as string),
-    option,
-  );
+  trackedIds.value = fireDeletes(props.selectedMciList, option);
   state.phase = 'progress';
   emit('deleted'); // 목록이 즉시 `삭제 상태` 컬럼을 띄우도록 갱신
 }
@@ -140,8 +140,11 @@ function handleConfirm() {
 // force 는 CSP 자원을 남기고 텀블벅 내부 데이터만 지운다(배너로 이미 고지).
 // 기록이 Error 상태(진행 중 아님)이므로 fireDeletes 가 새 reqId 로 다시 발행한다.
 function handleForceDelete() {
-  const names = erroredRecords.value.map(r => r.infraId);
-  trackedIds.value = fireDeletes(names, 'force');
+  const targets = erroredRecords.value.map(r => ({
+    uid: r.uid,
+    name: r.infraId,
+  }));
+  trackedIds.value = fireDeletes(targets, 'force');
   state.phase = 'progress';
   emit('deleted');
 }
@@ -195,10 +198,12 @@ watch(
       resetState();
       return;
     }
-    const names = props.selectedMciList.map(m => m.name as string);
-    const inProgress = names.filter(name => isDeleteInProgress(name));
-    const errored = names.filter(
-      name => getDeleteRecord(name)?.status === 'Error',
+    const uids = props.selectedMciList
+      .map(m => m.uid as string)
+      .filter(Boolean);
+    const inProgress = uids.filter(uid => isDeleteInProgress(uid));
+    const errored = uids.filter(
+      uid => getDeleteRecord(uid)?.status === 'Error',
     );
     if (inProgress.length > 0) {
       trackedIds.value = inProgress;

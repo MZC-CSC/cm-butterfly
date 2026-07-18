@@ -30,7 +30,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		}
 
 		// Auto-migrate the schema
-		if err = db.AutoMigrate(&Usersess{}); err != nil {
+		if err = db.AutoMigrate(&Usersess{}, &DeleteRequest{}); err != nil {
 			log.Printf("Failed to auto-migrate: %v", err)
 			return
 		}

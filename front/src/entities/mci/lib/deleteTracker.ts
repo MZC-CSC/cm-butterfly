@@ -1,90 +1,243 @@
 import { reactive } from 'vue';
+import {
+  useListDeleteRequests,
+  useSaveDeleteRequest,
+  useUpdateDeleteRequestStatus,
+  useRemoveDeleteRequest,
+  type DeleteRequestRecord,
+  type DeleteRequestStatus,
+} from '@/entities/mci/api/deleteRequest';
+import { useGetBeetleRequest, useGetMciList } from '@/entities/mci/api';
 
-// 워크로드(인프라) 삭제 요청 추적 (BAR-1444)
-//
-// 삭제는 오래 걸리고(하류 수 분~수십 분) 비동기다. 사용자가 기다리다 다른 화면으로 가거나
-// 새로고침해도 "무엇이 삭제 중인지"를 알 수 있어야 하고, 같은 대상에 삭제 명령이 두 번 나가면
-// 안 된다. 그래서 삭제 요청을 infraId 별로 브라우저(localStorage)에 보관하고, 목록·상세가
-// 같은 기록을 본다. cm-beetle 의 요청 추적(reqId)과 짝을 이룬다.
+/**
+ * 워크로드(인프라) 삭제 추적 (BAR-1444 → BAR-1531)
+ *
+ * 삭제는 수 분 걸리고 실패할 수 있어서, 요청을 내고 끝이 아니라 *결과를 끝까지 따라가야* 한다.
+ * 이 모듈이 그 역할을 하며 두 가지가 핵심이다.
+ *
+ * **서버에 보관한다** — 요청 id 를 브라우저에만 두면 다른 PC 에서는 삭제가 실패한 사실도, 그 사유도
+ * 알 수 없다. 서버에 두면 어느 자리에서 로그인하든 하던 처리를 이어받는다.
+ *
+ * **화면과 무관하게 돈다** — 폴링이 목록 화면 안에 있으면 다른 화면으로 가는 순간 추적이 멈추고,
+ * 한참 뒤 목록에 돌아와서야 조회를 시작해 뒤늦게 반영된다. 그래서 컴포넌트가 아니라 이 모듈이
+ * 폴링을 소유한다. 앱이 떠 있는 동안 계속 돈다.
+ *
+ * 키는 인프라 이름이 아니라 **uid** 다. cb-tumblebug 에서 인프라 id 는 곧 이름이라, 지우고 같은
+ * 이름으로 다시 만들면 옛 기록이 새 인프라 것으로 보인다.
+ */
 
-export type DeleteStatus = 'Handling' | 'Success' | 'Error';
+export type DeleteStatus = DeleteRequestStatus;
 
 export interface DeleteRecord {
-  infraId: string;
+  uid: string;
   nsId: string;
+  infraId: string;
   reqId: string;
   option: string; // 'terminate' | 'force'
-  requestedAt: number;
   status: DeleteStatus;
-  errorReason?: string; // beetle/tumblebug 이 준 실패 사유 (있을 때만)
-  // 진행 단계(예: "deleting SG"). 현재 cb-tumblebug·cm-beetle 은 *삭제* 경로에서
-  // 단계별 진행을 내보내지 않으므로(생성 경로에만 있음) 채워지지 않는다. 업스트림이
-  // 삭제에도 progress 를 넣으면 그때 활용할 예약 필드다.
-  stage?: string;
+  errorReason?: string;
 }
 
-const STORAGE_KEY = 'cmig.mci.deleteRequests';
-
-function readStorage(): Record<string, DeleteRecord> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as Record<string, DeleteRecord>) : {};
-  } catch {
-    return {};
-  }
-}
-
-// 모든 컴포넌트가 공유하는 반응형 상태. 최초 1회 localStorage 에서 채운다.
 const state = reactive<{ records: Record<string, DeleteRecord> }>({
-  records: readStorage(),
+  records: {},
 });
 
-function persist() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.records));
-  } catch {
-    /* 용량 초과 등은 무시 — 메모리 상태로는 계속 동작 */
-  }
+/** 서버 응답(snake_case)을 화면이 쓰는 형태로 옮긴다. */
+function fromRecord(r: DeleteRequestRecord): DeleteRecord {
+  return {
+    uid: r.uid,
+    nsId: r.ns_id,
+    infraId: r.infra_id,
+    reqId: r.req_id,
+    option: r.option,
+    status: r.status,
+    errorReason: r.error_reason || undefined,
+  };
 }
 
-/** 삭제 요청 기록을 저장(또는 갱신)한다. */
-export function putDeleteRecord(rec: DeleteRecord): void {
-  state.records[rec.infraId] = rec;
-  persist();
-}
-
-/** 해당 인프라의 삭제 기록을 반환(없으면 undefined). */
-export function getDeleteRecord(infraId: string): DeleteRecord | undefined {
-  return state.records[infraId];
-}
-
-/** 진행 중(Handling)인 삭제가 있으면 true — 중복 삭제 방어에 쓴다. */
-export function isDeleteInProgress(infraId: string): boolean {
-  return state.records[infraId]?.status === 'Handling';
-}
-
-/** 상태만 갱신한다(사유 포함). 기록이 없으면 무시. */
-export function updateDeleteStatus(
-  infraId: string,
-  status: DeleteStatus,
-  errorReason?: string,
-): void {
-  const rec = state.records[infraId];
-  if (!rec) return;
-  rec.status = status;
-  if (errorReason !== undefined) rec.errorReason = errorReason;
-  persist();
-}
-
-/** 기록을 지운다(삭제 완료로 목록에서 사라졌거나, 정리 시). */
-export function clearDeleteRecord(infraId: string): void {
-  if (state.records[infraId]) {
-    delete state.records[infraId];
-    persist();
-  }
-}
-
-/** 현재 보관된 삭제 기록 전체(목록 렌더링·폴링 대상 판단용). */
+/** 현재 추적 중인 기록 전체(목록 렌더용). */
 export function allDeleteRecords(): DeleteRecord[] {
   return Object.values(state.records);
+}
+
+/** uid 로 기록 조회. */
+export function getDeleteRecord(uid: string): DeleteRecord | undefined {
+  return state.records[uid];
+}
+
+/** 진행 중인 삭제가 있으면 true — 중복 요청 방어에 쓴다. */
+export function isDeleteInProgress(uid: string): boolean {
+  return state.records[uid]?.status === 'Handling';
+}
+
+/** 삭제 요청을 서버에 기록한다(같은 인프라의 이전 기록은 대체된다). */
+export async function putDeleteRecord(rec: DeleteRecord): Promise<void> {
+  state.records[rec.uid] = rec;
+  try {
+    await useSaveDeleteRequest({
+      uid: rec.uid,
+      ns_id: rec.nsId,
+      infra_id: rec.infraId,
+      req_id: rec.reqId,
+      option: rec.option,
+      status: rec.status,
+      error_reason: rec.errorReason ?? '',
+    }).execute();
+  } catch (e) {
+    // 서버 기록에 실패해도 이번 화면에서는 진행 상태를 보여준다. 다만 다른 자리에서는 보이지
+    // 않게 되므로 조용히 넘기지 않고 남긴다.
+    console.error('[deleteTracker] 삭제 요청 기록 실패', e);
+  }
+}
+
+/** 기록을 지운다 — 삭제가 성공했거나, 인프라가 목록에서 사라진 경우. */
+export async function clearDeleteRecord(uid: string): Promise<void> {
+  delete state.records[uid];
+  try {
+    await useRemoveDeleteRequest(uid).execute();
+  } catch (e) {
+    console.error('[deleteTracker] 삭제 기록 제거 실패', e);
+  }
+}
+
+/** 상태를 갱신한다. 성공은 여기로 오지 않는다 — 성공하면 기록 자체를 지운다. */
+async function markStatus(
+  uid: string,
+  status: DeleteStatus,
+  errorReason?: string,
+): Promise<void> {
+  const rec = state.records[uid];
+  if (rec) {
+    rec.status = status;
+    if (errorReason !== undefined) rec.errorReason = errorReason;
+  }
+  try {
+    await useUpdateDeleteRequestStatus(uid, status, errorReason).execute();
+  } catch (e) {
+    console.error('[deleteTracker] 삭제 상태 갱신 실패', e);
+  }
+}
+
+/** 삭제가 실패했음을 기록한다(사유 포함). 목록의 `삭제 상태` 가 이 값을 보여준다. */
+export async function markDeleteFailed(
+  uid: string,
+  errorReason?: string,
+): Promise<void> {
+  await markStatus(uid, 'Error', errorReason);
+}
+
+/** 서버에 남아 있는 추적 기록을 받아 온다(앱 시작·로그인 시). */
+export async function loadDeleteRecords(): Promise<void> {
+  try {
+    const res: any = await useListDeleteRequests().execute();
+    const list: DeleteRequestRecord[] =
+      res?.data?.responseData ?? res?.data?.data ?? res?.data ?? [];
+    const next: Record<string, DeleteRecord> = {};
+    for (const r of Array.isArray(list) ? list : []) {
+      next[r.uid] = fromRecord(r);
+    }
+    state.records = next;
+  } catch (e) {
+    console.error('[deleteTracker] 추적 기록 조회 실패', e);
+  }
+}
+
+// ── 폴링 ────────────────────────────────────────────────────────────────────
+
+/**
+ * 삭제는 오래 걸리므로 자주 물을 이유가 없다. 그리고 **이전 조회가 끝난 뒤 다음을 예약**한다 —
+ * setInterval 로 두면 응답이 주기보다 느릴 때 조회가 겹친다.
+ */
+const POLL_INTERVAL_MS = 10_000;
+
+let pollTimer: ReturnType<typeof setTimeout> | null = null;
+let running = false;
+
+/** 해당 인프라가 아직 목록에 있는지 확인한다(판단 불가 상황을 가르는 기준). */
+async function infraStillListed(rec: DeleteRecord): Promise<boolean> {
+  try {
+    const res: any = await useGetMciList(rec.nsId, '').execute();
+    const data =
+      res?.data?.responseData?.data ?? res?.data?.data ?? res?.data ?? {};
+    const list = data?.infra ?? data?.mci ?? [];
+    return (Array.isArray(list) ? list : []).some(
+      (m: any) => m?.uid === rec.uid,
+    );
+  } catch {
+    // 목록 조회 자체가 실패하면 판단하지 않는다(다음 주기에 다시 본다).
+    return true;
+  }
+}
+
+/** 진행 중인 삭제 하나의 결과를 확인한다. */
+async function checkOne(rec: DeleteRecord): Promise<void> {
+  try {
+    const res: any = await useGetBeetleRequest(rec.reqId).execute();
+    const details =
+      res?.data?.responseData?.data ??
+      res?.data?.data ??
+      res?.data?.responseData ??
+      res?.data ??
+      res;
+    const status = String(details?.status ?? '').toLowerCase();
+
+    if (status === 'success') {
+      // 성공은 남길 것이 없다 — 인프라가 목록에서 사라지므로 보여줄 대상도 없다.
+      await clearDeleteRecord(rec.uid);
+    } else if (status === 'error') {
+      await markStatus(rec.uid, 'Error', details?.errorResponse || undefined);
+    }
+    // Handling 이면 그대로 두고 다음 주기에 다시 본다.
+  } catch {
+    // 조회가 실패했다. cm-beetle 의 요청 기록은 재시작을 넘기지 못하므로, 정상적으로 처리된
+    // 요청인데도 여기로 올 수 있다. 그래서 실패로 단정하지 않고 *인프라가 아직 있는지*로 가른다.
+    const listed = await infraStillListed(rec);
+    if (!listed) {
+      // 인프라가 없다 = 어떤 경로로든 지워졌다. 남겨 둘 이유가 없다.
+      await clearDeleteRecord(rec.uid);
+    } else {
+      // 인프라는 있는데 요청 기록이 없다 → 성공인지 실패인지 알 수 없다.
+      await markStatus(rec.uid, 'Unknown');
+    }
+  }
+}
+
+/** 한 바퀴 — 진행 중인 것만 순서대로 확인한다. */
+async function pollOnce(): Promise<void> {
+  const handling = allDeleteRecords().filter(r => r.status === 'Handling');
+  for (const rec of handling) {
+    await checkOne(rec);
+  }
+}
+
+function scheduleNext(): void {
+  if (!running) return;
+  pollTimer = setTimeout(async () => {
+    await pollOnce();
+    scheduleNext();
+  }, POLL_INTERVAL_MS);
+}
+
+/**
+ * 추적을 시작한다 — 앱이 뜰 때와 로그인 직후에 부른다.
+ *
+ * 먼저 서버 기록을 받아 **즉시 한 번 확인**한다. 주기만 걸어 두면 첫 확인까지 그 시간만큼 낡은
+ * 상태를 보여주게 되는데, 서버에서는 이미 끝났을 수 있다.
+ */
+export async function startDeleteTracking(): Promise<void> {
+  if (running) return;
+  running = true;
+  await loadDeleteRecords();
+  await pollOnce();
+  scheduleNext();
+}
+
+/** 추적을 멈춘다(로그아웃 시). */
+export function stopDeleteTracking(): void {
+  running = false;
+  if (pollTimer) {
+    clearTimeout(pollTimer);
+    pollTimer = null;
+  }
+  state.records = {};
 }

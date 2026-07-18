@@ -96,6 +96,13 @@ func main() {
 	api.POST("/getworkspaceuserrolemappinglistbyuserid", workspaceHandler.GetWorkspaceUserRoleMappingListByUserId)
 
 	// API Test endpoints
+	// 워크로드 삭제 상태 추적 — 브라우저가 아니라 서버에 남겨 어느 자리에서든 이어받는다.
+	deleteRequestHandler := handler.NewDeleteRequestHandler(db)
+	api.POST("/listdeleterequests", deleteRequestHandler.ListDeleteRequests)
+	api.POST("/savedeleterequest", deleteRequestHandler.SaveDeleteRequest)
+	api.POST("/updatedeleterequeststatus", deleteRequestHandler.UpdateDeleteRequestStatus)
+	api.POST("/removedeleterequest", deleteRequestHandler.RemoveDeleteRequest)
+
 	api.POST("/test", handler.ApiTestController)
 
 	// API list endpoint (no auth required)

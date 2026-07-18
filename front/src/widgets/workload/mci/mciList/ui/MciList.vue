@@ -20,12 +20,9 @@ import MciDeleteModal from './MciDeleteModal.vue';
 import TableLoadingSpinner from '@/shared/ui/LoadingSpinner/TableLoadingSpinner.vue';
 import { useDynamicTableHeight } from '@/shared/hooks/table/useDynamicTableHeight';
 import { useToolboxTableHeight } from '@/shared/hooks/table/useToolboxTableHeight';
-import { useGetBeetleRequest } from '@/entities/mci/api';
 import {
   allDeleteRecords,
   getDeleteRecord,
-  updateDeleteStatus,
-  clearDeleteRecord,
   type DeleteRecord,
 } from '@/entities/mci/lib/deleteTracker';
 
@@ -107,17 +104,17 @@ function handleSelectedIndex(index: number[]) {
 
 /** 현재 표시 중인 행 이름 집합에 걸린 삭제 기록만 추린다. */
 function activeRecords(): DeleteRecord[] {
-  const names = new Set(
-    mciTableModel.tableState.displayItems.map((it: any) => it?.name),
+  const uids = new Set(
+    mciTableModel.tableState.displayItems.map((it: any) => it?.uid),
   );
-  return allDeleteRecords().filter(r => names.has(r.infraId));
+  return allDeleteRecords().filter(r => uids.has(r.uid));
 }
 
 const hasActiveDeletes = computed(() => activeRecords().length > 0);
 
 /** 슬롯에서 행별 삭제 기록 조회. */
-function deleteStatusOf(name: string): DeleteRecord | undefined {
-  return getDeleteRecord(name);
+function deleteStatusOf(uid: string): DeleteRecord | undefined {
+  return getDeleteRecord(uid);
 }
 
 // 삭제 요청이 있을 때만 `삭제 상태` 컬럼을 넣고, 없으면 뺀다.
@@ -136,66 +133,8 @@ watch(hasActiveDeletes, active => {
   }
 });
 
-// Handling 상태의 요청을 폴링해 상태를 이어 받는다(화면 이동·새로고침 뒤 복구용).
-// 같은 페이지에서 방금 삭제한 건은 모달의 execute() 프라미스가 이미 상태를 갱신하지만,
-// 새로고침하면 그 프라미스가 사라지므로 reqId 로 다시 조회한다.
-let pollTimer: ReturnType<typeof setInterval> | null = null;
-
-async function pollDeleteStatuses() {
-  const handling = activeRecords().filter(r => r.status === 'Handling');
-  if (handling.length === 0) return;
-
-  for (const rec of handling) {
-    try {
-      const res: any = await useGetBeetleRequest(rec.reqId).execute();
-      // cm-beetle GET /request/{reqId} 는 RequestDetails 를 ApiResponse 로 감싸고,
-      // 그게 다시 우리 프록시(CommonResponse)로 감싸여 온다. 권위 있는 값은
-      // RequestDetails.status(Handling|Success|Error) 와 errorResponse(실패 사유)다.
-      // 단계(stage)별 진행 정보는 삭제 경로에 없다(cb-tumblebug·cm-beetle 최신 확인) —
-      // 그래서 status 만 읽는다.
-      const details =
-        res?.data?.responseData?.data ??
-        res?.data?.data ??
-        res?.data?.responseData ??
-        res?.data ??
-        res;
-      const status = String(details?.status ?? '').toLowerCase();
-      if (status === 'success') {
-        updateDeleteStatus(rec.infraId, 'Success');
-      } else if (status === 'error') {
-        updateDeleteStatus(
-          rec.infraId,
-          'Error',
-          details?.errorResponse || undefined,
-        );
-      }
-      // handling 이면 그대로 둔다.
-    } catch (e: any) {
-      // 조회 자체가 실패하면(예: reqId 만료) 진행 상태를 바꾸지 않고 다음 주기에 재시도.
-      // 단 그 인프라가 목록에서 사라졌으면 기록을 정리한다.
-      const stillListed = mciTableModel.tableState.displayItems.some(
-        (it: any) => it?.name === rec.infraId,
-      );
-      if (!stillListed) clearDeleteRecord(rec.infraId);
-    }
-  }
-}
-
-// Success 로 바뀐 기록이 있으면 목록을 새로 불러온다(행이 사라지고 기록도 정리).
-watch(
-  () =>
-    allDeleteRecords()
-      .map(r => `${r.infraId}:${r.status}`)
-      .join(','),
-  async () => {
-    const done = activeRecords().filter(r => r.status === 'Success');
-    if (done.length > 0) {
-      done.forEach(r => clearDeleteRecord(r.infraId));
-      await fetchMciList();
-      tableKey.value++;
-    }
-  },
-);
+// 상태 갱신(폴링)은 이 화면이 하지 않는다 — deleteTracker 가 앱 전역에서 돌기 때문에
+// 다른 화면에 있는 동안에도 결과가 반영된다. 여기서는 그 결과를 보여주기만 한다.
 
 onBeforeMount(() => {
   initToolBoxTableModel();
@@ -205,11 +144,6 @@ onMounted(async () => {
   await fetchMciList();
   // 초기 데이터 로드 후 컴포넌트 재렌더링
   tableKey.value++;
-  pollTimer = setInterval(pollDeleteStatuses, 5000);
-});
-
-onUnmounted(() => {
-  if (pollTimer) clearInterval(pollTimer);
 });
 </script>
 
@@ -278,23 +212,23 @@ onUnmounted(() => {
           </template>
           <template #col-deleteStatus-format="{ item }">
             <span
-              v-if="deleteStatusOf(item.name)?.status === 'Handling'"
+              v-if="deleteStatusOf(item.uid)?.status === 'Handling'"
               class="delete-status handling"
               data-testid="wl-row-delete-status"
             >
               <span class="spinner" /> 진행 중
             </span>
             <span
-              v-else-if="deleteStatusOf(item.name)?.status === 'Error'"
+              v-else-if="deleteStatusOf(item.uid)?.status === 'Error'"
               class="delete-status error-cell"
               data-testid="wl-row-delete-status"
             >
               에러
               <span
-                v-if="deleteStatusOf(item.name)?.errorReason"
+                v-if="deleteStatusOf(item.uid)?.errorReason"
                 class="error-popover"
                 data-testid="wl-delete-error-popover"
-                >{{ deleteStatusOf(item.name)?.errorReason }}</span
+                >{{ deleteStatusOf(item.uid)?.errorReason }}</span
               >
             </span>
           </template>
