@@ -530,7 +530,10 @@ watch(
     .import-preview {
       @apply mt-[0.5rem];
       .preview-summary {
-        @apply text-[0.8125rem] mb-[0.5rem];
+        @apply text-[0.8125rem] mb-[0.5rem] flex items-center justify-between gap-[0.75rem];
+      }
+      .preview-clear {
+        @apply text-[0.75rem] underline text-gray-600 shrink-0;
       }
       .preview-invalid {
         @apply text-red-600;
