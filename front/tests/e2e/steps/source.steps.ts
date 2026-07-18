@@ -62,6 +62,20 @@ Given(
 );
 
 /**
+ * "먼저 기존 소스 그룹 \"cmig-sshtest-group\" 을 사용한다"
+ *
+ * 이미 등록돼 있는 소스 그룹을 그대로 쓴다(새로 등록하지 않는다). 등록 스텝과 달리 런별 접미사를
+ * 붙이지 않고 *화면에 보이는 이름 그대로* 잡는다 — 실 서버를 다시 등록하지 않고 수집·모델 저장부터
+ * 이어가고 싶을 때(예: 서버 2대짜리 그룹으로 인프라를 만들 때) 쓴다.
+ */
+Given(
+  '기존 소스 그룹 {string} 을 사용한다',
+  async ({ page: _page }, name: string) => {
+    scenarioState.sourceGroupName = name;
+  },
+);
+
+/**
  * "그리고 소스 인프라를 수집한다"
  * → 등록한 소스그룹을 선택하면 하단 상세가 열리고, 상세의 Refresh로 연결 상태를 점검한 뒤
  *   Collect Infra(그룹단위 import-infra)를 실행해 결과(View Infra Meta 링크)를 확인한다.
