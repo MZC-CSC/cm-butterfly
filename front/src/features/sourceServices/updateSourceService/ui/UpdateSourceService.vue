@@ -10,6 +10,7 @@ import {
 } from '@cloudforet-test/mirinae';
 import { watchEffect, ref, reactive, computed, watch } from 'vue';
 import { useSourceConnectionStore } from '@/entities/sourceConnection/model/stores';
+import { DOC_LINKS, openDocLink } from '@/shared/constants/docLinks';
 import { useSourceServiceStore } from '@/shared/libs';
 import { storeToRefs } from 'pinia';
 import { showErrorMessage } from '@/shared/utils';
@@ -73,6 +74,10 @@ const handleDownloadTemplate = () => {
 };
 
 const fileInputRef = ref<HTMLInputElement | null>(null);
+
+const handleOpenImportGuide = () => {
+  openDocLink(DOC_LINKS.sourceConnectionBulkImport);
+};
 
 const handleImportSourceConnection = () => {
   fileInputRef.value?.click();
@@ -281,6 +286,7 @@ watch(
       <div class="import-buttons">
         <p-button
           style-type="tertiary"
+          data-testid="source-import-template"
           :disabled="!isAddDisabled || loading"
           @click="handleDownloadTemplate"
         >
@@ -288,6 +294,7 @@ watch(
         </p-button>
         <p-button
           style-type="tertiary"
+          data-testid="source-import-file"
           :disabled="!isAddDisabled || loading"
           @click="handleImportSourceConnection"
         >
@@ -296,11 +303,23 @@ watch(
         <input
           ref="fileInputRef"
           type="file"
-          accept=".csv"
+          accept=".csv,.xlsx,.xlsm"
           hidden
+          data-testid="source-import-input"
           @change="handleFileChange"
         />
       </div>
+      <p class="import-help" data-testid="source-import-help">
+        The template is CSV. You can fill it in and upload it as CSV or Excel
+        (.xlsx) — both work.
+        <a
+          href="#"
+          data-testid="source-import-guide-link"
+          @click.prevent="handleOpenImportGuide"
+        >
+          How to prepare the file
+        </a>
+      </p>
       <p-field-group
         class="source-connection-result"
         label="Source Connection"
@@ -351,6 +370,12 @@ watch(
         flex: 1;
         height: 1px;
         background-color: #e5e5e5;
+      }
+    }
+    .import-help {
+      @apply text-[0.75rem] text-gray-600 mt-[0.5rem] mb-[0.5rem];
+      a {
+        @apply underline;
       }
     }
     .import-buttons {

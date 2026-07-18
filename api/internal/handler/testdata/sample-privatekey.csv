@@ -1,0 +1,5 @@
+name,description,ip_address,ssh_port,user,password,private_key
+key-01,Key auth server,10.0.0.31,22,ubuntu,,"«BEGIN line»
+key body line 1 — placeholder, not a real key
+key body line 2 — placeholder, not a real key
+«END line»"
