@@ -54,13 +54,19 @@ const onLogoutClick = () => {
         aria-label="Logout"
         @click="onLogoutClick"
       >
+        <!--
+          크기·색·선 두께는 옆 알림 아이콘(미리내 `ic_gnb_bell`)에 맞춘 값이다. 그 아이콘은
+          32 좌표계를 22px 로 그리고 회색(#898995)으로 채우는 방식이라 선이 얇아 보인다.
+          여기서는 24 좌표계를 같은 22px 로 줄이고 선을 1.3 으로 낮춰 실효 두께를 비슷하게 맞췄다.
+          숫자를 바꾸면 두 아이콘의 굵기·높이가 어긋나니 함께 확인한다.
+        -->
         <svg
-          width="24"
-          height="24"
+          width="22"
+          height="22"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          stroke-width="1.8"
+          stroke-width="1.5"
           stroke-linecap="round"
           stroke-linejoin="round"
         >
@@ -86,7 +92,8 @@ const onLogoutClick = () => {
 
     .logout-button {
       @apply flex items-center justify-center;
-      color: inherit;
+      /* 알림 아이콘과 같은 회색(gray.500 = #898995). 상속하면 본문 글자색(거의 검정)이라 혼자 도드라진다. */
+      @apply text-gray-500;
       cursor: pointer;
 
       &:hover {
