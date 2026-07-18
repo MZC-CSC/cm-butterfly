@@ -27,6 +27,8 @@ const emit = defineEmits([
 ]);
 
 const isDisabled = ref<boolean>(false);
+// 임포트한 파일에 문제가 남아 있는 동안은 등록을 허용하지 않는다.
+const isImportBlocked = ref<boolean>(false);
 
 const registerSourceGroup = useRegisterSourceGroup<{ request: any }, any>(null);
 
@@ -36,10 +38,15 @@ const state = reactive({
 });
 
 watchEffect(() => {
-  state.sourceServiceName && state.sourceServiceName.length > 0
-    ? (isDisabled.value = true)
-    : (isDisabled.value = false);
+  isDisabled.value =
+    !!state.sourceServiceName &&
+    state.sourceServiceName.length > 0 &&
+    !isImportBlocked.value;
 });
+
+const handleImportBlocked = (blocked: boolean) => {
+  isImportBlocked.value = blocked;
+};
 
 const handleSourceServiceInfo = (value: any) => {
   state.sourceServiceName = value.sourceServiceName;
@@ -130,6 +137,7 @@ const handleConnectionModal = (value: boolean) => {
       <template #body>
         <update-source-service
           :is-edit="false"
+          @update:import-blocked="handleImportBlocked"
           :loading="registerSourceGroup.isLoading.value"
           @update:is-connection-modal-opened="handleConnectionModal"
           @update:source-servie-info="handleSourceServiceInfo"

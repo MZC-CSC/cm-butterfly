@@ -42,6 +42,7 @@ const props = defineProps<iProps>();
 const emit = defineEmits([
   'update:source-servie-info',
   'update:is-connection-modal-opened',
+  'update:import-blocked',
 ]);
 
 const state = reactive({
@@ -172,6 +173,16 @@ const buildPreview = (rows: ITabularImportRow[], fileErrors: string[]) => {
     ? previewRows.value.map(row => ({ ...row.data }))
     : [];
 };
+
+// 임포트한 파일에 문제가 남아 있으면 등록을 막아야 한다. 막지 않으면 등록 대상이
+// 비워진 채로 진행돼 연결 없는 그룹이 조용히 만들어진다.
+const isImportBlocked = computed(
+  () => hasPreview.value && !isPreviewValid.value,
+);
+
+watchEffect(() => {
+  emit('update:import-blocked', isImportBlocked.value);
+});
 
 const invalidRows = computed(() =>
   previewRows.value.filter(row => row.errors.length > 0),
