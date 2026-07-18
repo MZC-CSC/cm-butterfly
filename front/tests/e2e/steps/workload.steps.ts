@@ -144,11 +144,49 @@ When(
   '{string} 인프라를 다시 삭제하려 하면 이미 처리 중 안내가 나온다',
   async ({ page }, infraName: string) => {
     const wl = new WorkloadPage(page);
-    await wl.selectMci(infraName);
-    await wl.triggerDeleteMenu();
+    // 모달을 닫으면 목록이 다시 그려지며 선택이 풀리므로, 선택부터 다시 한다.
+    await wl.reselectAndTriggerDelete(infraName);
     await wl.expectDeleteAlreadyInProgress();
   },
 );
+
+/** "\"mock-del-infra\" 인프라의 삭제 모달을 연다" — 요청은 내지 않고 모달만 연다. */
+When(
+  '{string} 인프라의 삭제 모달을 연다',
+  async ({ page }, infraName: string) => {
+    const wl = new WorkloadPage(page);
+    await wl.selectMci(infraName);
+    await wl.openDeleteModal();
+  },
+);
+
+/**
+ * "모달이 배경을 막아 다른 화면으로 이동할 수 없다"
+ *
+ * 요소가 보이는지가 아니라 *실제로 클릭할 수 있는지* 로 판정한다. 모달이 배경을 덮고 있으면
+ * 클릭 시도가 가로막혀 실패해야 한다.
+ */
+Then('모달이 배경을 막아 다른 화면으로 이동할 수 없다', async ({ page }) => {
+  await new WorkloadPage(page).expectBackgroundBlocked();
+});
+
+/** "화면을 새로고침한다" */
+When('화면을 새로고침한다', async ({ page }) => {
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page
+    .waitForLoadState('networkidle', { timeout: 30_000 })
+    .catch(() => {});
+});
+
+/**
+ * "화면이 잠기지 않고 조작할 수 있다"
+ *
+ * ★ 이걸 왜 보나 — 모달이 닫혔는데 오버레이만 남으면 화면이 멈춘 것처럼 되지만 *눈으로는 정상으로
+ *   보인다.* 요소 존재 여부로는 잡히지 않으므로 실제 클릭 가능 여부로 단언한다.
+ */
+Then('화면이 잠기지 않고 조작할 수 있다', async ({ page }) => {
+  await new WorkloadPage(page).expectScreenInteractive();
+});
 
 /** 조사 "로/으로" 차이를 흡수하기 위한 같은 뜻의 스텝("에러 로 보인다"). */
 Then(

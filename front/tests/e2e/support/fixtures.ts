@@ -1,6 +1,7 @@
 import { test as base } from 'playwright-bdd';
 import { ApiMock } from './apiMock';
 import { registerHoneybeeMocks } from './mocks/honeybee';
+import { registerMciMocks } from './mocks/mci';
 
 /**
  * 공통 테스트 fixture.
@@ -31,6 +32,7 @@ export const test = base.extend<{ mockApi: ApiMock | null; screens: boolean }>({
       if (testInfo.tags.includes('@mock')) {
         mock = new ApiMock();
         registerHoneybeeMocks(mock);
+        registerMciMocks(mock);
         await mock.install(page);
       }
       currentMock = mock;

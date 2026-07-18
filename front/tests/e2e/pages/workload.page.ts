@@ -306,12 +306,80 @@ export class WorkloadPage {
   }
 
   /**
+   * 모달이 배경을 막고 있는지 — *실제로 클릭할 수 있는지* 로 판정한다.
+   *
+   * 요소가 보이는지로는 알 수 없다. 모달 오버레이가 덮고 있어도 배경 요소는 DOM 에 그대로 있고
+   * "보이는" 상태이기 때문이다. 클릭을 시도해 가로막히는지를 봐야 한다.
+   */
+  async expectBackgroundBlocked(): Promise<void> {
+    const menuItem = this.page
+      .getByRole('link', { name: /source services/i })
+      .or(this.page.getByText('Source Services', { exact: true }))
+      .first();
+    const clickable = await menuItem
+      .click({ trial: true, timeout: 3_000 })
+      .then(() => true)
+      .catch(() => false);
+    expect(
+      clickable,
+      '모달이 열려 있는데 배경 메뉴가 클릭된다 — 모달이 배경을 막지 못하고 있다.',
+    ).toBeFalsy();
+  }
+
+  /**
+   * 화면이 조작 가능한지 — 오버레이가 남아 클릭을 삼키고 있지 않은지.
+   *
+   * ★ 모달은 사라졌는데 오버레이만 남는 경우가 실제 위험이다. 화면은 정상으로 보이지만 아무것도
+   *   눌리지 않아 사용자는 멈춘 것으로 받아들인다. 눈으로도, 요소 존재 여부로도 잡히지 않으므로
+   *   목록의 조작 요소를 실제로 클릭해 본다.
+   */
+  async expectScreenInteractive(): Promise<void> {
+    await expect(this.mciTable).toBeVisible({ timeout: 15_000 });
+    const clickable = await this.actionDropdown
+      .click({ trial: true, timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
+    expect(
+      clickable,
+      '목록은 보이는데 조작이 막혀 있다 — 오버레이가 남아 화면이 잠긴 상태다.',
+    ).toBeTruthy();
+  }
+
+  /**
    * 액션 드롭다운 → Delete 로 모달을 열되, confirm 입력칸을 기다리지 않는다.
    * 이미 삭제가 진행 중인 대상이면 모달이 confirm 이 아니라 progress 단계로 바로 열리기 때문이다.
    */
   async triggerDeleteMenu(): Promise<void> {
     await this.actionDropdown.click();
+    // ★ 선택이 풀려 있으면 Delete 가 비활성이라 눌러도 모달이 열리지 않는다.
+    //   그대로 진행하면 "모달이 안 뜬다"를 제품 결함으로 오진하게 되므로 여기서 끊는다.
+    //   (mirinae 는 비활성을 class 로만 표현해 isEnabled() 로는 잡히지 않는다 — DESIGN-MIRINAE §1.6)
+    const disabled = await this.deleteMenuItem
+      .first()
+      .evaluate(
+        el =>
+          !!el.closest(
+            '[class*="disabled"], [disabled], [aria-disabled="true"]',
+          ),
+      )
+      .catch(() => false);
+    expect(
+      disabled,
+      'Action > Delete 가 비활성이다 — 행 선택이 풀린 상태다(선택부터 다시 해야 한다).',
+    ).toBeFalsy();
     await this.deleteMenuItem.click();
+  }
+
+  /**
+   * 행을 다시 선택하고 삭제 메뉴를 연다.
+   *
+   * 모달을 닫으면 목록이 다시 그려지며 **선택이 풀린다.** 그래서 "진행 중인 대상을 다시 삭제해 본다"
+   * 처럼 두 번째로 삭제를 시도하는 경우에는 선택부터 다시 해야 한다.
+   */
+  async reselectAndTriggerDelete(infraName: string): Promise<void> {
+    await this.selectMci(infraName);
+    await this.page.waitForTimeout(500);
+    await this.triggerDeleteMenu();
   }
 
   /**
