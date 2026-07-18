@@ -10,7 +10,11 @@ import { reactive, ref, watch } from 'vue';
 import { IGetCredentialListResponse } from '@/entities/credentials/model/types';
 import { useConfigStore } from '@/entities/credentials/model/stores';
 import { useCreateCredentials } from '@/entities/credentials/api/index';
-import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
+import {
+  toErrorMessage,
+  showErrorMessage,
+  showSuccessMessage,
+} from '@/shared/utils';
 import { storeToRefs } from 'pinia';
 
 interface iProps {
@@ -50,8 +54,9 @@ watch(
   () => props.data,
   () => {
     targetModel.value = configStore.getConfigByName(props.data);
+    // 옛 스타일 단언(<string>expr)은 SFC 파서가 JSX 태그로 읽어 깨진다.
     serverCode.value =
-      <string>targetModel.value?.onpremiseInfraModel?.nodes || '';
+      (targetModel.value?.onpremiseInfraModel?.nodes as string) || '';
   },
   { immediate: true },
 );
@@ -107,13 +112,14 @@ const handleConfirm = async () => {
       emit('update:isModalOpened', false);
     }
   } catch (error) {
-    if (
-      (error as any).errorMsg.value ===
-      'constraint failed: UNIQUE constraint failed: source_groups.name (2067)'
-    ) {
-      showErrorMessage('failed', 'Service Name Already Exists');
-    }
-    showErrorMessage('failed', 'Service Registering Failed');
+    // 이 경로는 크리덴셜 등록이다. 소스 그룹 이름 중복 오류를 잡던 분기가
+    // 복사돼 있었으나 여기서는 발생할 수 없었고, 조건문 뒤 안내가 무조건
+    // 실행돼 안내가 두 번 떴다. 값을 꺼내는 부분에도 방어가 없어 다른 종류의
+    // 오류가 오면 예외 처리 안에서 다시 터졌다.
+    showErrorMessage(
+      'failed',
+      toErrorMessage(error, 'Credential Registering Failed'),
+    );
   }
 };
 </script>
