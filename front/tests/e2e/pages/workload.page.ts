@@ -183,16 +183,37 @@ export class WorkloadPage {
       .or(this.deleteModal.locator('input').last());
   }
   /**
-   * 삭제 모달의 확정 버튼.
+   * 삭제 모달의 확정(Delete) 버튼.
    *
-   * 이 모달은 PButtonModal 의 *기본* 확정 버튼을 그대로 쓴다(슬롯을 덮지 않았다). 그래서 버튼에 testid가 없고,
-   * `mci-delete-modal` testid는 PButtonModal 래퍼에 달려 있어 그 안으로 스코프를 걸 수도 없다(가시 요소가 아니다).
-   *
-   * 슬롯을 덮어 testid를 넣으면 버튼 라벨이 바뀌어 화면이 달라진다. 그래서 디자인 시스템이 보장하는
-   * 확정 버튼 클래스를 쓴다 — 이 Page Object 의 Load Config 모달에서도 같은 방식을 쓰고 있다.
+   * BAR-1444 로 모달이 비동기 3단계(confirm/progress/error)가 되며 footer 를 커스텀 슬롯으로 그린다.
+   * 각 버튼에 testid 가 붙어 있으므로 그걸로 잡는다(이전의 `.confirm-button` 기본 버튼은 더 이상 없다).
    */
   private get deleteConfirmButton(): Locator {
-    return this.page.locator('.p-button-modal .confirm-button');
+    return this.page.getByTestId('wl-delete-confirm');
+  }
+  /** progress/error 단계의 닫기 버튼. */
+  private get deleteCloseButton(): Locator {
+    return this.page.getByTestId('wl-delete-close');
+  }
+  /** error 단계의 재시도 버튼(선택 화면으로 되돌아간다). */
+  private get deleteRetryButton(): Locator {
+    return this.page.getByTestId('wl-delete-retry');
+  }
+  /** error 단계의 강제 삭제 버튼. */
+  private get deleteForceEnterButton(): Locator {
+    return this.page.getByTestId('wl-delete-force-enter');
+  }
+  /** progress 단계 컨테이너(삭제 처리 중). */
+  private get deleteProgress(): Locator {
+    return this.page.getByTestId('mci-delete-progress');
+  }
+  /** error 단계 컨테이너(기존 삭제 실패). */
+  private get deleteErrorDialog(): Locator {
+    return this.page.getByTestId('mci-delete-error');
+  }
+  /** 목록 행의 삭제 상태 셀(진행 중/에러). */
+  private mciRowDeleteStatus(): Locator {
+    return this.page.getByTestId('wl-row-delete-status');
   }
 
   /**
@@ -245,6 +266,43 @@ export class WorkloadPage {
       .first()
       .isHidden({ timeout: timeoutMs })
       .catch(() => false);
+  }
+
+  // ── BAR-1444 비동기 삭제 흐름 ──────────────────────────────────────────────
+
+  /** 삭제를 누른 뒤 모달이 "삭제 처리 중"(progress)으로 바뀌었는지. */
+  async expectDeleteInProgress(): Promise<void> {
+    await expect(this.deleteProgress).toBeVisible({ timeout: 15_000 });
+  }
+
+  /** progress/error 단계에서 [닫기]. 목록으로 돌아가 삭제 상태 컬럼을 본다. */
+  async closeDeleteModal(): Promise<void> {
+    await this.deleteCloseButton.click();
+  }
+
+  /** 목록 행의 삭제 상태 셀에 지정 문구(진행 중/에러)가 보이는지. */
+  async expectRowDeleteStatus(text: '진행 중' | '에러'): Promise<void> {
+    await expect(
+      this.mciRowDeleteStatus().filter({ hasText: text }).first(),
+    ).toBeVisible({ timeout: 30_000 });
+  }
+
+  /** error 단계(기존 삭제 실패)로 열렸는지. */
+  async expectDeleteErrorDialog(): Promise<void> {
+    await expect(this.deleteErrorDialog).toBeVisible({ timeout: 15_000 });
+  }
+
+  /** error 단계에서 [재시도] — 선택 화면으로 되돌아간다. */
+  async retryDelete(): Promise<void> {
+    await this.deleteRetryButton.click();
+    await expect(this.deleteConfirmInput.first()).toBeVisible({
+      timeout: 10_000,
+    });
+  }
+
+  /** error 단계에서 [강제 삭제]. */
+  async forceDeleteFromError(): Promise<void> {
+    await this.deleteForceEnterButton.click();
   }
 
   /**

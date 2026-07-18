@@ -362,7 +362,11 @@ watch(
       <div class="modal-footer">
         <!-- error: 재시도(선택 화면으로) / 강제 삭제 / 닫기 -->
         <template v-if="state.phase === 'error'">
-          <p-button style-type="transparent" @click="handleClose">
+          <p-button
+            style-type="transparent"
+            data-testid="wl-delete-close"
+            @click="handleClose"
+          >
             닫기
           </p-button>
           <p-button
@@ -382,17 +386,26 @@ watch(
         </template>
         <!-- progress: 닫기만 (삭제는 계속되고 목록이 이어 보여줌) -->
         <template v-else-if="state.phase === 'progress'">
-          <p-button style-type="transparent" @click="handleClose">
+          <p-button
+            style-type="transparent"
+            data-testid="wl-delete-close"
+            @click="handleClose"
+          >
             닫기
           </p-button>
         </template>
         <!-- confirm: 취소 / 삭제(이름 타이핑 시 활성) -->
         <template v-else>
-          <p-button style-type="transparent" @click="handleClose">
+          <p-button
+            style-type="transparent"
+            data-testid="wl-delete-cancel"
+            @click="handleClose"
+          >
             Cancel
           </p-button>
           <p-button
             style-type="alert"
+            data-testid="wl-delete-confirm"
             :disabled="isDeleteDisabled"
             @click="handleConfirm"
           >
