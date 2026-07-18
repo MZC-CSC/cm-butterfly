@@ -393,17 +393,29 @@ watch(
         data-testid="source-import-preview"
       >
         <div class="preview-summary">
-          <strong data-testid="source-import-count">
-            {{ previewRows.length }} connection(s)
-          </strong>
-          from {{ importedFileName }}
-          <span
-            v-if="invalidRowCount > 0"
-            class="preview-invalid"
-            data-testid="source-import-invalid-count"
-          >
-            — {{ invalidRowCount }} row(s) need attention
+          <span>
+            <strong data-testid="source-import-count">
+              {{ previewRows.length }} connection(s)
+            </strong>
+            from {{ importedFileName }}
+            <span
+              v-if="invalidRowCount > 0"
+              class="preview-invalid"
+              data-testid="source-import-invalid-count"
+            >
+              — {{ invalidRowCount }} row(s) need attention
+            </span>
           </span>
+          <!-- 잘못된 파일을 올린 뒤 빠져나갈 길이 필요하다. 이것이 없으면
+               그룹만 등록하려 해도 등록 버튼이 계속 막힌다. -->
+          <button
+            type="button"
+            class="preview-clear"
+            data-testid="source-import-clear"
+            @click="clearPreview"
+          >
+            Remove
+          </button>
         </div>
 
         <ul
