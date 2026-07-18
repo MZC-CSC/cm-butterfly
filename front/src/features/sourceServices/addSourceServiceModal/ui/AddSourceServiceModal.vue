@@ -53,7 +53,27 @@ const handleSourceServiceInfo = (value: any) => {
   state.description = value.description;
 };
 
+// 연결을 넣겠다고 토글을 켜 두고 하나도 없이 등록하려는 경우에만 되묻는다.
+// 토글이 꺼져 있으면 그룹만 등록하겠다는 의사가 이미 분명하다.
+const isConfirmNoConnectionOpen = ref<boolean>(false);
+
 const handleConfirm = async () => {
+  if (
+    sourceConnectionStore.withSourceConnection &&
+    sourceConnectionStore.editConnections.length === 0
+  ) {
+    isConfirmNoConnectionOpen.value = true;
+    return;
+  }
+  await registerGroup();
+};
+
+const handleConfirmNoConnection = async () => {
+  isConfirmNoConnectionOpen.value = false;
+  await registerGroup();
+};
+
+const registerGroup = async () => {
   console.log(
     '[AddSourceServiceModal] handleConfirm - BEFORE map, editConnections:',
     JSON.stringify(sourceConnectionStore.editConnections, null, 2),
@@ -152,6 +172,21 @@ const handleConnectionModal = (value: boolean) => {
         }}</span>
       </template>
     </p-button-modal>
+
+    <!-- 연결을 넣겠다고 켜 두고 하나도 없이 등록하려 할 때만 뜬다. -->
+    <p-button-modal
+      v-if="isConfirmNoConnectionOpen"
+      :visible="isConfirmNoConnectionOpen"
+      size="sm"
+      backdrop
+      header-title="Register the source service without any connection?"
+      :hide-body="true"
+      :hide-header-close-button="true"
+      data-testid="source-service-no-connection-confirm"
+      @confirm="handleConfirmNoConnection"
+      @cancel="isConfirmNoConnectionOpen = false"
+      @close="isConfirmNoConnectionOpen = false"
+    />
   </div>
 </template>
 
