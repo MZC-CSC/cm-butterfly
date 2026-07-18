@@ -355,10 +355,16 @@ watch(
           </template>
         </p-field-group>
       </div>
-    </template>
 
-    <!-- 단계별 버튼 -->
-    <template #footer>
+      <!--
+        단계별 버튼.
+
+        ★ PButtonModal 에는 `footer` 슬롯이 없다 — 푸터는 `v-if="!hideFooter"` 로 감싼 고정 영역이고,
+          바꿀 수 있는 건 그 안의 `close-button`/`confirm-button` 슬롯뿐이다. 그래서 `hide-footer` 로
+          기본 푸터를 끈 뒤 `#footer` 슬롯에 버튼을 넣으면 *아무것도 렌더되지 않는다*(실제로 그랬다).
+          에러 단계는 버튼이 셋(재시도·강제 삭제·닫기)이라 기본 두 슬롯으로는 부족하므로,
+          기본 푸터는 끈 채 버튼 줄을 body 끝에 직접 그린다.
+      -->
       <div class="modal-footer">
         <!-- error: 재시도(선택 화면으로) / 강제 삭제 / 닫기 -->
         <template v-if="state.phase === 'error'">
@@ -377,7 +383,7 @@ watch(
             재시도
           </p-button>
           <p-button
-            style-type="alert"
+            style-type="negative-primary"
             data-testid="wl-delete-force-enter"
             @click="handleForceDelete"
           >
@@ -404,7 +410,7 @@ watch(
             Cancel
           </p-button>
           <p-button
-            style-type="alert"
+            style-type="negative-primary"
             data-testid="wl-delete-confirm"
             :disabled="isDeleteDisabled"
             @click="handleConfirm"
@@ -527,6 +533,10 @@ watch(
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  /* 기본 푸터를 끄고 body 안에 그리므로(위 템플릿 주석 참고), 구분선과 여백으로 푸터처럼 보이게 한다. */
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
 
   .force-warning-banner {
     padding: 12px;
