@@ -159,7 +159,12 @@ func SubsystemAnyCaller(c echo.Context, subsystemName, operationId string, commo
 		authString = ""
 	}
 
-	commonResponse, err := CommonCaller(strings.ToUpper(targetApiSpec.Method), targetFrameworkInfo.BaseURL, targetApiSpec.ResourcePath, commonRequest, authString)
+	// 들어온 X-Request-Id 를 서브시스템까지 그대로 전달한다. cm-beetle 은 이 id 로 요청을
+	// 추적하므로(핸들러 실행 전 Handling, 끝나면 Success/Error), 프론트가 긴 삭제를 기다리다
+	// 끊겨도 GET /request/{id} 로 진행 상태를 조회할 수 있다. 없으면 빈 문자열이라 무시된다.
+	reqID := c.Request().Header.Get(echo.HeaderXRequestID)
+
+	commonResponse, err := CommonCaller(strings.ToUpper(targetApiSpec.Method), targetFrameworkInfo.BaseURL, targetApiSpec.ResourcePath, commonRequest, authString, reqID)
 	if err != nil {
 		return commonResponse, err
 	}
@@ -204,7 +209,7 @@ func getAuth(c echo.Context, service Service) (string, error) {
 }
 
 // CommonCaller makes HTTP calls to subsystems
-func CommonCaller(callMethod string, targetFwUrl string, endPoint string, commonRequest *CommonRequest, auth string) (*response.CommonResponse, error) {
+func CommonCaller(callMethod string, targetFwUrl string, endPoint string, commonRequest *CommonRequest, auth string, reqID string) (*response.CommonResponse, error) {
 	log.Printf("DEBUG: CommonCaller called")
 	log.Printf("DEBUG: - callMethod: %s", callMethod)
 	log.Printf("DEBUG: - targetFwUrl: %s", targetFwUrl)
@@ -222,7 +227,7 @@ func CommonCaller(callMethod string, targetFwUrl string, endPoint string, common
 	log.Printf("DEBUG: - final requestUrl: %s", requestUrl)
 
 	log.Printf("DEBUG: About to call CommonHttpToCommonResponse")
-	commonResponse, err := CommonHttpToCommonResponse(requestUrl, commonRequest.Request, callMethod, auth)
+	commonResponse, err := CommonHttpToCommonResponse(requestUrl, commonRequest.Request, callMethod, auth, reqID)
 
 	if err != nil {
 		log.Printf("ERROR: CommonHttpToCommonResponse failed: %v", err)
@@ -241,7 +246,7 @@ func CommonCallerWithoutToken(callMethod string, targetFwUrl string, endPoint st
 	pathParamsUrl := mappingUrlPathParams(endPoint, commonRequest)
 	queryParamsUrl := mappingQueryParams(pathParamsUrl, commonRequest)
 	requestUrl := targetFwUrl + queryParamsUrl
-	commonResponse, err := CommonHttpToCommonResponse(requestUrl, commonRequest.Request, callMethod, "")
+	commonResponse, err := CommonHttpToCommonResponse(requestUrl, commonRequest.Request, callMethod, "", "")
 	return commonResponse, err
 }
 
@@ -267,7 +272,7 @@ func mappingQueryParams(targeturl string, commonRequest *CommonRequest) string {
 }
 
 // CommonHttpToCommonResponse makes HTTP request and converts response
-func CommonHttpToCommonResponse(url string, s interface{}, httpMethod string, auth string) (*response.CommonResponse, error) {
+func CommonHttpToCommonResponse(url string, s interface{}, httpMethod string, auth string, reqID string) (*response.CommonResponse, error) {
 	log.Printf("DEBUG: CommonHttpToCommonResponse called")
 	log.Printf("DEBUG: - METHOD: %s", httpMethod)
 	log.Printf("DEBUG: - URL: %s", url)
@@ -291,6 +296,10 @@ func CommonHttpToCommonResponse(url string, s interface{}, httpMethod string, au
 	if auth != "" {
 		req.Header.Add("Authorization", auth)
 		log.Printf("DEBUG: - Authorization header added: %s", auth)
+	}
+	if reqID != "" {
+		req.Header.Set(echo.HeaderXRequestID, reqID)
+		log.Printf("DEBUG: - X-Request-Id forwarded: %s", reqID)
 	}
 
 	log.Printf("DEBUG: - Request Headers:")
