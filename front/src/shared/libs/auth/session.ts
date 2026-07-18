@@ -11,6 +11,7 @@ import JwtTokenProvider from '@/shared/libs/token';
 import { stopDeleteTracking } from '@/entities/mci/lib/deleteTracker';
 
 const LOGIN_AUTH_STORAGE = 'LOGIN_AUTH';
+const SESSION_STARTED_STORAGE = 'MCMP_SESSION_STARTED';
 
 /**
  * access token 의 만료 시각(ms). 읽어내지 못하면 null.
@@ -57,6 +58,64 @@ export function isSessionAlive(): boolean {
   return at > Date.now();
 }
 
+// ── 세션이 시작된 시각 ────────────────────────────────────────────────────
+//
+// 배경 작업 때문에 세션을 연장하더라도 **무한정 늘어나서는 안 된다.** 그 상한을 재려면
+// 세션이 언제 시작됐는지 알아야 하고, 새로고침을 넘겨야 하므로 저장소에 둔다.
+
+/** 로그인 시각을 기록한다. */
+export function markSessionStart(): void {
+  localStorage.setItem(SESSION_STARTED_STORAGE, String(Date.now()));
+}
+
+/** 로그인 이후 흐른 시간(ms). 기록이 없으면 0(=방금 시작한 것으로 본다). */
+export function msSinceSessionStart(): number {
+  const raw = Number(localStorage.getItem(SESSION_STARTED_STORAGE));
+  if (!raw || Number.isNaN(raw)) {
+    // 이 코드가 들어오기 전에 로그인한 사용자다. 지금을 기준으로 삼는다.
+    markSessionStart();
+    return 0;
+  }
+  return Date.now() - raw;
+}
+
+// ── 마지막 사용자 활동 ────────────────────────────────────────────────────
+//
+// 세션을 끊는 기준은 "마지막으로 *사용자가* 쓴 시각" 이다. 서버 요청이 아니라 **화면 조작**으로
+// 센다 — 이게 핵심이다. 요청을 기준으로 삼으면 삭제 추적 폴링 같은 백그라운드 호출이
+// "쓰는 중" 으로 집계돼, 자리를 비워도 세션이 끊기지 않는다.
+let lastActivityAt = Date.now();
+
+const ACTIVITY_EVENTS = [
+  'pointerdown',
+  'keydown',
+  'wheel',
+  'touchstart',
+] as const;
+
+function markActivity(): void {
+  lastActivityAt = Date.now();
+}
+
+/** 마지막 활동 이후 흐른 시간(ms). */
+export function msSinceActivity(): number {
+  return Date.now() - lastActivityAt;
+}
+
+/** 활동 감시를 시작한다(중복 등록되지 않는다 — 같은 리스너를 재등록하면 무시된다). */
+export function watchActivity(): void {
+  markActivity();
+  ACTIVITY_EVENTS.forEach(type =>
+    window.addEventListener(type, markActivity, { passive: true }),
+  );
+}
+
+export function unwatchActivity(): void {
+  ACTIVITY_EVENTS.forEach(type =>
+    window.removeEventListener(type, markActivity),
+  );
+}
+
 /**
  * 브라우저에 남은 로그인 흔적을 모두 지운다.
  *
@@ -65,5 +124,7 @@ export function isSessionAlive(): boolean {
 export function clearSession(): void {
   JwtTokenProvider.getProvider().removeToken();
   localStorage.removeItem(LOGIN_AUTH_STORAGE);
+  localStorage.removeItem(SESSION_STARTED_STORAGE);
   stopDeleteTracking();
+  unwatchActivity();
 }

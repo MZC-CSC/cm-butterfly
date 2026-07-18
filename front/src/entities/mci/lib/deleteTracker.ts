@@ -66,6 +66,16 @@ export function getDeleteRecord(uid: string): DeleteRecord | undefined {
 }
 
 /** 진행 중인 삭제가 있으면 true — 중복 요청 방어에 쓴다. */
+/**
+ * 배경에서 아직 끝나지 않은 삭제가 있는가.
+ *
+ * 세션 유지 판단에 쓴다 — 삭제가 도는 중이라면 사용자가 화면을 만지지 않아도 세션을 이어 준다.
+ * 결과를 보여 줄 상대가 사라지면 그 작업을 지켜본 의미가 없기 때문이다.
+ */
+export function hasPendingDeletes(): boolean {
+  return allDeleteRecords().some(r => r.status === 'Handling');
+}
+
 export function isDeleteInProgress(uid: string): boolean {
   return state.records[uid]?.status === 'Handling';
 }
