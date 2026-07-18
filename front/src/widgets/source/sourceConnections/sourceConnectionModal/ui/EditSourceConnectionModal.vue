@@ -98,30 +98,35 @@ const sourceConnectionsByIds = ref<any[]>([]);
 const uniqueSourceConnectionsByIds = ref<any[]>([]);
 let isInitialized = false;
 
+// 이미 등록된 연결은 입력란을 모두 비운 채로 연다. 기존 값은 placeholder 로만
+// 보여주고, 사용자가 실제로 입력한 항목만 검증·전송한다. 특히 인증 3항목은
+// 서버가 암호화해 내려주므로 그 값을 입력란에 되돌려 넣으면 저장된 평문을
+// 암호문으로 덮어써 연결이 깨진다.
+const toEditableRow = (connId: string) => {
+  const stored = sourceConnectionStore.getConnectionById(connId) as any;
+  return {
+    _id: connectionIdCounter++,
+    id: stored?.id,
+    _original: stored,
+    name: '',
+    description: '',
+    ip_address: '',
+    ssh_port: '',
+    user: '',
+    password: '',
+    private_key: '',
+  };
+};
+
 // 선택된 Connection ID에 따라 데이터 로드
 watchEffect(() => {
   if (props.multiSelectedConnectionIds.length === 1) {
     sourceConnectionsByIds.value = [
-      {
-        _id: connectionIdCounter++,
-        ...sourceConnectionStore.getConnectionById(
-          props.multiSelectedConnectionIds[0],
-        ),
-        user: '',
-        password: '',
-        private_key: '',
-      },
+      toEditableRow(props.multiSelectedConnectionIds[0]),
     ];
   } else if (props.multiSelectedConnectionIds.length > 1) {
-    sourceConnectionsByIds.value = props.multiSelectedConnectionIds.map(
-      (connId: string) => ({
-        _id: connectionIdCounter++,
-        ...sourceConnectionStore.getConnectionById(connId),
-        user: '',
-        password: '',
-        private_key: '',
-      }),
-    );
+    sourceConnectionsByIds.value =
+      props.multiSelectedConnectionIds.map(toEditableRow);
   } else if (
     props.multiSelectedConnectionIds.length === 0 &&
     props.selectedConnectionId.length === 0
@@ -179,17 +184,43 @@ watchEffect(
   { flush: 'sync' },
 );
 
-// readonly 필드 계산 - 기존 connection 중 다중 선택 시에만 user, password, private_key readonly
+// 입력란이 비어 있으면 "그대로 두겠다"는 뜻이므로 요청에 담지 않는다.
+//
+// 이름은 뺀다. 연계 시스템이 커넥션 이름에 전역 유니크 제약을 걸어 두어
+// (`connection_infos.name`, 대소문자 무시) 다른 소스 그룹의 커넥션과도 부딪히는데,
+// 이 화면은 여러 건을 한 번에 저장하므로 중간에 실패하면 어디까지 반영됐는지
+// 알기 어렵다. 이름은 목록·상세의 개별 수정에서 한 건씩 처리한다.
+const UPDATABLE_FIELDS = [
+  'description',
+  'ip_address',
+  'ssh_port',
+  'user',
+  'password',
+  'private_key',
+] as const;
+
+const buildUpdateRequest = (info: any) => {
+  const request: Record<string, unknown> = {};
+  UPDATABLE_FIELDS.forEach(field => {
+    const value = info[field];
+    if (value === undefined || value === null) return;
+    const trimmed = String(value).trim();
+    if (trimmed === '') return;
+    // 입력했지만 기존 값과 같으면 보낼 이유가 없다.
+    const current = info._original?.[field];
+    if (current !== undefined && String(current) === trimmed) return;
+    request[field] = trimmed;
+  });
+  return request;
+};
+
+// 이미 등록된 연결은 이름을 잠근다. 이름 충돌은 저장 시점에야 서버가 알려주는데,
+// 이 화면은 여러 건을 순차 저장하므로 한 건이 실패해도 나머지가 이미 반영된
+// 뒤일 수 있다. 이름 변경은 목록·상세의 개별 수정에서 한 건씩 처리한다.
 const getReadonlyFields = (connection: any) => {
-  // 새로 추가하는 connection (id 없음)은 모든 필드 입력 가능
-  if (!connection.id) {
-    return [];
-  }
-  // 기존 connection이 2개 이상 선택되었을 때만 일부 필드 readonly
-  if (props.multiSelectedConnectionIds.length > 1) {
-    return ['user', 'password', 'private_key'];
-  }
-  return [];
+  // 새로 추가하는 연결은 이름을 입력해야 하므로 잠그지 않는다.
+  if (!connection.id) return [] as string[];
+  return ['name'];
 };
 
 const handleAddSourceConnection = async () => {
@@ -202,21 +233,20 @@ const handleAddSourceConnection = async () => {
     );
     const newConnections = connectionInfoData.value.filter(info => !info.id);
 
-    // 기존 connection 업데이트
+    // 기존 connection 업데이트 — 사용자가 실제로 입력한 항목만 담는다.
+    // 연계 시스템은 전달된 항목만 반영하고 나머지는 기존 값을 유지하므로,
+    // 빈 값을 함께 보낼 필요가 없다.
     for (const info of existingConnections) {
+      const request = buildUpdateRequest(info);
+      // 바꾼 것이 없으면 요청을 보내지 않는다.
+      if (Object.keys(request).length === 0) continue;
+
       await updateConnectionInfo.execute({
         pathParams: {
           sgId: props.sourceServiceId,
           connId: info.id,
         },
-        request: {
-          description: info.description,
-          ip_address: info.ip_address,
-          password: info.password,
-          private_key: info.private_key,
-          ssh_port: info.ssh_port,
-          user: info.user,
-        },
+        request,
       });
     }
 
@@ -249,7 +279,13 @@ const handleAddSourceConnection = async () => {
       (error as any).errorMsg?.value ===
       'constraint failed: UNIQUE constraint failed: connection_infos.name (2067)'
     ) {
-      showErrorMessage('failed', 'Connection Info Name Already Exists');
+      // 이름 유니크 제약은 소스 그룹 단위가 아니라 전체 범위이고 대소문자를
+      // 구분하지 않는다. 지금 보고 있는 그룹에 같은 이름이 없어도 다른 그룹의
+      // 연결과 부딪힐 수 있어, 어디서 충돌했는지 알 수 없는 채로 막힌다.
+      showErrorMessage(
+        'failed',
+        'Connection name already in use. Names must be unique across all source groups, ignoring case.',
+      );
     } else {
       showErrorMessage('failed', 'Connection Save Failed');
     }
@@ -284,6 +320,7 @@ const handleAddSourceConnection = async () => {
           <source-connection-form
             :source-connection="uniqueSourceConnectionsByIds[i]"
             mode="edit"
+            :existing="info._original ?? null"
             :show-delete-button="uniqueSourceConnectionsByIds.length > 1"
             :readonly="getReadonlyFields(info)"
             @delete="deleteSourceConnection(info._id || info.id)"
