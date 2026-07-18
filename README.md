@@ -24,6 +24,7 @@
       - [Update backend url nginx reverse proxy configuration](#update-backend-url-nginx-reverse-proxy-configuration)
       - [Restrict aceess based on the `Origin` header](#restrict-aceess-based-on-the-origin-header)
     - [8. Explore Awesome cm-butterfly](#8-explore-awesome-cm-butterfly)
+  - [User Guides](#user-guides)
 ***
 
 # cm-butterfly
@@ -202,3 +203,10 @@ To enable this functionaliy, simply remove the `#` symbols.
 ### 8. Explore Awesome cm-butterfly
 If you run it through docker compose, you can see the login page by accessing `http://localhost/auth/login`. The user credentials are registered with the default ID and password, and if you log in, you can use cm-butterfly, which supports cloud migration.
 
+***
+
+## User Guides
+
+| Guide | Description |
+|-------|-------------|
+| [Bulk Import of Source Connections](docs/guide/source-connection-bulk-import.md) | Register many source connections at once from a CSV or Excel file |

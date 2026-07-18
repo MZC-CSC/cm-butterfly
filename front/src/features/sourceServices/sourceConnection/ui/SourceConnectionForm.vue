@@ -7,6 +7,13 @@ import {
   PI,
 } from '@cloudforet-test/mirinae';
 import { computed, reactive, watchEffect } from 'vue';
+// 임포트 경로와 같은 규칙을 쓰도록 공용 모듈에서 가져온다.
+import {
+  isFilled,
+  isIpValid,
+  isPortValid,
+  CREDENTIAL_HINT,
+} from '@/shared/utils/connectionValidation';
 
 interface ConnectionInfo {
   id?: string;
@@ -62,26 +69,6 @@ const placeholderFor = (field: keyof ConnectionInfo, fallback: string) => {
   return current !== undefined && current !== null && current !== ''
     ? String(current)
     : KEEP_HINT;
-};
-
-const isFilled = (value: unknown) =>
-  value !== undefined && value !== null && String(value).trim() !== '';
-
-const IPV4 = /^(\d{1,3}\.){3}\d{1,3}$/;
-
-const isIpValid = (value: unknown) => {
-  const raw = String(value ?? '').trim();
-  if (!IPV4.test(raw)) return false;
-  return raw.split('.').every(octet => Number(octet) <= 255);
-};
-
-// 포트는 1~65535 의 정수만 허용한다. 기존 조건은 유효한 65535 를 거부하는 한편
-// 소수·공백 섞인 값은 걸러내지 못했다.
-const isPortValid = (value: unknown) => {
-  const raw = String(value ?? '').trim();
-  if (!/^\d+$/.test(raw)) return false;
-  const port = Number(raw);
-  return port >= 1 && port <= 65535;
 };
 
 const invalidState = reactive({
@@ -233,11 +220,7 @@ const handleDelete = () => {
         <p-field-group
           label="Password"
           :invalid="showCredentialError"
-          :invalid-text="
-            showCredentialError
-              ? 'Enter User + Password or User + Private Key.'
-              : ''
-          "
+          :invalid-text="showCredentialError ? CREDENTIAL_HINT : ''"
         >
           <p-text-input
             v-model="sourceConnection.password"

@@ -84,6 +84,10 @@ func main() {
 	// Menu endpoint
 	api.POST("/getmenutree", menuHandler.GetMenuTree)
 
+	// Tabular import (CSV / Excel) — parsing only. Validation stays in the console
+	// so the interactive form and the import path share one set of rules.
+	api.POST("/parsetabularimport", handler.ParseTabularImport)
+
 	// Project management endpoints
 	api.POST("/createproject", workspaceHandler.CreateProject)
 	api.POST("/getprojectlist", workspaceHandler.GetProjectList)
