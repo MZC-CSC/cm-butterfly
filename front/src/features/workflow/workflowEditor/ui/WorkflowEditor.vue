@@ -19,6 +19,7 @@ import {
   useUpdateWorkflowV2,
 } from '@/entities';
 import { Designer } from 'sequential-workflow-designer';
+import { DOC_LINKS, openDocLink } from '@/shared/constants/docLinks';
 import {
   showErrorMessage,
   showInfoMessage,
@@ -1016,6 +1017,11 @@ function handleSelectTemplate(e) {
             <PFieldGroup class="flex-1" :label="'Description'">
               <p-text-input v-model="workflowDescription.value.value" block />
             </PFieldGroup>
+            <!--
+              병렬은 팔레트에서 명시적으로 꺼내 써야 하고, 좌우 배치는 병렬 상자
+              안에서만 된다. 처음 쓰는 사람이 그 규칙을 알 길이 화면에 없어서
+              가이드로 연결한다.
+            -->
             <PFieldGroup class="flex-1" :label="'Workflow Template'" required>
               <p-select-dropdown
                 class="w-full"
@@ -1025,6 +1031,14 @@ function handleSelectTemplate(e) {
                 @select="handleSelectTemplate"
               />
             </PFieldGroup>
+            <button
+              type="button"
+              class="workflow-tool-help"
+              data-testid="workflow-parallel-guide-link"
+              @click="openDocLink(DOC_LINKS.workflowParallelSteps)"
+            >
+              How to run tasks in parallel
+            </button>
           </header>
           <div
             v-if="loadWarnings.length"
@@ -1076,6 +1090,16 @@ function handleSelectTemplate(e) {
 </template>
 
 <style scoped lang="postcss">
+.workflow-tool-help {
+  align-self: center;
+  white-space: nowrap;
+  text-decoration: underline;
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+.workflow-tool-help:hover {
+  color: #1f2937;
+}
 .workflow-tool-notice {
   border-left: 4px solid #f0a020;
   background: #fff8e6;
