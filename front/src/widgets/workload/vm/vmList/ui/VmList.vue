@@ -53,52 +53,57 @@ const LOADTEST_STATUS_LABEL: Record<string, string> = {
   successed: 'Completed',
   test_failed: 'Failed',
 };
+/**
+ * 지금 화면에 쓸 부하 테스트 결과.
+ *
+ * 조회 응답이 *다른 VM* 의 실행이면 `undefined` 를 준다 — 화면의 모든 표시(상태 라벨·결과 표·
+ * 차트·Re-run)가 이 하나를 통해 나가므로, 여기서 한 번 걸러야 새 VM 에 삭제된 VM 의 결과가
+ * 새는 곳이 없다.
+ *
+ * 처음에는 스토어만 비웠는데 화면은 원 응답을 직접 읽고 있어서 **결과 표가 그대로 남았다**(BAR-1547).
+ */
+const currentLoadTestResult = computed<any | undefined>(() => {
+  const result = (resLoadStatus as any).data?.value?.responseData?.result;
+  if (!result) return undefined;
+  return isOtherVmResult(result, selectedVm.value?.id ?? '')
+    ? undefined
+    : result;
+});
+
 // Evaluate Perf 헤더(Load Config 옆)에 노출할 현재 부하테스트 상태 라벨. 폴링 시마다 갱신.
 const currentLoadTestStatusLabel = computed(() => {
-  const status = (resLoadStatus as any).data?.value?.responseData?.result
-    ?.executionStatus as string | undefined;
+  const status = currentLoadTestResult.value?.executionStatus as
+    | string
+    | undefined;
   return status ? (LOADTEST_STATUS_LABEL[status] ?? status) : '';
 });
 // 관리(중단·Re-run)용 loadTestKey.
 const currentLoadTestKey = computed(
-  () =>
-    ((resLoadStatus as any).data?.value?.responseData?.result
-      ?.loadTestKey as string) ?? '',
+  () => (currentLoadTestResult.value?.loadTestKey as string) ?? '',
 );
 // 경량 상태 hover(Load Config 우측 상태 라벨)용 시각·실패 메시지.
 // front 상태 타입엔 없지만 백엔드(state/last)가 finishAt·failureMessage를 내려줌.
 const currentLoadTestStartAt = computed(
-  () =>
-    ((resLoadStatus as any).data?.value?.responseData?.result
-      ?.startAt as string) ?? '',
+  () => (currentLoadTestResult.value?.startAt as string) ?? '',
 );
 const currentLoadTestFinishAt = computed(
-  () =>
-    ((resLoadStatus as any).data?.value?.responseData?.result
-      ?.finishAt as string) ?? '',
+  () => (currentLoadTestResult.value?.finishAt as string) ?? '',
 );
 const currentLoadTestFailureMessage = computed(
-  () =>
-    ((resLoadStatus as any).data?.value?.responseData?.result
-      ?.failureMessage as string) ?? '',
+  () => (currentLoadTestResult.value?.failureMessage as string) ?? '',
 );
 // 세분화 단계 진행(cm-ant FR-007-08 steps[]). 구버전 cm-ant면 빈 배열.
 const currentLoadTestSteps = computed(
-  () =>
-    ((resLoadStatus as any).data?.value?.responseData?.result
-      ?.steps as any[]) ?? [],
+  () => (currentLoadTestResult.value?.steps as any[]) ?? [],
 );
 // 진행률 바용 예상 총 소요(초).
 const currentLoadTestExpectedSeconds = computed(
   () =>
-    ((resLoadStatus as any).data?.value?.responseData?.result
-      ?.totalExpectedExecutionSecond as number) ?? 0,
+    (currentLoadTestResult.value?.totalExpectedExecutionSecond as number) ?? 0,
 );
 // 성공 모달의 실시간 상태 표시용 — 종료(성공/실패) 여부.
 const currentLoadTestRawStatus = computed(
-  () =>
-    (resLoadStatus as any).data?.value?.responseData?.result
-      ?.executionStatus as string | undefined,
+  () => currentLoadTestResult.value?.executionStatus as string | undefined,
 );
 const isCurrentLoadTestTerminal = computed(() => {
   const s = currentLoadTestRawStatus.value;
