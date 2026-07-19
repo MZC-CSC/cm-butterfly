@@ -71,9 +71,13 @@ export function serializeDesignerSequence<TStep extends DesignerStepLike>(
     }
 
     if (step.componentType === 'launchPad') {
+      // 병렬 상자는 **갈라짐 표시이지 그룹이 아니다.** 그룹 상자 안에 있으면 안의
+      // task 는 바깥 그룹으로 묶인다 — 한 그룹이 갈라진다고 다른 그룹이 되지는
+      // 않는다. 바깥에 홀로 놓였을 때만 자기 이름이 묶는 이름이 된다.
+      const groupName = boxName ?? step.name;
       // 갈래들은 모두 같은 지점에서 시작한다. 서로는 기다리지 않는다.
       const outs = (step.sequence ?? []).flatMap(child =>
-        walkStep(child as TStep, startsAfter, step.name),
+        walkStep(child as TStep, startsAfter, groupName),
       );
       // 비어 있으면 아무것도 하지 않은 것이므로 앞의 출력을 그대로 흘려보낸다
       return outs.length ? outs : startsAfter;

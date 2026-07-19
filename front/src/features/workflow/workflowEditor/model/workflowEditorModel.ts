@@ -140,19 +140,25 @@ export function useWorkflowToolModel() {
     };
 
     /**
-     * 한 줄의 그림을 화면 단계로 만든다. 갈래 안에 또 병렬이 있으면 그대로 따라 들어간다.
-     * 같은 그룹 이름이 연달아 나오면 TaskGroup 상자 하나로 묶는다 — 그룹은 이름표일
-     * 뿐이라 실행에는 영향이 없고, 보기 좋으라고 저장돼 있던 묶음을 되살리는 것이다.
+     * 한 줄의 그림을 화면 단계로 만든다.
+     *
+     * 같은 그룹에 속한 것들은 **하나의 TaskGroup 상자**에 담는다. 그 안에서 갈라지는
+     * 병렬도 같은 상자 **안**에 들어간다 — 그룹은 이름표일 뿐이고, 한 그룹이 갈라진다고
+     * 해서 다른 그룹이 되지는 않기 때문이다. 예전에는 병렬을 만나면 상자를 닫아 버려서
+     * **한 그룹이 두 상자로 쪼개져 보였다.**
+     *
+     * 병렬 상자는 그룹이 아니라 **갈라짐 표시**다. 그래서 그룹 상자 안에 있을 때는
+     * 그룹 이름을 달지 않는다. 저장할 때도 안의 task 는 바깥 그룹 이름으로 묶인다.
      */
+    let parallelSeq = 0;
     const materialize = (
       items: ITopologyItem[],
-      // 갈래를 그릴 때 그 갈래를 감싼 병렬 상자의 이름. 갈래 안 task 가 같은 그룹에
-      // 속해 있으면 상자를 또 두르지 않는다 — 같은 이름의 상자가 겹쳐 보일 뿐이고,
-      // 저장할 때 어차피 병렬 상자 이름으로 묶이므로 선도 달라지지 않는다.
+      // 이 줄을 감싸고 있는 그룹 이름. 같은 그룹이면 상자를 또 두르지 않는다.
       enclosingGroupName: string | null = null,
     ): Step[] => {
       const out: Step[] = [];
       let openGroup: Step | null = null;
+
       const closeGroup = () => {
         if (openGroup) {
           out.push(openGroup);
@@ -160,16 +166,48 @@ export function useWorkflowToolModel() {
         }
       };
 
+      /** 지금 놓을 곳 — 열려 있는 그룹 상자가 있으면 그 안, 없으면 바깥 */
+      const place = (step: Step) => {
+        if (openGroup) openGroup.sequence!.push(step);
+        else out.push(step);
+      };
+
+      /** 이 항목이 속한 그룹을 열어 둔다(이미 같은 그룹이 열려 있으면 그대로) */
+      const openGroupFor = (groupName: string | null) => {
+        if (!groupName || groupName === enclosingGroupName) {
+          closeGroup();
+          return;
+        }
+        if (!openGroup || openGroup.name !== groupName) {
+          closeGroup();
+          openGroup = defineTaskGroupStep(getRandomId(), groupName, 'MCI', {
+            model: { description: descriptionByGroup.get(groupName) ?? '' },
+          });
+        }
+      };
+
       items.forEach(item => {
         if (item.kind === 'parallel') {
-          closeGroup();
-          const boxName = item.groupName ?? 'Parallel';
+          openGroupFor(item.groupName);
+
+          // 그룹 상자 안에 들어가면 그룹 이름은 상자가 이미 달고 있다. 밖에 홀로
+          // 놓일 때만 그룹 이름을 달아 저장 시 묶일 곳이 있게 한다.
+          const inGroup = openGroup !== null;
+          parallelSeq += 1;
+          const boxName = inGroup
+            ? `Parallel ${parallelSeq}`
+            : (item.groupName ?? `Parallel ${parallelSeq}`);
+
           const parallel = defineParrelStep(getRandomId(), boxName, {
-            model: { description: descriptionByGroup.get(boxName) ?? '' },
+            model: {
+              description: inGroup
+                ? ''
+                : (descriptionByGroup.get(boxName) ?? ''),
+            },
           });
 
           parallel.sequence = item.branches.map((branch, index) => {
-            const inner = materialize(branch, boxName);
+            const inner = materialize(branch, item.groupName);
             // 갈래에 하나만 있으면 그대로 놓는다. 여러 개면 한 줄로 이어 보이도록
             // 상자에 담는다 — 상자는 보기 좋으라고 두는 것이고 실행에는 영향이 없다.
             if (inner.length === 1) return inner[0];
@@ -183,30 +221,12 @@ export function useWorkflowToolModel() {
             return holder as Step;
           }) as Step[];
 
-          out.push(parallel as Step);
+          place(parallel as Step);
           return;
         }
 
-        if (!item.groupName || item.groupName === enclosingGroupName) {
-          closeGroup();
-          out.push(toStep(item.task));
-          return;
-        }
-
-        if (!openGroup || openGroup.name !== item.groupName) {
-          closeGroup();
-          openGroup = defineTaskGroupStep(
-            getRandomId(),
-            item.groupName,
-            'MCI',
-            {
-              model: {
-                description: descriptionByGroup.get(item.groupName) ?? '',
-              },
-            },
-          );
-        }
-        openGroup.sequence!.push(toStep(item.task));
+        openGroupFor(item.groupName);
+        place(toStep(item.task));
       });
 
       closeGroup();

@@ -142,10 +142,14 @@ export function useSequentialDesignerModel(refs: any) {
     componentSteps: Step[],
   ) {
     toolBoxGroup = [
-      {
-        name: 'Tool',
-        steps: toolSteps ?? [],
-      },
+      // 'Tool' 묶음은 **한 번도 내용이 있었던 적이 없다** — 유일한 호출부가 늘
+      // null 을 넘겨 왔고(SequentialDesigner.vue), 무엇을 담으려던 자리였는지도
+      // 남아 있지 않다. 빈 묶음이 팔레트에 보이면 "여기 뭔가 있어야 하는데
+      // 비었나" 하고 헷갈리므로 우선 감춘다. 쓸 일이 생기면 되살린다.
+      // {
+      //   name: 'Tool',
+      //   steps: toolSteps ?? [],
+      // },
       {
         name: 'TaskGroup',
         steps: taskGroupSteps ?? [
