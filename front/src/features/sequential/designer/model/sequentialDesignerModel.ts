@@ -240,6 +240,17 @@ export function useSequentialDesignerModel(refs: any) {
     designerOptionsState.sequence = [...sequence];
   }
 
+  /**
+   * 보여주기만 하는 모드. 라이브러리가 끌어다 놓기·삭제·팔레트를 잠그고,
+   * 값 입력칸은 `editorProviders` 가 `isReadonly` 를 받아 잠근다.
+   *
+   * `initDesigner()` 보다 먼저 불러야 한다 — 라이브러리는 만들 때 읽은 값으로 굳어서,
+   * 뒤에 바꾸면 화면은 잠긴 것처럼 보이는데 실제로는 고쳐지는 상태가 된다.
+   */
+  function setReadonly(isReadonly: boolean) {
+    designerOptionsState.others.isReadonly = isReadonly;
+  }
+
   function initDesigner() {
     if (designer) {
       designer.destroy();
@@ -330,6 +341,7 @@ export function useSequentialDesignerModel(refs: any) {
     designer,
     designerOptionsState,
     setDefaultSequence,
+    setReadonly,
     setToolboxGroupsSteps,
     initDesigner,
     draw,

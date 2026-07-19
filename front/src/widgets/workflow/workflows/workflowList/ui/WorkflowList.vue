@@ -134,6 +134,21 @@ function handleSelectedIndex(selectedIndex: number) {
   }
 }
 
+/**
+ * 표에서 지금 보고 있는 워크플로우에 표시를 맞춘다.
+ *
+ * 목록을 다시 받으면 행 순서가 바뀔 수 있는데(새로 만든 워크플로우가 끼어든다)
+ * 표는 *자리 번호*로 선택을 기억한다. 그래서 그대로 두면 **표는 A 를 짚고 있는데
+ * 아래 상세·실행 상태는 B 를 보여주는** 상태가 된다 — 저장 직후가 늘 그렇다.
+ */
+function highlightSelectedRow() {
+  if (!props.selectedWfId) return;
+  const index = tableModel.tableState.displayItems.findIndex(
+    (item: any) => item?.id === props.selectedWfId,
+  );
+  tableModel.tableState.selectIndex = index >= 0 ? [index] : [];
+}
+
 async function fetchWorkflowList() {
   isDataLoaded.value = false;
   try {
@@ -155,6 +170,7 @@ async function fetchWorkflowList() {
       isDataLoaded.value = true;
       // 데이터 로드 후 컴포넌트 재렌더링
       tableKey.value++;
+      highlightSelectedRow();
     });
   } catch (e) {
     workflowStore.setWorkFlows([]);

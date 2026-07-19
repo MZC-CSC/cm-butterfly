@@ -35,6 +35,7 @@ import { parseRequestBody } from '@/shared/utils/stringToObject';
 import SequentialDesigner from '@/features/sequential/designer/ui/SequentialDesigner.vue';
 import { DEFAULT_NAMESPACE } from '@/shared/constants/namespace';
 import { normalizeTaskComponentList } from '@/entities/workflow/lib/schemaAdapter';
+import { isEditingLockedByRunHistory } from '@/entities/workflow/lib/workflowRunHistory';
 import { useTaskSchemaLoader } from '@/features/sequential/designer/editor/composables/useTaskSchemaLoader';
 
 interface IProps {
@@ -46,7 +47,11 @@ interface IProps {
 }
 
 const props = defineProps<IProps>();
-const emit = defineEmits(['update:close-modal', 'update:trigger']);
+const emit = defineEmits([
+  'update:close-modal',
+  'update:trigger',
+  'update:saved',
+]);
 
 const workflowToolModel = useWorkflowToolModel();
 const workflowName = useInputModel<string>('');
@@ -72,6 +77,15 @@ const trigger = reactive({ value: false });
  */
 const isUneditable = ref(false);
 const loadWarnings = ref<string[]>([]);
+
+/**
+ * 이 워크플로우가 실행된 적이 있어 고칠 수 없을 때 켜진다.
+ *
+ * 정상 경로에서는 여기까지 오지 않는다 — 상세 화면과 실행 뷰어가 실행 이력을 보고
+ * 실행 상태로 보내기 때문이다. 이것은 **뒤에 다른 진입이 생겨도 뚫리지 않게 하는
+ * 안전망**이고, 열렸을 때는 보여주되 고치지 못하게 한다.
+ */
+const isRunLocked = ref(false);
 
 console.log(props);
 
@@ -703,6 +717,11 @@ async function loadWorkflow() {
     // (예: 방금 만든 복제본)도 이 경로로 정상 로드된다.
     workflowData.value =
       await workflowToolModel.workflowStore.ensureWorkflowById(props.wftId);
+    // 실행된 적이 *확실할 때만* 잠근다. 정상 경로는 여기 오기 전에 실행 상태로
+    // 보내지만, 다른 경로로 열렸을 때 조용히 고쳐지는 것을 막는다.
+    // 모를 때 잠그지 않는 이유는 workflowRunHistory 의 RUN_HISTORY_UNKNOWN 참조 —
+    // 갓 만든 복제본이 늘 '모름'으로 열린다.
+    isRunLocked.value = await isEditingLockedByRunHistory(props.wftId);
   } else if (props.toolType === 'add') {
     workflowData.value = workflowToolModel.getWorkflowTemplateData(
       workflowToolModel.dropDownModel.selectedItemId,
@@ -920,6 +939,9 @@ function postWorkflow(workflow: IWorkflow) {
         showSuccessMessage('Success', 'Success');
         emit('update:trigger');
         emit('update:close-modal', false); // 저장 성공 후 모달 닫기
+        // 저장 다음에 하는 일은 대개 실행이다. 어느 워크플로우를 저장했는지 알려
+        // 화면이 그 워크플로우의 실행 상태로 옮겨 가게 한다.
+        emit('update:saved', props.wftId);
       })
       .catch(err => {
         showErrorMessage(
@@ -941,6 +963,11 @@ function postWorkflow(workflow: IWorkflow) {
         showSuccessMessage('Success', 'Success');
         emit('update:trigger');
         emit('update:close-modal', false); // 저장 성공 후 모달 닫기
+        // 새로 만든 워크플로우의 id 는 응답에서만 알 수 있다. 복제 API 와 같은 모양으로
+        // 워크플로우 전체를 돌려준다. **id 가 없으면 옮기지 않는다** — 엉뚱한
+        // 워크플로우의 실행 상태를 보여주느니 있던 화면에 머무는 편이 낫다.
+        const createdId = res?.data?.responseData?.id;
+        if (createdId) emit('update:saved', createdId);
       })
       .catch(err => {
         showErrorMessage(
@@ -985,7 +1012,7 @@ function handleCancel() {
 }
 
 function handleSave() {
-  if (isUneditable.value) return;
+  if (isUneditable.value || isRunLocked.value) return;
   trigger.value = true;
 }
 
@@ -1057,9 +1084,33 @@ function handleSelectTemplate(e) {
               </li>
             </ul>
           </div>
+          <!--
+            실행된 적 있는 워크플로우가 어떤 경로로든 열렸을 때. 고칠 수 없다는 것과
+            어떻게 하면 되는지를 함께 알린다.
+          -->
+          <div
+            v-if="isRunLocked"
+            class="workflow-tool-notice workflow-tool-notice--locked mb-[12px]"
+            data-testid="workflow-run-locked-notice"
+          >
+            <p class="workflow-tool-notice__title">
+              View only — this workflow has been run
+            </p>
+            <ul>
+              <li>
+                Editing it in place would change what its past runs appear to
+                have used, and that cannot be undone.
+              </li>
+              <li>
+                To work on it, go to Run Status and use Clone &amp; Edit. The
+                copy keeps a link back to this workflow.
+              </li>
+            </ul>
+          </div>
           <section v-if="!isUneditable" class="workflow-tool-body">
             <SequentialDesigner
               :sequence="sequentialSequence"
+              :readonly="isRunLocked"
               :trigger="trigger.value"
               :task-component-list="
                 resTaskComponentList.data.value?.responseData
@@ -1079,7 +1130,7 @@ function handleSelectTemplate(e) {
         <p-button
           data-testid="workflow-designer-save"
           :loading="resUpdateWorkflow.isLoading.value"
-          :disabled="isUneditable"
+          :disabled="isUneditable || isRunLocked"
           @click="handleSave"
         >
           Save
@@ -1105,6 +1156,11 @@ function handleSelectTemplate(e) {
   background: #fff8e6;
   padding: 12px 16px;
   border-radius: 4px;
+}
+/* 고칠 수 없다는 것은 경고가 아니라 상태다 — 노란 경고와 색을 달리한다 */
+.workflow-tool-notice--locked {
+  border-left-color: #6b7280;
+  background: #f3f4f6;
 }
 .workflow-tool-notice__title {
   font-weight: 600;

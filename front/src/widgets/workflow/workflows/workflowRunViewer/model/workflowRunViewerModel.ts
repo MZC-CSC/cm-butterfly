@@ -156,9 +156,16 @@ export function useWorkflowRunViewerModel() {
   }
 
   async function loadRuns(wfId: string) {
-    const { data, execute } = useGetWorkflowRuns(wfId);
-    await execute();
-    runs.value = data.value?.responseData ?? [];
+    try {
+      const { data, execute } = useGetWorkflowRuns(wfId);
+      await execute();
+      runs.value = data.value?.responseData ?? [];
+    } catch {
+      // 아직 실행된 적 없는 워크플로우는 엔진에서 조회가 실패한다 — Airflow 가 새
+      // DAG 를 읽어들이기 전이라 없는 것으로 나온다. **실패가 아니라 "아직 없음"** 이므로
+      // 붉은 오류 대신 실행을 권하는 빈 상태를 보여준다.
+      runs.value = [];
+    }
   }
 
   let inFlight = false;
@@ -230,6 +237,16 @@ export function useWorkflowRunViewerModel() {
 
   async function open(wfId: string, runId?: string | null) {
     loadError.value = null;
+    // **다른 워크플로우의 내용을 물려받지 않는다.** 비우지 않으면 조회가 실패했을 때
+    // 앞서 보던 워크플로우의 실행이 이 워크플로우의 것처럼 남는다 — 방금 만든
+    // 워크플로우에서 늘 그렇게 된다(엔진이 새 DAG 를 아직 못 읽어 404 로 답한다).
+    runs.value = [];
+    instances.value = [];
+    selectedRunId.value = null;
+    selectedTaskId.value = null;
+    logText.value = '';
+    logError.value = null;
+
     await Promise.all([loadWorkflow(wfId), loadRuns(wfId)]);
 
     const target =
