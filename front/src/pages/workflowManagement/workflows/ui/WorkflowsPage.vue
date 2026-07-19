@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { PTab, PButton } from '@cloudforet-test/mirinae';
-import { ref, reactive } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
+import { useRoute } from 'vue-router/composables';
 import {
   WorkflowList,
   WorkflowDetail,
@@ -24,6 +25,7 @@ import WorkflowEditor from '@/features/workflow/workflowEditor/ui/WorkflowEditor
 const getWorkflow = useGetWorkflow(null);
 const updateWorkflow = useUpdateWorkflow(null, null);
 const workflowStore = useWorkflowStore();
+const route = useRoute();
 
 const pageName = 'Workflows';
 
@@ -74,6 +76,18 @@ function handleSavedWorkflow(workflowId: string) {
 }
 
 const selectedWorkflowId = ref<string>('');
+
+/**
+ * 다른 화면(목표 모델)에서 워크플로우를 만들고 넘어온 경우.
+ *
+ * 저장 직후 도착지는 화면이 달라도 같아야 한다 — 그쪽은 탭을 바꿀 수 없으니 어느
+ * 워크플로우인지를 쿼리로 넘겨 주고, 여기서 그것을 골라 실행 상태로 연다.
+ */
+onMounted(() => {
+  const wfId = route.query.wfId;
+  if (typeof wfId === 'string' && wfId) handleSavedWorkflow(wfId);
+});
+
 const workflowName = ref<string>('');
 const workflowJson = ref<object>({});
 const wfIdData = ref<object>({});
