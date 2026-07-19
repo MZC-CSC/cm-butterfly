@@ -256,6 +256,70 @@ export function useSequentialDesignerModel(refs: any) {
     designer = Designer.create(placeholder, definition, configuration);
     isLoading = false;
     designer.onDefinitionChanged.subscribe(newDefinition => {});
+    showParallelOutlineOnHover();
+  }
+
+  // 갈래가 둘 이상인 병렬 상자는 점선을 감춰 두는데(모양만으로 읽히므로), 그러면
+  // 어디까지가 그 상자인지 알 수 없다. 상자 안 어디를 눌러도 선택되지만 *어디가
+  // 안인지* 보이지 않는 셈이라, 마우스가 올라간 동안만 테두리를 비춰 준다.
+  //
+  // 라이브러리에는 단계 위 hover 표시가 없다(`sqd-hover` 는 드래그 중 placeholder
+  // 전용). 그래서 좌표로 직접 가린다 — 선택 판정과 같은 방식이라 보이는 범위와
+  // 눌리는 범위가 어긋나지 않는다.
+  function showParallelOutlineOnHover() {
+    const root: HTMLElement | null = placeholder;
+    if (!root) return;
+    const HOVERED = 'sqd-parallel-hovered';
+
+    const boxOf = (pad: Element) => {
+      const lines = pad.querySelectorAll(':scope > line.sqd-region');
+      if (!lines.length) return null;
+      const rects = Array.from(lines, line => line.getBoundingClientRect());
+      const left = Math.min(...rects.map(r => r.left));
+      const right = Math.max(...rects.map(r => r.right));
+      const top = Math.min(...rects.map(r => r.top));
+      const bottom = Math.max(...rects.map(r => r.bottom));
+      return {
+        left,
+        right,
+        top,
+        bottom,
+        area: (right - left) * (bottom - top),
+      };
+    };
+
+    let queued = false;
+    root.addEventListener('mousemove', event => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        queued = false;
+        const pads = root.querySelectorAll('g.sqd-step-launch-pad');
+        // 상자가 겹쳐 있으면 **가장 안쪽 하나만** 비춘다. 여럿이 한꺼번에 켜지면
+        // 어느 것을 고르게 되는지 알 수 없다.
+        let innermost: Element | null = null;
+        let smallest = Infinity;
+        pads.forEach(pad => {
+          const box = boxOf(pad);
+          if (!box) return;
+          const inside =
+            event.clientX >= box.left &&
+            event.clientX <= box.right &&
+            event.clientY >= box.top &&
+            event.clientY <= box.bottom;
+          if (inside && box.area < smallest) {
+            smallest = box.area;
+            innermost = pad;
+          }
+        });
+        pads.forEach(pad => pad.classList.toggle(HOVERED, pad === innermost));
+      });
+    });
+    root.addEventListener('mouseleave', () => {
+      root
+        .querySelectorAll(`.${HOVERED}`)
+        .forEach(pad => pad.classList.remove(HOVERED));
+    });
   }
 
   function getDesigner(): Designer | null {

@@ -101,6 +101,29 @@ watch(
   stroke: transparent;
 }
 
+/*
+  다만 마우스가 올라가 있는 동안은 옅게 비춰 준다 — 감춰 두면 어디까지가 그
+  상자인지 알 수 없기 때문이다. 고를 수 있는 범위와 정확히 같은 범위가 켜진다.
+  (클래스는 `sequentialDesignerModel` 이 좌표로 붙인다)
+*/
+.sqd-step-launch-pad:has(> g[class^='sqd-step-'] ~ g[class^='sqd-step-'])
+  > line.sqd-region {
+  transition: stroke 0.12s ease-out;
+}
+
+.sqd-step-launch-pad.sqd-parallel-hovered:has(
+    > g[class^='sqd-step-'] ~ g[class^='sqd-step-']
+  )
+  > line.sqd-region {
+  stroke: #cbd5e1;
+}
+
+/* 골라 놓은 동안은 계속 보인다 — 라이브러리가 붙이는 표시를 살린다 */
+.sqd-step-launch-pad:has(> g[class^='sqd-step-'] ~ g[class^='sqd-step-'])
+  > line.sqd-region.sqd-selected {
+  stroke: #6366f1;
+}
+
 /* 전체 설정 패널(톱니바퀴)의 취향 설정 한 줄 */
 .sqd-designer-setting {
   display: flex;
