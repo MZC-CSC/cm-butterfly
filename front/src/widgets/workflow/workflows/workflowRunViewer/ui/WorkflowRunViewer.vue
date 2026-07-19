@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import {
   PBadge,
   PButton,
@@ -97,6 +97,20 @@ async function cloneAndEdit() {
  * 미실행 원본 편집. 실행 이력이 없으니 복제 없이 원본을 직접 연다.
  * 툴이 못 옮기는 그래프면 이유를 보이고 JSON 에디터로 갈지 물어본다.
  */
+/**
+ * 기다리는 중이라는 표시를 **눈에 보이는 자리로 데려온다.**
+ *
+ * 이 화면은 워크플로우 목록 아래에 있어서, 저장 직후 도착하면 그래프 자리가 화면
+ * 아래로 잘려 나간다. 거기에만 표시를 두면 위쪽 저장 완료 알림만 보이고 *데이터를
+ * 준비하는 중*이라는 사실은 스크롤해야 알 수 있다 — 화면이 멈춘 것처럼 보인다.
+ */
+const waitingRef = ref<HTMLElement | null>(null);
+watch(workflowReadyState, async state => {
+  if (state !== 'waiting') return;
+  await nextTick();
+  waitingRef.value?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+});
+
 const showEditJsonConfirm = ref(false);
 function requestEdit() {
   if (!canEditInDesigner.value) {
@@ -565,11 +579,16 @@ async function onRunChange(runId: string) {
         -->
         <div
           v-if="workflowReadyState === 'waiting'"
+          ref="waitingRef"
           class="run-viewer__waiting"
           data-testid="workflow-run-waiting"
         >
-          <p-spinner size="md" />
-          <p>Waiting for this workflow to be ready…</p>
+          <p-spinner size="lg" />
+          <p class="run-viewer__waiting-title">Preparing workflow data…</p>
+          <p class="run-viewer__waiting-hint">
+            Waiting until the workflow can be read. The graph appears here once
+            it is ready.
+          </p>
         </div>
         <div
           v-else-if="workflowReadyState === 'timeout'"
@@ -1139,12 +1158,23 @@ async function onRunChange(runId: string) {
   font-size: 0.8125rem;
 }
 
+.run-viewer__waiting-title {
+  font-weight: 600;
+  color: #374151;
+}
+
+.run-viewer__waiting-hint {
+  color: #6b6e78;
+  text-align: center;
+  max-width: 22rem;
+}
+
 .run-viewer__waiting {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
   padding: 2rem;
   min-height: 12rem;
   color: #4b5563;
