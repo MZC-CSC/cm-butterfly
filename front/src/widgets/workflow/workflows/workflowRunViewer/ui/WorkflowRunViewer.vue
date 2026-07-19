@@ -31,6 +31,8 @@ const emit = defineEmits<{
   (e: 'edit-original', workflowId: string): void;
   (e: 'edit-clone', clonedWorkflowId: string): void;
   (e: 'edit-json', workflowId: string): void;
+  // - view-json : 정의를 그대로 보여준다 (상세 화면에 있던 것을 이리로 모았다)
+  (e: 'view-json', workflowId: string): void;
 }>();
 
 const {
@@ -76,6 +78,11 @@ const {
  *
  * 워크플로우 툴이 그대로 옮길 수 없는 그래프면 복제본을 JSON 에디터로 연다. 툴로 열면
  * 그림이 실제 실행과 달라지고, 그 상태로 저장하면 실행 순서가 조용히 바뀌기 때문이다.
+ *
+ * 만든 직후 바로 열어도 된다. 엔진이 그 복제본을 Airflow 에서 읽지 못하는 구간이
+ * 잠시(측정 약 5초) 있지만, **편집기는 그 읽기에 기대지 않는다** — 복제 응답을 그대로
+ * 캐시에 넣어 두고 거기서 그린다. 저장도 그 구간에 이미 동작한다(측정: 복제 +0.1초에
+ * 수정 API 200). 그래서 기다리게 하지 않는다.
  */
 async function cloneAndEdit() {
   const clonedId = await cloneForEdit();
@@ -432,6 +439,27 @@ async function onRunChange(runId: string) {
               </p-button>
             </p-tooltip>
           </template>
+
+          <!--
+            정의를 그대로 보는 길. 상세 화면에 있던 것을 이리로 옮겼다 — 이 워크플로우로
+            할 수 있는 일을 한자리에 모아 두면 어디서 무엇을 할 수 있는지 찾아다니지
+            않아도 된다. 실행 이력과 무관하게 늘 있다(보기만 하는 동작이므로).
+          -->
+          <p-tooltip
+            contents="Shows the workflow definition as JSON."
+            position="bottom"
+            :options="{ classes: ['p-tooltip', 'run-viewer-tooltip'] }"
+          >
+            <p-button
+              data-testid="workflow-viewer-view-json-btn"
+              size="sm"
+              style-type="tertiary"
+              :disabled="!props.workflowId"
+              @click="props.workflowId && emit('view-json', props.workflowId)"
+            >
+              View JSON
+            </p-button>
+          </p-tooltip>
         </div>
       </div>
 
@@ -905,6 +933,7 @@ async function onRunChange(runId: string) {
           <p-button
             data-testid="workflow-clone-confirm-ok"
             style-type="primary"
+            :loading="cloning"
             :disabled="cloning"
             @click="confirmClone"
           >

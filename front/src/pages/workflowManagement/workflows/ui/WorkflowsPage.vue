@@ -14,10 +14,8 @@ import {
   useUpdateWorkflow,
   useWorkflowStore,
 } from '@/entities';
-import { shouldSendToRunStatus } from '@/entities/workflow/lib/workflowRunHistory';
 import {
   showErrorMessage,
-  showInfoMessage,
   showSuccessMessage,
   toErrorMessage,
 } from '@/shared/utils';
@@ -67,29 +65,6 @@ function handleEditJson(workflowId: string) {
 }
 
 /**
- * 상세 화면의 "View Workflow Tool" — 실행 이력이 있으면 툴을 열지 않는다.
- *
- * 툴은 원본을 그대로 덮어쓰는데 엔진은 실행별 정의를 남기지 않는다. 그래서 실행된
- * 워크플로우를 고치면 **과거 실행이 화면에서 엉뚱한 값으로 보이게 되고 되돌릴 수 없다.**
- * 실행 이력이 있으면 먼저 어떻게 돌았는지 보도록 실행 상태로 보내고, 고칠 일이 있으면
- * 거기서 Clone & Edit 으로 복제본을 열게 한다.
- *
- * 뷰어 쪽 진입(Edit / Clone & Edit)은 이미 같은 기준으로 갈라져 있었고, 이 링크만
- * 확인 없이 열려 있었다.
- */
-async function handleOpenWorkflowTool() {
-  if (await shouldSendToRunStatus(selectedWorkflowId.value)) {
-    mainTabState.activeTab = 'runViewer';
-    showInfoMessage(
-      'Opened run status instead',
-      'This workflow has been run before, so it cannot be edited in place — editing it would change what past runs appear to have used. Use Clone & Edit here to work on a copy.',
-    );
-    return;
-  }
-  modalState.workflowToolModal.open = true;
-}
-
-/**
  * 저장이 끝나면 실행 상태로 보낸다. 저장 다음에 하는 일은 대개 *실행*이고,
  * 상태 화면에서 실행·수정을 이어 정할 수 있다.
  */
@@ -118,7 +93,9 @@ const modalState = reactive({
 });
 
 const mainTabState = reactive({
-  activeTab: 'details',
+  // 워크플로우를 고르면 **실행 상태를 먼저 보여준다.** 여기서 실행할지 고칠지가
+  // 갈리고(이력 유무로 버튼이 달라진다), 정의 자체는 그 아래 그래프로 보인다.
+  activeTab: 'runViewer',
   tabs: [
     {
       name: 'details',
@@ -266,10 +243,6 @@ async function handleUpdateWorkflow(updatedData: object) {
             </div>
             <workflow-detail
               :selected-workflow-id="selectedWorkflowId"
-              @update:workflow-json-modal="
-                modalState.workflowJsonModal.open = true
-              "
-              @update:workflow-tool-modal="handleOpenWorkflowTool"
               @update:workflow-name="e => (workflowName = e)"
               @update:workflow-json="e => (workflowJson = e)"
             />
@@ -287,6 +260,7 @@ async function handleUpdateWorkflow(updatedData: object) {
             <workflow-run-viewer
               :workflow-id="selectedWorkflowId"
               @edit-json="handleEditJson"
+              @view-json="handleEditJson"
               @edit-clone="handleEditClone"
               @edit-original="handleEditOriginal"
             />

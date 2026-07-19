@@ -4,6 +4,7 @@ import {
   PButton,
   PFieldGroup,
   PSelectDropdown,
+  PSpinner,
   PTextInput,
 } from '@cloudforet-test/mirinae';
 import { useWorkflowToolModel } from '@/features/workflow/workflowEditor/model/workflowEditorModel';
@@ -35,7 +36,7 @@ import { parseRequestBody } from '@/shared/utils/stringToObject';
 import SequentialDesigner from '@/features/sequential/designer/ui/SequentialDesigner.vue';
 import { DEFAULT_NAMESPACE } from '@/shared/constants/namespace';
 import { normalizeTaskComponentList } from '@/entities/workflow/lib/schemaAdapter';
-import { isEditingLockedByRunHistory } from '@/entities/workflow/lib/workflowRunHistory';
+import { hasWorkflowRunHistory } from '@/entities/workflow/lib/workflowRunHistory';
 import { useTaskSchemaLoader } from '@/features/sequential/designer/editor/composables/useTaskSchemaLoader';
 
 interface IProps {
@@ -86,6 +87,37 @@ const loadWarnings = ref<string[]>([]);
  * 안전망**이고, 열렸을 때는 보여주되 고치지 못하게 한다.
  */
 const isRunLocked = ref(false);
+
+/**
+ * 워크플로우를 아직 읽지 못한 상태.
+ *
+ * 방금 만든 워크플로우는 엔진이 Airflow 에서 읽지 못하는 구간이 잠시 있다
+ * (개발 서버 측정 약 5초, `get-workflow` 가 400). 그때 조회 결과가 비는데,
+ * **그대로 두면 빈 캔버스가 아무 말 없이 뜬다** — 태스크가 하나도 없는 워크플로우처럼
+ * 보이고, 그 상태로 저장하면 내용이 날아간다.
+ *
+ * 그래서 읽힐 때까지 기다렸다가 그리고, 무엇을 기다리는지 화면에 적는다.
+ * (복제 직후 편집기로 오는 경로는 복제 응답이 캐시에 있어 곧바로 그려진다.)
+ */
+const workflowLoadState = ref<'ok' | 'waiting' | 'failed'>('ok');
+
+const WORKFLOW_READY_INTERVAL_MS = 2000;
+const WORKFLOW_READY_TIMEOUT_MS = 60000;
+
+async function fetchWorkflowForEdit() {
+  const deadline = Date.now() + WORKFLOW_READY_TIMEOUT_MS;
+  for (;;) {
+    const found = await workflowToolModel.workflowStore.ensureWorkflowById(
+      props.wftId,
+    );
+    if (found) return found;
+    if (Date.now() + WORKFLOW_READY_INTERVAL_MS > deadline) return undefined;
+    workflowLoadState.value = 'waiting';
+    await new Promise(resolve =>
+      setTimeout(resolve, WORKFLOW_READY_INTERVAL_MS),
+    );
+  }
+}
 
 console.log(props);
 
@@ -711,17 +743,31 @@ function createTaskForModel(
   });
 }
 
+/*
+  이 편집기로 들어오는 길과, 그때 **엔진에서 워크플로우를 읽어야 하는가**
+
+  | 들어온 길 | toolType | 무엇으로 그리나 | 기다림 |
+  |---|---|---|---|
+  | 실행 상태 → Edit (미실행 원본) | edit | 스토어(목록에서 이미 받음) → 없으면 엔진 | 필요 |
+  | 실행 상태 → Clone & Edit | edit | 스토어(복제 응답을 바로 넣어 둔다) | 사실상 즉시 |
+  | JSON 으로 만든 워크플로우를 나중에 열기 | edit | 스토어 → 없으면 엔진 | 필요 |
+  | 타깃 모델에서 진입 | add | 템플릿 | 불필요 |
+  | 목록의 새로 만들기(지금은 막혀 있다) | add | 템플릿 | 불필요 |
+
+  기다림이 필요한 것은 **`edit` 하나뿐**이다 — `add` 는 기존 워크플로우를 읽지 않고
+  템플릿으로 그리므로 엔진 상태와 무관하다. 그래서 대기도 이 분기 안에만 둔다.
+*/
 async function loadWorkflow() {
   if (props.toolType === 'edit') {
     // 캐시에 없으면 스토어가 받아서 채운다. 목록 화면을 거치지 않고 열린 워크플로우
     // (예: 방금 만든 복제본)도 이 경로로 정상 로드된다.
-    workflowData.value =
-      await workflowToolModel.workflowStore.ensureWorkflowById(props.wftId);
-    // 실행된 적이 *확실할 때만* 잠근다. 정상 경로는 여기 오기 전에 실행 상태로
-    // 보내지만, 다른 경로로 열렸을 때 조용히 고쳐지는 것을 막는다.
-    // 모를 때 잠그지 않는 이유는 workflowRunHistory 의 RUN_HISTORY_UNKNOWN 참조 —
-    // 갓 만든 복제본이 늘 '모름'으로 열린다.
-    isRunLocked.value = await isEditingLockedByRunHistory(props.wftId);
+    workflowData.value = await fetchWorkflowForEdit();
+    workflowLoadState.value = workflowData.value ? 'ok' : 'failed';
+    if (!workflowData.value) return;
+    // 실행 이력이 있으면 보여주기만 한다. 정상 경로(실행 상태 화면)는 이력이 있는
+    // 워크플로우를 아예 여기로 보내지 않으므로, 이것은 뒤에 다른 진입이 생겨도
+    // 뚫리지 않게 하는 안전망이다.
+    isRunLocked.value = await hasWorkflowRunHistory(props.wftId);
   } else if (props.toolType === 'add') {
     workflowData.value = workflowToolModel.getWorkflowTemplateData(
       workflowToolModel.dropDownModel.selectedItemId,
@@ -1013,6 +1059,8 @@ function handleCancel() {
 
 function handleSave() {
   if (isUneditable.value || isRunLocked.value) return;
+  // 읽지 못한 상태로 저장하면 빈 정의를 덮어쓴다
+  if (workflowLoadState.value !== 'ok') return;
   trigger.value = true;
 }
 
@@ -1107,7 +1155,39 @@ function handleSelectTemplate(e) {
               </li>
             </ul>
           </div>
-          <section v-if="!isUneditable" class="workflow-tool-body">
+          <!--
+            아직 읽어 오지 못한 상태. **왜 늦는지는 적지 않는다** — 여기까지 오는 길이
+            여럿이라(복제본·타깃 모델·새로 만들기·JSON 으로 만든 것 열기) 화면이 원인을
+            단정할 수 없다. 기다리는 중이라는 사실만 알리고, 되면 그때 그린다.
+          -->
+          <div
+            v-if="workflowLoadState === 'waiting'"
+            class="workflow-tool-loading"
+            data-testid="workflow-load-notice"
+          >
+            <p-spinner size="md" />
+            <p>Getting this workflow ready…</p>
+          </div>
+          <div
+            v-else-if="workflowLoadState === 'failed'"
+            class="workflow-tool-notice mb-[12px]"
+            data-testid="workflow-load-notice"
+          >
+            <p class="workflow-tool-notice__title">
+              This workflow could not be read
+            </p>
+            <ul>
+              <li>
+                Nothing is shown rather than an empty canvas, because saving an
+                empty canvas would wipe the workflow. Close this and open it
+                again in a moment.
+              </li>
+            </ul>
+          </div>
+          <section
+            v-if="!isUneditable && workflowLoadState === 'ok'"
+            class="workflow-tool-body"
+          >
             <SequentialDesigner
               :sequence="sequentialSequence"
               :readonly="isRunLocked"
@@ -1130,7 +1210,7 @@ function handleSelectTemplate(e) {
         <p-button
           data-testid="workflow-designer-save"
           :loading="resUpdateWorkflow.isLoading.value"
-          :disabled="isUneditable || isRunLocked"
+          :disabled="isUneditable || isRunLocked || workflowLoadState !== 'ok'"
           @click="handleSave"
         >
           Save
@@ -1161,6 +1241,16 @@ function handleSelectTemplate(e) {
 .workflow-tool-notice--locked {
   border-left-color: #6b7280;
   background: #f3f4f6;
+}
+.workflow-tool-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 240px;
+  color: #4b5563;
+  font-size: 0.875rem;
 }
 .workflow-tool-notice__title {
   font-weight: 600;
