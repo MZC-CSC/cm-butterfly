@@ -6,6 +6,10 @@ import BashTaskEditor from '@/features/sequential/designer/editor/ui/BashTaskEdi
 import SshTaskEditor from '@/features/sequential/designer/editor/ui/SshTaskEditor.vue';
 import HttpXcomTaskEditor from '@/features/sequential/designer/editor/ui/HttpXcomTaskEditor.vue';
 import TriggerWorkflowTaskEditor from '@/features/sequential/designer/editor/ui/TriggerWorkflowTaskEditor.vue';
+import {
+  isAutoOpenPropertiesEnabled,
+  setAutoOpenPropertiesEnabled,
+} from '@/features/sequential/designer/model/designerPreferences';
 
 // cm-cicada task type → dedicated editor component. http (and unknown) falls
 // back to the schema-driven TaskComponentEditor.
@@ -23,9 +27,25 @@ export function editorProviders() {
 
   return {
     defaultRootEditorProvider: function (definition, rootContext, isReadonly) {
+      // 취향 설정. 워크플로우가 아니라 *보는 사람*에 딸린 값이라 워크플로우와 함께
+      // 저장하지 않고 브라우저에 남긴다.
+      const settings = document.createElement('label');
+      settings.className = 'sqd-designer-setting';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = isAutoOpenPropertiesEnabled();
+      checkbox.addEventListener('change', () => {
+        setAutoOpenPropertiesEnabled(checkbox.checked);
+      });
+      const caption = document.createElement('span');
+      caption.textContent = 'Open properties when a step is selected';
+      settings.appendChild(checkbox);
+      settings.appendChild(caption);
+      editor.appendChild(settings);
+
       const textArea = document.createElement('textarea');
       textArea.style.width = '100%';
-      textArea.style.height = '95%';
+      textArea.style.height = 'calc(95% - 36px)';
       textArea.setAttribute('readonly', 'readonly');
       textArea.value = JSON.stringify(definition, null, 2);
 
@@ -53,20 +73,25 @@ export function editorProviders() {
           </div>
         `;
 
-        const nameInput = ifEditor.querySelector('#if-name') as HTMLInputElement;
-        nameInput?.addEventListener('input', (e) => {
+        const nameInput = ifEditor.querySelector(
+          '#if-name',
+        ) as HTMLInputElement;
+        nameInput?.addEventListener('input', e => {
           step.name = (e.target as HTMLInputElement).value;
           stepContext.notifyNameChanged();
         });
 
         editor.appendChild(ifEditor);
       }
-      if (step.componentType === 'launchPad' || step.componentType === 'container') {
+      if (
+        step.componentType === 'launchPad' ||
+        step.componentType === 'container'
+      ) {
         insertDynamicComponent(
           ContainerNameEditor,
           { step, definition },
           {
-            saveComponentName: (name) => {
+            saveComponentName: name => {
               step.name = name;
               stepContext.notifyNameChanged();
             },
@@ -83,7 +108,10 @@ export function editorProviders() {
         console.log('=== Task Editor Selection ===');
         console.log('Step name:', step.name);
         console.log('Task type:', taskType);
-        console.log('Selected editor:', TaskEditorComponent?.name || 'TaskComponentEditor');
+        console.log(
+          'Selected editor:',
+          TaskEditorComponent?.name || 'TaskComponentEditor',
+        );
         console.log('=============================');
 
         //toolboxModel에서 가공하는곳 참고
@@ -101,25 +129,40 @@ export function editorProviders() {
               console.log('   Step name:', step.name);
               console.log('   Received model type:', typeof e);
               console.log('   Received model keys:', Object.keys(e || {}));
-              
+
               // Deep inspection
               if (e && typeof e === 'object') {
                 if (e.targetSoftwareModel && e.targetSoftwareModel.servers) {
-                  console.log(`   Received model.targetSoftwareModel.servers: array[${e.targetSoftwareModel.servers.length}]`);
+                  console.log(
+                    `   Received model.targetSoftwareModel.servers: array[${e.targetSoftwareModel.servers.length}]`,
+                  );
                   if (e.targetSoftwareModel.servers.length > 0) {
-                    console.log('   First server.source_connection_info_id:', e.targetSoftwareModel.servers[0].source_connection_info_id);
+                    console.log(
+                      '   First server.source_connection_info_id:',
+                      e.targetSoftwareModel.servers[0]
+                        .source_connection_info_id,
+                    );
                   }
                 }
               }
-              
-              console.log('   Received model JSON (first 500 chars):', JSON.stringify(e).substring(0, 500));
-              console.log('   BEFORE: step.properties.model JSON (first 500 chars):', JSON.stringify(step.properties.model).substring(0, 500));
-              
+
+              console.log(
+                '   Received model JSON (first 500 chars):',
+                JSON.stringify(e).substring(0, 500),
+              );
+              console.log(
+                '   BEFORE: step.properties.model JSON (first 500 chars):',
+                JSON.stringify(step.properties.model).substring(0, 500),
+              );
+
               step.properties.model = e;
-              
-              console.log('   AFTER: step.properties.model JSON (first 500 chars):', JSON.stringify(step.properties.model).substring(0, 500));
+
+              console.log(
+                '   AFTER: step.properties.model JSON (first 500 chars):',
+                JSON.stringify(step.properties.model).substring(0, 500),
+              );
               console.log('   ✅ step.properties.model updated');
-              
+
               stepContext.notifyPropertiesChanged();
               console.log('   ✅ stepContext.notifyPropertiesChanged() called');
               console.log('💾💾💾 editorProviders.saveContext COMPLETE 💾💾💾');

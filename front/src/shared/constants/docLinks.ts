@@ -10,6 +10,7 @@ const DOCS_BASE =
 
 export const DOC_LINKS = {
   sourceConnectionBulkImport: `${DOCS_BASE}/source-connection-bulk-import.md`,
+  workflowParallelSteps: `${DOCS_BASE}/workflow-parallel-steps.md`,
 } as const;
 
 /**

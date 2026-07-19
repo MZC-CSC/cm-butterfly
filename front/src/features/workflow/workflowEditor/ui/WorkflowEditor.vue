@@ -19,8 +19,10 @@ import {
   useUpdateWorkflowV2,
 } from '@/entities';
 import { Designer } from 'sequential-workflow-designer';
+import { DOC_LINKS, openDocLink } from '@/shared/constants/docLinks';
 import {
   showErrorMessage,
+  showInfoMessage,
   showSuccessMessage,
   toErrorMessage,
 } from '@/shared/utils';
@@ -63,6 +65,13 @@ const resAddWorkFlow = useCreateWorkflow(null);
 const loading = ref<boolean>(true);
 
 const trigger = reactive({ value: false });
+/**
+ * 이 워크플로우의 실행 그래프를 편집기가 그대로 그릴 수 없을 때 켜진다.
+ * 그럴 때는 빈 화면을 보여주는 대신 이유를 적고 저장을 막는다 — 그리지 못한 것을
+ * 저장하면 실행 순서가 바뀌기 때문이다.
+ */
+const isUneditable = ref(false);
+const loadWarnings = ref<string[]>([]);
 
 console.log(props);
 
@@ -239,8 +248,6 @@ async function load() {
   if (!props.targetModel || workflowToolModel.dropDownModel.selectedItemId) {
     await loadWorkflow();
     loadSequence();
-    // reorderingSequence();  // Temporarily disabled - TaskGroups should stay flat
-    console.log('⚠️  Reordering skipped - TaskGroups loaded as flat structure');
   }
 
   loading.value = false;
@@ -726,11 +733,15 @@ async function loadWorkflow() {
 
 function loadSequence() {
   if (workflowData.value) {
-    sequentialSequence.value =
-      workflowToolModel.convertCicadaToDesignerFormData(
-        workflowData.value,
-        resTaskComponentList.data.value?.responseData!,
-      ).sequence;
+    const loaded = workflowToolModel.convertCicadaToDesignerFormData(
+      workflowData.value,
+      resTaskComponentList.data.value?.responseData!,
+    );
+    sequentialSequence.value = loaded.sequence;
+    // 그릴 수 없는 모양이면 빈 화면 대신 이유를 내놓는다. 억지로 펴서 보여주면
+    // 저장하는 순간 없던 의존 관계가 생겨 워크플로우가 조용히 바뀐다.
+    isUneditable.value = loaded.representable === false;
+    loadWarnings.value = loaded.warnings ?? [];
     // 타깃 모델에서 진입한 경우, 조회 task 에 타깃 모델 id 를, 마이그레이션 task 에 리터럴 본문을 주입한다.
     // 시퀀스를 세운 직후(디자이너 렌더 전) 주입하므로 저장 시 그대로 반영된다.
     if (props.targetModel) {
@@ -798,12 +809,6 @@ function injectTargetModelIntoSequence() {
     }
   };
   visit(sequentialSequence.value);
-}
-
-function reorderingSequence() {
-  sequentialSequence.value = workflowToolModel.designerFormDataReordering(
-    sequentialSequence.value,
-  );
 }
 
 function getCicadaData(designer: Designer | null): IWorkflow {
@@ -949,6 +954,24 @@ function postWorkflow(workflow: IWorkflow) {
 function handleSaveCallback(designer: Designer | null) {
   trigger.value = false;
   try {
+    const definition = designer?.getDefinition();
+    const problems = workflowToolModel.validateDesignerSequence(
+      (definition?.sequence ?? []) as Step[],
+    );
+    if (problems.length) {
+      showErrorMessage('Cannot save', problems.join('\n'));
+      return;
+    }
+
+    // 틀리지는 않지만 만들다 만 것으로 보이는 상태는 저장은 하되 짚어 준다.
+    // 화면을 닫으면 그림은 사라지고 저장된 선만 남기 때문이다.
+    const notices = workflowToolModel.reviewDesignerSequence(
+      (definition?.sequence ?? []) as Step[],
+    );
+    if (notices.length) {
+      showInfoMessage('Check the parallel steps', notices.join('\n'));
+    }
+
     const cicadaData = getCicadaData(designer);
     postWorkflow(cicadaData);
   } catch (e) {
@@ -962,6 +985,7 @@ function handleCancel() {
 }
 
 function handleSave() {
+  if (isUneditable.value) return;
   trigger.value = true;
 }
 
@@ -993,6 +1017,11 @@ function handleSelectTemplate(e) {
             <PFieldGroup class="flex-1" :label="'Description'">
               <p-text-input v-model="workflowDescription.value.value" block />
             </PFieldGroup>
+            <!--
+              병렬은 팔레트에서 명시적으로 꺼내 써야 하고, 좌우 배치는 병렬 상자
+              안에서만 된다. 처음 쓰는 사람이 그 규칙을 알 길이 화면에 없어서
+              가이드로 연결한다.
+            -->
             <PFieldGroup class="flex-1" :label="'Workflow Template'" required>
               <p-select-dropdown
                 class="w-full"
@@ -1002,8 +1031,33 @@ function handleSelectTemplate(e) {
                 @select="handleSelectTemplate"
               />
             </PFieldGroup>
+            <button
+              type="button"
+              class="workflow-tool-help"
+              data-testid="workflow-parallel-guide-link"
+              @click="openDocLink(DOC_LINKS.workflowParallelSteps)"
+            >
+              How to run tasks in parallel
+            </button>
           </header>
-          <section class="workflow-tool-body">
+          <div
+            v-if="loadWarnings.length"
+            class="workflow-tool-notice mb-[12px]"
+          >
+            <p class="workflow-tool-notice__title">
+              {{
+                isUneditable
+                  ? 'This workflow cannot be opened in the graphical editor'
+                  : 'Check this workflow'
+              }}
+            </p>
+            <ul>
+              <li v-for="(warning, i) in loadWarnings" :key="i">
+                {{ warning }}
+              </li>
+            </ul>
+          </div>
+          <section v-if="!isUneditable" class="workflow-tool-body">
             <SequentialDesigner
               :sequence="sequentialSequence"
               :trigger="trigger.value"
@@ -1025,6 +1079,7 @@ function handleSelectTemplate(e) {
         <p-button
           data-testid="workflow-designer-save"
           :loading="resUpdateWorkflow.isLoading.value"
+          :disabled="isUneditable"
           @click="handleSave"
         >
           Save
@@ -1035,6 +1090,31 @@ function handleSelectTemplate(e) {
 </template>
 
 <style scoped lang="postcss">
+.workflow-tool-help {
+  align-self: center;
+  white-space: nowrap;
+  text-decoration: underline;
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+.workflow-tool-help:hover {
+  color: #1f2937;
+}
+.workflow-tool-notice {
+  border-left: 4px solid #f0a020;
+  background: #fff8e6;
+  padding: 12px 16px;
+  border-radius: 4px;
+}
+.workflow-tool-notice__title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.workflow-tool-notice ul {
+  list-style: disc;
+  padding-left: 20px;
+}
+
 :deep(.workflow-tool-modal-page) {
   height: calc(100% - 7.4rem);
   max-height: calc(100% - 7.4rem);

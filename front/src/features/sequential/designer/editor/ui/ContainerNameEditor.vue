@@ -5,8 +5,33 @@
         <h4>{{ headerTitle }}</h4>
       </div>
 
+      <!--
+        병렬 상자는 이름을 받지 않는다.
+
+        갈라짐을 표시하는 것이지 묶음이 아니라서 이름이 놓일 자리가 없다 — 화면에도
+        그려지지 않고(라이브러리가 병렬에는 이름표를 그리지 않는다), 저장할 때도
+        그룹 상자 안에 있으면 바깥 그룹으로 묶여 이름이 사라진다. 입력란만 있고
+        아무 데도 남지 않으면 사용자는 저장됐다고 믿게 된다.
+
+        이름을 붙이고 싶은 대상은 *묶음*이고 그건 TaskGroup 이 맡는다 — 이름표도
+        화면에 그려진다. 병렬을 TaskGroup 안에 넣으면 그 이름이 그 구간의 이름이 된다.
+      -->
+      <div v-if="isLaunchPad" class="parallel-note">
+        <p>
+          Drop tasks side by side inside this step to add branches. They all
+          start at the same time, and whatever you place after this step waits
+          for every branch to finish.
+        </p>
+        <p>
+          There is nothing to fill in here — the split is all this step does.
+          Looking for a name field? A parallel step has nowhere to keep one. To
+          label this part of the workflow, wrap it in a TaskGroup; that name is
+          drawn on the canvas.
+        </p>
+      </div>
+
       <!-- Name Input -->
-      <div class="component-name-section">
+      <div v-else class="component-name-section">
         <div class="field-label">
           <span class="label-text">{{ nameLabel }}</span>
           <span class="required-indicator">*</span>
@@ -16,7 +41,7 @@
           v-model="containerName"
           @input="handleNameChange"
           class="component-name-input"
-          :class="{ 'invalid': !isNameValid }"
+          :class="{ invalid: !isNameValid }"
           placeholder="Enter name"
         />
         <span v-if="!isNameValid" class="error-message">
@@ -24,24 +49,26 @@
         </span>
       </div>
 
-      <!-- Description (Optional) -->
-      <div class="params-section">
+      <!-- Description (Optional) — 이름과 같은 이유로 병렬에는 두지 않는다 -->
+      <div v-if="!isLaunchPad" class="params-section">
         <h5 class="params-title">Description (optional)</h5>
         <div class="params-content">
           <textarea
             v-model="description"
             @input="handleDescriptionChange"
             class="param-input"
-            style="min-height: 80px; resize: vertical;"
+            style="min-height: 80px; resize: vertical"
             placeholder="설명을 입력하세요..."
           />
         </div>
       </div>
 
-      <!-- Info Box -->
-      <div :style="infoBoxStyle">
-        <strong :style="{ color: iconColor }">{{ icon }} {{ infoTitle }}</strong>
-        <p style="margin-top: 8px; color: #424242; font-size: 13px;">
+      <!-- Info Box — 병렬은 위 설명이 같은 말을 이미 하므로 두지 않는다 -->
+      <div v-if="!isLaunchPad" :style="infoBoxStyle">
+        <strong :style="{ color: iconColor }"
+          >{{ icon }} {{ infoTitle }}</strong
+        >
+        <p style="margin-top: 8px; color: #424242; font-size: 13px">
           {{ infoDescription }}
         </p>
       </div>
@@ -72,28 +99,32 @@ export default defineComponent({
     const errorMessage = ref('');
 
     // 동적 설정 (TaskGroup vs launchPad)
-    const isLaunchPad = computed(() => props.step.componentType === 'launchPad');
-
-    const headerTitle = computed(() => 
-      isLaunchPad.value ? 'Parrel Settings' : 'TaskGroup Settings'
+    const isLaunchPad = computed(
+      () => props.step.componentType === 'launchPad',
     );
 
-    const nameLabel = computed(() => 
-      isLaunchPad.value ? 'Parrel Name' : 'TaskGroup Name'
+    const headerTitle = computed(() =>
+      isLaunchPad.value ? 'Parallel Settings' : 'TaskGroup Settings',
     );
 
-    const icon = computed(() => isLaunchPad.value ? '🚀' : '📦');
-
-    const iconColor = computed(() => isLaunchPad.value ? '#2e7d32' : '#1565c0');
-
-    const infoTitle = computed(() => 
-      isLaunchPad.value ? 'Parallel Execution' : 'Sequential Execution'
+    const nameLabel = computed(() =>
+      isLaunchPad.value ? 'Parallel Name' : 'TaskGroup Name',
     );
 
-    const infoDescription = computed(() => 
-      isLaunchPad.value 
-        ? '이 Parrel 내의 task들은 동시에 병렬 실행됩니다.' 
-        : '이 TaskGroup 내의 task들은 순차적으로 실행됩니다.'
+    const icon = computed(() => (isLaunchPad.value ? '🚀' : '📦'));
+
+    const iconColor = computed(() =>
+      isLaunchPad.value ? '#2e7d32' : '#1565c0',
+    );
+
+    const infoTitle = computed(() =>
+      isLaunchPad.value ? 'Parallel Execution' : 'Sequential Execution',
+    );
+
+    const infoDescription = computed(() =>
+      isLaunchPad.value
+        ? '이 Parallel 내의 task들은 동시에 병렬 실행됩니다.'
+        : '이 TaskGroup 내의 task들은 순차적으로 실행됩니다.',
     );
 
     const infoBoxStyle = computed(() => ({
@@ -111,16 +142,20 @@ export default defineComponent({
 
     function handleNameChange() {
       const newName = containerName.value.trim();
-      
+
       // 빈 이름 체크
       if (!newName) {
         isNameValid.value = false;
         errorMessage.value = '⚠️ Name cannot be empty';
         return;
       }
-      
+
       // 중복 체크 (재귀적으로 전체 workflow 검사)
-      function findDuplicateInSequence(sequence: any[], targetName: string, excludeId: string): boolean {
+      function findDuplicateInSequence(
+        sequence: any[],
+        targetName: string,
+        excludeId: string,
+      ): boolean {
         for (const s of sequence) {
           if (s.id !== excludeId && s.name === targetName) {
             return true;
@@ -133,13 +168,19 @@ export default defineComponent({
         }
         return false;
       }
-      
-      if (findDuplicateInSequence(props.definition.sequence, newName, props.step.id)) {
+
+      if (
+        findDuplicateInSequence(
+          props.definition.sequence,
+          newName,
+          props.step.id,
+        )
+      ) {
         isNameValid.value = false;
         errorMessage.value = `❌ Name "${newName}" already exists`;
         return;
       }
-      
+
       isNameValid.value = true;
       errorMessage.value = '';
       emit('saveComponentName', newName);
@@ -164,6 +205,7 @@ export default defineComponent({
       infoTitle,
       infoDescription,
       infoBoxStyle,
+      isLaunchPad,
       handleNameChange,
       handleDescriptionChange,
     };
@@ -174,6 +216,17 @@ export default defineComponent({
 <style scoped lang="postcss">
 .task-component-editor {
   @apply p-4 bg-white;
+}
+
+.parallel-note {
+  margin-bottom: 12px;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.parallel-note p + p {
+  margin-top: 10px;
 }
 
 .component-name-section {
@@ -236,4 +289,3 @@ export default defineComponent({
   @apply text-lg font-semibold text-gray-800;
 }
 </style>
-

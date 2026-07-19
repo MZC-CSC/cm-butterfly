@@ -8,9 +8,19 @@ import getRandomId from '@/shared/utils/uuid';
 import { toolboxSteps } from '@/features/sequential/designer/toolbox/model/toolboxSteps';
 import { editorProviders } from '@/features/sequential/designer/editor/model/editorProviders';
 import testSvg from '@/shared/asset/image/testSvg.svg';
+import {
+  collectStepNames,
+  nextAvailableName,
+} from '@/entities/workflow/lib/stepNaming';
+import { isAutoOpenPropertiesEnabled } from '@/features/sequential/designer/model/designerPreferences';
 
 export function useSequentialDesignerModel(refs: any) {
   let designer: Designer | null = null;
+  // 저장된 워크플로우를 올리는 동안에는 이름 짓기를 멈춘다
+  let isLoading = false;
+  // 방금 팔레트에서 놓은 것인지 — 놓으면 라이브러리가 그것을 자동으로 고른다.
+  // 사람이 직접 고른 것과 구분하려고 표시해 둔다.
+  let justDropped = false;
   const placeholder = refs.placeholder;
   const designerOptionsState: any = {
     id: '',
@@ -73,61 +83,21 @@ export function useSequentialDesignerModel(refs: any) {
         return true;
       },
       canInsertStep: (step, targetSequence, targetIndex) => {
-        // 중복 이름 체크 함수 (재귀적으로 전체 workflow 검사)
-        function isNameDuplicate(sequence: any[], name: string, excludeId?: string): boolean {
-          for (const s of sequence) {
-            if (s.id !== excludeId && s.name === name) {
-              return true;
-            }
-            if (s.sequence && s.sequence.length > 0) {
-              if (isNameDuplicate(s.sequence, name, excludeId)) {
-                return true;
-              }
-            }
-          }
-          return false;
-        }
+        // 저장된 워크플로우를 여는 중에는 이름을 건드리지 않는다. 다른 task 의 의존
+        // 관계가 지금 이름을 가리키고 있으므로, 여기서 바꾸면 연결이 끊어진다.
+        if (isLoading) return true;
 
-        // 고유한 이름 생성 함수
-        function generateUniqueName(baseName: string): string {
-          let newName = `${baseName}_${getRandomId().substring(0, 4)}`;
-          // definition이 존재하면 중복 체크
-          if (definition && definition.sequence) {
-            while (isNameDuplicate(definition.sequence, newName)) {
-              newName = `${baseName}_${getRandomId().substring(0, 4)}`;
-            }
-          }
-          return newName;
-        }
+        // 팔레트에서 갓 꺼낸 것인지(이름이 아직 종류 이름 그대로), 아니면 사람이
+        // 지어 준 이름인지로 가른다. 후자는 겹칠 때만 손댄다.
+        const taken = collectStepNames(definition?.sequence);
+        const isFreshFromToolbox = step.name === step.type;
 
-        if (step.componentType === 'container') {
-          const baseName = step.name.replace(/_[a-z0-9]{4}$/i, ''); // 기존 suffix 제거
-          step.name = generateUniqueName(baseName);
-          console.log('🏷️ Container name set to:', step.name);
-        } else if (step.componentType === 'launchPad') {
-          const baseName = step.name.replace(/_[a-z0-9]{4}$/i, ''); // 기존 suffix 제거
-          step.name = generateUniqueName(baseName);
-          console.log('🏷️ Parrel name set to:', step.name);
-          console.log('🚀 Parrel created - tasks will run in parallel (horizontal layout)');
-        } else if (step.componentType === 'task') {
-          // Toolbox에서 추가하는 경우 (step.name === step.type)
-          if (step.name === step.type) {
-            step.name = generateUniqueName(step.type);
-            console.log('🏷️ Task name auto-generated:', step.name);
-            console.log('   step.type:', step.type);
-          } 
-          // Duplicate하는 경우 또는 저장된 workflow 로드하는 경우
-          else {
-            // 중복 체크: definition이 있고 이름이 중복되면 새로운 이름 생성
-            if (definition && definition.sequence && isNameDuplicate(definition.sequence, step.name, step.id)) {
-              const baseName = step.name.replace(/_[a-z0-9]{4}$/i, ''); // 기존 suffix 제거
-              step.name = generateUniqueName(baseName);
-              console.log('🏷️ Task name regenerated (duplicate detected):', step.name);
-            } else {
-              console.log('🏷️ Task name preserved:', step.name);
-            }
-          }
+        if (isFreshFromToolbox || taken.has(step.name)) {
+          step.name = nextAvailableName(step.name, taken);
         }
+        // 놓자마자 라이브러리가 이것을 고르고 속성창을 청한다. 그 한 번만
+        // "방금 놓은 것"으로 보고, 그 뒤의 선택은 사람이 직접 고른 것으로 본다.
+        justDropped = true;
         return true;
       },
       // canMoveStep: (sourceSequence, step, targetSequence, targetIndex) => {
@@ -141,14 +111,34 @@ export function useSequentialDesignerModel(refs: any) {
 
   function defineStepValidate() {
     return {
-      step: (step, parentSequence, definition) => {
-        // console.log('parentSequence');
-        // console.log(parentSequence);
-        // console.log(definition);
-        return true;
+      // 상자 하나를 두고 보는 검사. 저장 형식으로 옮길 수 없는 모양을 여기서 알린다.
+      step: (step: any) => {
+        if (step.componentType === 'task') {
+          return String(step.name ?? '').trim().length > 0;
+        }
+        // 상자 안에 (몇 겹이든) task 가 하나도 없으면 저장되지 않는다.
+        // 상자를 겹쳐 놓는 것 자체는 막지 않는다 — 저장되는 것은 선뿐이라
+        // 겹친 모양에서 선만 뽑아내면 되기 때문이다.
+        const countTasks = (node: any): number =>
+          node.componentType === 'task'
+            ? 1
+            : (node.sequence ?? []).reduce(
+                (sum: number, child: any) => sum + countTasks(child),
+                0,
+              );
+        return countTasks(step) > 0;
       },
-      root: definition => {
-        return true;
+      // 전체를 두고 보는 검사 — 이름은 워크플로우 안에서 하나여야 한다
+      root: (currentDefinition: any) => {
+        const names: string[] = [];
+        const walk = (steps: any[] | undefined) => {
+          (steps ?? []).forEach(step => {
+            if (step.componentType === 'task') names.push(step.name);
+            walk(step.sequence);
+          });
+        };
+        walk(currentDefinition?.sequence);
+        return names.length > 0 && new Set(names).size === names.length;
       },
     };
   }
@@ -159,12 +149,18 @@ export function useSequentialDesignerModel(refs: any) {
     componentSteps: Step[],
   ) {
     toolBoxGroup = [
+      // 'Tool' 묶음은 **한 번도 내용이 있었던 적이 없다** — 유일한 호출부가 늘
+      // null 을 넘겨 왔고(SequentialDesigner.vue), 무엇을 담으려던 자리였는지도
+      // 남아 있지 않다. 빈 묶음이 팔레트에 보이면 "여기 뭔가 있어야 하는데
+      // 비었나" 하고 헷갈리므로 우선 감춘다. 쓸 일이 생기면 되살린다.
+      // {
+      //   name: 'Tool',
+      //   steps: toolSteps ?? [],
+      // },
       {
-        name: 'Tool',
-        steps: toolSteps ?? [],
-      },
-      {
-        name: 'TaskGroup',
+        // 묶음 이름이 'TaskGroup' 이면 그 안의 TaskGroup·Parallel 이 형제가 아니라
+        // 상하 관계처럼 읽힌다. 둘 다 *실행 흐름을 만드는 상자* 라 Flow 로 묶는다.
+        name: 'Flow',
         steps: taskGroupSteps ?? [
           toolboxSteps().defineTaskGroupStep(
             getRandomId(),
@@ -172,17 +168,13 @@ export function useSequentialDesignerModel(refs: any) {
             'taskGroup',
             { model: {} },
           ),
-          // Parrel과 If는 현재 지원하지 않으므로 숨김
-          // toolboxSteps().defineParrelStep(
-          //   getRandomId(),
-          //   'Parrel',
-          //   { model: {} },
-          // ),
-          // toolboxSteps().defineIfStep(
-          //   getRandomId(),
-          //   [],
-          //   [],
-          // ),
+          // 병렬 상자 — 안에 넣은 task 가 동시에 실행되고, 다음 단계는 전부
+          // 끝나야 시작한다. 엔진은 원래 이렇게 실행할 수 있었는데 화면이
+          // 만들지 못해 직선만 그려졌다.
+          toolboxSteps().defineParrelStep(getRandomId(), 'Parallel', {
+            model: {},
+          }),
+          // 조건 분기(If)는 엔진에 대응하는 개념이 없어 아직 내놓지 않는다.
         ],
       },
       {
@@ -213,7 +205,25 @@ export function useSequentialDesignerModel(refs: any) {
           );
         },
         stepEditorProvider: (step, stepContext, definition, isReadonly) => {
-          designer?.setIsEditorCollapsed(false);
+          // 속성창을 **열기만 하고 닫지는 않는다.** 사람이 열어 둔 것을 우리가
+          // 닫아 버리면 매번 다시 열어야 한다.
+          //
+          //  · **사람이 직접 고른 것**은 무조건 연다. 고른 행위 자체가 보여
+          //    달라는 뜻이고, 병렬처럼 채울 것이 없어도 설명을 읽으러 고른다.
+          //  · **방금 놓은 것**만 가려 연다. 입력할 것이 있으면(태스크·TaskGroup)
+          //    바로 값을 채워야 하므로 폭과 무관하게 열고, 병렬은 채울 것이 없어
+          //    좁은 화면에서는 캔버스를 덮지 않도록 열지 않는다.
+          const wasDropped = justDropped;
+          justDropped = false;
+
+          const hasFieldsToEdit = step.componentType !== 'launchPad';
+          const widthWithRoomForEditor = 1100;
+          const hasRoom =
+            (placeholder?.clientWidth ?? 0) >= widthWithRoomForEditor;
+          const worthOpening = !wasDropped || hasFieldsToEdit || hasRoom;
+          if (isAutoOpenPropertiesEnabled() && worthOpening) {
+            designer?.setIsEditorCollapsed(false);
+          }
           return editorProviders().defaultStepEditorProvider(
             step,
             stepContext,
@@ -242,8 +252,74 @@ export function useSequentialDesignerModel(refs: any) {
   }
 
   function draw() {
+    isLoading = true;
     designer = Designer.create(placeholder, definition, configuration);
+    isLoading = false;
     designer.onDefinitionChanged.subscribe(newDefinition => {});
+    showParallelOutlineOnHover();
+  }
+
+  // 갈래가 둘 이상인 병렬 상자는 점선을 감춰 두는데(모양만으로 읽히므로), 그러면
+  // 어디까지가 그 상자인지 알 수 없다. 상자 안 어디를 눌러도 선택되지만 *어디가
+  // 안인지* 보이지 않는 셈이라, 마우스가 올라간 동안만 테두리를 비춰 준다.
+  //
+  // 라이브러리에는 단계 위 hover 표시가 없다(`sqd-hover` 는 드래그 중 placeholder
+  // 전용). 그래서 좌표로 직접 가린다 — 선택 판정과 같은 방식이라 보이는 범위와
+  // 눌리는 범위가 어긋나지 않는다.
+  function showParallelOutlineOnHover() {
+    const root: HTMLElement | null = placeholder;
+    if (!root) return;
+    const HOVERED = 'sqd-parallel-hovered';
+
+    const boxOf = (pad: Element) => {
+      const lines = pad.querySelectorAll(':scope > line.sqd-region');
+      if (!lines.length) return null;
+      const rects = Array.from(lines, line => line.getBoundingClientRect());
+      const left = Math.min(...rects.map(r => r.left));
+      const right = Math.max(...rects.map(r => r.right));
+      const top = Math.min(...rects.map(r => r.top));
+      const bottom = Math.max(...rects.map(r => r.bottom));
+      return {
+        left,
+        right,
+        top,
+        bottom,
+        area: (right - left) * (bottom - top),
+      };
+    };
+
+    let queued = false;
+    root.addEventListener('mousemove', event => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        queued = false;
+        const pads = root.querySelectorAll('g.sqd-step-launch-pad');
+        // 상자가 겹쳐 있으면 **가장 안쪽 하나만** 비춘다. 여럿이 한꺼번에 켜지면
+        // 어느 것을 고르게 되는지 알 수 없다.
+        let innermost: Element | null = null;
+        let smallest = Infinity;
+        pads.forEach(pad => {
+          const box = boxOf(pad);
+          if (!box) return;
+          const inside =
+            event.clientX >= box.left &&
+            event.clientX <= box.right &&
+            event.clientY >= box.top &&
+            event.clientY <= box.bottom;
+          if (inside && box.area < smallest) {
+            smallest = box.area;
+            innermost = pad;
+          }
+        });
+        pads.forEach(pad => pad.classList.toggle(HOVERED, pad === innermost));
+      });
+    });
+    root.addEventListener('mouseleave', () => {
+      root
+        .querySelectorAll(`.${HOVERED}`)
+        .forEach(pad => pad.classList.remove(HOVERED));
+    });
   }
 
   function getDesigner(): Designer | null {
