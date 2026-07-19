@@ -4,6 +4,7 @@ import {
   PBadge,
   PButton,
   PSelectDropdown,
+  PSpinner,
   PTooltip,
 } from '@cloudforet-test/mirinae';
 import RunGraph from './RunGraph.vue';
@@ -46,6 +47,7 @@ const {
   deletedTaskInstances,
   definitionChangedAfterRun,
   graph,
+  workflowReadyState,
   hasRuns,
   canEditInDesigner,
   designerSupport,
@@ -555,7 +557,28 @@ async function onRunChange(runId: string) {
           </span>
         </div>
 
-        <div v-if="!graph.nodes.length" class="run-viewer__empty">
+        <!--
+          방금 만든 워크플로우는 엔진이 DAG 를 등록하기 전이라 잠시 읽히지 않는다.
+          그때 "표시할 태스크가 없습니다"를 띄우면 **사실과 다르다** — 태스크가 없는 게
+          아니라 아직 못 읽은 것이고, 사용자는 워크플로우가 비어 있다고 오해한다.
+          그래서 읽힐 때까지 기다리는 중임을 밝힌다.
+        -->
+        <div
+          v-if="workflowReadyState === 'waiting'"
+          class="run-viewer__waiting"
+          data-testid="workflow-run-waiting"
+        >
+          <p-spinner size="md" />
+          <p>Waiting for this workflow to be ready…</p>
+        </div>
+        <div
+          v-else-if="workflowReadyState === 'timeout'"
+          class="run-viewer__empty"
+          data-testid="workflow-run-waiting"
+        >
+          This workflow could not be read yet. Open it again in a moment.
+        </div>
+        <div v-else-if="!graph.nodes.length" class="run-viewer__empty">
           No tasks to display.
         </div>
         <run-graph
@@ -1113,6 +1136,18 @@ async function onRunChange(runId: string) {
   padding: 2rem;
   text-align: center;
   color: #6b6e78;
+  font-size: 0.8125rem;
+}
+
+.run-viewer__waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 2rem;
+  min-height: 12rem;
+  color: #4b5563;
   font-size: 0.8125rem;
 }
 
