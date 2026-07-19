@@ -18,6 +18,9 @@ export function useSequentialDesignerModel(refs: any) {
   let designer: Designer | null = null;
   // 저장된 워크플로우를 올리는 동안에는 이름 짓기를 멈춘다
   let isLoading = false;
+  // 방금 팔레트에서 놓은 것인지 — 놓으면 라이브러리가 그것을 자동으로 고른다.
+  // 사람이 직접 고른 것과 구분하려고 표시해 둔다.
+  let justDropped = false;
   const placeholder = refs.placeholder;
   const designerOptionsState: any = {
     id: '',
@@ -92,6 +95,9 @@ export function useSequentialDesignerModel(refs: any) {
         if (isFreshFromToolbox || taken.has(step.name)) {
           step.name = nextAvailableName(step.name, taken);
         }
+        // 놓자마자 라이브러리가 이것을 고르고 속성창을 청한다. 그 한 번만
+        // "방금 놓은 것"으로 보고, 그 뒤의 선택은 사람이 직접 고른 것으로 본다.
+        justDropped = true;
         return true;
       },
       // canMoveStep: (sourceSequence, step, targetSequence, targetIndex) => {
@@ -202,15 +208,20 @@ export function useSequentialDesignerModel(refs: any) {
           // 속성창을 **열기만 하고 닫지는 않는다.** 사람이 열어 둔 것을 우리가
           // 닫아 버리면 매번 다시 열어야 한다.
           //
-          //  · 입력할 것이 있으면(태스크·TaskGroup) 놓자마자 값을 채워야 하므로
-          //    화면 폭과 무관하게 연다.
-          //  · 병렬 상자는 채울 것이 없다. 다만 어떻게 쓰는지 설명이 들어 있어
-          //    **캔버스를 덮지 않을 만큼 넓을 때만** 열어 보여준다.
+          //  · **사람이 직접 고른 것**은 무조건 연다. 고른 행위 자체가 보여
+          //    달라는 뜻이고, 병렬처럼 채울 것이 없어도 설명을 읽으러 고른다.
+          //  · **방금 놓은 것**만 가려 연다. 입력할 것이 있으면(태스크·TaskGroup)
+          //    바로 값을 채워야 하므로 폭과 무관하게 열고, 병렬은 채울 것이 없어
+          //    좁은 화면에서는 캔버스를 덮지 않도록 열지 않는다.
+          const wasDropped = justDropped;
+          justDropped = false;
+
           const hasFieldsToEdit = step.componentType !== 'launchPad';
           const widthWithRoomForEditor = 1100;
           const hasRoom =
             (placeholder?.clientWidth ?? 0) >= widthWithRoomForEditor;
-          if (isAutoOpenPropertiesEnabled() && (hasFieldsToEdit || hasRoom)) {
+          const worthOpening = !wasDropped || hasFieldsToEdit || hasRoom;
+          if (isAutoOpenPropertiesEnabled() && worthOpening) {
             designer?.setIsEditorCollapsed(false);
           }
           return editorProviders().defaultStepEditorProvider(
