@@ -53,20 +53,25 @@ export function editorProviders() {
           </div>
         `;
 
-        const nameInput = ifEditor.querySelector('#if-name') as HTMLInputElement;
-        nameInput?.addEventListener('input', (e) => {
+        const nameInput = ifEditor.querySelector(
+          '#if-name',
+        ) as HTMLInputElement;
+        nameInput?.addEventListener('input', e => {
           step.name = (e.target as HTMLInputElement).value;
           stepContext.notifyNameChanged();
         });
 
         editor.appendChild(ifEditor);
       }
-      if (step.componentType === 'launchPad' || step.componentType === 'container') {
+      if (
+        step.componentType === 'launchPad' ||
+        step.componentType === 'container'
+      ) {
         insertDynamicComponent(
           ContainerNameEditor,
           { step, definition },
           {
-            saveComponentName: (name) => {
+            saveComponentName: name => {
               step.name = name;
               stepContext.notifyNameChanged();
             },
@@ -83,7 +88,10 @@ export function editorProviders() {
         console.log('=== Task Editor Selection ===');
         console.log('Step name:', step.name);
         console.log('Task type:', taskType);
-        console.log('Selected editor:', TaskEditorComponent?.name || 'TaskComponentEditor');
+        console.log(
+          'Selected editor:',
+          TaskEditorComponent?.name || 'TaskComponentEditor',
+        );
         console.log('=============================');
 
         //toolboxModel에서 가공하는곳 참고
@@ -101,25 +109,40 @@ export function editorProviders() {
               console.log('   Step name:', step.name);
               console.log('   Received model type:', typeof e);
               console.log('   Received model keys:', Object.keys(e || {}));
-              
+
               // Deep inspection
               if (e && typeof e === 'object') {
                 if (e.targetSoftwareModel && e.targetSoftwareModel.servers) {
-                  console.log(`   Received model.targetSoftwareModel.servers: array[${e.targetSoftwareModel.servers.length}]`);
+                  console.log(
+                    `   Received model.targetSoftwareModel.servers: array[${e.targetSoftwareModel.servers.length}]`,
+                  );
                   if (e.targetSoftwareModel.servers.length > 0) {
-                    console.log('   First server.source_connection_info_id:', e.targetSoftwareModel.servers[0].source_connection_info_id);
+                    console.log(
+                      '   First server.source_connection_info_id:',
+                      e.targetSoftwareModel.servers[0]
+                        .source_connection_info_id,
+                    );
                   }
                 }
               }
-              
-              console.log('   Received model JSON (first 500 chars):', JSON.stringify(e).substring(0, 500));
-              console.log('   BEFORE: step.properties.model JSON (first 500 chars):', JSON.stringify(step.properties.model).substring(0, 500));
-              
+
+              console.log(
+                '   Received model JSON (first 500 chars):',
+                JSON.stringify(e).substring(0, 500),
+              );
+              console.log(
+                '   BEFORE: step.properties.model JSON (first 500 chars):',
+                JSON.stringify(step.properties.model).substring(0, 500),
+              );
+
               step.properties.model = e;
-              
-              console.log('   AFTER: step.properties.model JSON (first 500 chars):', JSON.stringify(step.properties.model).substring(0, 500));
+
+              console.log(
+                '   AFTER: step.properties.model JSON (first 500 chars):',
+                JSON.stringify(step.properties.model).substring(0, 500),
+              );
               console.log('   ✅ step.properties.model updated');
-              
+
               stepContext.notifyPropertiesChanged();
               console.log('   ✅ stepContext.notifyPropertiesChanged() called');
               console.log('💾💾💾 editorProviders.saveContext COMPLETE 💾💾💾');
