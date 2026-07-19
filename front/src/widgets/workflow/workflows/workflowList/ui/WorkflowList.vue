@@ -13,7 +13,15 @@ import {
   showErrorMessage,
 } from '@/shared/utils';
 import DynamicTableIconButton from '@/shared/ui/Button/dynamicIconButton/DynamicTableIconButton.vue';
-import { onBeforeMount, onMounted, reactive, ref, watch, computed, nextTick } from 'vue';
+import {
+  onBeforeMount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+  computed,
+  nextTick,
+} from 'vue';
 import { useGetWorkflowList, useBulkDeleteWorkflow } from '@/entities';
 import { useRunWorkflow } from '@/entities';
 import { useDynamicTableHeight } from '@/shared/hooks/table/useDynamicTableHeight';
@@ -58,10 +66,12 @@ onMounted(function (this: any) {
   fetchWorkflowList();
 });
 
-watch(isDataLoaded, (nv) => {
+watch(isDataLoaded, nv => {
   if (nv && toolboxTableRef.value) {
     nextTick(() => {
-      addDeleteIconAtTable.call({ $refs: { toolboxTable: toolboxTableRef.value } });
+      addDeleteIconAtTable.call({
+        $refs: { toolboxTable: toolboxTableRef.value },
+      });
     });
   }
 });
@@ -201,14 +211,18 @@ watch(
       <template #container="{ height }">
         <!-- 로딩 중일 때 스피너 표시 -->
         <table-loading-spinner
-          :loading="getWorkflowList.isLoading.value || tableModel.tableState.loading"
+          :loading="
+            getWorkflowList.isLoading.value || tableModel.tableState.loading
+          "
           :height="height"
           message="Loading workflows..."
         />
-        
+
         <!-- 로딩 완료 후 테이블 표시 -->
         <p-toolbox-table
-          v-if="!getWorkflowList.isLoading.value && !tableModel.tableState.loading"
+          v-if="
+            !getWorkflowList.isLoading.value && !tableModel.tableState.loading
+          "
           ref="toolboxTableRef"
           data-testid="workflow-list-table"
           :items="tableModel.tableState.displayItems"
