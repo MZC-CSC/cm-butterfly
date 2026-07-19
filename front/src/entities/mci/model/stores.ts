@@ -54,10 +54,16 @@ export const useMCIStore = defineStore(NAMESPACE, () => {
     }
   }
 
+  /**
+   * 노드의 마지막 부하 테스트 상태를 담는다.
+   *
+   * `undefined` 를 넣으면 *보여줄 결과가 없다*는 뜻이다 — 조회된 실행이 다른 VM 것이라
+   * 화면에 내보내면 안 되는 경우에 쓴다(BAR-1547).
+   */
   function assignLastLoadTestStateToVm(
     mciID: string,
     vmID: string,
-    response: ILastloadtestStateResponse,
+    response: ILastloadtestStateResponse | undefined,
   ) {
     const mci = getMciById(mciID);
     if (mci) {

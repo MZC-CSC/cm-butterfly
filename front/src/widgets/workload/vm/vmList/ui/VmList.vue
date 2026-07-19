@@ -18,9 +18,7 @@ import {
 } from 'vue';
 import SuccessfullyLoadConfigModal from '@/features/workload/successfullyModal/ui/SuccessfullyLoadConfigModal.vue';
 import LoadConfig from '@/features/workload/actionLoadConfig/ui/LoadConfig.vue';
-import { showErrorMessage,
-  toErrorMessage,
-} from '@/shared/utils';
+import { showErrorMessage, toErrorMessage } from '@/shared/utils';
 import { IVm } from '@/entities/mci/model';
 import VmInformation from '@/widgets/workload/vm/vmInformation/ui/VmInformation.vue';
 import VmEvaluatePerf from '@/widgets/workload/vm/vmEvaluatePerf/ui/VmEvaluatePerf.vue';
@@ -58,7 +56,7 @@ const LOADTEST_STATUS_LABEL: Record<string, string> = {
 const currentLoadTestStatusLabel = computed(() => {
   const status = (resLoadStatus as any).data?.value?.responseData?.result
     ?.executionStatus as string | undefined;
-  return status ? LOADTEST_STATUS_LABEL[status] ?? status : '';
+  return status ? (LOADTEST_STATUS_LABEL[status] ?? status) : '';
 });
 // 관리(중단·Re-run)용 loadTestKey.
 const currentLoadTestKey = computed(
@@ -262,7 +260,10 @@ async function getMciInfo() {
       }
     })
     .catch(e => {
-      showErrorMessage('Error', toErrorMessage(e, 'Failed to load node information.'));
+      showErrorMessage(
+        'Error',
+        toErrorMessage(e, 'Failed to load node information.'),
+      );
     });
 }
 
@@ -273,6 +274,23 @@ async function handleMciIdChange() {
   vmListTableModel.tableState.selectIndex = [];
   selectedVm.value = null;
   vmListTableModel.tableState.loading = false;
+}
+
+/**
+ * 조회된 실행 결과가 *다른 VM* 의 것인가.
+ *
+ * 판단 근거는 uid 하나뿐이다 — 이름은 재사용되므로 아무것도 말해 주지 않는다.
+ * 양쪽 uid 를 모두 아는데 다를 때만 참이고, 한쪽이라도 비어 있으면 판단하지 않는다.
+ */
+function isOtherVmResult(result: any, targetVmId: string): boolean {
+  const resultUid = result?.nodeUid;
+  if (!resultUid) return false;
+
+  const vmUid =
+    selectedVm.value?.id === targetVmId ? selectedVm.value?.uid : undefined;
+  if (!vmUid) return false;
+
+  return resultUid !== vmUid;
 }
 
 function setVmLoadTestResult() {
@@ -294,6 +312,26 @@ function setVmLoadTestResult() {
       if (selectedVm.value?.id !== targetVmId) return;
       if (res.data.responseData) {
         const result = res.data.responseData.result;
+
+        // 이 결과가 *지금 보고 있는 VM* 것인지 확인한다 (BAR-1547).
+        //
+        // cm-ant 는 "이 노드의 마지막 실행" 을 이름(ns/infra/node)으로 찾는데, 그 이름들은
+        // 재사용된다 — cb-tumblebug 이 노드 id 를 `{그룹명}-{순번}` 으로 만들기 때문에, VM 을
+        // 지우고 같은 이름으로 다시 만들면 **삭제된 VM 의 부하 테스트 결과가 돌아온다.**
+        // 그 결과를 새 VM 것처럼 보여주면 사용자는 돌린 적 없는 테스트를 봤다고 믿게 된다.
+        //
+        // uid 를 모르는 경우(BAR-1546 이전 기록·조회 실패)는 불일치로 보지 않는다. 모른다는 것과
+        // 다른 VM 이라는 것은 다르고, 여기서 막으면 과거 기록이 전부 사라져 보인다.
+        if (isOtherVmResult(result, targetVmId)) {
+          mciStore.assignLastLoadTestStateToVm(
+            props.mciId,
+            targetVmId,
+            undefined,
+          );
+          stopLoadStatusPolling();
+          return;
+        }
+
         mciStore.assignLastLoadTestStateToVm(props.mciId, targetVmId, result);
 
         const status = result?.executionStatus;
@@ -308,7 +346,10 @@ function setVmLoadTestResult() {
       }
     })
     .catch(e => {
-      showErrorMessage('Error', toErrorMessage(e, 'Failed to load node information.'));
+      showErrorMessage(
+        'Error',
+        toErrorMessage(e, 'Failed to load node information.'),
+      );
     });
 }
 
@@ -340,7 +381,7 @@ function handleLoadConfigRequestSuccess(e: string) {
   modalState.loadConfigRequest.open = false;
   modalState.loadConfigSuccess.open = true;
   modalState.loadConfigRequest.context.scenarioName = e;
-  // 성공 모달이 실시간 상태를 보여주도록 새 실행 상태 폴링을 즉시 시작한다.
+
   setVmLoadTestResult();
 }
 
@@ -385,13 +426,13 @@ function handleTemplateManagerClose() {
           </p-button>
         </template>
       </p-toolbox>
-      
+
       <!-- 로딩 중일 때 스피너 표시 -->
       <table-loading-spinner
         :loading="vmListTableModel.tableState.loading"
         message="Loading servers..."
       />
-      
+
       <!-- 로딩 완료 후 카드 표시 -->
       <div v-if="!vmListTableModel.tableState.loading" class="vmList-content">
         <p-data-loader
