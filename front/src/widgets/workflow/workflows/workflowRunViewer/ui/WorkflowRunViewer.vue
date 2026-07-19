@@ -23,10 +23,10 @@ interface Props {
 
 const props = defineProps<Props>();
 
-// 에디터(그래픽/JSON)를 여는 것은 페이지의 일이다 (에디터 모달이 거기 있다).
-// - edit-original: 미실행 원본을 그래픽 에디터로
-// - edit-clone   : 실행됨 복제본을 그래픽 에디터로 (기존)
-// - edit-json    : 병렬이라 그래픽이 못 다루는 것을 JSON 에디터로 (원본 또는 복제본 id)
+// 에디터(워크플로우 툴/JSON)를 여는 것은 페이지의 일이다 (에디터 모달이 거기 있다).
+// - edit-original: 미실행 원본을 워크플로우 툴로
+// - edit-clone   : 실행된 워크플로우의 복제본을 워크플로우 툴로
+// - edit-json    : 툴이 그대로 옮길 수 없는 그래프를 JSON 에디터로 (원본 또는 복제본 id)
 const emit = defineEmits<{
   (e: 'edit-original', workflowId: string): void;
   (e: 'edit-clone', clonedWorkflowId: string): void;
@@ -45,7 +45,8 @@ const {
   definitionChangedAfterRun,
   graph,
   hasRuns,
-  isParallel,
+  canEditInDesigner,
+  designerSupport,
   progress,
   isPolling,
   cloning,
@@ -73,23 +74,23 @@ const {
  * 값을 바꿔 다시 돌리고 싶을 때 원본을 고치지 않는다.
  * 복제본을 만들어 그것을 편집한다 — 원본과 그 실행 이력은 그대로 남는다.
  *
- * 병렬 워크플로우는 그래픽 에디터가 아직 다루지 못하므로 복제본을 JSON 에디터로 연다.
- * (워크플로우 툴이 병렬을 지원하면 이 분기를 걷어내고 항상 그래픽으로 — BAR-1454)
+ * 워크플로우 툴이 그대로 옮길 수 없는 그래프면 복제본을 JSON 에디터로 연다. 툴로 열면
+ * 그림이 실제 실행과 달라지고, 그 상태로 저장하면 실행 순서가 조용히 바뀌기 때문이다.
  */
 async function cloneAndEdit() {
   const clonedId = await cloneForEdit();
   if (!clonedId) return;
-  if (isParallel.value) emit('edit-json', clonedId);
-  else emit('edit-clone', clonedId);
+  if (canEditInDesigner.value) emit('edit-clone', clonedId);
+  else emit('edit-json', clonedId);
 }
 
 /**
  * 미실행 원본 편집. 실행 이력이 없으니 복제 없이 원본을 직접 연다.
- * 병렬이면 그래픽 에디터가 못 다루므로 확인 후 JSON 에디터로 유도한다.
+ * 툴이 못 옮기는 그래프면 이유를 보이고 JSON 에디터로 갈지 물어본다.
  */
 const showEditJsonConfirm = ref(false);
 function requestEdit() {
-  if (isParallel.value) {
+  if (!canEditInDesigner.value) {
     showEditJsonConfirm.value = true;
     return;
   }
@@ -883,16 +884,15 @@ async function onRunChange(runId: string) {
           intend to change values — not to look around.
         </p>
         <!--
-          병렬 워크플로우는 그래픽 에디터가 아직 다루지 못한다 — 복제본은 JSON
-          에디터로 연다. (툴이 병렬을 지원하면 이 안내는 사라진다 — BAR-1454)
+          툴이 그대로 옮길 수 없는 그래프는 복제본을 JSON 에디터로 연다.
         -->
         <p
-          v-if="isParallel"
+          v-if="!canEditInDesigner"
           class="run-viewer__hint"
-          data-testid="workflow-clone-parallel-note"
+          data-testid="workflow-clone-unsupported-note"
         >
-          This workflow runs tasks in parallel, which the graphical editor
-          cannot edit yet, so the copy opens in the JSON editor.
+          The workflow tool cannot lay this workflow out exactly as it runs, so
+          the copy opens in the JSON editor.
         </p>
         <div class="run-viewer__modal-actions">
           <p-button
@@ -915,31 +915,41 @@ async function onRunChange(runId: string) {
     </div>
 
     <!--
-      미실행 원본을 편집하려는데 병렬이라 그래픽 에디터가 못 다루는 경우. JSON 에디터로
-      갈지 물어본다. (툴이 병렬을 지원하면 이 모달과 폴백을 함께 걷어낸다 — BAR-1454)
+      미실행 원본을 편집하려는데 워크플로우 툴이 그대로 옮길 수 없는 경우.
+      이유를 보이고 JSON 에디터로 갈지 물어본다.
     -->
     <div
       v-if="showEditJsonConfirm"
       class="run-viewer__modal"
-      data-testid="workflow-parallel-edit-confirm"
+      data-testid="workflow-unsupported-edit-confirm"
     >
       <div class="run-viewer__modal-box">
         <h4>Edit in the JSON editor?</h4>
         <p class="run-viewer__hint">
-          This workflow runs tasks in parallel. The graphical editor cannot edit
-          parallel workflows yet, so its structure would be lost. You can edit
-          it directly in the JSON editor instead.
+          The workflow tool draws a workflow as nested boxes, and this one's run
+          order cannot be laid out that way. Opening it there would show
+          something different from what actually runs, so edit it as JSON
+          instead.
         </p>
+        <ul
+          v-if="designerSupport.reasons.length"
+          class="run-viewer__hint"
+          data-testid="workflow-unsupported-reasons"
+        >
+          <li v-for="(reason, i) in designerSupport.reasons" :key="i">
+            {{ reason }}
+          </li>
+        </ul>
         <div class="run-viewer__modal-actions">
           <p-button
-            data-testid="workflow-parallel-edit-cancel-btn"
+            data-testid="workflow-unsupported-edit-cancel"
             style-type="tertiary"
             @click="showEditJsonConfirm = false"
           >
             Cancel
           </p-button>
           <p-button
-            data-testid="workflow-parallel-edit-json-btn"
+            data-testid="workflow-unsupported-edit-json"
             style-type="primary"
             @click="confirmEditJson"
           >
