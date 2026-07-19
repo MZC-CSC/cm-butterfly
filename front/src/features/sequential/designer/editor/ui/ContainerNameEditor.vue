@@ -16,11 +16,19 @@
         이름을 붙이고 싶은 대상은 *묶음*이고 그건 TaskGroup 이 맡는다 — 이름표도
         화면에 그려진다. 병렬을 TaskGroup 안에 넣으면 그 이름이 그 구간의 이름이 된다.
       -->
-      <p v-if="isLaunchPad" class="parallel-note">
-        A parallel step marks where the flow splits, so it carries no name of
-        its own. Put it inside a TaskGroup when you want to label that part of
-        the workflow — the group's name is shown on the canvas.
-      </p>
+      <div v-if="isLaunchPad" class="parallel-note">
+        <p>
+          Drop tasks side by side inside this step to add branches. They all
+          start at the same time, and whatever you place after this step waits
+          for every branch to finish.
+        </p>
+        <p>
+          There is nothing to fill in here — the split is all this step does.
+          Looking for a name field? A parallel step has nowhere to keep one. To
+          label this part of the workflow, wrap it in a TaskGroup; that name is
+          drawn on the canvas.
+        </p>
+      </div>
 
       <!-- Name Input -->
       <div v-else class="component-name-section">
@@ -55,8 +63,8 @@
         </div>
       </div>
 
-      <!-- Info Box -->
-      <div :style="infoBoxStyle">
+      <!-- Info Box — 병렬은 위 설명이 같은 말을 이미 하므로 두지 않는다 -->
+      <div v-if="!isLaunchPad" :style="infoBoxStyle">
         <strong :style="{ color: iconColor }"
           >{{ icon }} {{ infoTitle }}</strong
         >
@@ -115,7 +123,7 @@ export default defineComponent({
 
     const infoDescription = computed(() =>
       isLaunchPad.value
-        ? '이 Parrel 내의 task들은 동시에 병렬 실행됩니다.'
+        ? '이 Parallel 내의 task들은 동시에 병렬 실행됩니다.'
         : '이 TaskGroup 내의 task들은 순차적으로 실행됩니다.',
     );
 
@@ -215,6 +223,10 @@ export default defineComponent({
   color: #4b5563;
   font-size: 13px;
   line-height: 1.6;
+}
+
+.parallel-note p + p {
+  margin-top: 10px;
 }
 
 .component-name-section {

@@ -6,6 +6,10 @@ import BashTaskEditor from '@/features/sequential/designer/editor/ui/BashTaskEdi
 import SshTaskEditor from '@/features/sequential/designer/editor/ui/SshTaskEditor.vue';
 import HttpXcomTaskEditor from '@/features/sequential/designer/editor/ui/HttpXcomTaskEditor.vue';
 import TriggerWorkflowTaskEditor from '@/features/sequential/designer/editor/ui/TriggerWorkflowTaskEditor.vue';
+import {
+  isAutoOpenPropertiesEnabled,
+  setAutoOpenPropertiesEnabled,
+} from '@/features/sequential/designer/model/designerPreferences';
 
 // cm-cicada task type → dedicated editor component. http (and unknown) falls
 // back to the schema-driven TaskComponentEditor.
@@ -23,9 +27,25 @@ export function editorProviders() {
 
   return {
     defaultRootEditorProvider: function (definition, rootContext, isReadonly) {
+      // 취향 설정. 워크플로우가 아니라 *보는 사람*에 딸린 값이라 워크플로우와 함께
+      // 저장하지 않고 브라우저에 남긴다.
+      const settings = document.createElement('label');
+      settings.className = 'sqd-designer-setting';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = isAutoOpenPropertiesEnabled();
+      checkbox.addEventListener('change', () => {
+        setAutoOpenPropertiesEnabled(checkbox.checked);
+      });
+      const caption = document.createElement('span');
+      caption.textContent = 'Open properties when a step is selected';
+      settings.appendChild(checkbox);
+      settings.appendChild(caption);
+      editor.appendChild(settings);
+
       const textArea = document.createElement('textarea');
       textArea.style.width = '100%';
-      textArea.style.height = '95%';
+      textArea.style.height = 'calc(95% - 36px)';
       textArea.setAttribute('readonly', 'readonly');
       textArea.value = JSON.stringify(definition, null, 2);
 

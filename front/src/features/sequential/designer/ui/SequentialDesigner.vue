@@ -89,7 +89,24 @@ watch(
 */
 .sqd-step-launch-pad:has(> g[class^='sqd-step-'] ~ g[class^='sqd-step-'])
   > line.sqd-region {
-  display: none;
+  /*
+    감추되 **없애지는 않는다.** `display: none` 으로 지우면 이 선이 병렬 상자의
+    유일한 클릭 지점이라 상자를 고르지도 지우지도 못하게 된다. 색만 지우고
+    `pointer-events: stroke` 로 집는 자리는 남긴다.
+  */
+  stroke: transparent;
+  pointer-events: stroke;
+}
+
+/* 전체 설정 패널(톱니바퀴)의 취향 설정 한 줄 */
+.sqd-designer-setting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: #374151;
+  font-size: 13px;
+  cursor: pointer;
 }
 
 .source-template-workflow-edit-container {
