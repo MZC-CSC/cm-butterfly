@@ -8,7 +8,8 @@
 // 여기서는 라우터를 import 하지 않는다 — 라우터 가드가 이 모듈을 쓰므로 순환이 된다.
 // 화면 이동은 부르는 쪽(가드·로그아웃·만료 감시)이 맡는다.
 import JwtTokenProvider from '@/shared/libs/token';
-import { stopDeleteTracking } from '@/entities/mci/lib/deleteTracker';
+import { stopTracking } from '@/shared/libs/tracking/runner';
+import { stopNotificationPolling } from '@/entities/notification/lib/notificationStore';
 
 const LOGIN_AUTH_STORAGE = 'LOGIN_AUTH';
 const SESSION_STARTED_STORAGE = 'MCMP_SESSION_STARTED';
@@ -125,6 +126,7 @@ export function clearSession(): void {
   JwtTokenProvider.getProvider().removeToken();
   localStorage.removeItem(LOGIN_AUTH_STORAGE);
   localStorage.removeItem(SESSION_STARTED_STORAGE);
-  stopDeleteTracking();
+  stopTracking();
+  stopNotificationPolling();
   unwatchActivity();
 }
