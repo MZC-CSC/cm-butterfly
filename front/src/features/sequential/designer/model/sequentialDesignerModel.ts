@@ -151,7 +151,9 @@ export function useSequentialDesignerModel(refs: any) {
       //   steps: toolSteps ?? [],
       // },
       {
-        name: 'TaskGroup',
+        // 묶음 이름이 'TaskGroup' 이면 그 안의 TaskGroup·Parallel 이 형제가 아니라
+        // 상하 관계처럼 읽힌다. 둘 다 *실행 흐름을 만드는 상자* 라 Flow 로 묶는다.
+        name: 'Flow',
         steps: taskGroupSteps ?? [
           toolboxSteps().defineTaskGroupStep(
             getRandomId(),
