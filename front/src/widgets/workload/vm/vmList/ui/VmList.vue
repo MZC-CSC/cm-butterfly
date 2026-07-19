@@ -18,6 +18,7 @@ import {
 } from 'vue';
 import SuccessfullyLoadConfigModal from '@/features/workload/successfullyModal/ui/SuccessfullyLoadConfigModal.vue';
 import LoadConfig from '@/features/workload/actionLoadConfig/ui/LoadConfig.vue';
+import { trackLoadTest } from '@/entities/vm/lib/loadTestTracker';
 import { showErrorMessage, toErrorMessage } from '@/shared/utils';
 import { IVm } from '@/entities/mci/model';
 import VmInformation from '@/widgets/workload/vm/vmInformation/ui/VmInformation.vue';
@@ -377,11 +378,28 @@ function handleLoadConfigRequestClose() {
   modalState.loadConfigRequest.open = false;
 }
 
-function handleLoadConfigRequestSuccess(e: string) {
+function handleLoadConfigRequestSuccess(e: string, loadTestKey?: string) {
   modalState.loadConfigRequest.open = false;
   modalState.loadConfigSuccess.open = true;
   modalState.loadConfigRequest.context.scenarioName = e;
 
+  // 화면 밖에서도 결과를 잡도록 전역 추적에 올린다(BAR-1544).
+  //
+  // 추적 키는 **실행 키**다. 이름으로 추적하면 이름이 재사용될 때 다른 VM 의 실행을 알리게 되고,
+  // 같은 노드에서 두 번 돌렸을 때도 어느 쪽이 끝난 것인지 구분하지 못한다.
+  //
+  // 이름표(label)는 여기서만 알 수 있다 — 완료 시점에는 실행 키뿐이라 "어느 VM 이었는지" 를
+  // 문장으로 만들 수 없다.
+  if (loadTestKey && selectedVm.value) {
+    void trackLoadTest({
+      loadTestKey,
+      label: selectedVm.value.name || selectedVm.value.id,
+    });
+  }
+
+  // 아래 폴링은 *이 화면의 실시간 표시*를 위한 것이고, 위 추적은 *화면을 떠난 뒤의 알림*을
+  // 위한 것이다. 목적이 달라 한쪽으로 합치지 않는다 — 표시를 추적 주기(10초)에 맡기면
+  // 진행이 굼떠지고, 알림을 화면에 맡기면 화면을 떠나는 순간 끊긴다.
   setVmLoadTestResult();
 }
 

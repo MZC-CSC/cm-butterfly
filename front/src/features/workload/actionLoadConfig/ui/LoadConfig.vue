@@ -168,7 +168,15 @@ async function handleConfirm() {
         },
       })
       .then(res => {
-        emit('success', loadConfigModel.inputModels.scenarioName.value);
+        // cm-ant 는 실행 키를 응답으로 돌려준다. 그동안 이 응답을 그대로 버리고 있었는데,
+        // 그 키가 없으면 나중에 "이 실행이 어떻게 됐나" 를 물을 방법이 이름밖에 남지 않는다.
+        // 이름은 재사용되므로 다른 VM 의 실행을 답으로 받게 된다(BAR-1544/1546).
+        const loadTestKey = res?.data?.responseData?.result ?? '';
+        emit(
+          'success',
+          loadConfigModel.inputModels.scenarioName.value,
+          loadTestKey,
+        );
       })
       .catch(e => {
         showErrorMessage('error', e.errorMsg);

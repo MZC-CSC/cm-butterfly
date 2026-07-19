@@ -24,15 +24,21 @@ const RUN_LOAD_TEST = 'cm-ant/Runloadtest';
 const STOP_LOAD_TEST = 'cm-ant/StopLoadTest';
 const GET_LOAD_TEST_INFO = 'cm-ant/GetLoadTestExecutionInfo';
 const GET_LAST_LOAD_TEST_CONFIG = 'cm-ant/Getlastloadtestexecutionstate';
+// 실행 키로 딱 그 실행만 조회한다. 이름 기반 "마지막 실행" 과 달리 대상이 바뀌지 않는다.
+const GET_LOAD_TEST_STATE_BY_KEY = 'cm-ant/GetLoadTestExecutionState';
 const GET_LOAD_TEST_EVALUATION_DATA = 'cm-ant/Getlastloadtestresult';
 const GET_LOAD_TEST_RESOURCE_METRIC = 'cm-ant/Getlastloadtestmetrics';
 
 // Load Test Scenario Catalog API endpoints
-const GET_ALL_LOAD_TEST_SCENARIO_CATALOGS = 'cm-ant/GetAllLoadTestScenarioCatalogs';
+const GET_ALL_LOAD_TEST_SCENARIO_CATALOGS =
+  'cm-ant/GetAllLoadTestScenarioCatalogs';
 const GET_LOAD_TEST_SCENARIO_CATALOG = 'cm-ant/GetLoadTestScenarioCatalog';
-const CREATE_LOAD_TEST_SCENARIO_CATALOG = 'cm-ant/CreateLoadTestScenarioCatalog';
-const UPDATE_LOAD_TEST_SCENARIO_CATALOG = 'cm-ant/UpdateLoadTestScenarioCatalog';
-const DELETE_LOAD_TEST_SCENARIO_CATALOG = 'cm-ant/DeleteLoadTestScenarioCatalog';
+const CREATE_LOAD_TEST_SCENARIO_CATALOG =
+  'cm-ant/CreateLoadTestScenarioCatalog';
+const UPDATE_LOAD_TEST_SCENARIO_CATALOG =
+  'cm-ant/UpdateLoadTestScenarioCatalog';
+const DELETE_LOAD_TEST_SCENARIO_CATALOG =
+  'cm-ant/DeleteLoadTestScenarioCatalog';
 
 export function useRunLoadTest(requestPayload: IRunLoadTestRequest | null) {
   const requestBodyWrapper: Required<
@@ -57,7 +63,9 @@ export function useStopLoadTest(loadTestKey: string | null) {
 
   return useAxiosPost<
     IAxiosResponse<unknown>,
-    Required<Pick<RequestBodyWrapper<{ loadTestKey: string } | null>, 'request'>>
+    Required<
+      Pick<RequestBodyWrapper<{ loadTestKey: string } | null>, 'request'>
+    >
   >(STOP_LOAD_TEST, requestBodyWrapper);
 }
 
@@ -124,6 +132,19 @@ export function useGetLastLoadTestState(
       >
     >
   >(GET_LAST_LOAD_TEST_CONFIG, requestBodyWrapper);
+}
+
+/**
+ * 실행 키로 부하 테스트 상태를 조회한다.
+ *
+ * 이름(ns/infra/node)으로 "마지막 실행" 을 묻는 것과 결정적으로 다르다 — 이름은 재사용되므로
+ * 그 질문의 답은 도중에 다른 VM 의 실행으로 바뀔 수 있다. 실행 키는 그 실행 하나를 가리킨다.
+ */
+export function useGetLoadTestStateByKey(loadTestKey: string) {
+  return useAxiosPost<IAxiosResponse<ILastloadtestStateResponseWrapper>, any>(
+    GET_LOAD_TEST_STATE_BY_KEY,
+    { pathParams: { loadTestKey } },
+  );
 }
 
 interface IMetricParams extends IMciRequestParams {
