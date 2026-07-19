@@ -198,7 +198,21 @@ export function useSequentialDesignerModel(refs: any) {
           );
         },
         stepEditorProvider: (step, stepContext, definition, isReadonly) => {
-          designer?.setIsEditorCollapsed(false);
+          // 속성창을 **열기만 하고 닫지는 않는다.** 사람이 열어 둔 것을 우리가
+          // 닫아 버리면 매번 다시 열어야 한다.
+          //
+          // 열 조건은 둘이다.
+          //  ① 입력할 것이 있을 때 — 병렬 상자는 이름도 설명도 받지 않으므로(담을
+          //     자리가 없다) 자동으로 열지 않는다. 설명은 사람이 직접 열면 보인다.
+          //  ② 화면에 자리가 있을 때 — 속성창은 500px 를 차지한다. 좁은 화면에서
+          //     자동으로 열리면 캔버스를 덮어 매번 닫아야 했다.
+          const hasFieldsToEdit = step.componentType !== 'launchPad';
+          const widthWithRoomForEditor = 1100;
+          const hasRoom =
+            (placeholder?.clientWidth ?? 0) >= widthWithRoomForEditor;
+          if (hasFieldsToEdit && hasRoom) {
+            designer?.setIsEditorCollapsed(false);
+          }
           return editorProviders().defaultStepEditorProvider(
             step,
             stepContext,

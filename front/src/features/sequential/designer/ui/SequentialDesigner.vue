@@ -74,6 +74,24 @@ watch(
 @import 'sequential-workflow-designer/css/designer-light.css';
 @import 'sequential-workflow-designer/css/designer-dark.css';
 
+/*
+  병렬 상자의 점선 — 갈래가 둘 이상이면 감춘다.
+
+  점선은 "여기가 병렬 상자다"를 알려주는 유일한 단서다. 라이브러리가 병렬 상자에는
+  이름표를 그리지 않아서(TaskGroup 에만 그린다) 달리 표시할 방법이 없다. 그런데
+  갈래가 둘 이상이면 **갈라졌다 모이는 모양 자체가** 그 말을 대신하므로, 점선은
+  중복이고 상자마다 겹쳐 보여 시끄럽다. 그래서 그때만 감춘다.
+
+  갈래가 없거나 하나면 모양으로는 직선과 구분되지 않으므로 점선을 남긴다.
+
+  갈래는 병렬 상자 <g> 의 **직계 자식**으로 들어간다(placeholder·badge 는 다른
+  클래스라 걸리지 않는다). 그래서 자식 step 이 둘 이상인지로 판별한다.
+*/
+.sqd-step-launch-pad:has(> g[class^='sqd-step-'] ~ g[class^='sqd-step-'])
+  > line.sqd-region {
+  display: none;
+}
+
 .source-template-workflow-edit-container {
   .workflow-box {
     @apply border-gray-200;
