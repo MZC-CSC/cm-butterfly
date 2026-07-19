@@ -363,7 +363,13 @@ async function onRunChange(runId: string) {
           </span>
         </div>
 
-        <div class="run-viewer__actions">
+        <!--
+          **아직 읽지 못했으면 아무 버튼도 내놓지 않는다.**
+          실행 이력을 모르는 시점인데 버튼은 이력 유무로 갈린다. 그대로 두면 이력이
+          있는 워크플로우에도 잠시 Edit 이 떠서, 원본 직접 수정을 막으려던 것이 그
+          순간 뚫린다. 판정에 필요한 것을 손에 넣은 뒤에 보여준다.
+        -->
+        <div v-if="workflowReadyState === 'ready'" class="run-viewer__actions">
           <!--
             실행 이력이 없는 워크플로우에는 "다시 돌린다"가 없다 — 실행할지, 내용을
             고칠지 둘뿐이다. 이력이 있으면 지금까지의 버튼(실패분 다시 → 새로 → 복제)을
