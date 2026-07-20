@@ -12,6 +12,8 @@ interface IProps {
   sequence: Step[];
   trigger: any;
   taskComponentList: Array<ITaskComponentInfoResponse> | undefined;
+  /** 보여주기만 한다 — 끌어다 놓기·삭제·값 입력이 모두 잠긴다 */
+  readonly?: boolean;
 }
 
 const props = defineProps<IProps>();
@@ -30,6 +32,9 @@ onMounted(function () {
     ...taskComponents,
   ]);
   sequentialDesignerModel.value.setDefaultSequence(props.sequence);
+  // initDesigner 가 configuration 을 만들기 *전에* 정해야 한다 — 라이브러리는
+  // 만들 때 읽은 값으로 굳는다.
+  sequentialDesignerModel.value.setReadonly(props.readonly === true);
   sequentialDesignerModel.value.initDesigner();
   sequentialDesignerModel.value.draw();
 });
