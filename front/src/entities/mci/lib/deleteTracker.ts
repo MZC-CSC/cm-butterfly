@@ -147,6 +147,22 @@ async function markStatus(
 }
 
 /**
+ * Notes that the delete *request* errored, without calling the delete itself failed.
+ *
+ * The request runs for minutes and a proxy will time it out (504) while the server keeps
+ * going, so an error here says nothing certain about the outcome. The record stays in
+ * `Handling` — which is what the tracker inspects — and the reason is kept in case the
+ * tracker does conclude failure and needs something to show.
+ */
+export async function noteDeleteRequestError(
+  uid: string,
+  errorReason?: string,
+): Promise<void> {
+  const rec = state.records[uid];
+  if (rec && errorReason !== undefined) rec.errorReason = errorReason;
+}
+
+/**
  * Records that a delete failed, with the reason. The list shows this in `Delete Status`.
  *
  * **The notification is raised here too.** The tracker only inspects records still in

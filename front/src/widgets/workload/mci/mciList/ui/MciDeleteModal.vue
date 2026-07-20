@@ -12,7 +12,7 @@ import { useDeleteMci } from '@/entities/mci/api';
 import {
   putDeleteRecord,
   markDeleteSucceeded,
-  markDeleteFailed,
+  noteDeleteRequestError,
   getDeleteRecord,
   isDeleteInProgress,
   type DeleteRecord,
@@ -142,8 +142,18 @@ function fireDeletes(mciList: any[], option: string): string[] {
       // Announce the success from here. The tracker cannot: clearing on success would take
       // the record out of what it inspects, so nothing would ever report the completion.
       .then(() => markDeleteSucceeded(uid))
+      // **A failed request is not a failed delete.** This call runs for minutes and the proxy
+      // gives up at 504 long before the server does; the delete carries on and usually
+      // succeeds. Marking Error here told the user it had failed while the infra was in fact
+      // being removed — observed on the dev server, where the infra was gone and the screen
+      // said it had failed.
+      //
+      // So leave the record in Handling and let the tracker decide: it asks cm-beetle for the
+      // request, and when that cannot answer it falls back to whether the infra is still
+      // listed. Only that can tell a delete that failed from one that is merely slow. The
+      // reason is kept on the record so it can be shown if the tracker does conclude failure.
       .catch((rejected: any) =>
-        markDeleteFailed(uid, reasonFrom(rejected) ?? undefined),
+        noteDeleteRequestError(uid, reasonFrom(rejected) ?? undefined),
       );
     uids.push(uid);
   }
