@@ -60,11 +60,25 @@ function handleSelectVmListTableRow(id: string) {
           <template #detail>
             <div class="tab-section-header">
               <p>Workload Information</p>
+              <!--
+                **여기 두 버튼은 늘 비활성인 자리표시다.** 실제 기능은 Server 탭 안의
+                같은 이름 탭(`Evaluate Perf`·`Estimate Cost`)에 있다. 이름이 같아서
+                화면 자동화가 이쪽을 먼저 집어 "버튼이 안 눌린다"로 헤매기 쉬우므로,
+                무엇인지 식별자로 밝혀 둔다.
+              -->
               <div class="flex gap-1.5">
-                <p-button style-type="tertiary" :disabled="true">
+                <p-button
+                  data-testid="workload-detail-evaluate-perf-placeholder"
+                  style-type="tertiary"
+                  :disabled="true"
+                >
                   Evaluate Perf
                 </p-button>
-                <p-button style-type="tertiary" :disabled="true">
+                <p-button
+                  data-testid="workload-detail-estimate-cost-placeholder"
+                  style-type="tertiary"
+                  :disabled="true"
+                >
                   Estimate Cost
                 </p-button>
               </div>

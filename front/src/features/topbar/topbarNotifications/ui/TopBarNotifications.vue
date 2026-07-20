@@ -78,7 +78,13 @@ const handleNotiButtonClick = () => {
     @click.stop
     @keydown.esc="hideNotiMenu"
   >
-    <p-tooltip contents="Notifications" position="absolute">
+    <!--
+      **패널을 열면 툴팁을 끈다.** 툴팁은 "이 아이콘이 무엇인지" 알려 주는 것이라 마우스를
+      올렸을 때만 쓸모가 있는데, 클릭해도 그대로 남아 검은 상자가 패널 위를 덮었다.
+      하필 그 자리가 [Mark all read] 여서 눌러야 할 것을 가렸다.
+      열려 있는 동안에는 아이콘이 무엇인지 이미 화면이 말해 주므로 설명이 필요 없다.
+    -->
+    <p-tooltip :contents="visible ? '' : 'Notifications'" position="absolute">
       <span
         :class="{ 'menu-button': true, opened: visible, arrived: justArrived }"
         tabindex="0"
