@@ -104,6 +104,20 @@ export async function putDeleteRecord(rec: DeleteRecord): Promise<void> {
   }
 }
 
+/**
+ * Announces a delete that finished successfully, then drops its record.
+ *
+ * The caller that issued the request has to do this, because a request that returns success
+ * clears its own record immediately and the tracker only ever inspects records still in
+ * `Handling`. Clearing without announcing leaves the success unreported — which is the one
+ * thing this feature exists to prevent.
+ */
+export async function markDeleteSucceeded(uid: string): Promise<void> {
+  const rec = state.records[uid];
+  if (rec) await notifyDone(rec);
+  await clearDeleteRecord(uid);
+}
+
 /** Drops the record — the delete succeeded, or the infra is gone from the list. */
 export async function clearDeleteRecord(uid: string): Promise<void> {
   delete state.records[uid];

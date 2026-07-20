@@ -11,7 +11,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { useDeleteMci } from '@/entities/mci/api';
 import {
   putDeleteRecord,
-  clearDeleteRecord,
+  markDeleteSucceeded,
   markDeleteFailed,
   getDeleteRecord,
   isDeleteInProgress,
@@ -139,7 +139,9 @@ function fireDeletes(mciList: any[], option: string): string[] {
     useDeleteMci({ nsId: props.nsId, infraId, option }, reqId)
       .execute()
       // A success keeps no record — the infra leaves the list, so there is nothing to show.
-      .then(() => clearDeleteRecord(uid))
+      // Announce the success from here. The tracker cannot: clearing on success would take
+      // the record out of what it inspects, so nothing would ever report the completion.
+      .then(() => markDeleteSucceeded(uid))
       .catch((rejected: any) =>
         markDeleteFailed(uid, reasonFrom(rejected) ?? undefined),
       );
