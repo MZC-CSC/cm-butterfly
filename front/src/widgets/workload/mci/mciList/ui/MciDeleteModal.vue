@@ -238,9 +238,9 @@ watch(
         data-testid="mci-delete-error"
       >
         <div class="force-warning-banner">
-          기존 삭제 요청이 처리 중에 실패했습니다.
+          A previous delete request failed while it was being processed.
         </div>
-        <p class="description">실패한 워크로드</p>
+        <p class="description">Failed workloads</p>
         <div class="error-reason-box" data-testid="wl-delete-error-dialog">
           <div
             v-for="rec in erroredRecords"
@@ -254,8 +254,9 @@ watch(
           </div>
         </div>
         <p class="hint">
-          강제 삭제는 CSP 리소스는 남기고 텀블벅 내부 데이터만 지웁니다. 남은
-          CSP 리소스는 직접 삭제하셔야 합니다.
+          Force delete removes only the internal records and leaves the CSP
+          resources in place. Any resources left behind keep billing and must be
+          removed by hand.
         </p>
       </div>
 
@@ -266,10 +267,10 @@ watch(
         data-testid="mci-delete-progress"
       >
         <div v-if="state.alreadyInProgress" class="warning-banner">
-          이미 처리 중인 삭제가 있습니다. 새로 시작하지 않고 현재 진행 상태를
-          보여줍니다.
+          A delete is already in progress. Showing its current state instead of
+          starting a new one.
         </div>
-        <p class="description">삭제 처리 중</p>
+        <p class="description">Deleting</p>
         <div class="mci-list">
           <div
             v-for="rec in trackedRecords"
@@ -282,23 +283,23 @@ watch(
               class="progress-status handling"
             >
               <span class="spinner" />
-              {{ rec.stage ? `삭제 중 · ${rec.stage}` : '삭제 처리 중' }}
+              {{ rec.stage ? `Deleting · ${rec.stage}` : 'Deleting' }}
             </span>
             <span
               v-else-if="rec.status === 'Error'"
               class="progress-status error"
               data-testid="mci-delete-progress-error"
             >
-              에러<template v-if="rec.errorReason"
+              Error<template v-if="rec.errorReason"
                 >: {{ rec.errorReason }}</template
               >
             </span>
-            <span v-else class="progress-status done">삭제 완료</span>
+            <span v-else class="progress-status done">Deleted</span>
           </div>
         </div>
         <p v-if="anyHandling" class="hint">
-          이 창을 닫아도 삭제는 계속되고, 목록의 <b>삭제 상태</b> 컬럼에서 진행
-          상황을 볼 수 있습니다.
+          Closing this dialog does not stop the delete. You can follow it in the
+          <b>Delete Status</b> column of the list.
         </p>
       </div>
 

@@ -9,16 +9,17 @@ import {
 } from '@/entities/tracking/api';
 
 /**
- * 추적 중인 장시간 작업 목록 (BAR-1544 / BAR-1545 공용)
+ * The list of long-running jobs being tracked, shared by every checker.
  *
- * 체커들이 공유하는 창고다. 각 체커는 자기 `kind` 의 것만 꺼내 확인한다.
+ * Each checker takes out only the entries of its own `kind`.
  *
- * **왜 기록이 필요한가** — 부하 테스트도 워크플로우 실행도 시작할 때 자기 id 를 주지 않는다.
- * 시작 시점에 손에 있는 것은 *어느 노드/어느 워크플로우인가* 뿐이고, 그것을 남겨 둬야 나중에
- * "그 대상의 마지막 실행이 어떻게 됐나" 를 물을 수 있다.
+ * **Why a record is needed** — neither a load test nor a workflow run hands back its own id
+ * when it starts. All that is in hand at that moment is *which node* or *which workflow*,
+ * and that has to be kept to later ask how the last run on it turned out.
  *
- * **왜 이름과 동작까지 남기는가** — 끝난 뒤에는 id 밖에 없어서 문장을 만들 수 없다.
- * "'주문서비스' 워크플로우 **재실행**이 끝났습니다" 를 쓰려면 이름과 동작을 시작할 때 잡아야 한다.
+ * **Why the name and the action are kept too** — once it ends there is only an id, which
+ * cannot be turned into a sentence. Writing "the **re-run** of workflow X has finished"
+ * means capturing the name and the action at the start.
  */
 
 export interface TrackedJob {
@@ -43,17 +44,17 @@ function fromRecord(r: TrackedJobRecord): TrackedJob {
   };
 }
 
-/** 특정 종류의 추적 중인 작업들. */
+/** Tracked jobs of one kind. */
 export function trackedJobsOf(kind: TrackedJobKind): TrackedJob[] {
   return Object.values(state.jobs).filter(j => j.kind === kind);
 }
 
-/** 추적 중인 것이 하나라도 있는가(세션 유지 판단에 쓰인다). */
+/** Whether anything is being tracked (used to decide on keeping the session alive). */
 export function hasTrackedJobs(kind: TrackedJobKind): boolean {
   return trackedJobsOf(kind).length > 0;
 }
 
-/** 작업 시작을 기록한다. */
+/** Records that a job has started. */
 export async function putTrackedJob(job: TrackedJob): Promise<void> {
   state.jobs[keyOf(job.kind, job.naturalKey)] = job;
   try {
@@ -65,13 +66,13 @@ export async function putTrackedJob(job: TrackedJob): Promise<void> {
       started_at: job.startedAt,
     }).execute();
   } catch (e) {
-    // 서버 기록에 실패해도 이번 브라우저에서는 추적한다. 다만 다른 자리에서는 이어받지
-    // 못하게 되므로 조용히 넘기지 않는다.
-    console.error('[trackedJobs] 작업 기록 실패', e);
+    // Keep tracking in this browser even if the server write failed. It will not carry to
+    // another seat, though, so do not let it pass silently.
+    console.error('[trackedJobs] failed to record the job', e);
   }
 }
 
-/** 자연키를 바꿔 다시 기록한다 — 시작 후에야 실제 id 를 알게 되는 경우에 쓴다. */
+/** Re-records under a different natural key, for when the real id is only known after the start. */
 export async function retagTrackedJob(
   job: TrackedJob,
   nextNaturalKey: string,
@@ -82,7 +83,7 @@ export async function retagTrackedJob(
   return next;
 }
 
-/** 끝난 작업을 목록에서 지운다. */
+/** Drops a finished job from the list. */
 export async function clearTrackedJob(
   kind: TrackedJobKind,
   naturalKey: string,
@@ -91,11 +92,11 @@ export async function clearTrackedJob(
   try {
     await useRemoveTrackedJob(kind, naturalKey).execute();
   } catch (e) {
-    console.error('[trackedJobs] 작업 기록 제거 실패', e);
+    console.error('[trackedJobs] failed to remove the job record', e);
   }
 }
 
-/** 서버에 남아 있는 추적 기록을 받아 온다(로그인·앱 시작 시). */
+/** Loads the tracking records kept on the server (on login and on app start). */
 export async function loadTrackedJobs(): Promise<void> {
   try {
     const res: any = await useListTrackedJobs().execute();
@@ -106,6 +107,6 @@ export async function loadTrackedJobs(): Promise<void> {
     }
     state.jobs = next;
   } catch (e) {
-    console.error('[trackedJobs] 추적 기록 조회 실패', e);
+    console.error('[trackedJobs] failed to load tracking records', e);
   }
 }

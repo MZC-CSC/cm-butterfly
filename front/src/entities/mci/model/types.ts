@@ -212,8 +212,9 @@ export interface ILoadTestExecutionStep {
 
 export interface ILastloadtestStateResponse {
   compileDuration: string;
-  // cm-ant 가 기록해 둔 *대상 노드의 uid* (BAR-1546 이후). 노드 id 는 이름이라 재사용되므로
-  // 이 값이 없으면 조회 결과가 지금 보고 있는 VM 것인지 알 수 없다. 그 이전 기록에는 없다.
+  // The *uid of the target node* as recorded by cm-ant. A node id is a name and names are
+  // reused, so without this there is no way to tell whether a result belongs to the VM on
+  // screen. Records written before this was added do not carry it.
   nodeUid?: string;
   createdAt: string;
   executionDuration: string;

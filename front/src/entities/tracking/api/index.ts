@@ -1,13 +1,14 @@
 import { IAxiosResponse, useAxiosPost } from '@/shared/libs';
 
 /**
- * 장시간 작업 추적 저장소 API (cm-butterfly 자체 도메인).
+ * Storage API for tracking long-running jobs (cm-butterfly's own domain).
  *
- * 부하 테스트도 워크플로우 실행도 **시작할 때 자기 id 를 돌려주지 않는다.** 그래서 시작 시점에
- * 알 수 있는 것(어느 노드인지·어느 워크플로우인지)을 자연키로 남겨 두고, 나중에 그 키로
- * "마지막 실행이 어떻게 됐나" 를 묻는다.
+ * Neither a load test nor a workflow run **hands back its own id when it starts.** What is
+ * knowable at that point — which node, which workflow — is kept as a natural key, and that
+ * key is what later asks how the last run turned out.
  *
- * 서버에 두는 이유는 삭제 추적과 같다 — 브라우저에만 두면 다른 자리에서는 결과를 알 수 없다.
+ * It lives on the server for the same reason delete tracking does: kept in the browser
+ * alone, the outcome would be invisible from anywhere else.
  */
 
 export type TrackedJobKind = 'perf' | 'workflow';
@@ -23,7 +24,7 @@ export interface TrackedJobRecord {
   requested_by?: string;
 }
 
-/** 추적 중인 작업 전체 — 로그인·앱 시작 시 이어받는다. */
+/** Every tracked job — picked up on login and on app start. */
 export function useListTrackedJobs() {
   return useAxiosPost<IAxiosResponse<TrackedJobRecord[]>, any>(
     'listtrackedjobs',
@@ -31,7 +32,7 @@ export function useListTrackedJobs() {
   );
 }
 
-/** 작업 시작 기록(같은 대상의 이전 기록은 대체된다). */
+/** Records a job start; an earlier record for the same target is replaced. */
 export function useSaveTrackedJob(payload: {
   kind: TrackedJobKind;
   natural_key: string;
@@ -45,7 +46,7 @@ export function useSaveTrackedJob(payload: {
   );
 }
 
-/** 끝나서 알린 작업을 목록에서 지운다. */
+/** Drops a job that has finished and been announced. */
 export function useRemoveTrackedJob(kind: TrackedJobKind, naturalKey: string) {
   return useAxiosPost<IAxiosResponse<string>, any>('removetrackedjob', {
     kind,

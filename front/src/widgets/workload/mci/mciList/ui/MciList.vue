@@ -118,7 +118,7 @@ function deleteStatusOf(uid: string): DeleteRecord | undefined {
 }
 
 // 삭제 요청이 있을 때만 `삭제 상태` 컬럼을 넣고, 없으면 뺀다.
-const DELETE_STATUS_FIELD = { name: 'deleteStatus', label: '삭제 상태' };
+const DELETE_STATUS_FIELD = { name: 'deleteStatus', label: 'Delete Status' };
 watch(hasActiveDeletes, active => {
   const fields = mciTableModel.tableState.fields;
   const idx = fields.findIndex((f: any) => f.name === 'deleteStatus');
@@ -216,14 +216,23 @@ onMounted(async () => {
               class="delete-status handling"
               data-testid="wl-row-delete-status"
             >
-              <span class="spinner" /> 진행 중
+              <span class="spinner" /> In progress
             </span>
+            <!--
+              사유는 두 곳에 싣는다. 꾸민 팝오버는 표의 스크롤 영역에 잘릴 수 있어서,
+              브라우저가 직접 그리는 `title` 을 함께 둔다 — 이쪽은 어떤 영역에도 갇히지 않는다.
+              사유가 없으면 어디서 볼 수 있는지를 대신 알린다.
+            -->
             <span
               v-else-if="deleteStatusOf(item.uid)?.status === 'Error'"
               class="delete-status error-cell"
               data-testid="wl-row-delete-status"
+              :title="
+                deleteStatusOf(item.uid)?.errorReason ||
+                'No reason was returned. Deleting it again shows the reason before it starts.'
+              "
             >
-              에러
+              Failed
               <span
                 v-if="deleteStatusOf(item.uid)?.errorReason"
                 class="error-popover"
@@ -278,7 +287,8 @@ onMounted(async () => {
   display: none;
   position: absolute;
   top: 100%;
-  left: 0;
+  /* 왼쪽 기준이면 긴 사유가 표 오른쪽 밖으로 나가 잘린다. 오른쪽 끝에 맞춘다. */
+  right: 0;
   z-index: 20;
   max-width: 360px;
   padding: 8px 10px;
