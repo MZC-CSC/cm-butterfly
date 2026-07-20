@@ -93,6 +93,26 @@ function newReqId(): string {
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+/**
+ * Pulls the failure reason out of what `execute()` rejects with.
+ *
+ * It does not reject with the axios error — it rejects with `{ error, errorMsg, status }`,
+ * where each is a ref and `errorMsg` already holds the message it worked out from the
+ * response. Passing that wrapper back into `extractErrorMessage` finds neither `response`
+ * nor `request` on it and falls through to the last resort, so a perfectly good server
+ * reason was being reported as "Error in setting up request" — a phrase that means the
+ * request never went out, which was not what happened.
+ *
+ * Read the message that was already prepared, and fall back to the raw error only if it is
+ * missing.
+ */
+function reasonFrom(rejected: any): string | null {
+  const prepared = rejected?.errorMsg?.value;
+  if (prepared) return prepared;
+  const raw = rejected?.error?.value ?? rejected;
+  return extractErrorMessage(raw);
+}
+
 // Issues delete requests for the given infras (terminate|force), recording each for tracking.
 function fireDeletes(mciList: any[], option: string): string[] {
   const uids: string[] = [];
@@ -120,8 +140,8 @@ function fireDeletes(mciList: any[], option: string): string[] {
       .execute()
       // A success keeps no record — the infra leaves the list, so there is nothing to show.
       .then(() => clearDeleteRecord(uid))
-      .catch((error: any) =>
-        markDeleteFailed(uid, extractErrorMessage(error) ?? undefined),
+      .catch((rejected: any) =>
+        markDeleteFailed(uid, reasonFrom(rejected) ?? undefined),
       );
     uids.push(uid);
   }
