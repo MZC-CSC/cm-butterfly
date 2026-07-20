@@ -8,6 +8,29 @@ import { reactive, ref, computed } from 'vue';
 import WorkflowEditor from '@/features/workflow/workflowEditor/ui/WorkflowEditor.vue';
 import { useTargetModelStore, useUpdateTargetModel } from '@/entities';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
+import { useRouter } from 'vue-router/composables';
+import { WORKFLOW_MANAGEMENT_ROUTE } from '@/app/providers/router/routes/constants';
+
+const router = useRouter();
+
+/**
+ * 여기서 만든 워크플로우도 저장하면 **실행 상태로 보낸다.**
+ *
+ * 워크플로우 화면에서 저장했을 때와 같은 자리에 도착해야 한다 — 저장 다음에 하는 일은
+ * 대개 *실행*이고, 실행할지 더 고칠지는 실행 상태 화면에서 갈린다. 예전엔 여기서
+ * 저장하면 편집기만 닫히고 목표 모델 화면에 그대로 남아, **방금 만든 워크플로우를
+ * 찾아가려면 사용자가 직접 워크플로우 목록으로 이동해 다시 골라야 했다.**
+ *
+ * 화면이 다르므로(목표 모델 ↔ 워크플로우) 탭 전환이 아니라 라우팅이고, 어느
+ * 워크플로우인지는 쿼리로 넘긴다.
+ */
+function handleSavedWorkflow(workflowId: string) {
+  modalStates.workflowEditorModal.open = false;
+  router.push({
+    name: WORKFLOW_MANAGEMENT_ROUTE.WORKFLOWS._NAME,
+    query: workflowId ? { wfId: workflowId } : {},
+  });
+}
 
 const pageName = 'Target Models';
 
@@ -20,31 +43,36 @@ const targetModelStore = useTargetModelStore();
 
 // Add computed property for targetModel
 const targetModelForWorkflow = computed(() => {
-  const model = targetModelStore.getTargetModelById(selectedTargetModelId.value);
+  const model = targetModelStore.getTargetModelById(
+    selectedTargetModelId.value,
+  );
   if (model) {
     // modelType을 기반으로 migrationType 설정
     let migrationType = 'infra'; // 기본값
-    
+
     if (model.modelType === 'SoftwareModel') {
       migrationType = 'software';
-    } else if (model.modelType === 'CloudModel' || model.modelType === 'OnPremiseModel') {
+    } else if (
+      model.modelType === 'CloudModel' ||
+      model.modelType === 'OnPremiseModel'
+    ) {
       migrationType = 'infra';
     }
-    
+
     const modelWithMigrationType = {
       ...model,
-      migrationType: migrationType
+      migrationType: migrationType,
     };
-    
+
     console.log('Passing targetModel to WorkflowEditor:', {
       selectedTargetModelId: selectedTargetModelId.value,
       model: modelWithMigrationType,
       modelType: model?.modelType,
       migrationType: migrationType,
       hasCloudInfraModel: !!model?.cloudInfraModel,
-      isCloudModel: model?.isCloudModel
+      isCloudModel: model?.isCloudModel,
     });
-    
+
     return modelWithMigrationType;
   }
   return model;
@@ -194,16 +222,17 @@ function handleUpdateTargetModel(e) {
       />
     </div>
     <div class="relative z-70">
-              <workflow-editor
-          v-if="modalStates.workflowEditorModal.open"
-          :target-model-name="targetModelName"
-          tool-type="add"
-          wft-id=""
-          :target-model="targetModelForWorkflow"
-          :migration-type="migrationTypeForWorkflow"
-          :recommended-model="targetModelForWorkflow"
-          @update:close-modal="modalStates.workflowEditorModal.open = false"
-        />
+      <workflow-editor
+        v-if="modalStates.workflowEditorModal.open"
+        :target-model-name="targetModelName"
+        tool-type="add"
+        wft-id=""
+        :target-model="targetModelForWorkflow"
+        :migration-type="migrationTypeForWorkflow"
+        :recommended-model="targetModelForWorkflow"
+        @update:close-modal="modalStates.workflowEditorModal.open = false"
+        @update:saved="handleSavedWorkflow"
+      />
     </div>
   </div>
 </template>

@@ -39,6 +39,8 @@ const MIN_POLL_INTERVAL_MS = 2000;
 
 export function useWorkflowRunViewerModel() {
   const workflow = ref<IWorkflowResponse | null>(null);
+  /** 엔진이 이 워크플로우를 읽을 수 있는가 — 방금 만든 것은 잠시 못 읽는다 */
+  const workflowReadyState = ref<'ready' | 'waiting' | 'timeout'>('ready');
   const runs = ref<IWorkflowRun[]>([]);
   const selectedRunId = ref<string | null>(null);
   const workflowStore = useWorkflowStore();
@@ -150,15 +152,58 @@ export function useWorkflowRunViewerModel() {
   });
 
   async function loadWorkflow(wfId: string) {
-    const { data, execute } = useGetWorkflow(wfId);
-    await execute();
-    workflow.value = data.value?.responseData ?? null;
+    try {
+      const { data, execute } = useGetWorkflow(wfId);
+      await execute();
+      workflow.value = data.value?.responseData ?? null;
+    } catch {
+      workflow.value = null;
+    }
+    return workflow.value != null;
+  }
+
+  /**
+   * 엔진이 이 워크플로우를 읽을 수 있게 될 때까지 기다린다.
+   *
+   * 방금 만든 워크플로우는 Airflow 가 DAG 를 등록하기 전이라 조회가 잠시 실패한다
+   * (개발 서버 실측 약 5초). 그때 그래프를 그리면 **"표시할 태스크가 없습니다"** 가 뜨는데,
+   * 이건 사실이 아니다 — 태스크가 없는 게 아니라 아직 못 읽은 것이다. 화면이 없는 것과
+   * 아직인 것을 구분하지 못하면 사용자는 워크플로우가 비어 있다고 오해한다.
+   *
+   * 그래서 읽힐 때까지 기다리고, 기다리는 중임을 화면에 알린다.
+   */
+  const WORKFLOW_READY_INTERVAL_MS = 2000;
+  const WORKFLOW_READY_TIMEOUT_MS = 60000;
+
+  async function waitForWorkflow(wfId: string) {
+    const deadline = Date.now() + WORKFLOW_READY_TIMEOUT_MS;
+    for (;;) {
+      if (await loadWorkflow(wfId)) {
+        workflowReadyState.value = 'ready';
+        return true;
+      }
+      if (Date.now() + WORKFLOW_READY_INTERVAL_MS > deadline) {
+        workflowReadyState.value = 'timeout';
+        return false;
+      }
+      workflowReadyState.value = 'waiting';
+      await new Promise(resolve =>
+        setTimeout(resolve, WORKFLOW_READY_INTERVAL_MS),
+      );
+    }
   }
 
   async function loadRuns(wfId: string) {
-    const { data, execute } = useGetWorkflowRuns(wfId);
-    await execute();
-    runs.value = data.value?.responseData ?? [];
+    try {
+      const { data, execute } = useGetWorkflowRuns(wfId);
+      await execute();
+      runs.value = data.value?.responseData ?? [];
+    } catch {
+      // 아직 실행된 적 없는 워크플로우는 엔진에서 조회가 실패한다 — Airflow 가 새
+      // DAG 를 읽어들이기 전이라 없는 것으로 나온다. **실패가 아니라 "아직 없음"** 이므로
+      // 붉은 오류 대신 실행을 권하는 빈 상태를 보여준다.
+      runs.value = [];
+    }
   }
 
   let inFlight = false;
@@ -230,7 +275,21 @@ export function useWorkflowRunViewerModel() {
 
   async function open(wfId: string, runId?: string | null) {
     loadError.value = null;
-    await Promise.all([loadWorkflow(wfId), loadRuns(wfId)]);
+    // **다른 워크플로우의 내용을 물려받지 않는다.** 비우지 않으면 조회가 실패했을 때
+    // 앞서 보던 워크플로우의 실행이 이 워크플로우의 것처럼 남는다 — 방금 만든
+    // 워크플로우에서 늘 그렇게 된다(엔진이 새 DAG 를 아직 못 읽어 404 로 답한다).
+    runs.value = [];
+    instances.value = [];
+    selectedRunId.value = null;
+    selectedTaskId.value = null;
+    logText.value = '';
+    logError.value = null;
+    workflowReadyState.value = 'ready';
+
+    // 정의를 먼저 확보한다. 못 읽는 동안 실행 목록을 조회해 봐야 같은 이유로 실패한다.
+    const ready = await waitForWorkflow(wfId);
+    if (!ready) return;
+    await loadRuns(wfId);
 
     const target =
       runId ??
@@ -416,6 +475,7 @@ export function useWorkflowRunViewerModel() {
 
   return {
     workflow,
+    workflowReadyState,
     runs,
     selectedRunId,
     selectedRun,

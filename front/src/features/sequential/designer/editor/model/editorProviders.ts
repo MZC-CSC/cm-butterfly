@@ -20,6 +20,31 @@ const TASK_TYPE_EDITOR: Record<string, any> = {
   trigger_workflow: TriggerWorkflowTaskEditor,
 };
 
+/**
+ * 값 입력칸을 잠근다 — 보여주기만 하는 모드에서 쓴다.
+ *
+ * `<fieldset disabled>` 는 그 안의 input·select·textarea·button 을 **브라우저가**
+ * 비활성화하는 표준 동작이다. 컴포넌트마다 readonly prop 을 뚫는 것보다 짧고
+ * 빠뜨릴 자리가 없다.
+ *
+ * `pointer-events: none` 같은 CSS 로 가리지 않는다 — 키보드 조작에 뚫리고, 무엇보다
+ * *에러 없이 조용히* 통과해 잠긴 줄 알았던 값이 저장된다.
+ *
+ * 다만 native 요소가 아닌 컴포넌트에는 듣지 않으므로, 이 모드는 화면에서 실제로
+ * 잠기는지 확인한 뒤 믿는다.
+ */
+function lockInputs(content: HTMLElement): HTMLElement {
+  const locked = document.createElement('fieldset');
+  locked.disabled = true;
+  locked.className = 'sqd-editor-readonly';
+  locked.style.border = 'none';
+  locked.style.margin = '0';
+  locked.style.padding = '0';
+  locked.style.minWidth = '0';
+  locked.appendChild(content);
+  return locked;
+}
+
 export function editorProviders() {
   const editor = document.createElement('div');
   editor.style.width = '100%';
@@ -181,6 +206,7 @@ export function editorProviders() {
       label.innerText = getSequencePath(definition.sequence, step.id) ?? '';
       editor.appendChild(label);
 
+      if (isReadonly) return lockInputs(editor);
       return editor;
     },
   };

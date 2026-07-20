@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import {
   PBadge,
   PButton,
   PSelectDropdown,
+  PSpinner,
   PTooltip,
 } from '@cloudforet-test/mirinae';
 import RunGraph from './RunGraph.vue';
@@ -31,6 +32,8 @@ const emit = defineEmits<{
   (e: 'edit-original', workflowId: string): void;
   (e: 'edit-clone', clonedWorkflowId: string): void;
   (e: 'edit-json', workflowId: string): void;
+  // - view-json : 정의를 그대로 보여준다 (상세 화면에 있던 것을 이리로 모았다)
+  (e: 'view-json', workflowId: string): void;
 }>();
 
 const {
@@ -44,6 +47,7 @@ const {
   deletedTaskInstances,
   definitionChangedAfterRun,
   graph,
+  workflowReadyState,
   hasRuns,
   canEditInDesigner,
   designerSupport,
@@ -76,6 +80,11 @@ const {
  *
  * 워크플로우 툴이 그대로 옮길 수 없는 그래프면 복제본을 JSON 에디터로 연다. 툴로 열면
  * 그림이 실제 실행과 달라지고, 그 상태로 저장하면 실행 순서가 조용히 바뀌기 때문이다.
+ *
+ * 만든 직후 바로 열어도 된다. 엔진이 그 복제본을 Airflow 에서 읽지 못하는 구간이
+ * 잠시(측정 약 5초) 있지만, **편집기는 그 읽기에 기대지 않는다** — 복제 응답을 그대로
+ * 캐시에 넣어 두고 거기서 그린다. 저장도 그 구간에 이미 동작한다(측정: 복제 +0.1초에
+ * 수정 API 200). 그래서 기다리게 하지 않는다.
  */
 async function cloneAndEdit() {
   const clonedId = await cloneForEdit();
@@ -88,6 +97,20 @@ async function cloneAndEdit() {
  * 미실행 원본 편집. 실행 이력이 없으니 복제 없이 원본을 직접 연다.
  * 툴이 못 옮기는 그래프면 이유를 보이고 JSON 에디터로 갈지 물어본다.
  */
+/**
+ * 기다리는 중이라는 표시를 **눈에 보이는 자리로 데려온다.**
+ *
+ * 이 화면은 워크플로우 목록 아래에 있어서, 저장 직후 도착하면 그래프 자리가 화면
+ * 아래로 잘려 나간다. 거기에만 표시를 두면 위쪽 저장 완료 알림만 보이고 *데이터를
+ * 준비하는 중*이라는 사실은 스크롤해야 알 수 있다 — 화면이 멈춘 것처럼 보인다.
+ */
+const waitingRef = ref<HTMLElement | null>(null);
+watch(workflowReadyState, async state => {
+  if (state !== 'waiting') return;
+  await nextTick();
+  waitingRef.value?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+});
+
 const showEditJsonConfirm = ref(false);
 function requestEdit() {
   if (!canEditInDesigner.value) {
@@ -340,7 +363,13 @@ async function onRunChange(runId: string) {
           </span>
         </div>
 
-        <div class="run-viewer__actions">
+        <!--
+          **아직 읽지 못했으면 아무 버튼도 내놓지 않는다.**
+          실행 이력을 모르는 시점인데 버튼은 이력 유무로 갈린다. 그대로 두면 이력이
+          있는 워크플로우에도 잠시 Edit 이 떠서, 원본 직접 수정을 막으려던 것이 그
+          순간 뚫린다. 판정에 필요한 것을 손에 넣은 뒤에 보여준다.
+        -->
+        <div v-if="workflowReadyState === 'ready'" class="run-viewer__actions">
           <!--
             실행 이력이 없는 워크플로우에는 "다시 돌린다"가 없다 — 실행할지, 내용을
             고칠지 둘뿐이다. 이력이 있으면 지금까지의 버튼(실패분 다시 → 새로 → 복제)을
@@ -432,6 +461,27 @@ async function onRunChange(runId: string) {
               </p-button>
             </p-tooltip>
           </template>
+
+          <!--
+            정의를 그대로 보는 길. 상세 화면에 있던 것을 이리로 옮겼다 — 이 워크플로우로
+            할 수 있는 일을 한자리에 모아 두면 어디서 무엇을 할 수 있는지 찾아다니지
+            않아도 된다. 실행 이력과 무관하게 늘 있다(보기만 하는 동작이므로).
+          -->
+          <p-tooltip
+            contents="Shows the workflow definition as JSON."
+            position="bottom"
+            :options="{ classes: ['p-tooltip', 'run-viewer-tooltip'] }"
+          >
+            <p-button
+              data-testid="workflow-viewer-view-json-btn"
+              size="sm"
+              style-type="tertiary"
+              :disabled="!props.workflowId"
+              @click="props.workflowId && emit('view-json', props.workflowId)"
+            >
+              View JSON
+            </p-button>
+          </p-tooltip>
         </div>
       </div>
 
@@ -527,7 +577,33 @@ async function onRunChange(runId: string) {
           </span>
         </div>
 
-        <div v-if="!graph.nodes.length" class="run-viewer__empty">
+        <!--
+          방금 만든 워크플로우는 엔진이 DAG 를 등록하기 전이라 잠시 읽히지 않는다.
+          그때 "표시할 태스크가 없습니다"를 띄우면 **사실과 다르다** — 태스크가 없는 게
+          아니라 아직 못 읽은 것이고, 사용자는 워크플로우가 비어 있다고 오해한다.
+          그래서 읽힐 때까지 기다리는 중임을 밝힌다.
+        -->
+        <div
+          v-if="workflowReadyState === 'waiting'"
+          ref="waitingRef"
+          class="run-viewer__waiting"
+          data-testid="workflow-run-waiting"
+        >
+          <p-spinner size="lg" />
+          <p class="run-viewer__waiting-title">Preparing workflow data…</p>
+          <p class="run-viewer__waiting-hint">
+            Waiting until the workflow can be read. The graph appears here once
+            it is ready.
+          </p>
+        </div>
+        <div
+          v-else-if="workflowReadyState === 'timeout'"
+          class="run-viewer__empty"
+          data-testid="workflow-run-waiting"
+        >
+          This workflow could not be read yet. Open it again in a moment.
+        </div>
+        <div v-else-if="!graph.nodes.length" class="run-viewer__empty">
           No tasks to display.
         </div>
         <run-graph
@@ -905,6 +981,7 @@ async function onRunChange(runId: string) {
           <p-button
             data-testid="workflow-clone-confirm-ok"
             style-type="primary"
+            :loading="cloning"
             :disabled="cloning"
             @click="confirmClone"
           >
@@ -1084,6 +1161,29 @@ async function onRunChange(runId: string) {
   padding: 2rem;
   text-align: center;
   color: #6b6e78;
+  font-size: 0.8125rem;
+}
+
+.run-viewer__waiting-title {
+  font-weight: 600;
+  color: #374151;
+}
+
+.run-viewer__waiting-hint {
+  color: #6b6e78;
+  text-align: center;
+  max-width: 22rem;
+}
+
+.run-viewer__waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem;
+  min-height: 12rem;
+  color: #4b5563;
   font-size: 0.8125rem;
 }
 
