@@ -176,6 +176,43 @@ async function infraStillListed(rec: DeleteRecord): Promise<boolean> {
   }
 }
 
+async function notifyDone(rec: DeleteRecord): Promise<void> {
+  // 강제 삭제는 텀블벅 기록만 지우고 CSP 자원은 남긴다 — 성공이지만 손이 더 간다.
+  const forced = rec.option === 'force';
+  await notify({
+    category: 'Workload',
+    level: forced ? 'Error' : 'Info',
+    message: forced
+      ? `Infra "${rec.infraId}" was force-deleted. CSP resources may remain.`
+      : `Infra "${rec.infraId}" has been deleted.`,
+    detail: forced
+      ? 'Force delete removes the record only. Any surviving CSP resources keep billing and must be removed by hand.'
+      : '',
+    dedupKey: `delete:${rec.reqId}:done`,
+  });
+}
+
+async function notifyFailed(rec: DeleteRecord, reason?: string): Promise<void> {
+  await notify({
+    category: 'Workload',
+    level: 'Error',
+    message: `Failed to delete infra "${rec.infraId}".`,
+    detail: reason ?? '',
+    dedupKey: `delete:${rec.reqId}:error`,
+  });
+}
+
+async function notifyUnknown(rec: DeleteRecord): Promise<void> {
+  await notify({
+    category: 'Workload',
+    level: 'Error',
+    message: `Could not confirm the deletion of infra "${rec.infraId}".`,
+    detail:
+      'The request record is gone but the infra is still listed, so the outcome is unknown. Check the workload list.',
+    dedupKey: `delete:${rec.reqId}:unknown`,
+  });
+}
+
 /** 진행 중인 삭제 하나의 결과를 확인한다. */
 async function checkOne(rec: DeleteRecord): Promise<void> {
   try {
