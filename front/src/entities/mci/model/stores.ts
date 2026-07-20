@@ -54,10 +54,16 @@ export const useMCIStore = defineStore(NAMESPACE, () => {
     }
   }
 
+  /**
+   * Holds the node's most recent load test state.
+   *
+   * `undefined` means *there is nothing to show* — used when the run that came back belongs
+   * to a different VM and must not reach the screen.
+   */
   function assignLastLoadTestStateToVm(
     mciID: string,
     vmID: string,
-    response: ILastloadtestStateResponse,
+    response: ILastloadtestStateResponse | undefined,
   ) {
     const mci = getMciById(mciID);
     if (mci) {

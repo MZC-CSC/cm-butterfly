@@ -212,6 +212,10 @@ export interface ILoadTestExecutionStep {
 
 export interface ILastloadtestStateResponse {
   compileDuration: string;
+  // The *uid of the target node* as recorded by cm-ant. A node id is a name and names are
+  // reused, so without this there is no way to tell whether a result belongs to the VM on
+  // screen. Records written before this was added do not carry it.
+  nodeUid?: string;
   createdAt: string;
   executionDuration: string;
   executionStatus: string;

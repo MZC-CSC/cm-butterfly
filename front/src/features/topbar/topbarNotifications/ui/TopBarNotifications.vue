@@ -24,19 +24,20 @@ const setVisible = (visible: boolean) => {
 
 const count = computed(() => notificationCount.value);
 const hasError = computed(() => hasErrorNotification.value);
-/** 99를 넘으면 자릿수가 늘어 배지가 아이콘을 밀어낸다. */
+/** Past 99 the extra digit widens the badge until it pushes the icon aside. */
 const countLabel = computed(() =>
   count.value > 99 ? '99+' : String(count.value),
 );
 
 /**
- * 새 알림이 도착한 것을 *다른 화면을 보고 있어도* 알아채게 한다.
+ * Makes an arriving notification noticeable *while another screen has the attention*.
  *
- * 소리는 쓰지 않는다 — 브라우저가 사용자 조작 없는 재생을 막아 신뢰할 수 없고(무음으로 끝난다),
- * 업무 콘솔에서 예고 없는 소리는 방해가 된다. 소리가 필요하면 설정으로 켜는 편이 맞다.
+ * No sound: browsers block playback without a user gesture, so it cannot be relied on and
+ * ends in silence, and an unannounced noise is unwelcome in a work console. If sound is
+ * wanted, it belongs behind a setting.
  *
- * 대신 두 가지를 쓴다. 배지를 잠깐 흔들고, 탭 제목에 개수를 붙인다. 탭이 뒤에 있으면 화면은
- * 보이지 않지만 제목은 보인다.
+ * Two things instead — the badge shakes briefly, and the count goes into the tab title. A
+ * tab in the background hides the screen but not its title.
  */
 const justArrived = ref(false);
 let arrivalTimer: ReturnType<typeof setTimeout> | null = null;
@@ -47,7 +48,8 @@ watch(count, (now, before) => {
   if (now > (before ?? 0)) {
     justArrived.value = true;
     if (arrivalTimer) clearTimeout(arrivalTimer);
-    // 계속 흔들면 피로하다. 도착을 알리는 것까지가 목적이고, 남아 있다는 사실은 숫자가 말한다.
+    // Shaking on and on wears thin. Announcing the arrival is the point; that something is
+    // still waiting is what the number says.
     arrivalTimer = setTimeout(() => (justArrived.value = false), 2000);
   }
   document.title = now > 0 ? `(${now}) ${baseTitle}` : baseTitle;
@@ -78,7 +80,13 @@ const handleNotiButtonClick = () => {
     @click.stop
     @keydown.esc="hideNotiMenu"
   >
-    <p-tooltip contents="Notifications" position="absolute">
+    <!--
+      **Drop the tooltip once the panel is open.** A tooltip names the icon, which helps
+      while pointing at it and stops helping the moment the panel is showing. It used to
+      stay on after the click and the dark box covered the panel — over [Mark all read],
+      so the one control in the header could not be reached.
+    -->
+    <p-tooltip :contents="visible ? '' : 'Notifications'" position="absolute">
       <span
         :class="{ 'menu-button': true, opened: visible, arrived: justArrived }"
         tabindex="0"
@@ -133,7 +141,7 @@ const handleNotiButtonClick = () => {
         @apply text-blue-600;
       }
     }
-    /* 숫자 배지. 색으로 급한 것과 그냥 볼 것을 가른다 — 배지를 둘로 나누지 않기 위해서다. */
+    /* Count badge. Colour separates urgent from informational so one badge can serve both. */
     .count-badge {
       @apply absolute rounded-full bg-blue-500 text-white font-bold;
       top: 0;
@@ -150,7 +158,7 @@ const handleNotiButtonClick = () => {
       }
     }
 
-    /* 도착 신호 — 다른 화면을 보고 있어도 눈에 걸리도록 잠깐 흔든다. */
+    /* Arrival cue — a brief shake so it registers while another screen has the attention. */
     &.arrived .count-badge {
       animation: notification-arrived 0.5s ease-in-out 3;
     }
@@ -160,16 +168,17 @@ const handleNotiButtonClick = () => {
     }
   }
 
+  /*
+    Placement only — **the panel inside draws the look.**
+    This used to carry a background, border, shadow and a width of 27.5rem while the panel
+    inside is 25rem, so the wrapper was 40px wider. The panel sat against the left edge and
+    the wrapper's right side stayed visible past it, reading as a second, staggered panel.
+    Holding the look here as well would mean keeping two widths in step forever.
+  */
   .notification-content {
-    @apply absolute bg-white rounded-xs border border-gray-200;
-    display: flex;
-    flex-direction: column;
-    width: 27.5rem;
-    min-height: auto;
+    @apply absolute;
     top: 100%;
     right: 0;
-    box-shadow: 0 0 0.5rem rgba(0, 0, 0, 0.08);
-    margin-right: -0.5rem;
     z-index: 1000;
   }
 }

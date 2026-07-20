@@ -168,7 +168,15 @@ async function handleConfirm() {
         },
       })
       .then(res => {
-        emit('success', loadConfigModel.inputModels.scenarioName.value);
+        // cm-ant returns the execution key, and this response was being discarded. Without
+        // that key the only way left to ask how the run turned out is by name, and names are
+        // reused, so the answer can come back describing another VM's run.
+        const loadTestKey = res?.data?.responseData?.result ?? '';
+        emit(
+          'success',
+          loadConfigModel.inputModels.scenarioName.value,
+          loadTestKey,
+        );
       })
       .catch(e => {
         showErrorMessage('error', e.errorMsg);

@@ -24,15 +24,22 @@ const RUN_LOAD_TEST = 'cm-ant/Runloadtest';
 const STOP_LOAD_TEST = 'cm-ant/StopLoadTest';
 const GET_LOAD_TEST_INFO = 'cm-ant/GetLoadTestExecutionInfo';
 const GET_LAST_LOAD_TEST_CONFIG = 'cm-ant/Getlastloadtestexecutionstate';
+// Looks up exactly that run by its execution key. Unlike a name-based "last run", the
+// target cannot change underneath.
+const GET_LOAD_TEST_STATE_BY_KEY = 'cm-ant/GetLoadTestExecutionState';
 const GET_LOAD_TEST_EVALUATION_DATA = 'cm-ant/Getlastloadtestresult';
 const GET_LOAD_TEST_RESOURCE_METRIC = 'cm-ant/Getlastloadtestmetrics';
 
 // Load Test Scenario Catalog API endpoints
-const GET_ALL_LOAD_TEST_SCENARIO_CATALOGS = 'cm-ant/GetAllLoadTestScenarioCatalogs';
+const GET_ALL_LOAD_TEST_SCENARIO_CATALOGS =
+  'cm-ant/GetAllLoadTestScenarioCatalogs';
 const GET_LOAD_TEST_SCENARIO_CATALOG = 'cm-ant/GetLoadTestScenarioCatalog';
-const CREATE_LOAD_TEST_SCENARIO_CATALOG = 'cm-ant/CreateLoadTestScenarioCatalog';
-const UPDATE_LOAD_TEST_SCENARIO_CATALOG = 'cm-ant/UpdateLoadTestScenarioCatalog';
-const DELETE_LOAD_TEST_SCENARIO_CATALOG = 'cm-ant/DeleteLoadTestScenarioCatalog';
+const CREATE_LOAD_TEST_SCENARIO_CATALOG =
+  'cm-ant/CreateLoadTestScenarioCatalog';
+const UPDATE_LOAD_TEST_SCENARIO_CATALOG =
+  'cm-ant/UpdateLoadTestScenarioCatalog';
+const DELETE_LOAD_TEST_SCENARIO_CATALOG =
+  'cm-ant/DeleteLoadTestScenarioCatalog';
 
 export function useRunLoadTest(requestPayload: IRunLoadTestRequest | null) {
   const requestBodyWrapper: Required<
@@ -57,7 +64,9 @@ export function useStopLoadTest(loadTestKey: string | null) {
 
   return useAxiosPost<
     IAxiosResponse<unknown>,
-    Required<Pick<RequestBodyWrapper<{ loadTestKey: string } | null>, 'request'>>
+    Required<
+      Pick<RequestBodyWrapper<{ loadTestKey: string } | null>, 'request'>
+    >
   >(STOP_LOAD_TEST, requestBodyWrapper);
 }
 
@@ -124,6 +133,20 @@ export function useGetLastLoadTestState(
       >
     >
   >(GET_LAST_LOAD_TEST_CONFIG, requestBodyWrapper);
+}
+
+/**
+ * Reads load test state by execution key.
+ *
+ * This differs from asking for "the last run" by name (ns/infra/node) in the way that
+ * matters: names are reused, so that question can start answering with another VM's run.
+ * An execution key names one run and nothing else.
+ */
+export function useGetLoadTestStateByKey(loadTestKey: string) {
+  return useAxiosPost<IAxiosResponse<ILastloadtestStateResponseWrapper>, any>(
+    GET_LOAD_TEST_STATE_BY_KEY,
+    { pathParams: { loadTestKey } },
+  );
 }
 
 interface IMetricParams extends IMciRequestParams {

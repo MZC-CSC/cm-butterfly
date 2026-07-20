@@ -11,8 +11,8 @@ import { computed, reactive, ref, watch } from 'vue';
 import { useDeleteMci } from '@/entities/mci/api';
 import {
   putDeleteRecord,
-  clearDeleteRecord,
-  markDeleteFailed,
+  markDeleteSucceeded,
+  noteDeleteRequestError,
   getDeleteRecord,
   isDeleteInProgress,
   type DeleteRecord,
@@ -33,17 +33,17 @@ interface IEmits {
 const props = defineProps<IProps>();
 const emit = defineEmits<IEmits>();
 
-// 모달은 두 단계다.
-//   confirm  — 삭제 방식(Normal/Force) 선택 + 이름 타이핑 확인
-//   progress — "삭제 처리 중". 요청을 낸 뒤 완료까지 진행 상태를 보여준다.
-// 기존과 달리 삭제는 *비동기*다: reqId 로 요청을 추적하므로(deleteTracker), 이 모달을 닫고
-// 다른 화면에 갔다 돌아와도 목록의 `삭제 상태` 컬럼이 같은 상태를 이어 보여준다.
+// The modal has two steps.
+//   confirm  — choose the method (Normal/Force) and type the name to confirm
+//   progress — shows how the delete is going, from request until it finishes.
+// The delete is *asynchronous*: the request is tracked by reqId (deleteTracker), so
+// closing this modal and coming back later still shows the same state in the list.
 const state = reactive({
   deleteMethod: 'normal',
   confirmKeyword: '',
-  // confirm  — 삭제 방식 선택 + 이름 타이핑
-  // progress — 삭제 처리 중 (완료까지 표시)
-  // error    — 기존 삭제가 실패한 상태에서 다시 열림 → 에러 + 강제 삭제/취소
+  // confirm  — choose the method and type the name
+  // progress — deleting, shown until it finishes
+  // error    — reopened after an earlier delete failed: reason, plus force delete or cancel
   phase: 'confirm' as 'confirm' | 'progress' | 'error',
   alreadyInProgress: false,
 });
@@ -56,7 +56,8 @@ const checkKeyword = computed(() => {
     : 'Delete All';
 });
 
-// confirm 단계에선 이름을 정확히 입력해야 활성. progress 단계에선 확인 버튼을 막는다(재요청 방지).
+// In confirm the name must match exactly; in progress the confirm button is blocked so the
+// request cannot be sent twice.
 const isDeleteDisabled = computed(() => {
   if (state.phase === 'progress') return true;
   return state.confirmKeyword !== checkKeyword.value;
@@ -67,7 +68,7 @@ const deleteMethodOptions = [
   { label: 'Force Delete', key: 'force' },
 ];
 
-// 이 모달이 추적하는 인프라들의 현재 삭제 기록.
+// Current delete records for the infras this modal is tracking.
 const trackedRecords = computed<DeleteRecord[]>(() =>
   trackedIds.value
     .map(id => getDeleteRecord(id))
@@ -81,7 +82,7 @@ const anyError = computed(() =>
   trackedRecords.value.some(r => r.status === 'Error'),
 );
 
-// error 단계에서 보여줄 실패 기록(에러 사유 표시용).
+// Failed records shown in the error step, for their reasons.
 const erroredRecords = computed<DeleteRecord[]>(() =>
   trackedRecords.value.filter(r => r.status === 'Error'),
 );
@@ -92,16 +93,36 @@ function newReqId(): string {
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-// 지정한 인프라들에 삭제 요청을 낸다(옵션: terminate|force). 진행 기록을 남기고 추적한다.
+/**
+ * Pulls the failure reason out of what `execute()` rejects with.
+ *
+ * It does not reject with the axios error — it rejects with `{ error, errorMsg, status }`,
+ * where each is a ref and `errorMsg` already holds the message it worked out from the
+ * response. Passing that wrapper back into `extractErrorMessage` finds neither `response`
+ * nor `request` on it and falls through to the last resort, so a perfectly good server
+ * reason was being reported as "Error in setting up request" — a phrase that means the
+ * request never went out, which was not what happened.
+ *
+ * Read the message that was already prepared, and fall back to the raw error only if it is
+ * missing.
+ */
+function reasonFrom(rejected: any): string | null {
+  const prepared = rejected?.errorMsg?.value;
+  if (prepared) return prepared;
+  const raw = rejected?.error?.value ?? rejected;
+  return extractErrorMessage(raw);
+}
+
+// Issues delete requests for the given infras (terminate|force), recording each for tracking.
 function fireDeletes(mciList: any[], option: string): string[] {
   const uids: string[] = [];
   for (const mci of mciList) {
     const uid = mci?.uid as string;
     const infraId = mci?.name as string;
-    // uid 가 없으면 추적할 방법이 없다(이름은 재사용되므로 키가 될 수 없다).
+    // Without a uid there is nothing to track — a name is reused and cannot be the key.
     if (!uid) continue;
 
-    // 이미 진행 중이면 새 요청을 내지 않고(중복 방어) 그 기록을 그대로 추적한다.
+    // Already running: do not issue another request, just track the existing record.
     if (isDeleteInProgress(uid)) {
       uids.push(uid);
       continue;
@@ -117,28 +138,40 @@ function fireDeletes(mciList: any[], option: string): string[] {
     });
     useDeleteMci({ nsId: props.nsId, infraId, option }, reqId)
       .execute()
-      // 성공은 기록을 남기지 않는다 — 인프라가 목록에서 사라지므로 보여줄 대상이 없다.
-      .then(() => clearDeleteRecord(uid))
-      .catch((error: any) =>
-        markDeleteFailed(uid, extractErrorMessage(error) ?? undefined),
+      // A success keeps no record — the infra leaves the list, so there is nothing to show.
+      // Announce the success from here. The tracker cannot: clearing on success would take
+      // the record out of what it inspects, so nothing would ever report the completion.
+      .then(() => markDeleteSucceeded(uid))
+      // **A failed request is not a failed delete.** This call runs for minutes and the proxy
+      // gives up at 504 long before the server does; the delete carries on and usually
+      // succeeds. Marking Error here told the user it had failed while the infra was in fact
+      // being removed — observed on the dev server, where the infra was gone and the screen
+      // said it had failed.
+      //
+      // So leave the record in Handling and let the tracker decide: it asks cm-beetle for the
+      // request, and when that cannot answer it falls back to whether the infra is still
+      // listed. Only that can tell a delete that failed from one that is merely slow. The
+      // reason is kept on the record so it can be shown if the tracker does conclude failure.
+      .catch((rejected: any) =>
+        noteDeleteRequestError(uid, reasonFrom(rejected) ?? undefined),
       );
     uids.push(uid);
   }
   return uids;
 }
 
-// confirm 단계에서 삭제 실행 — 요청을 내고 progress 단계로 전환한다(즉시 닫지 않는다).
+// Runs the delete from confirm: issue the request and move to progress rather than closing.
 function handleConfirm() {
   if (state.phase !== 'confirm') return;
   const option = state.deleteMethod === 'force' ? 'force' : 'terminate';
   trackedIds.value = fireDeletes(props.selectedMciList, option);
   state.phase = 'progress';
-  emit('deleted'); // 목록이 즉시 `삭제 상태` 컬럼을 띄우도록 갱신
+  emit('deleted'); // refresh so the list brings up the Delete Status column at once
 }
 
-// error 단계에서 [강제 삭제] — 실패한 대상을 force 로 다시 삭제하고 progress 로 전환한다.
-// force 는 CSP 자원을 남기고 텀블벅 내부 데이터만 지운다(배너로 이미 고지).
-// 기록이 Error 상태(진행 중 아님)이므로 fireDeletes 가 새 reqId 로 다시 발행한다.
+// [Force Delete] in the error step: retry the failed targets with force and move to progress.
+// Force leaves the CSP resources and removes only the internal records, as the banner says.
+// The records are in Error rather than in flight, so fireDeletes issues fresh reqIds.
 function handleForceDelete() {
   const targets = erroredRecords.value.map(r => ({
     uid: r.uid,
@@ -149,16 +182,16 @@ function handleForceDelete() {
   emit('deleted');
 }
 
-// error 단계에서 [재시도] — 선택 화면(confirm)으로 돌아간다. 일반 삭제가 되는 경우도 있어
-// (텀블벅이 일시적으로 막혔던 등) 다시 일반/강제를 골라 재시도한다. 강제 삭제는 CSP 자원을
-// 남기므로, 먼저 일반 삭제로 되는지 확인하고 안 되면 강제로 가는 흐름을 사용자가 고른다.
+// [Retry] in the error step goes back to confirm. A normal delete sometimes succeeds on a
+// second attempt — the earlier failure may have been temporary — and since force leaves CSP
+// resources behind, the choice of trying normal first is left to the user.
 function handleRetry() {
   state.deleteMethod = 'normal';
   state.confirmKeyword = '';
   state.phase = 'confirm';
 }
 
-// progress 단계에서 모두 삭제되면(진행 중·에러 없음) 모달을 닫는다. 에러가 있으면 열어 둔다.
+// Close once everything is gone (nothing in flight, no errors); stay open if any failed.
 watch([anyHandling, anyError], ([handling, error]) => {
   if (state.phase !== 'progress') return;
   if (!handling && !error) {
@@ -180,17 +213,17 @@ function resetState() {
   trackedIds.value = [];
 }
 
-// 닫기 — 삭제는 계속되고 목록이 상태를 이어 보여준다("백그라운드로 보내기").
-// 지금 목록 화면을 보고 있으므로, 닫으면서 목록을 새로고침해 `삭제 상태` 컬럼이 뜨게 한다.
+// Close — the delete carries on and the list keeps showing its state.
+// The list is what is behind this modal, so refresh on close to bring up Delete Status.
 function handleClose() {
   emit('deleted');
   closeAndReset();
 }
 
-// 모달이 열릴 때 대상의 현재 삭제 기록으로 단계를 정한다.
-//   진행 중(Handling) → progress ("이미 처리 중" 안내 + 진행 상태)
-//   실패(Error)       → error (기존 삭제 실패 + 에러 메시지 + 강제 삭제/취소)
-//   없음              → confirm (삭제 방식 선택 + 타이핑)
+// The step is chosen from the targets' current delete records when the modal opens.
+//   Handling → progress (says one is already running, and shows its state)
+//   Error    → error (the earlier failure, its reason, and force delete or cancel)
+//   none     → confirm (choose the method and type the name)
 watch(
   () => props.visible,
   visible => {
@@ -231,16 +264,16 @@ watch(
     @update:visible="$emit('update:visible', $event)"
   >
     <template #body>
-      <!-- error 단계 — 기존 삭제가 실패한 상태에서 다시 열림. 에러 메시지(길면 스크롤) + 강제 삭제/취소. -->
+      <!-- error step — reopened after a failure: the reason (scrolls if long), force delete or cancel -->
       <div
         v-if="state.phase === 'error'"
         class="delete-modal-content"
         data-testid="mci-delete-error"
       >
         <div class="force-warning-banner">
-          기존 삭제 요청이 처리 중에 실패했습니다.
+          A previous delete request failed while it was being processed.
         </div>
-        <p class="description">실패한 워크로드</p>
+        <p class="description">Failed workloads</p>
         <div class="error-reason-box" data-testid="wl-delete-error-dialog">
           <div
             v-for="rec in erroredRecords"
@@ -254,22 +287,23 @@ watch(
           </div>
         </div>
         <p class="hint">
-          강제 삭제는 CSP 리소스는 남기고 텀블벅 내부 데이터만 지웁니다. 남은
-          CSP 리소스는 직접 삭제하셔야 합니다.
+          Force delete removes only the internal records and leaves the CSP
+          resources in place. Any resources left behind keep billing and must be
+          removed by hand.
         </p>
       </div>
 
-      <!-- progress 단계 — 삭제 처리 중 (완료까지 계속 표시). 닫아도 목록이 상태를 이어 보여준다. -->
+      <!-- progress step — shown until it finishes; the list carries the state after closing -->
       <div
         v-else-if="state.phase === 'progress'"
         class="delete-modal-content"
         data-testid="mci-delete-progress"
       >
         <div v-if="state.alreadyInProgress" class="warning-banner">
-          이미 처리 중인 삭제가 있습니다. 새로 시작하지 않고 현재 진행 상태를
-          보여줍니다.
+          A delete is already in progress. Showing its current state instead of
+          starting a new one.
         </div>
-        <p class="description">삭제 처리 중</p>
+        <p class="description">Deleting</p>
         <div class="mci-list">
           <div
             v-for="rec in trackedRecords"
@@ -282,27 +316,27 @@ watch(
               class="progress-status handling"
             >
               <span class="spinner" />
-              {{ rec.stage ? `삭제 중 · ${rec.stage}` : '삭제 처리 중' }}
+              {{ rec.stage ? `Deleting · ${rec.stage}` : 'Deleting' }}
             </span>
             <span
               v-else-if="rec.status === 'Error'"
               class="progress-status error"
               data-testid="mci-delete-progress-error"
             >
-              에러<template v-if="rec.errorReason"
+              Error<template v-if="rec.errorReason"
                 >: {{ rec.errorReason }}</template
               >
             </span>
-            <span v-else class="progress-status done">삭제 완료</span>
+            <span v-else class="progress-status done">Deleted</span>
           </div>
         </div>
         <p v-if="anyHandling" class="hint">
-          이 창을 닫아도 삭제는 계속되고, 목록의 <b>삭제 상태</b> 컬럼에서 진행
-          상황을 볼 수 있습니다.
+          Closing this dialog does not stop the delete. You can follow it in the
+          <b>Delete Status</b> column of the list.
         </p>
       </div>
 
-      <!-- confirm 단계 — 삭제 방식 선택 + 이름 타이핑 확인 -->
+      <!-- confirm step — choose the method and type the name -->
       <div v-else class="delete-modal-content">
         <div class="warning-banner">
           ⚠️ Deleting workloads will also delete
@@ -362,50 +396,50 @@ watch(
       </div>
 
       <!--
-        단계별 버튼.
+        Buttons per step.
 
-        ★ PButtonModal 에는 `footer` 슬롯이 없다 — 푸터는 `v-if="!hideFooter"` 로 감싼 고정 영역이고,
-          바꿀 수 있는 건 그 안의 `close-button`/`confirm-button` 슬롯뿐이다. 그래서 `hide-footer` 로
-          기본 푸터를 끈 뒤 `#footer` 슬롯에 버튼을 넣으면 *아무것도 렌더되지 않는다*(실제로 그랬다).
-          에러 단계는 버튼이 셋(재시도·강제 삭제·닫기)이라 기본 두 슬롯으로는 부족하므로,
-          기본 푸터는 끈 채 버튼 줄을 body 끝에 직접 그린다.
+        ★ PButtonModal has no `footer` slot. The footer is a fixed area behind
+          `v-if="!hideFooter"`, and only its `close-button`/`confirm-button` slots can be
+          replaced. Turning the footer off with `hide-footer` and putting buttons in a
+          `#footer` slot renders *nothing at all* — which is what happened. The error step
+          so the default footer stays off and the button row is drawn at the end of the body.
       -->
       <div class="modal-footer">
-        <!-- error: 재시도(선택 화면으로) / 강제 삭제 / 닫기 -->
+        <!-- error: retry (back to the choice) / force delete / close -->
         <template v-if="state.phase === 'error'">
           <p-button
             style-type="transparent"
             data-testid="wl-delete-close"
             @click="handleClose"
           >
-            닫기
+            Close
           </p-button>
           <p-button
             style-type="secondary"
             data-testid="wl-delete-retry"
             @click="handleRetry"
           >
-            재시도
+            Retry
           </p-button>
           <p-button
             style-type="negative-primary"
             data-testid="wl-delete-force-enter"
             @click="handleForceDelete"
           >
-            강제 삭제
+            Force Delete
           </p-button>
         </template>
-        <!-- progress: 닫기만 (삭제는 계속되고 목록이 이어 보여줌) -->
+        <!-- progress: close only; the delete carries on and the list keeps showing it -->
         <template v-else-if="state.phase === 'progress'">
           <p-button
             style-type="transparent"
             data-testid="wl-delete-close"
             @click="handleClose"
           >
-            닫기
+            Close
           </p-button>
         </template>
-        <!-- confirm: 취소 / 삭제(이름 타이핑 시 활성) -->
+        <!-- confirm: cancel / delete, enabled once the name matches -->
         <template v-else>
           <p-button
             style-type="transparent"
@@ -503,7 +537,7 @@ watch(
     line-height: 1.5;
   }
 
-  /* 에러 사유가 길어도 강제 삭제 버튼이 밀려나지 않도록 스크롤 영역에 담는다. */
+  /* Keep a long reason in a scroll area so it cannot push the buttons out of reach. */
   .error-reason-box {
     max-height: 180px;
     overflow-y: auto;
@@ -538,7 +572,7 @@ watch(
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  /* 기본 푸터를 끄고 body 안에 그리므로(위 템플릿 주석 참고), 구분선과 여백으로 푸터처럼 보이게 한다. */
+  /* Drawn inside the body with the default footer off, so a rule and spacing make it read as one. */
   margin-top: 20px;
   padding-top: 16px;
   border-top: 1px solid #e5e7eb;

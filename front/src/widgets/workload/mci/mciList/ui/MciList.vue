@@ -45,7 +45,7 @@ const { toolboxTableRef, adjustedDynamicHeight } = useToolboxTableHeight(
   computed(() => dynamicHeight.value),
 );
 
-const tableKey = ref(0); // 컴포넌트 재렌더링을 위한 key
+const tableKey = ref(0); // bumped to force the table to re-render
 
 const mciCreateModalState = reactive({
   open: false,
@@ -81,7 +81,7 @@ function handleDelete(item: string) {
 
 async function handleDeleted() {
   await fetchMciList();
-  // 데이터 로드 후 컴포넌트 재렌더링
+  // re-render once the data has loaded
   tableKey.value++;
 }
 
@@ -98,11 +98,11 @@ function handleSelectedIndex(index: number[]) {
   }
 }
 
-// ── 삭제 상태 추적 (BAR-1444) ──────────────────────────────────────────────
-// 현재 목록에 뜬 인프라 중 삭제 요청이 있는 것의 상태를 `삭제 상태` 컬럼으로 보여준다.
-// 삭제 요청이 하나도 없으면 컬럼 자체가 나타나지 않는다.
+// ── Delete status ──────────────────────────────────────────────────────────
+// Shows a `Delete Status` column for any listed infra that has a delete request against it.
+// With no delete requests at all, the column does not appear.
 
-/** 현재 표시 중인 행 이름 집합에 걸린 삭제 기록만 추린다. */
+/** Narrows the delete records to those matching the rows currently on screen. */
 function activeRecords(): DeleteRecord[] {
   const uids = new Set(
     mciTableModel.tableState.displayItems.map((it: any) => it?.uid),
@@ -112,18 +112,18 @@ function activeRecords(): DeleteRecord[] {
 
 const hasActiveDeletes = computed(() => activeRecords().length > 0);
 
-/** 슬롯에서 행별 삭제 기록 조회. */
+/** Looks up one row's delete record from the slot. */
 function deleteStatusOf(uid: string): DeleteRecord | undefined {
   return getDeleteRecord(uid);
 }
 
-// 삭제 요청이 있을 때만 `삭제 상태` 컬럼을 넣고, 없으면 뺀다.
-const DELETE_STATUS_FIELD = { name: 'deleteStatus', label: '삭제 상태' };
+// Add the `Delete Status` column only while delete requests exist; drop it otherwise.
+const DELETE_STATUS_FIELD = { name: 'deleteStatus', label: 'Delete Status' };
 watch(hasActiveDeletes, active => {
   const fields = mciTableModel.tableState.fields;
   const idx = fields.findIndex((f: any) => f.name === 'deleteStatus');
   if (active && idx === -1) {
-    // 첫 컬럼(name) 바로 뒤에 끼운다.
+    // insert right after the first column (name)
     const nameIdx = fields.findIndex((f: any) => f.name === 'name');
     fields.splice(nameIdx === -1 ? 0 : nameIdx + 1, 0, {
       ...DELETE_STATUS_FIELD,
@@ -133,8 +133,8 @@ watch(hasActiveDeletes, active => {
   }
 });
 
-// 상태 갱신(폴링)은 이 화면이 하지 않는다 — deleteTracker 가 앱 전역에서 돌기 때문에
-// 다른 화면에 있는 동안에도 결과가 반영된다. 여기서는 그 결과를 보여주기만 한다.
+// This screen does not poll for status. deleteTracker runs app-wide, so results arrive even
+// while another screen is open; here they are only displayed.
 
 onBeforeMount(() => {
   initToolBoxTableModel();
@@ -142,7 +142,7 @@ onBeforeMount(() => {
 
 onMounted(async () => {
   await fetchMciList();
-  // 초기 데이터 로드 후 컴포넌트 재렌더링
+  // re-render after the initial data load
   tableKey.value++;
 });
 </script>
@@ -151,14 +151,14 @@ onMounted(async () => {
   <div>
     <p-horizontal-layout :key="tableKey" :height="adjustedDynamicHeight">
       <template #container="{ height }">
-        <!-- 로딩 중일 때 스피너 표시 -->
+        <!-- spinner while loading -->
         <table-loading-spinner
           :loading="loading"
           :height="height"
           message="Loading Infra list..."
         />
 
-        <!-- 로딩 완료 후 테이블 표시 -->
+        <!-- table once loading has finished -->
         <p-toolbox-table
           v-if="!loading"
           ref="toolboxTableRef"
@@ -216,14 +216,23 @@ onMounted(async () => {
               class="delete-status handling"
               data-testid="wl-row-delete-status"
             >
-              <span class="spinner" /> 진행 중
+              <span class="spinner" /> In progress
             </span>
+            <!--
+              The reason is carried twice. The styled popover can be clipped by the table's
+              scroll area, so a native `title` carries it as well — the browser draws that one
+              and no container can trap it. With no reason, say where one can be obtained.
+            -->
             <span
               v-else-if="deleteStatusOf(item.uid)?.status === 'Error'"
               class="delete-status error-cell"
               data-testid="wl-row-delete-status"
+              :title="
+                deleteStatusOf(item.uid)?.errorReason ||
+                'No reason was returned. Deleting it again shows the reason before it starts.'
+              "
             >
-              에러
+              Failed
               <span
                 v-if="deleteStatusOf(item.uid)?.errorReason"
                 class="error-popover"
@@ -267,7 +276,7 @@ onMounted(async () => {
     transform: rotate(360deg);
   }
 }
-/* 에러 사유는 마우스오버 즉시 레이어 팝업으로(툴팁 지연 없이). 사유가 있을 때만 표시된다. */
+/* The reason appears on hover with no tooltip delay, and only when there is one. */
 .delete-status.error-cell {
   position: relative;
   color: #dc2626;
@@ -278,7 +287,8 @@ onMounted(async () => {
   display: none;
   position: absolute;
   top: 100%;
-  left: 0;
+  /* Anchored left, a long reason runs past the right edge of the table and is clipped. */
+  right: 0;
   z-index: 20;
   max-width: 360px;
   padding: 8px 10px;

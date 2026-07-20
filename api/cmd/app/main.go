@@ -113,6 +113,11 @@ func main() {
 	api.POST("/readnotification", notificationHandler.ReadNotification)
 	api.POST("/readallnotifications", notificationHandler.ReadAllNotifications)
 
+	trackedJobHandler := handler.NewTrackedJobHandler(db)
+	api.POST("/listtrackedjobs", trackedJobHandler.ListTrackedJobs)
+	api.POST("/savetrackedjob", trackedJobHandler.SaveTrackedJob)
+	api.POST("/removetrackedjob", trackedJobHandler.RemoveTrackedJob)
+
 	api.POST("/test", handler.ApiTestController)
 
 	// API list endpoint (no auth required)

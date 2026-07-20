@@ -7,6 +7,7 @@ import {
 } from '@/entities/notification/lib/notificationStore';
 // 체커 자기 등록을 위한 부수효과 import (트리 셰이킹 방지).
 import '@/entities/mci/lib/deleteTracker';
+import '@/entities/vm/lib/loadTestTracker';
 
 export type AuthorizationType = null | 'admin' | 'client';
 
