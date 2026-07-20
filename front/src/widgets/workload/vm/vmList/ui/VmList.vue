@@ -45,7 +45,7 @@ const resGetMci = useGetMciInfo(null);
 const selectedVm = ref<IVm | null>(null);
 const loadConfigRef = ref();
 
-// 부하테스트 진행 상태 폴링(FR-M7-WL-003-07). cm-ant 상태: on_processing→on_fetching→successed/test_failed.
+// Polls load test progress. cm-ant states: on_processing → on_fetching → successed/test_failed.
 const LOADTEST_TERMINAL_STATUS = ['successed', 'test_failed'];
 const LOADTEST_STATUS_LABEL: Record<string, string> = {
   on_processing: 'Running',
@@ -54,13 +54,14 @@ const LOADTEST_STATUS_LABEL: Record<string, string> = {
   test_failed: 'Failed',
 };
 /**
- * 지금 화면에 쓸 부하 테스트 결과.
+ * The load test result this screen should use.
  *
- * 조회 응답이 *다른 VM* 의 실행이면 `undefined` 를 준다 — 화면의 모든 표시(상태 라벨·결과 표·
- * 차트·Re-run)가 이 하나를 통해 나가므로, 여기서 한 번 걸러야 새 VM 에 삭제된 VM 의 결과가
- * 새는 곳이 없다.
+ * Returns `undefined` when the response describes *another VM's* run. Everything on screen —
+ * the status label, the result table, the chart, Re-run — goes through this one accessor, so
+ * filtering here is what stops a deleted VM's result from surfacing under a new one.
  *
- * 처음에는 스토어만 비웠는데 화면은 원 응답을 직접 읽고 있어서 **결과 표가 그대로 남았다**(BAR-1547).
+ * Clearing the store alone was not enough: the screen was reading the raw response directly,
+ * and **the result table stayed on**.
  */
 const currentLoadTestResult = computed<any | undefined>(() => {
   const result = (resLoadStatus as any).data?.value?.responseData?.result;
@@ -70,19 +71,19 @@ const currentLoadTestResult = computed<any | undefined>(() => {
     : result;
 });
 
-// Evaluate Perf 헤더(Load Config 옆)에 노출할 현재 부하테스트 상태 라벨. 폴링 시마다 갱신.
+// Status label shown in the Evaluate Perf header next to Load Config; refreshed on each poll.
 const currentLoadTestStatusLabel = computed(() => {
   const status = currentLoadTestResult.value?.executionStatus as
     | string
     | undefined;
   return status ? (LOADTEST_STATUS_LABEL[status] ?? status) : '';
 });
-// 관리(중단·Re-run)용 loadTestKey.
+// loadTestKey used for stopping and re-running.
 const currentLoadTestKey = computed(
   () => (currentLoadTestResult.value?.loadTestKey as string) ?? '',
 );
-// 경량 상태 hover(Load Config 우측 상태 라벨)용 시각·실패 메시지.
-// front 상태 타입엔 없지만 백엔드(state/last)가 finishAt·failureMessage를 내려줌.
+// Timestamp and failure message for the hover on that status label. The front-end state
+// type does not carry them, but the backend returns finishAt and failureMessage.
 const currentLoadTestStartAt = computed(
   () => (currentLoadTestResult.value?.startAt as string) ?? '',
 );
@@ -92,16 +93,16 @@ const currentLoadTestFinishAt = computed(
 const currentLoadTestFailureMessage = computed(
   () => (currentLoadTestResult.value?.failureMessage as string) ?? '',
 );
-// 세분화 단계 진행(cm-ant FR-007-08 steps[]). 구버전 cm-ant면 빈 배열.
+// Fine-grained step progress from cm-ant steps[]; empty on older cm-ant.
 const currentLoadTestSteps = computed(
   () => (currentLoadTestResult.value?.steps as any[]) ?? [],
 );
-// 진행률 바용 예상 총 소요(초).
+// Expected total duration in seconds, for the progress bar.
 const currentLoadTestExpectedSeconds = computed(
   () =>
     (currentLoadTestResult.value?.totalExpectedExecutionSecond as number) ?? 0,
 );
-// 성공 모달의 실시간 상태 표시용 — 종료(성공/실패) 여부.
+// Drives the live status in the success modal — whether it has finished, either way.
 const currentLoadTestRawStatus = computed(
   () => currentLoadTestResult.value?.executionStatus as string | undefined,
 );
@@ -111,13 +112,13 @@ const isCurrentLoadTestTerminal = computed(() => {
 });
 
 const resStopLoadTest = useStopLoadTest(null);
-// Re-run: 마지막 실행 파라미터(infos)로 Load Config를 pre-fill 하기 위한 상태.
+// Re-run: state used to pre-fill Load Config from the last run's parameters.
 const resLoadTestInfo = useGetLoadTestInfo(null);
 const rerunConfig = ref<ILoadConfigInitialValues | null>(null);
 async function handleReRun() {
   const key = currentLoadTestKey.value;
   if (!key) {
-    // 실행 이력이 없으면 그냥 빈 Load Config
+    // With no run history, open an empty Load Config
     handleLoadStatus();
     return;
   }
@@ -144,7 +145,7 @@ async function handleReRun() {
       rerunConfig.value = null;
     }
   } catch (e) {
-    // infos 조회 실패해도 빈 Load Config로 진행(차단하지 않음)
+    // Carry on with an empty Load Config if that lookup fails; do not block on it
     rerunConfig.value = null;
   }
   modalState.loadConfigRequest.open = true;
@@ -283,10 +284,10 @@ async function handleMciIdChange() {
 }
 
 /**
- * 조회된 실행 결과가 *다른 VM* 의 것인가.
+ * Whether the run that came back belongs to *another VM*.
  *
- * 판단 근거는 uid 하나뿐이다 — 이름은 재사용되므로 아무것도 말해 주지 않는다.
- * 양쪽 uid 를 모두 아는데 다를 때만 참이고, 한쪽이라도 비어 있으면 판단하지 않는다.
+ * The uid is the only thing that can answer this — names are reused and say nothing. True
+ * only when both uids are known and differ; if either is missing, decide nothing.
  */
 function isOtherVmResult(result: any, targetVmId: string): boolean {
   const resultUid = result?.nodeUid;
@@ -301,7 +302,7 @@ function isOtherVmResult(result: any, targetVmId: string): boolean {
 
 function setVmLoadTestResult() {
   if (selectedVm.value === null) return;
-  // 다른 노드로 전환/재조회 시 이전 폴링 중단
+  // stop the previous poll when switching nodes or re-querying
   stopLoadStatusPolling();
   const targetVmId = selectedVm.value.id;
 
@@ -314,20 +315,21 @@ function setVmLoadTestResult() {
       },
     })
     .then(res => {
-      // 선택 노드가 그새 바뀌었으면 무시
+      // ignore if the selected node changed in the meantime
       if (selectedVm.value?.id !== targetVmId) return;
       if (res.data.responseData) {
         const result = res.data.responseData.result;
 
-        // 이 결과가 *지금 보고 있는 VM* 것인지 확인한다 (BAR-1547).
+        // Check that this result belongs to the VM currently on screen.
         //
-        // cm-ant 는 "이 노드의 마지막 실행" 을 이름(ns/infra/node)으로 찾는데, 그 이름들은
-        // 재사용된다 — cb-tumblebug 이 노드 id 를 `{그룹명}-{순번}` 으로 만들기 때문에, VM 을
-        // 지우고 같은 이름으로 다시 만들면 **삭제된 VM 의 부하 테스트 결과가 돌아온다.**
-        // 그 결과를 새 VM 것처럼 보여주면 사용자는 돌린 적 없는 테스트를 봤다고 믿게 된다.
+        // cm-ant finds "the last run on this node" by name (ns/infra/node), and those names
+        // are reused — cb-tumblebug builds a node id as `{group}-{index}`, so deleting a VM
+        // and recreating it under the same name brings back **the deleted VM's load test
+        // result.** Shown as the new VM's, it convinces the user of a test they never ran.
         //
-        // uid 를 모르는 경우(BAR-1546 이전 기록·조회 실패)는 불일치로 보지 않는다. 모른다는 것과
-        // 다른 VM 이라는 것은 다르고, 여기서 막으면 과거 기록이 전부 사라져 보인다.
+        // A missing uid (older records, or a failed lookup) is not treated as a mismatch.
+        // Not knowing is not the same as belonging elsewhere, and blocking here would make
+        // every earlier record look as though it had vanished.
         if (isOtherVmResult(result, targetVmId)) {
           mciStore.assignLastLoadTestStateToVm(
             props.mciId,
@@ -342,11 +344,11 @@ function setVmLoadTestResult() {
 
         const status = result?.executionStatus;
         if (status && !LOADTEST_TERMINAL_STATUS.includes(status)) {
-          // 진행 중(on_processing/on_fetching) → 주기 폴링으로 상태 갱신
+          // still running → keep polling for status
           loadStatusPollTimer = setTimeout(() => setVmLoadTestResult(), 5000);
         } else if (status && LOADTEST_TERMINAL_STATUS.includes(status)) {
-          // 완료/실패 → 폴링 종료. 결과는 상태 전환(v-if/v-else)으로 결과 컴포넌트가
-          // 새로 mount되며 자동 조회되므로 별도 강제 갱신 불필요.
+          // finished or failed → stop polling. The state change remounts the result
+          // component, which fetches on its own, so nothing needs forcing here.
           stopLoadStatusPolling();
         }
       }
@@ -370,7 +372,7 @@ function handleCardClick(value: any) {
 }
 
 function handleLoadStatus() {
-  // 일반 Load Config 열기 → pre-fill 없음(Re-run만 마지막 파라미터를 채운다)
+  // opening Load Config normally → no pre-fill; only Re-run carries the last parameters
   rerunConfig.value = null;
   modalState.loadConfigRequest.open = true;
   modalState.loadConfigSuccess.open = false;
@@ -388,13 +390,13 @@ function handleLoadConfigRequestSuccess(e: string, loadTestKey?: string) {
   modalState.loadConfigSuccess.open = true;
   modalState.loadConfigRequest.context.scenarioName = e;
 
-  // 화면 밖에서도 결과를 잡도록 전역 추적에 올린다(BAR-1544).
+  // Hand it to the app-wide tracker so the outcome is caught even off this screen.
   //
-  // 추적 키는 **실행 키**다. 이름으로 추적하면 이름이 재사용될 때 다른 VM 의 실행을 알리게 되고,
-  // 같은 노드에서 두 번 돌렸을 때도 어느 쪽이 끝난 것인지 구분하지 못한다.
+  // The key is the **execution key**. Tracking by name announces another VM's run once the
+  // name is reused, and cannot tell two runs on the same node apart.
   //
-  // 이름표(label)는 여기서만 알 수 있다 — 완료 시점에는 실행 키뿐이라 "어느 VM 이었는지" 를
-  // 문장으로 만들 수 없다.
+  // The label can only be known here — at completion there is just the execution key, which
+  // cannot be turned into a sentence saying which VM this was.
   if (loadTestKey && selectedVm.value) {
     void trackLoadTest({
       loadTestKey,
@@ -402,9 +404,10 @@ function handleLoadConfigRequestSuccess(e: string, loadTestKey?: string) {
     });
   }
 
-  // 아래 폴링은 *이 화면의 실시간 표시*를 위한 것이고, 위 추적은 *화면을 떠난 뒤의 알림*을
-  // 위한 것이다. 목적이 달라 한쪽으로 합치지 않는다 — 표시를 추적 주기(10초)에 맡기면
-  // 진행이 굼떠지고, 알림을 화면에 맡기면 화면을 떠나는 순간 끊긴다.
+  // The poll below drives *live display on this screen*; the tracking above drives *the
+  // notification after leaving it*. They are kept apart because their purposes differ —
+  // handing display to the tracker's ten-second interval makes progress crawl, and handing
+  // the notification to the screen ends it the moment the screen is left.
   setVmLoadTestResult();
 }
 
@@ -450,13 +453,13 @@ function handleTemplateManagerClose() {
         </template>
       </p-toolbox>
 
-      <!-- 로딩 중일 때 스피너 표시 -->
+      <!-- spinner while loading -->
       <table-loading-spinner
         :loading="vmListTableModel.tableState.loading"
         message="Loading servers..."
       />
 
-      <!-- 로딩 완료 후 카드 표시 -->
+      <!-- cards once loading has finished -->
       <div v-if="!vmListTableModel.tableState.loading" class="vmList-content">
         <p-data-loader
           v-if="vmListTableModel.tableState.displayItems.length === 0"
