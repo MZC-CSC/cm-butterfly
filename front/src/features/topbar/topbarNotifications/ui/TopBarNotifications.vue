@@ -160,16 +160,17 @@ const handleNotiButtonClick = () => {
     }
   }
 
+  /*
+    자리만 잡는 껍데기다 — **외형은 안쪽 패널이 그린다.**
+    예전엔 여기에도 배경·테두리·그림자와 27.5rem 너비가 있었는데, 안쪽 패널은 25rem 이라
+    바깥이 40px 더 넓었다. 안쪽이 왼쪽에 붙으면서 바깥의 오른쪽 끝이 그만큼 삐져나와
+    **패널이 조금 엇갈려 두 개로 보였다.** 껍데기가 외형을 함께 들면 둘의 너비를 늘
+    맞춰야 하므로, 아예 위치 잡기만 남긴다.
+  */
   .notification-content {
-    @apply absolute bg-white rounded-xs border border-gray-200;
-    display: flex;
-    flex-direction: column;
-    width: 27.5rem;
-    min-height: auto;
+    @apply absolute;
     top: 100%;
     right: 0;
-    box-shadow: 0 0 0.5rem rgba(0, 0, 0, 0.08);
-    margin-right: -0.5rem;
     z-index: 1000;
   }
 }
