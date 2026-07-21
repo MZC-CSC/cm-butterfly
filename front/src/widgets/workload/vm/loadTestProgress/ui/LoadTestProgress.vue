@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, onBeforeUnmount } from 'vue';
+import { computed, ref, watch, onBeforeUnmount, nextTick } from 'vue';
 import { PTooltip } from '@cloudforet-test/mirinae';
 import { ILoadTestExecutionStep } from '@/entities/mci/model';
 
@@ -67,6 +67,24 @@ watch(
   { immediate: true },
 );
 onBeforeUnmount(stopTick);
+
+// Keep the running phase in view as it advances, so on a narrow screen (a long step list with
+// a scrollbar) the eye does not have to hunt for where the work is. Scrolls only when the
+// running phase *changes*, not every poll, and only within the full panel — so it moves once
+// per phase rather than jittering, and never in the compact cell or badge. block:'nearest'
+// leaves it alone when the row is already visible.
+const rootEl = ref<HTMLElement | null>(null);
+const runningPhaseName = computed(
+  () => steps.value.find(p => p.status === 'running')?.name ?? '',
+);
+watch(runningPhaseName, async name => {
+  if (props.variant !== 'full' || !name) return;
+  await nextTick();
+  const el = rootEl.value?.querySelector(
+    '[data-running-phase="true"]',
+  ) as HTMLElement | null;
+  el?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+});
 
 // ── Step identity ─────────────────────────────────────────────────────────────
 // The label is the step's *identity* (a stable row title); the message is its live result.
@@ -262,6 +280,35 @@ const STEP_MARK: Record<string, string> = {
 const stepMark = (status: string) => STEP_MARK[status] ?? '○';
 const elapsedText = (n?: number) => (n && n > 0 ? ` (${n}s)` : '');
 
+// A small bar on the phase that is running *now* — one bar that moves down the list with the
+// work. Determinate where cm-ant reports sub-steps (pre-check, metric agent install, collect
+// results) or elapsed vs expected (the load run); an indeterminate "working" bar where a phase
+// reports nothing under it (generator install, test plan). Nothing on done/pending phases —
+// their ✓ / ○ already says it — so only ever one bar is on screen.
+interface PhaseBar {
+  pct: number | null; // null = indeterminate
+}
+const phaseBar = (phase: ILoadTestExecutionStep): PhaseBar | null => {
+  if (phase.status !== 'running') return null;
+  const name = phase.name;
+  if (PHASE_SUBCOUNT[name] || (phase.children && phase.children.length)) {
+    return { pct: Math.max(2, Math.round(childCompletion(phase, name) * 100)) };
+  }
+  if (name === 'jmeter_run' && (props.expectedSeconds ?? 0) > 0) {
+    const p = Math.min(
+      99,
+      Math.round(((phase.elapsedSec ?? 0) / (props.expectedSeconds as number)) * 100),
+    );
+    return { pct: Math.max(2, p) };
+  }
+  return { pct: null };
+};
+const phaseBars = computed<Record<string, PhaseBar | null>>(() => {
+  const m: Record<string, PhaseBar | null> = {};
+  for (const p of steps.value) m[p.name] = phaseBar(p);
+  return m;
+});
+
 // Hover tooltip (badge variant): the tree as text, with the failing step's detail.
 const TOOLTIP_MARK: Record<string, string> = {
   ok: '[OK]',
@@ -314,7 +361,7 @@ const hasSteps = computed(() => steps.value.length > 0);
     </span>
   </p-tooltip>
 
-  <div v-else class="load-test-progress" data-testid="load-test-progress">
+  <div v-else ref="rootEl" class="load-test-progress" data-testid="load-test-progress">
     <!-- two-line summary above the bar (full only — the live text is what makes compact jump) -->
     <template v-if="variant === 'full'">
       <p class="lt-primary" data-testid="load-test-progress-primary">
@@ -375,10 +422,36 @@ const hasSteps = computed(() => steps.value.length > 0);
         class="lt-phase"
         :data-testid="`load-test-step-${phase.name}`"
       >
-        <div class="lt-row lt-parent" :class="stepStateClass(phase.status)">
+        <div
+          class="lt-row lt-parent"
+          :class="stepStateClass(phase.status)"
+          :data-running-phase="phase.status === 'running' ? 'true' : undefined"
+        >
           <span class="lt-mark">{{ stepMark(phase.status) }}</span>
           <span class="lt-label">{{ stepLabel(phase.name) }}</span>
           <span class="lt-elapsed">{{ elapsedText(phase.elapsedSec) }}</span>
+          <!-- one small bar that rides along with the running phase -->
+          <template v-if="phaseBars[phase.name]">
+            <span
+              class="lt-phase-bar"
+              :class="{ indeterminate: phaseBars[phase.name]!.pct === null }"
+              data-testid="load-test-phase-bar"
+            >
+              <span
+                class="lt-phase-fill"
+                :style="
+                  phaseBars[phase.name]!.pct !== null
+                    ? { width: phaseBars[phase.name]!.pct + '%' }
+                    : {}
+                "
+              ></span>
+            </span>
+            <span
+              v-if="phaseBars[phase.name]!.pct !== null"
+              class="lt-phase-pct"
+              >{{ phaseBars[phase.name]!.pct }}%</span
+            >
+          </template>
         </div>
         <ul v-if="phase.children && phase.children.length" class="lt-children">
           <li
@@ -555,6 +628,47 @@ const hasSteps = computed(() => steps.value.length > 0);
 .lt-msg {
   color: #868e96;
   font-weight: 400;
+}
+
+/* the small bar that rides with the running phase */
+.lt-phase-bar {
+  position: relative;
+  display: inline-block;
+  width: 96px;
+  height: 6px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background-color: #d0ebff;
+  overflow: hidden;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.lt-phase-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 999px;
+  background-color: #1971c2;
+  transition: width 0.5s ease;
+}
+/* no measurable sub-progress → a segment sweeping left↔right ("working") */
+.lt-phase-bar.indeterminate .lt-phase-fill {
+  width: 40%;
+  animation: lt-phase-sweep 1.1s ease-in-out infinite alternate;
+}
+@keyframes lt-phase-sweep {
+  from {
+    left: 0;
+  }
+  to {
+    left: 60%;
+  }
+}
+.lt-phase-pct {
+  font-size: 11px;
+  font-weight: 600;
+  color: #1971c2;
 }
 
 /* status colours */
