@@ -16,6 +16,8 @@ interface IProps {
   // For the progress display — draw the bar in the Load Status cell and block Load Config while running.
   loadTestStatus?: string;
   loadTestStartAt?: string;
+  loadTestFinishAt?: string;
+  loadTestFailureMessage?: string;
   loadTestSteps?: ILoadTestExecutionStep[];
   loadTestExpectedSeconds?: number;
   isLoadTestRunning?: boolean;
@@ -95,6 +97,8 @@ watch(
         to its default cell, which dumps the raw value (DESIGN-MIRINAE §1.7).
       -->
       <template #data-loadStatus="{ data }">
+        <!-- running → fixed-height compact bar (no vertical shake); terminal → status badge
+             (failed in red) with the step tree on hover; none → the plain value. -->
         <load-test-progress
           v-if="props.isLoadTestRunning"
           variant="compact"
@@ -103,6 +107,15 @@ watch(
           :start-at="props.loadTestStartAt"
           :expected-seconds="props.loadTestExpectedSeconds"
           :is-polling="props.isLoadTestPolling"
+        />
+        <load-test-progress
+          v-else-if="props.loadTestStatus"
+          variant="badge"
+          :status-label="props.loadTestStatus"
+          :steps="props.loadTestSteps"
+          :start-at="props.loadTestStartAt"
+          :finish-at="props.loadTestFinishAt"
+          :failure-message="props.loadTestFailureMessage"
         />
         <span v-else>{{ data }}</span>
       </template>
