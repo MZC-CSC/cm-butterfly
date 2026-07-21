@@ -117,7 +117,12 @@ watch(
     if (isOpen) {
       loadTemplates();
       selectedTemplate.value = '';
-      // Re-run: 마지막 실행 파라미터로 pre-fill (일반 열기 시 initialConfig 없음)
+      // Fill the host from the selected server on every open. handelClose() clears it, and the
+      // props.ip watcher only fires when the ip itself changes — so on a second open for the
+      // same VM (e.g. Load Config again from the Evaluate Perf tab) the Target Host was blank.
+      loadConfigModel.inputModels.agentHostName.value = props.ip;
+      loadConfigModel.inputModels.targetHostName.value = props.ip;
+      // Re-run: pre-fill the last run's parameters (no initialConfig on a plain open).
       if (props.initialConfig) {
         applyInitialConfig(props.initialConfig);
       }
