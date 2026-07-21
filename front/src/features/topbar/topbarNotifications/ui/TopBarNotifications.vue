@@ -6,6 +6,8 @@ import { TopBarNotificationContextMenu } from '@/widgets/layout';
 import {
   notificationCount,
   hasErrorNotification,
+  arrivalSeq,
+  notificationPopupEnabled,
 } from '@/entities/notification/lib/notificationStore';
 
 interface Props {
@@ -60,6 +62,98 @@ onUnmounted(() => {
   document.title = baseTitle;
 });
 
+/**
+ * Arrival cue (BAR-1579) — the "you got mail" gesture.
+ *
+ * An envelope pops up at the screen centre, jitters like a ringing alarm for a beat, then
+ * swoops into the notification badge and vanishes. The eye follows the movement to the badge
+ * and catches the count going up — that is the whole point. This is only a cue: the message
+ * itself lives in the inbox, so nothing is lost if it is missed.
+ *
+ * Built by hand rather than as a toast. It is appended straight to <body> and driven by the
+ * Web Animations API, which keeps it above any open modal (mirinae's stacking tops out at
+ * 99999) and free of overflow clipping. Vue 2.7 has no <Teleport>, hence the imperative DOM.
+ */
+const badgeEl = ref<HTMLElement | null>(null);
+let cuePlaying = false;
+
+const playArrivalCue = () => {
+  if (typeof document === 'undefined' || cuePlaying) return;
+  const badge = badgeEl.value;
+  if (!badge) return;
+  const r = badge.getBoundingClientRect();
+  if (!r.width && !r.height) return; // badge not laid out — nothing to fly to
+
+  cuePlaying = true;
+  const dx = r.left + r.width / 2 - window.innerWidth / 2;
+  const dy = r.top + r.height / 2 - window.innerHeight / 2;
+
+  const el = document.createElement('div');
+  el.setAttribute('aria-hidden', 'true');
+  el.style.cssText = [
+    'position:fixed',
+    'left:50%',
+    'top:50%',
+    'width:64px',
+    'height:64px',
+    'margin:-32px 0 0 -32px',
+    'z-index:2147483000',
+    'pointer-events:none',
+    'opacity:0',
+    'will-change:transform,opacity',
+    'filter:drop-shadow(0 6px 14px rgba(0,0,0,.25))',
+  ].join(';');
+  el.innerHTML = `
+    <svg viewBox="0 0 64 64" width="64" height="64" xmlns="http://www.w3.org/2000/svg">
+      <rect x="6" y="14" width="52" height="36" rx="5" fill="#f6c445" stroke="#d9a520" stroke-width="2"/>
+      <path d="M8 18 L32 36 L56 18" fill="none" stroke="#d9a520" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="52" cy="16" r="8" fill="#e5484d"/>
+    </svg>`;
+  document.body.appendChild(el);
+
+  const done = () => {
+    el.remove();
+    cuePlaying = false;
+  };
+
+  // Phase 1 — appear, then jitter in place like a ringing alarm (~1.2s).
+  const ring = el.animate(
+    [
+      { transform: 'scale(0.3) rotate(0deg)', opacity: 0, offset: 0 },
+      { transform: 'scale(1.12) rotate(0deg)', opacity: 1, offset: 0.14 },
+      { transform: 'scale(1) rotate(-14deg)', opacity: 1, offset: 0.28 },
+      { transform: 'scale(1) rotate(12deg)', opacity: 1, offset: 0.42 },
+      { transform: 'scale(1) rotate(-10deg)', opacity: 1, offset: 0.56 },
+      { transform: 'scale(1) rotate(9deg)', opacity: 1, offset: 0.7 },
+      { transform: 'scale(1) rotate(-5deg)', opacity: 1, offset: 0.84 },
+      { transform: 'scale(1) rotate(0deg)', opacity: 1, offset: 1 },
+    ],
+    { duration: 1200, easing: 'ease-in-out' },
+  );
+
+  ring.finished
+    .then(() =>
+      // Phase 2 — swoop into the badge, shrinking and fading (~0.7s).
+      el.animate(
+        [
+          { transform: 'translate(0,0) scale(1)', opacity: 1 },
+          { transform: `translate(${dx}px, ${dy}px) scale(0.15)`, opacity: 0 },
+        ],
+        {
+          duration: 700,
+          easing: 'cubic-bezier(.5,0,.9,.35)',
+          fill: 'forwards',
+        },
+      ).finished,
+    )
+    .then(done)
+    .catch(done);
+};
+
+watch(arrivalSeq, () => {
+  if (notificationPopupEnabled.value) playArrivalCue();
+});
+
 const showNotiMenu = () => {
   if (!props.visible) setVisible(true);
 };
@@ -88,6 +182,7 @@ const handleNotiButtonClick = () => {
     -->
     <p-tooltip :contents="visible ? '' : 'Notifications'" position="absolute">
       <span
+        ref="badgeEl"
         :class="{ 'menu-button': true, opened: visible, arrived: justArrived }"
         tabindex="0"
         role="button"
