@@ -451,44 +451,19 @@ function handelClose() {
           </p-field-group>
         </section>
         <section class="section">
+          <!--
+            Just the metrics toggle. The agent host and the "Agent Installed" select used to
+            sit here, but cm-ant decides both on its own: the monitoring agent is installed on
+            the selected server via cb-tumblebug (so the host can only be that server, which
+            cm-ant resolves when the field is left empty), and it installs / skips / verifies
+            the agent itself from this toggle. Neither field reached the API, so they are gone.
+          -->
           <div class="flex gap-2">
             <p-toggle-button
               :value="loadConfigModel.isMetrics.value"
               @update:value="e => (loadConfigModel.isMetrics.value = e)"
             />
             <p>Collect Additional System Metrics</p>
-          </div>
-          <p-divider class="mt-2 mb-2" />
-          <div class="flex flex-col w-full gap-2">
-            <p-field-group
-              :invalid="!loadConfigModel.inputModels.agentHostName.isValid"
-              class="!m-0"
-              :label="'Agent Hostname'"
-            >
-              <template #default="{ invalid }">
-                <p-text-input
-                  v-model="loadConfigModel.inputModels.agentHostName.value"
-                  :invalid="invalid"
-                  :placeholder="'Agent Host Name'"
-                  block
-                />
-              </template>
-            </p-field-group>
-            <p-field-group
-              class="!m-0"
-              :label="'Agent Installed'"
-              required
-            >
-              <template #default="{ invalid }">
-                <p-select-dropdown
-                  class="block"
-                  :menu="loadConfigModel.installed.menu"
-                  :selected="loadConfigModel.installed.selected"
-                  :placeholder="'select'"
-                  @select="e => (loadConfigModel.installed.selected = e)"
-                />
-              </template>
-            </p-field-group>
           </div>
         </section>
       </div>

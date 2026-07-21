@@ -102,18 +102,24 @@ function handleClose(e) {
             </div>
           </template>
         </p-definition-table>
-        <!-- Live progress while the run is ongoing: same bar/steps as the Evaluate Perf tab,
-             so the popup shows a clearly distinguished, moving state rather than a bare word. -->
+        <!-- Live progress while the run is ongoing. Compact (bar + one-line status, no step
+             list): the step list changed height every poll and made this small popup jump.
+             On failure the run is over, so instead of the bar we show the reason in full. -->
         <load-test-progress
           v-if="!props.isTerminal"
-          variant="full"
+          variant="compact"
           :status-label="props.loadStatusLabel"
-          :steps="props.loadTestSteps"
           :start-at="props.loadTestStartAt"
           :expected-seconds="props.loadTestExpectedSeconds"
-          :failure-message="props.loadTestFailureMessage"
           :is-polling="props.isLoadTestPolling"
         />
+        <p
+          v-else-if="props.isFailed && props.loadTestFailureMessage"
+          class="popup-failure"
+          data-testid="load-config-popup-failure"
+        >
+          {{ props.loadTestFailureMessage }}
+        </p>
         <section class="content">
           <h2>Notification</h2>
           <label
@@ -132,6 +138,14 @@ function handleClose(e) {
 <style scoped lang="postcss">
 .status-failed {
   color: #e03131;
+}
+
+.popup-failure {
+  font-size: 13px;
+  color: #e03131;
+  text-align: left;
+  word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .button-modal-body {
