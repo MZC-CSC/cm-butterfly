@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { PButton, PI } from '@cloudforet-test/mirinae';
+import { PButton, PI, PToggleButton } from '@cloudforet-test/mirinae';
 import { red, gray } from '@/app/style/colors';
 import {
   notifications,
   readNotification,
   readAllNotifications,
+  notificationPopupEnabled,
+  setNotificationPopupEnabled,
   type NotificationRecord,
 } from '@/entities/notification';
 
@@ -68,21 +70,54 @@ const shortMessage = (message: string): string =>
   message.length > MESSAGE_MAX
     ? `${message.slice(0, MESSAGE_MAX)}...`
     : message;
+
+// 설정: 새 알림을 화면 팝업으로도 보여줄지. 기어를 누르면 목록 위에 한 줄로 펼친다(BAR-1579).
+const showSettings = ref(false);
+const toggleSettings = () => {
+  showSettings.value = !showSettings.value;
+};
+const onPopupToggle = (on: boolean) => setNotificationPopupEnabled(on);
 </script>
 
 <template>
   <div class="notification-menu" data-testid="notification-menu">
     <div class="menu-header">
       <span class="title">Notifications ({{ items.length }})</span>
-      <p-button
-        v-if="items.length > 0"
-        size="sm"
-        style-type="tertiary"
-        data-testid="notification-mark-all"
-        @click="confirmAll"
-      >
-        Mark all read
-      </p-button>
+      <div class="header-actions">
+        <button
+          type="button"
+          class="settings-gear"
+          :class="{ active: showSettings }"
+          data-testid="notification-settings-gear"
+          title="Notification settings"
+          @click="toggleSettings"
+        >
+          <p-i name="ic_settings-filled" width="1rem" height="1rem" :color="gray[600]" />
+        </button>
+        <p-button
+          v-if="items.length > 0"
+          size="sm"
+          style-type="tertiary"
+          data-testid="notification-mark-all"
+          @click="confirmAll"
+        >
+          Mark all read
+        </p-button>
+      </div>
+    </div>
+
+    <!-- 설정: 새 알림 수신 시 화면 팝업 표시 여부 (localStorage, 기본 켜짐) -->
+    <div
+      v-if="showSettings"
+      class="menu-settings"
+      data-testid="notification-settings"
+    >
+      <span class="setting-label">Show a popup when a notification arrives</span>
+      <p-toggle-button
+        :value="notificationPopupEnabled"
+        data-testid="notification-popup-toggle"
+        @update:value="onPopupToggle"
+      />
     </div>
 
     <div class="menu-body">
@@ -159,6 +194,36 @@ const shortMessage = (message: string): string =>
     .title {
       @apply font-bold text-gray-900;
       font-size: 0.875rem;
+    }
+
+    .header-actions {
+      @apply flex items-center;
+      gap: 0.25rem;
+    }
+
+    .settings-gear {
+      @apply flex items-center justify-center;
+      width: 1.5rem;
+      height: 1.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+
+      &:hover,
+      &.active {
+        @apply bg-gray-100;
+      }
+    }
+  }
+
+  /* 설정 한 줄 — 새 알림 화면 팝업 표시 여부 */
+  .menu-settings {
+    @apply flex items-center justify-between border-b border-gray-200;
+    padding: 0.5rem 0.875rem;
+    background-color: #fafafc;
+
+    .setting-label {
+      @apply text-gray-700;
+      font-size: 0.8125rem;
     }
   }
 

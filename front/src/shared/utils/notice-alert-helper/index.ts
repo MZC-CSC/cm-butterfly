@@ -120,3 +120,27 @@ export const showInfoMessage = (infoTitle: string, infoText: string) => {
     });
   }
 };
+
+/**
+ * A short toast for an arriving notification (BAR-1579).
+ *
+ * A notification is kept in the inbox regardless; this only *also* flashes it on screen for a
+ * couple of seconds so someone on another screen sees it happen. Errors use the alert style;
+ * everything else is informational. Two seconds by request — long enough to read one line.
+ */
+export const showNotificationToast = (
+  title: string,
+  text: string,
+  level?: string,
+) => {
+  if (Vue) {
+    Vue.notify({
+      group: 'toastTopCenter',
+      type: level === 'Error' ? 'alert' : 'info',
+      title,
+      text,
+      duration: 2000,
+      speed: 400,
+    });
+  }
+};
