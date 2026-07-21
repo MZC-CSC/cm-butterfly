@@ -24,6 +24,7 @@ import {
 } from 'vue';
 import { useGetWorkflowList, useBulkDeleteWorkflow } from '@/entities';
 import { useRunWorkflow } from '@/entities';
+import { trackWorkflow } from '@/entities/workflow/lib/workflowTracker';
 import { useDynamicTableHeight } from '@/shared/hooks/table/useDynamicTableHeight';
 import { useToolboxTableHeight } from '@/shared/hooks/table/useToolboxTableHeight';
 
@@ -200,6 +201,14 @@ async function handleRunWorkflow(e: any) {
         'success',
         `Workflow ID: ${selectedWfId} run successfully`,
       );
+      // Hand it to the app-wide checker so the outcome is caught after leaving this screen.
+      // The name has to be captured here — at completion there is only the run id.
+      void trackWorkflow({
+        wfId: selectedWfId,
+        label:
+          workflowStore.getWorkflowById(selectedWfId)?.name || selectedWfId,
+        action: 'run',
+      });
     }
   } catch (error) {
     console.log(error);

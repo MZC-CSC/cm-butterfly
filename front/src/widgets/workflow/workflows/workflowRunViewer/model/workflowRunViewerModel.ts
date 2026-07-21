@@ -21,6 +21,7 @@ import { buildRunGraph, IRunGraph } from '@/entities/workflow/lib/runGraph';
 import { useWorkflowStore } from '@/entities';
 import { showSuccessMessage } from '@/shared/utils';
 import { isRunFinished } from '@/entities/workflow/lib/taskState';
+import { trackWorkflow } from '@/entities/workflow/lib/workflowTracker';
 import {
   extractFailureSummary,
   normalizeTaskLog,
@@ -395,6 +396,14 @@ export function useWorkflowRunViewerModel() {
         resetDagRuns: true,
       });
       await execute();
+      // A re-run reuses this run id, so the checker leans on startedAt to tell this attempt
+      // from the last. onlyFailed decides whether the message says "failed tasks" or the run.
+      void trackWorkflow({
+        wfId,
+        label: workflow.value?.name || wfId,
+        action: option.onlyFailed ? 'rerun-failed' : 'rerun',
+        runId,
+      });
       cancelRerun();
       await fetchInstances(wfId, runId);
       startPolling();
@@ -465,6 +474,13 @@ export function useWorkflowRunViewerModel() {
     if (!wfId) return;
     const { execute } = useRunWorkflow(wfId);
     await execute();
+    // Hand it to the app-wide checker so the outcome is caught after leaving this screen.
+    // The name has to be captured here — at completion there is only the run id.
+    void trackWorkflow({
+      wfId,
+      label: workflow.value?.name || wfId,
+      action: 'run',
+    });
     // DAG 등록 직후에는 실행이 바로 보이지 않을 수 있으므로 잠시 뒤 다시 연다
     await new Promise(resolve => setTimeout(resolve, 3000));
     await open(wfId);
