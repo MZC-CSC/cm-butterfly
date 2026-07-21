@@ -181,8 +181,36 @@ async function handleConfirm() {
       .catch(e => {
         showErrorMessage('error', e.errorMsg);
       });
-  } else {
-    console.log('Some inputs are invalid');
+  } else if (!resRunLoadTest.isLoading.value) {
+    // Before this the OK press failed validation silently to the console, so an enabled
+    // button that did nothing read as a broken button. Tell the user what is missing and
+    // take them to the first field that needs input (the fields also show their invalid
+    // state now that validation has run).
+    const order = [
+      ['scenarioName', 'load-config-scenario-name'],
+      ['targetHostName', 'load-config-target-host'],
+      ['port', 'load-config-port'],
+      ['path', 'load-config-path'],
+      ['virtualUsers', 'load-config-virtual-users'],
+      ['testDuration', 'load-config-duration'],
+      ['rampUpTime', 'load-config-rampup-time'],
+      ['rampUpSteps', 'load-config-rampup-steps'],
+    ];
+    const first = order.find(
+      ([k]) =>
+        loadConfigModel.inputModels[k] &&
+        !loadConfigModel.inputModels[k].isValid,
+    );
+    showErrorMessage('error', 'Please fill in all required fields.');
+    if (first) {
+      const el = document.querySelector(
+        `input[data-testid="${first[1]}"]`,
+      ) as HTMLElement | null;
+      if (el) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el.focus();
+      }
+    }
   }
 }
 
