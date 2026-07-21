@@ -16,7 +16,6 @@ import {
   ref,
   watch,
 } from 'vue';
-import SuccessfullyLoadConfigModal from '@/features/workload/successfullyModal/ui/SuccessfullyLoadConfigModal.vue';
 import LoadConfig from '@/features/workload/actionLoadConfig/ui/LoadConfig.vue';
 import { trackLoadTest } from '@/entities/vm/lib/loadTestTracker';
 import { showErrorMessage, toErrorMessage } from '@/shared/utils';
@@ -102,20 +101,22 @@ const currentLoadTestExpectedSeconds = computed(
   () =>
     (currentLoadTestResult.value?.totalExpectedExecutionSecond as number) ?? 0,
 );
-// Drives the live status in the success modal — whether it has finished, either way.
-const currentLoadTestRawStatus = computed(
-  () => currentLoadTestResult.value?.executionStatus as string | undefined,
-);
-const isCurrentLoadTestTerminal = computed(() => {
-  const s = currentLoadTestRawStatus.value;
-  return !!s && LOADTEST_TERMINAL_STATUS.includes(s);
-});
-
 const resStopLoadTest = useStopLoadTest(null);
 // Re-run: state used to pre-fill Load Config from the last run's parameters.
 const resLoadTestInfo = useGetLoadTestInfo(null);
 const rerunConfig = ref<ILoadConfigInitialValues | null>(null);
+// What was last submitted from this screen, kept so Re-run can pre-fill even when the server
+// cannot. A run that fails in pre-check has no execution info, so GetLoadTestExecutionInfo 500s
+// and the server route returns nothing — this local copy is what makes Re-run reliable.
+const lastSubmittedConfig = ref<ILoadConfigInitialValues | null>(null);
 async function handleReRun() {
+  // Prefer what was submitted here; it is always the real last configuration and does not
+  // depend on the server being able to reconstruct it.
+  if (lastSubmittedConfig.value) {
+    rerunConfig.value = { ...lastSubmittedConfig.value };
+    modalState.loadConfigRequest.open = true;
+    return;
+  }
   const key = currentLoadTestKey.value;
   if (!key) {
     // With no run history, open an empty Load Config
@@ -149,7 +150,6 @@ async function handleReRun() {
     rerunConfig.value = null;
   }
   modalState.loadConfigRequest.open = true;
-  modalState.loadConfigSuccess.open = false;
 }
 function handleStopLoadTest() {
   const key = currentLoadTestKey.value;
@@ -160,12 +160,22 @@ function handleStopLoadTest() {
     .catch(e => showErrorMessage('error', e.errorMsg?.value ?? 'Stop failed'));
 }
 let loadStatusPollTimer: ReturnType<typeof setTimeout> | null = null;
+// Whether the live status poll is currently running. Reactive so the progress display can
+// show it is still updating — a bar stuck at 60% then reads as "still checking" rather than
+// "gave up". The timer handle itself is not reactive, hence this flag.
+const isLoadTestPolling = ref(false);
+// Whether a load test is in progress on the selected VM — drives disabling Load Config so a
+// second run cannot be started over a running one.
+const isLoadTestRunning = computed(() =>
+  ['Running', 'Collecting results'].includes(currentLoadTestStatusLabel.value),
+);
 
 function stopLoadStatusPolling() {
   if (loadStatusPollTimer) {
     clearTimeout(loadStatusPollTimer);
     loadStatusPollTimer = null;
   }
+  isLoadTestPolling.value = false;
 }
 const { mciStore, initToolBoxTableModel, vmListTableModel, setMci } =
   useVmListModel();
@@ -176,9 +186,6 @@ const modalState = reactive({
     context: {
       scenarioName: '',
     },
-  },
-  loadConfigSuccess: {
-    open: false,
   },
   templateManagerRequest: {
     open: false,
@@ -345,6 +352,7 @@ function setVmLoadTestResult() {
         const status = result?.executionStatus;
         if (status && !LOADTEST_TERMINAL_STATUS.includes(status)) {
           // still running → keep polling for status
+          isLoadTestPolling.value = true;
           loadStatusPollTimer = setTimeout(() => setVmLoadTestResult(), 5000);
         } else if (status && LOADTEST_TERMINAL_STATUS.includes(status)) {
           // finished or failed → stop polling. The state change remounts the result
@@ -375,7 +383,6 @@ function handleLoadStatus() {
   // opening Load Config normally → no pre-fill; only Re-run carries the last parameters
   rerunConfig.value = null;
   modalState.loadConfigRequest.open = true;
-  modalState.loadConfigSuccess.open = false;
 }
 
 function handleTemplateManager() {
@@ -385,9 +392,18 @@ function handleLoadConfigRequestClose() {
   modalState.loadConfigRequest.open = false;
 }
 
-function handleLoadConfigRequestSuccess(e: string, loadTestKey?: string) {
+function handleLoadConfigRequestSuccess(
+  e: string,
+  loadTestKey?: string,
+  submitted?: ILoadConfigInitialValues,
+) {
   modalState.loadConfigRequest.open = false;
-  modalState.loadConfigSuccess.open = true;
+  // Remember exactly what was submitted so Re-run pre-fills from it (see handleReRun).
+  if (submitted) lastSubmittedConfig.value = submitted;
+  // No success popup: land on the Evaluate Perf tab, where the full progress (phase/sub-step
+  // tree, bar, live line) is shown. The popup only duplicated a subset of that and jumped as
+  // the step text changed height, so a request from any tab now just moves here (user request).
+  vmDetailTabState.activeTab = 'evaluatePerf';
   modalState.loadConfigRequest.context.scenarioName = e;
 
   // Hand it to the app-wide tracker so the outcome is caught even off this screen.
@@ -408,11 +424,6 @@ function handleLoadConfigRequestSuccess(e: string, loadTestKey?: string) {
   // notification after leaving it*. They are kept apart because their purposes differ —
   // handing display to the tracker's ten-second interval makes progress crawl, and handing
   // the notification to the screen ends it the moment the screen is left.
-  setVmLoadTestResult();
-}
-
-function handleLoadConfigSuccessClose() {
-  modalState.loadConfigSuccess.open = false;
   setVmLoadTestResult();
 }
 
@@ -496,6 +507,14 @@ function handleTemplateManagerClose() {
             :lastloadtest-state-response="
               resLoadStatus.data.value?.responseData?.result
             "
+            :load-test-status="currentLoadTestStatusLabel"
+            :load-test-start-at="currentLoadTestStartAt"
+            :load-test-finish-at="currentLoadTestFinishAt"
+            :load-test-failure-message="currentLoadTestFailureMessage"
+            :load-test-steps="currentLoadTestSteps"
+            :load-test-expected-seconds="currentLoadTestExpectedSeconds"
+            :is-load-test-running="isLoadTestRunning"
+            :is-load-test-polling="isLoadTestPolling"
             @openLoadconfig="handleLoadStatus"
             @openTemplateManager="handleTemplateManager"
           />
@@ -519,6 +538,8 @@ function handleTemplateManagerClose() {
             :load-test-failure-message="currentLoadTestFailureMessage"
             :load-test-steps="currentLoadTestSteps"
             :load-test-expected-seconds="currentLoadTestExpectedSeconds"
+            :is-load-test-running="isLoadTestRunning"
+            :is-load-test-polling="isLoadTestPolling"
             @openLoadconfig="handleLoadStatus"
             @openTemplateManager="handleTemplateManagerOpen"
             @stopLoadTest="handleStopLoadTest"
@@ -542,14 +563,6 @@ function handleTemplateManagerClose() {
       :initial-config="rerunConfig"
       @success="handleLoadConfigRequestSuccess"
       @close="handleLoadConfigRequestClose"
-    />
-    <SuccessfullyLoadConfigModal
-      :is-open="modalState.loadConfigSuccess.open"
-      :scenario-name="modalState.loadConfigRequest.context.scenarioName"
-      :load-status-label="currentLoadTestStatusLabel"
-      :is-terminal="isCurrentLoadTestTerminal"
-      :is-failed="currentLoadTestStatusLabel === 'Failed'"
-      @close="handleLoadConfigSuccessClose"
     />
     <ScenarioTemplateManagerModal
       :is-open="modalState.templateManagerRequest.open"

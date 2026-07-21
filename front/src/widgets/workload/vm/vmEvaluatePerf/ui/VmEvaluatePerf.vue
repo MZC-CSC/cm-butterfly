@@ -1,30 +1,36 @@
 <script setup lang="ts">
-import { PButton, PTooltip } from '@cloudforet-test/mirinae';
-import { computed, Ref, ref, watch, onBeforeUnmount } from 'vue';
+import { PButton } from '@cloudforet-test/mirinae';
+import { computed, Ref } from 'vue';
 import { ILoadTestExecutionStep } from '@/entities/mci/model';
 import LoadTestEvaluationMetric from '@/widgets/workload/vm/vmEvaluatePerf/ui/LoadTestEvaluationMetric.vue';
 import LoadTestResourceMetric from '@/widgets/workload/vm/vmEvaluatePerf/ui/LoadTestResourceMetric.vue';
 import LoadTestAggregationTable from '@/widgets/workload/vm/vmEvaluatePerf/ui/LoadTestAggregationTable.vue';
+import LoadTestProgress from '@/widgets/workload/vm/loadTestProgress/ui/LoadTestProgress.vue';
 
 interface IProps {
   mciId: string;
   nsId: string;
   vmId: string;
   loading: Ref<boolean>;
-  // 현재/마지막 부하테스트 상태 라벨(Running/Collecting results/Completed/Failed). 비어 있으면 미실행.
+  // Current/last load-test status label (Running / Collecting results / Completed / Failed).
+  // Empty means no run yet.
   loadTestStatus?: string;
-  // 경량 상태 hover용 상세(현행 API가 주는 범위) — 전체 시작/종료 시각·실패 메시지.
   loadTestStartAt?: string;
   loadTestFinishAt?: string;
   loadTestFailureMessage?: string;
-  // 세분화 단계 진행(cm-ant FR-007-08 steps[]). 구버전 cm-ant면 빈 배열.
+  // Fine-grained tree progress (cm-ant FR-007-08 steps[]). Empty on older cm-ant.
   loadTestSteps?: ILoadTestExecutionStep[];
-  // 진행률 바용 예상 총 소요(초) — cm-ant totalExpectedExecutionSecond.
+  // Expected total duration (seconds) for the progress bar — cm-ant totalExpectedExecutionSecond.
   loadTestExpectedSeconds?: number;
+  // While a run is in progress, block re-opening Load Config (no second run over the first).
+  isLoadTestRunning?: boolean;
+  // Turn on the live indicator in the progress display while the poll is running.
+  isLoadTestPolling?: boolean;
 }
 
 const props = defineProps<IProps>();
-// 관리 액션은 상태별 문맥 버튼(모달 없음): 진행 중=Stop / 완료·실패=Re-run(마지막 설정으로 재실행).
+// Management actions are status-aware context buttons (no modal): running = Stop,
+// completed/failed = Re-run (re-runs with the last settings).
 const emit = defineEmits([
   'openLoadconfig',
   'openTemplateManager',
@@ -32,110 +38,25 @@ const emit = defineEmits([
   'reRun',
 ]);
 
+// Load Config while a run is in progress would start a second run over the first. Guard the
+// handler as well as disabling the button — mirinae's disabled is a class only and leaves the
+// click reaching the element (DESIGN-MIRINAE §1.6), so a visual-only guard would not hold.
+function handleOpenLoadconfig() {
+  if (props.isLoadTestRunning) return;
+  emit('openLoadconfig');
+}
+
 const isLoadTestRunning = computed(() =>
   ['Running', 'Collecting results'].includes(props.loadTestStatus ?? ''),
 );
 const hasLoadTest = computed(() => !!props.loadTestStatus);
 const isLoadTestFailed = computed(() => props.loadTestStatus === 'Failed');
-// 결과(차트·집계)는 성공(Completed)일 때만 노출. 실패/진행 중엔 결과 조회를 하지 않는다.
+// Results (charts / aggregation) show only on success. Nothing is fetched while running/failed.
 const isLoadTestCompleted = computed(() => props.loadTestStatus === 'Completed');
 
-// 진행률 바 — startAt·예상 소요(초)로 경과 비율 계산. 진행 중엔 1초 틱으로 부드럽게 갱신.
-const nowMs = ref(Date.now());
-let tickTimer: ReturnType<typeof setInterval> | null = null;
-const stopTick = () => {
-  if (tickTimer) {
-    clearInterval(tickTimer);
-    tickTimer = null;
-  }
-};
-watch(
-  isLoadTestRunning,
-  running => {
-    if (running) {
-      nowMs.value = Date.now();
-      if (!tickTimer) tickTimer = setInterval(() => (nowMs.value = Date.now()), 1000);
-    } else {
-      stopTick();
-    }
-  },
-  { immediate: true },
-);
-onBeforeUnmount(stopTick);
-
-// 진행률(%). 완료=100, startAt/예상초 없으면 null(indeterminate 바). 진행 중엔 2~95%로 캡(종료 전 100% 방지).
-const progressPercent = computed<number | null>(() => {
-  if (isLoadTestCompleted.value) return 100;
-  if (!isLoadTestRunning.value) return 0;
-  const start = props.loadTestStartAt ? Date.parse(props.loadTestStartAt) : NaN;
-  const expectedMs = (props.loadTestExpectedSeconds ?? 0) * 1000;
-  if (!start || Number.isNaN(start) || expectedMs <= 0) return null;
-  const pct = ((nowMs.value - start) / expectedMs) * 100;
-  return Math.max(2, Math.min(95, Math.round(pct)));
-});
-
-// 단계(steps[]) 표현 매핑 — cm-ant ExecutionStep/StepStatus.
-const STEP_LABEL: Record<string, string> = {
-  generator_install: 'Generator install',
-  agent_install: 'Agent install',
-  jmx_prepare: 'JMX prepare',
-  jmeter_run: 'JMeter run',
-  result_fetch: 'Result fetch',
-};
-const STEP_MARK: Record<string, string> = {
-  ok: '[OK]',
-  running: '[..]',
-  failed: '[X]',
-  pending: '[ ]',
-  skipped: '[-]',
-};
-const stepLabel = (name: string) => STEP_LABEL[name] ?? name;
-
-const steps = computed<ILoadTestExecutionStep[]>(() => props.loadTestSteps ?? []);
-const hasSteps = computed(() => steps.value.length > 0);
-// 현재 단계 = 진행 중(running)인 단계, 없으면 마지막 실패 단계.
-const currentStep = computed(() => {
-  const list = steps.value;
-  return (
-    list.find(s => s.status === 'running') ??
-    [...list].reverse().find(s => s.status === 'failed') ??
-    null
-  );
-});
-
-// 배지 라벨: 기존 상태 라벨에 진행 중 현재 단계를 조합("Running · JMeter run").
-// 길면 배지가 줄바꿈되도록 CSS 처리(잘리지 않음).
-const badgeLabel = computed(() => {
-  const base = props.loadTestStatus ?? '';
-  if (isLoadTestRunning.value && currentStep.value) {
-    return `${base} · ${stepLabel(currentStep.value.name)}`;
-  }
-  return base;
-});
-
-// 상태 배지 hover 상세 — 세분화 단계 진행(steps[]) + 시각 + 실패/진행 detail.
-// 긴 내용은 tooltip이 wrap(잘리지 않음). steps 없으면(구버전 cm-ant) 경량 표현으로 폴백.
-const statusTooltip = computed(() => {
-  const lines: string[] = [];
-  for (const s of steps.value) {
-    const mark = STEP_MARK[s.status] ?? `[${s.status}]`;
-    let line = `${mark} ${stepLabel(s.name)}`;
-    if (s.message) line += ` — ${s.message}`;
-    lines.push(line);
-    // 진행 중·실패 단계는 상세(detail)까지 노출(원인·조치).
-    if (s.detail && (s.status === 'running' || s.status === 'failed')) {
-      lines.push(`      ${s.detail}`);
-    }
-  }
-  if (lines.length) lines.push('');
-  if (props.loadTestStartAt) lines.push(`Started: ${props.loadTestStartAt}`);
-  if (props.loadTestFinishAt) lines.push(`Finished: ${props.loadTestFinishAt}`);
-  // steps로 실패 detail을 못 준 경우(구버전 등)에만 failureMessage 폴백.
-  if (props.loadTestFailureMessage && !hasSteps.value) {
-    lines.push(`Error: ${props.loadTestFailureMessage}`);
-  }
-  return lines.join('\n');
-});
+// The in-progress detail (two-line summary, bar, full tree), the header badge and the failed
+// step list are all drawn by the shared LoadTestProgress — this component only decides which
+// branch to show and keeps the result / failed / empty layout.
 </script>
 
 <template>
@@ -165,11 +86,12 @@ const statusTooltip = computed(() => {
           data-testid="vm-load-config-open"
           style-type="secondary"
           icon-left="ic_settings"
-          @click="emit('openLoadconfig')"
+          :disabled="props.isLoadTestRunning"
+          @click="handleOpenLoadconfig"
         >
           Load Config
         </p-button>
-        <!-- 상태별 문맥 버튼: 진행 중=Stop / 완료·실패=Re-run / 미실행=없음 -->
+        <!-- status-aware context button: running = Stop / completed·failed = Re-run / none = hidden -->
         <p-button
           v-if="isLoadTestRunning"
           data-testid="vm-load-stop"
@@ -188,24 +110,19 @@ const statusTooltip = computed(() => {
         >
           Re-run
         </p-button>
-        <!-- 짧은 상태 라벨 + hover 상세(시각·실패 메시지) -->
-        <p-tooltip
+        <!-- short status label + the step tree on hover (drawn by the shared component) -->
+        <load-test-progress
           v-if="hasLoadTest"
-          :contents="statusTooltip"
-          position="bottom"
-          :options="{ classes: ['p-tooltip', 'load-test-step-tooltip'] }"
-        >
-          <span
-            class="load-test-status-badge"
-            :class="{ running: isLoadTestRunning, failed: isLoadTestFailed }"
-            data-testid="vm-load-test-status"
-          >
-            {{ badgeLabel }}
-          </span>
-        </p-tooltip>
+          variant="badge"
+          :status-label="props.loadTestStatus"
+          :steps="props.loadTestSteps"
+          :start-at="props.loadTestStartAt"
+          :finish-at="props.loadTestFinishAt"
+          :failure-message="props.loadTestFailureMessage"
+        />
       </div>
     </div>
-    <!-- 결과 영역: 부하측정이 없으면 안내(그래프 숨김), 진행 중이면 로딩, 완료면 결과 표시 -->
+    <!-- Result area: no run → guidance (charts hidden); running → progress; completed → results -->
     <div
       v-if="!props.loadTestStatus"
       class="load-test-empty"
@@ -217,38 +134,48 @@ const statusTooltip = computed(() => {
     </div>
     <div
       v-else-if="isLoadTestRunning"
-      class="load-test-empty"
-      data-testid="load-test-progress"
+      class="load-test-running-panel"
+      data-testid="load-test-progress-panel"
     >
-      Load test in progress ({{ badgeLabel }})…<br />
-      <span v-if="currentStep?.message" class="progress-step-msg">{{
-        currentStep.message
-      }}</span>
-      <!-- 진행률 바: startAt·예상 소요로 경과 비율(예상 없으면 indeterminate). -->
-      <div class="load-test-progress-bar" data-testid="load-test-progress-bar">
-        <div
-          class="load-test-progress-fill"
-          :class="{ indeterminate: progressPercent === null }"
-          :style="progressPercent !== null ? { width: progressPercent + '%' } : {}"
-        ></div>
-      </div>
-      <span v-if="progressPercent !== null" class="progress-pct"
-        >{{ progressPercent }}%</span
-      >
-      <br />
-      The results will appear here once it finishes.
+      <LoadTestProgress
+        variant="full"
+        :status-label="props.loadTestStatus"
+        :steps="props.loadTestSteps"
+        :start-at="props.loadTestStartAt"
+        :expected-seconds="props.loadTestExpectedSeconds"
+        :failure-message="props.loadTestFailureMessage"
+        :is-polling="props.isLoadTestPolling"
+      />
+      <p class="load-test-running-hint">
+        The results will appear here once it finishes.
+      </p>
     </div>
     <div
       v-else-if="isLoadTestFailed"
-      class="load-test-empty load-test-failed"
+      class="load-test-failed-panel"
       data-testid="load-test-failed"
     >
-      The load test failed, so there are no results to show.<br />
-      <span v-if="props.loadTestFailureMessage" class="failure-detail">
-        {{ props.loadTestFailureMessage }}<br />
-      </span>
-      Check the target server and load generator, then start again with
-      <strong>Re-run</strong>.
+      <!-- error message first, in red; then the processed steps below in normal, left-aligned text -->
+      <p class="failed-headline">
+        The load test failed, so there are no results to show.
+      </p>
+      <p v-if="props.loadTestFailureMessage" class="failed-reason">
+        {{ props.loadTestFailureMessage }}
+      </p>
+      <div
+        v-if="props.loadTestSteps && props.loadTestSteps.length"
+        class="failed-steps"
+      >
+        <LoadTestProgress
+          variant="steps"
+          :status-label="props.loadTestStatus"
+          :steps="props.loadTestSteps"
+        />
+      </div>
+      <p class="failed-hint">
+        Check the target server and load generator, then start again with
+        <strong>Re-run</strong>.
+      </p>
     </div>
     <div
       v-else-if="isLoadTestCompleted"
@@ -321,105 +248,54 @@ const statusTooltip = computed(() => {
   border-radius: 4px;
 }
 
-.load-test-status-badge {
-  font-size: 13px;
-  font-weight: 500;
-  padding: 4px 10px;
+/* In-progress panel: shared LoadTestProgress + a hint line. */
+.load-test-running-panel {
+  padding: 24px 16px;
+  border: 1px dashed #dee2e6;
   border-radius: 4px;
-  background-color: #f1f3f5;
-  color: #495057;
-  /* 상태+현재 단계 조합이 길어지면 잘리지 않고 줄바꿈되어 아래로 밀린다. */
-  max-width: 340px;
-  white-space: normal;
-  word-break: break-word;
-  line-height: 1.35;
 }
 
-.progress-step-msg {
-  display: block;
-  margin: 4px 0;
+.load-test-running-hint {
+  margin-top: 12px;
   font-size: 13px;
-  color: #495057;
-  word-break: break-word;
+  color: #868e96;
 }
 
-.load-test-progress-bar {
-  width: 60%;
-  max-width: 420px;
-  height: 8px;
-  margin: 10px auto 4px auto;
-  background-color: #e9ecef;
-  border-radius: 999px;
-  overflow: hidden;
+/* Failed panel — left-aligned (the processed steps must not be centred like an error line). */
+.load-test-failed-panel {
+  padding: 20px 16px;
+  border: 1px solid #ffc9c9;
+  border-radius: 4px;
+  text-align: left;
 }
 
-.load-test-progress-fill {
-  height: 100%;
-  background-color: #1971c2;
-  border-radius: 999px;
-  transition: width 0.6s ease;
-}
-
-/* 예상 소요를 모를 때: 좌우로 흐르는 indeterminate 애니메이션 */
-.load-test-progress-fill.indeterminate {
-  width: 35%;
-  animation: load-test-indeterminate 1.4s ease-in-out infinite;
-}
-
-@keyframes load-test-indeterminate {
-  0% {
-    margin-left: -35%;
-  }
-  100% {
-    margin-left: 100%;
-  }
-}
-
-.progress-pct {
-  display: block;
-  font-size: 12px;
-  color: #1971c2;
+.failed-headline {
+  font-size: 14px;
   font-weight: 600;
-}
-
-.load-test-status-badge.running {
-  background-color: #e7f5ff;
-  color: #1971c2;
-}
-
-.load-test-status-badge.failed {
-  background-color: #fff0f0;
   color: #e03131;
 }
 
-.load-test-failed {
-  border-color: #ffc9c9;
-  color: #e03131;
-}
-
-.load-test-failed .failure-detail {
-  display: inline-block;
-  margin: 6px 0;
+.failed-reason {
+  margin-top: 6px;
   font-size: 13px;
   color: #c92a2a;
   word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.failed-steps {
+  margin: 12px 0;
+}
+
+.failed-hint {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #868e96;
 }
 
 .chart {
   @apply border-gray-200 border;
   height: 500px;
   border-radius: 4px 0px 0px 0px;
-}
-</style>
-
-<!-- 전역: 상태 hover tooltip은 긴 detail이 잘리지 않고 줄바꿈되게 한다.
-     기본 .p-tooltip .tooltip-inner는 white-space: pre(줄바꿈 유지·wrap 안 함)라
-     640px를 넘는 긴 줄이 잘린다 → pre-wrap + word-break로 오버라이드. -->
-<style lang="postcss">
-.p-tooltip.load-test-step-tooltip .tooltip-inner {
-  max-width: 420px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  text-align: left;
 }
 </style>
