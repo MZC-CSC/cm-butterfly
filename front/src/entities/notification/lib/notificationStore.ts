@@ -1,4 +1,4 @@
-import { reactive, computed } from 'vue';
+import { reactive, computed, ref } from 'vue';
 import {
   useListNotifications,
   useAddNotification,
@@ -8,6 +8,7 @@ import {
   type NotificationLevel,
   type NotificationCategory,
 } from '@/entities/notification/api';
+import { showNotificationToast } from '@/shared/utils';
 
 /**
  * 알림 배지 (BAR-1536)
@@ -30,6 +31,30 @@ const state = reactive<{ items: NotificationRecord[] }>({ items: [] });
 let pollTimer: ReturnType<typeof setTimeout> | null = null;
 let running = false;
 
+/**
+ * Whether an arriving notification also flashes on screen (BAR-1579).
+ *
+ * The inbox always keeps it; this only controls the extra two-second toast. Stored in
+ * localStorage like the workflow settings, defaulting to on — the toast is the point of the
+ * feature, so someone who wants inbox-only turns it off rather than the other way around.
+ */
+const POPUP_KEY = 'cmig.notificationPopupEnabled';
+const readPopupPref = (): boolean => {
+  const v = localStorage.getItem(POPUP_KEY);
+  return v === null ? true : v === 'true';
+};
+export const notificationPopupEnabled = ref<boolean>(readPopupPref());
+export function setNotificationPopupEnabled(on: boolean): void {
+  notificationPopupEnabled.value = on;
+  localStorage.setItem(POPUP_KEY, String(on));
+}
+
+// Ids seen on the previous poll, so a poll can tell which notifications are new and only toast
+// those. `primed` guards the first load — logging in must not flash the whole backlog as if it
+// had just arrived.
+let knownIds = new Set<string>();
+let primed = false;
+
 /** 화면이 그리는 목록(최신순 — 서버가 정렬해 준다). */
 export const notifications = computed(() => state.items);
 
@@ -49,7 +74,19 @@ export const hasErrorNotification = computed(() =>
 export async function loadNotifications(): Promise<void> {
   try {
     const res = await useListNotifications().execute();
-    state.items = res.data.responseData ?? [];
+    const items = res.data.responseData ?? [];
+    // Flash the ones that were not here last time. Only after the first load (so a login does
+    // not replay the backlog), and only when the popup is on.
+    if (primed && notificationPopupEnabled.value) {
+      for (const n of items) {
+        if (!knownIds.has(n.id)) {
+          showNotificationToast(n.category ?? 'Notification', n.message, n.level);
+        }
+      }
+    }
+    knownIds = new Set(items.map(n => n.id));
+    primed = true;
+    state.items = items;
   } catch (e) {
     console.warn('failed to load notifications', e);
   }
@@ -130,4 +167,7 @@ export function stopNotificationPolling(): void {
     pollTimer = null;
   }
   state.items = [];
+  // Forget what was seen, so the next login re-primes and does not replay the backlog as toasts.
+  knownIds = new Set();
+  primed = false;
 }
