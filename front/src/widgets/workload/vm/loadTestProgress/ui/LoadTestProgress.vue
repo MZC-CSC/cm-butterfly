@@ -308,6 +308,14 @@ const phaseBars = computed<Record<string, PhaseBar | null>>(() => {
   for (const p of steps.value) m[p.name] = phaseBar(p);
   return m;
 });
+// Template helpers — a Vue template expression cannot use the TS non-null assertion (`!`), so
+// the null handling lives here. hasBar gates the markup; barPct returns the width (null = the
+// indeterminate sweep).
+const hasBar = (name: string) => phaseBars.value[name] != null;
+const barPct = (name: string): number | null => {
+  const b = phaseBars.value[name];
+  return b ? b.pct : null;
+};
 
 // Hover tooltip (badge variant): the tree as text, with the failing step's detail.
 const TOOLTIP_MARK: Record<string, string> = {
@@ -431,25 +439,23 @@ const hasSteps = computed(() => steps.value.length > 0);
           <span class="lt-label">{{ stepLabel(phase.name) }}</span>
           <span class="lt-elapsed">{{ elapsedText(phase.elapsedSec) }}</span>
           <!-- one small bar that rides along with the running phase -->
-          <template v-if="phaseBars[phase.name]">
+          <template v-if="hasBar(phase.name)">
             <span
               class="lt-phase-bar"
-              :class="{ indeterminate: phaseBars[phase.name]!.pct === null }"
+              :class="{ indeterminate: barPct(phase.name) === null }"
               data-testid="load-test-phase-bar"
             >
               <span
                 class="lt-phase-fill"
                 :style="
-                  phaseBars[phase.name]!.pct !== null
-                    ? { width: phaseBars[phase.name]!.pct + '%' }
+                  barPct(phase.name) !== null
+                    ? { width: barPct(phase.name) + '%' }
                     : {}
                 "
               ></span>
             </span>
-            <span
-              v-if="phaseBars[phase.name]!.pct !== null"
-              class="lt-phase-pct"
-              >{{ phaseBars[phase.name]!.pct }}%</span
+            <span v-if="barPct(phase.name) !== null" class="lt-phase-pct"
+              >{{ barPct(phase.name) }}%</span
             >
           </template>
         </div>
