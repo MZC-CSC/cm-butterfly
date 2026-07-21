@@ -25,7 +25,8 @@ interface IProps {
   expectedSeconds?: number;
   failureMessage?: string;
   isPolling?: boolean;
-  variant?: 'full' | 'compact';
+  // 'full' = message + bar + steps · 'compact' = message + bar · 'steps' = step list only
+  variant?: 'full' | 'compact' | 'steps';
 }
 
 const props = withDefaults(defineProps<IProps>(), { variant: 'full' });
@@ -123,12 +124,16 @@ const stepMark = (status: string) => STEP_MARK[status] ?? '○';
 
 <template>
   <div class="load-test-progress" data-testid="load-test-progress">
-    <!-- two-line summary above the bar -->
-    <p class="lt-primary" data-testid="load-test-progress-primary">
+    <!-- two-line summary above the bar (not in 'steps' mode, which is the finished step list) -->
+    <p
+      v-if="variant !== 'steps'"
+      class="lt-primary"
+      data-testid="load-test-progress-primary"
+    >
       {{ primaryLine }}
     </p>
     <p
-      v-if="secondaryLine"
+      v-if="variant !== 'steps' && secondaryLine"
       class="lt-secondary"
       data-testid="load-test-progress-secondary"
     >
@@ -136,7 +141,7 @@ const stepMark = (status: string) => STEP_MARK[status] ?? '○';
     </p>
 
     <!-- the bar, with a live indicator while polling -->
-    <div class="lt-bar-row">
+    <div v-if="variant !== 'steps'" class="lt-bar-row">
       <div class="lt-bar" data-testid="load-test-progress-bar">
         <div
           class="lt-fill"
@@ -162,7 +167,7 @@ const stepMark = (status: string) => STEP_MARK[status] ?? '○';
 
     <!-- every step below the bar, no scrollbar; errors in red -->
     <ul
-      v-if="variant === 'full' && steps.length"
+      v-if="(variant === 'full' || variant === 'steps') && steps.length"
       class="lt-steps"
       data-testid="load-test-progress-steps"
     >
