@@ -397,10 +397,10 @@ function handelClose() {
               </p-text-input>
             </template>
           </p-field-group>
-          <div class="flex gap-1">
+          <div class="flex flex-col gap-2">
             <p-field-group
               :invalid="!loadConfigModel.inputModels.rampUpTime.isValid"
-              class="flex-1 !m-0 min-w-0"
+              class="!m-0"
               :label="'RampUp Time'"
               required
             >
@@ -417,7 +417,7 @@ function handelClose() {
             </p-field-group>
             <p-field-group
               :invalid="!loadConfigModel.inputModels.rampUpSteps.isValid"
-              class="flex-1 !m-0 min-w-0"
+              class="!m-0"
               :label="'RampUp Steps'"
               required
             >
