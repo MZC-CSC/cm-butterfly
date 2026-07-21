@@ -105,7 +105,18 @@ const resStopLoadTest = useStopLoadTest(null);
 // Re-run: state used to pre-fill Load Config from the last run's parameters.
 const resLoadTestInfo = useGetLoadTestInfo(null);
 const rerunConfig = ref<ILoadConfigInitialValues | null>(null);
+// What was last submitted from this screen, kept so Re-run can pre-fill even when the server
+// cannot. A run that fails in pre-check has no execution info, so GetLoadTestExecutionInfo 500s
+// and the server route returns nothing — this local copy is what makes Re-run reliable.
+const lastSubmittedConfig = ref<ILoadConfigInitialValues | null>(null);
 async function handleReRun() {
+  // Prefer what was submitted here; it is always the real last configuration and does not
+  // depend on the server being able to reconstruct it.
+  if (lastSubmittedConfig.value) {
+    rerunConfig.value = { ...lastSubmittedConfig.value };
+    modalState.loadConfigRequest.open = true;
+    return;
+  }
   const key = currentLoadTestKey.value;
   if (!key) {
     // With no run history, open an empty Load Config
@@ -381,8 +392,14 @@ function handleLoadConfigRequestClose() {
   modalState.loadConfigRequest.open = false;
 }
 
-function handleLoadConfigRequestSuccess(e: string, loadTestKey?: string) {
+function handleLoadConfigRequestSuccess(
+  e: string,
+  loadTestKey?: string,
+  submitted?: ILoadConfigInitialValues,
+) {
   modalState.loadConfigRequest.open = false;
+  // Remember exactly what was submitted so Re-run pre-fills from it (see handleReRun).
+  if (submitted) lastSubmittedConfig.value = submitted;
   // No success popup: land on the Evaluate Perf tab, where the full progress (phase/sub-step
   // tree, bar, live line) is shown. The popup only duplicated a subset of that and jumped as
   // the step text changed height, so a request from any tab now just moves here (user request).
