@@ -146,11 +146,11 @@ function handleExport() {
   try {
     json = getCurrentJson();
   } catch (err) {
-    setError(`내보내기 실패: JSON 형식이 올바르지 않습니다 (${(err as Error).message})`);
+    setError(`Export failed: invalid JSON format (${(err as Error).message})`);
     return;
   }
   if (json === null) {
-    setError('내보내기 실패: 내보낼 JSON 내용이 없습니다');
+    setError('Export failed: no JSON content to export');
     return;
   }
 
@@ -180,7 +180,7 @@ function applyImportedText(text: string, sourceName: string) {
   try {
     json = JSON.parse(text);
   } catch (err) {
-    setError(`가져오기 실패: JSON 파싱 오류 (${(err as Error).message})`);
+    setError(`Import failed: JSON parse error (${(err as Error).message})`);
     return;
   }
 
@@ -201,7 +201,7 @@ function handleFileSelected(event: Event) {
 
   if (file.size > props.maxImportSize) {
     const limitMb = Math.round(props.maxImportSize / (1024 * 1024));
-    setError(`가져오기 실패: 파일이 너무 큽니다 (최대 ${limitMb}MB)`);
+    setError(`Import failed: file is too large (max ${limitMb}MB)`);
     input.value = '';
     return;
   }
@@ -212,7 +212,7 @@ function handleFileSelected(event: Event) {
     input.value = ''; // 같은 파일을 다시 선택할 수 있도록 비운다
   };
   reader.onerror = () => {
-    setError('가져오기 실패: 파일을 읽을 수 없습니다');
+    setError('Import failed: cannot read file');
     input.value = '';
   };
   reader.readAsText(file);
@@ -435,7 +435,7 @@ defineExpose({
         v-if="showImport"
         type="button"
         class="file-btn"
-        title="JSON 파일 가져오기"
+        title="Import JSON file"
         @click="triggerImport"
       >
         ↑ Import
@@ -444,7 +444,7 @@ defineExpose({
         v-if="showExport"
         type="button"
         class="file-btn"
-        title="JSON 파일로 내보내기"
+        title="Export to JSON file"
         @click="handleExport"
       >
         ↓ Export

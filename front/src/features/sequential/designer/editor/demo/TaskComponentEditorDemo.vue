@@ -2,12 +2,12 @@
   <div class="task-component-editor-demo">
     <div class="demo-header">
       <h1>Task Component Editor Demo</h1>
-      <p>vue-json-ui-editor를 사용한 Task Component 설정 에디터</p>
+      <p>Task Component configuration editor using vue-json-ui-editor</p>
     </div>
 
     <div class="demo-content">
       <div class="demo-section">
-        <h2>Step 정보</h2>
+        <h2>Step Info</h2>
         <div class="step-info">
           <p><strong>Step Name:</strong> {{ step.name }}</p>
           <p><strong>Step Type:</strong> {{ step.type }}</p>
@@ -26,7 +26,7 @@
       </div>
 
       <div class="demo-section">
-        <h2>저장된 데이터</h2>
+        <h2>Saved Data</h2>
         <div class="saved-data">
           <h3>Component Name:</h3>
           <p>{{ savedComponentName }}</p>

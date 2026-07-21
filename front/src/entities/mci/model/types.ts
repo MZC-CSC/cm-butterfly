@@ -197,17 +197,27 @@ interface LoadGeneratorInstallInfo {
   updatedAt: string;
 }
 
-// 부하테스트 실행 단계(cm-ant FR-MA2-PERF-007-08 steps[]).
-// name: generator_install·agent_install·jmx_prepare·jmeter_run·result_fetch
-// status: pending·running·ok·failed·skipped
+// One stage of a load test run (cm-ant FR-MA2-PERF-007-08 steps[]).
+//
+// cm-ant returns these already shaped as a tree (BAR-1553): the top level is the phases
+// (precheck · generator_install · agent_install · jmx_prepare · jmeter_run · result_fetch)
+// and each phase carries its sub-steps in `children`. A caller that only wants the phases
+// can ignore `children` and see what it saw before.
+//   status : pending · running · ok · failed · skipped
+//   message: short current-status line (e.g. "Checking the metric agent port")
+//   detail : verbose diagnosis / error cause (multi-line, shown on a failed step)
+//   elapsedSec: whole span once done, or time-so-far while running
 export interface ILoadTestExecutionStep {
   seq?: number;
   name: string;
   status: string;
+  attempt?: number;
   startAt?: string;
   finishAt?: string;
   message?: string;
   detail?: string;
+  elapsedSec?: number;
+  children?: ILoadTestExecutionStep[];
 }
 
 export interface ILastloadtestStateResponse {
@@ -226,7 +236,7 @@ export interface ILastloadtestStateResponse {
   finishAt?: string;
   totalExpectedExecutionSecond: number;
   updatedAt: string;
-  // cm-ant v0.5.3+ 세분화 상태(FR-007-08). 구버전이면 없음.
+  // Fine-grained progress (cm-ant FR-007-08). Absent on older cm-ant.
   failureMessage?: string;
   steps?: ILoadTestExecutionStep[];
 }

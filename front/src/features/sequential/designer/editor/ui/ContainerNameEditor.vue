@@ -58,7 +58,7 @@
             @input="handleDescriptionChange"
             class="param-input"
             style="min-height: 80px; resize: vertical"
-            placeholder="설명을 입력하세요..."
+            placeholder="Enter a description..."
           />
         </div>
       </div>
@@ -123,8 +123,8 @@ export default defineComponent({
 
     const infoDescription = computed(() =>
       isLaunchPad.value
-        ? '이 Parallel 내의 task들은 동시에 병렬 실행됩니다.'
-        : '이 TaskGroup 내의 task들은 순차적으로 실행됩니다.',
+        ? 'Tasks in this Parallel run concurrently in parallel.'
+        : 'Tasks in this TaskGroup run sequentially.',
     );
 
     const infoBoxStyle = computed(() => ({

@@ -174,7 +174,7 @@ async function fetchWorkflowList() {
     });
   } catch (e) {
     workflowStore.setWorkFlows([]);
-    showErrorMessage('error', 'Workflow 목록 조회 중 오류가 발생했습니다.');
+    showErrorMessage('error', 'An error occurred while loading the workflow list.');
     isDataLoaded.value = true;
   } finally {
     tableModel.tableState.loading = false;

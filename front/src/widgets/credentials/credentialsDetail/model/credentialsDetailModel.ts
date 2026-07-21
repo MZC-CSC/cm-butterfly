@@ -42,7 +42,7 @@ export function useCredentialsDetailModel() {
       };
     } else {
       tableModel.tableState.data = {};
-      showErrorMessage('Error', '선택한 Credential을 찾을 수 없습니다.');
+      showErrorMessage('Error', 'The selected Credential could not be found.');
     }
     tableModel.tableState.loading = false;
   }

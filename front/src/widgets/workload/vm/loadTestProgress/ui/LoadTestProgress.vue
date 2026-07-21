@@ -1,32 +1,37 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from 'vue';
+import { PTooltip } from '@cloudforet-test/mirinae';
 import { ILoadTestExecutionStep } from '@/entities/mci/model';
 
 /**
- * Shared load-test progress display.
+ * Shared load-test progress display — the single place that knows how a run is shown.
  *
- * The same progress needs to appear in three places — the Evaluate Perf tab, the Information
- * tab, and the Load Config popup — so the rendering lives here rather than being copied.
+ * cm-ant returns steps[] already shaped as a tree (BAR-1553): the top level is the phases
+ * and each phase carries its sub-steps in `children`. Everything derived from that — labels,
+ * the current running leaf, the whole-process percentage, the hover tooltip — lives here so
+ * the Evaluate Perf tab, the Information tab and the Load Config popup all render from one
+ * implementation. Consumers only pass the raw state and pick a `variant`.
  *
- * This is display only. It polls nothing and owns no timer. The live data (status, steps,
- * elapsed) is passed in by the owner (VmList), and whether polling is alive is passed as
- * `isPolling` so the bar can show it is still updating rather than stuck.
+ * This is display only. It polls nothing and owns no timer that fetches; the live data
+ * (status, steps, elapsed) is passed in by the owner (VmList), and `isPolling` says whether
+ * the poll is alive so the bar can show it is still updating rather than stuck.
  *
- * Layout (user-specified):
- *   above the bar   — two lines: line 1 the current stage (bold), line 2 the live detail
- *   the bar         — elapsed ratio, with a live indicator while polling
- *   below the bar   — every step, laid out without a scrollbar; errors in red
+ * Variants:
+ *   full    — two-line summary + bar + full phase/sub-step tree   (Evaluate Perf running panel)
+ *   compact — fixed-height bar row only, no changing text lines    (popup / Information cell while running)
+ *   steps   — the phase/sub-step tree only                         (failed panel)
+ *   badge   — status chip (failed = red) with the tree on hover    (Evaluate Perf header / Information cell when terminal)
  */
 
 interface IProps {
   statusLabel?: string;
   steps?: ILoadTestExecutionStep[];
   startAt?: string;
+  finishAt?: string;
   expectedSeconds?: number;
   failureMessage?: string;
   isPolling?: boolean;
-  // 'full' = message + bar + steps · 'compact' = message + bar · 'steps' = step list only
-  variant?: 'full' | 'compact' | 'steps';
+  variant?: 'full' | 'compact' | 'steps' | 'badge';
 }
 
 const props = withDefaults(defineProps<IProps>(), { variant: 'full' });
@@ -35,8 +40,11 @@ const isRunning = computed(() =>
   ['Running', 'Collecting results'].includes(props.statusLabel ?? ''),
 );
 const isCompleted = computed(() => props.statusLabel === 'Completed');
+const isFailed = computed(() => props.statusLabel === 'Failed');
 
-// A one-second cosmetic tick so the elapsed bar advances smoothly. This is not polling —
+const steps = computed<ILoadTestExecutionStep[]>(() => props.steps ?? []);
+
+// A one-second cosmetic tick so the bar advances smoothly between 5s polls. Not polling —
 // it never fetches; it only re-reads the clock while a run is active.
 const nowMs = ref(Date.now());
 let tick: ReturnType<typeof setInterval> | null = null;
@@ -60,44 +68,171 @@ watch(
 );
 onBeforeUnmount(stopTick);
 
-const STEP_LABEL: Record<string, string> = {
-  generator_install: 'Generator install',
-  agent_install: 'Agent install',
-  jmx_prepare: 'JMX prepare',
-  jmeter_run: 'JMeter run',
-  result_fetch: 'Result fetch',
+// ── Step identity ─────────────────────────────────────────────────────────────
+// The label is the step's *identity* (a stable row title); the message is its live result.
+const PHASE_ORDER = [
+  'precheck',
+  'generator_install',
+  'agent_install',
+  'jmx_prepare',
+  'jmeter_run',
+  'result_fetch',
+];
+const PHASE_LABEL: Record<string, string> = {
+  precheck: 'Pre-check',
+  generator_install: 'Load generator install',
+  agent_install: 'Metric agent install',
+  jmx_prepare: 'Test plan',
+  jmeter_run: 'Load run',
+  result_fetch: 'Collect results',
 };
-const stepLabel = (name: string) => STEP_LABEL[name] ?? name;
+const SUB_LABEL: Record<string, string> = {
+  'precheck.target_exists': 'Target exists',
+  'precheck.target_running': 'Target running',
+  'precheck.target_reachable': 'Target reachable',
+  'precheck.metric_port_open': 'Metric port open',
+  'precheck.remote_command': 'Remote command',
+  'generator_install.lookup': 'Look up generator',
+  'generator_install.verify_alive': 'Verify alive',
+  'generator_install.reachable': 'Reachable',
+  'generator_install.provision': 'Provision',
+  'generator_install.install': 'Install',
+  'generator_install.verify_install': 'Verify install',
+  'agent_install.install': 'Install',
+  'agent_install.process_up': 'Process up',
+  'agent_install.port_reachable': 'Port reachable',
+  'jmx_prepare.generate': 'Generate plan',
+  'jmx_prepare.transfer': 'Transfer plan',
+  'jmeter_run.start': 'Start',
+  'jmeter_run.ramp_up': 'Ramp up',
+  'jmeter_run.hold': 'Hold',
+  'jmeter_run.exit': 'Exit',
+  'result_fetch.file_result': 'Result file',
+  'result_fetch.file_cpu': 'CPU metrics',
+  'result_fetch.file_memory': 'Memory metrics',
+  'result_fetch.file_disk': 'Disk metrics',
+  'result_fetch.file_network': 'Network metrics',
+  'result_fetch.persist': 'Persist',
+};
+// Expected sub-step count per phase, used as a stable denominator for progress. cm-ant seeds
+// sub-steps as the run reaches them, so children.length grows over time; the catalog does not.
+const PHASE_SUBCOUNT: Record<string, number> = {
+  precheck: 5,
+  generator_install: 6,
+  agent_install: 3,
+  jmx_prepare: 2,
+  jmeter_run: 4,
+  result_fetch: 6,
+};
+// The load run is the bulk of the wall-clock time; the checks and installs around it are quick.
+// Weighting the phases keeps a stuck pre-check near the start of the bar instead of near the end.
+const PHASE_WEIGHT: Record<string, number> = {
+  precheck: 1,
+  generator_install: 4,
+  agent_install: 2,
+  jmx_prepare: 1,
+  jmeter_run: 8,
+  result_fetch: 2,
+};
 
-const steps = computed<ILoadTestExecutionStep[]>(() => props.steps ?? []);
+const prettify = (s: string) =>
+  s.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
+const stepLabel = (name: string) =>
+  SUB_LABEL[name] ??
+  PHASE_LABEL[name] ??
+  prettify(name.includes('.') ? name.split('.').pop() ?? name : name);
 
-// The step currently running, else the last failed one — drives the two-line summary.
-const currentStep = computed(
-  () =>
-    steps.value.find(s => s.status === 'running') ??
-    [...steps.value].reverse().find(s => s.status === 'failed') ??
-    null,
-);
+const isTerminal = (s: string) => s === 'ok' || s === 'failed' || s === 'skipped';
+const isDone = (s: string) => s === 'ok' || s === 'skipped';
 
-// Line 1: status + current stage. Line 2: that stage's live message/detail.
+// ── Current leaf (drives the live two-line summary) ─────────────────────────────
+// The running *phase* carries a static message ("Checking the environment"); the text that
+// actually moves is on the running *sub-step*. Drilling to the deepest running node is what
+// keeps the second line changing instead of frozen.
+const currentLeaf = computed(() => {
+  const phases = steps.value;
+  const runningPhase = phases.find(p => p.status === 'running');
+  if (runningPhase) {
+    const child = (runningPhase.children ?? []).find(c => c.status === 'running');
+    return { phase: runningPhase, leaf: child ?? runningPhase };
+  }
+  const failedPhase = [...phases].reverse().find(p => p.status === 'failed');
+  if (failedPhase) {
+    const child = [...(failedPhase.children ?? [])]
+      .reverse()
+      .find(c => c.status === 'failed');
+    return { phase: failedPhase, leaf: child ?? failedPhase };
+  }
+  return null;
+});
+
+// Line 1: status + where it is now ("Running · Pre-check › Metric port open").
 const primaryLine = computed(() => {
   const base = props.statusLabel ?? '';
-  if (isRunning.value && currentStep.value) {
-    return `${base} · ${stepLabel(currentStep.value.name)}`;
-  }
-  return base;
+  const cur = currentLeaf.value;
+  if (!cur) return base;
+  let where = stepLabel(cur.phase.name);
+  if (cur.leaf !== cur.phase) where += ` › ${stepLabel(cur.leaf.name)}`;
+  return base ? `${base} · ${where}` : where;
 });
-const secondaryLine = computed(() => {
-  const s = currentStep.value;
-  if (!s) return '';
-  return s.detail || s.message || '';
-});
+// Line 2: that leaf's live message.
+const secondaryLine = computed(
+  () => currentLeaf.value?.leaf.message ?? currentLeaf.value?.leaf.detail ?? '',
+);
 
-// Percent from startAt + expected seconds. Completed = 100. Unknown expected = null
-// (indeterminate bar). While running, capped 2..95 so it never reads 100 before it ends.
+// ── Whole-process progress (weighted by phase, not by wall-clock) ───────────────
+const phasesByName = computed(
+  () => new Map(steps.value.map(p => [p.name, p])),
+);
+const laterPhaseStarted = (name: string) => {
+  const i = PHASE_ORDER.indexOf(name);
+  if (i < 0) return false;
+  return PHASE_ORDER.slice(i + 1).some(n => {
+    const p = phasesByName.value.get(n);
+    return !!p && p.status !== 'pending';
+  });
+};
+const childCompletion = (node: ILoadTestExecutionStep, name: string) => {
+  const denom = PHASE_SUBCOUNT[name] ?? (node.children?.length || 1);
+  const done = (node.children ?? []).filter(c => isDone(c.status)).length;
+  return Math.min(1, done / denom);
+};
+const phaseCompletion = (name: string) => {
+  const node = phasesByName.value.get(name);
+  if (!node) return laterPhaseStarted(name) ? 1 : 0;
+  const st = node.status;
+  if (isDone(st)) return 1;
+  if (st === 'pending') return laterPhaseStarted(name) ? 1 : 0;
+  const childRatio = childCompletion(node, name);
+  if (st === 'failed') return childRatio; // partial, wherever it died
+  // running
+  if (name === 'jmeter_run' && (props.expectedSeconds ?? 0) > 0) {
+    const el = node.elapsedSec ?? 0;
+    return Math.max(0.05, Math.min(0.95, el / (props.expectedSeconds as number)));
+  }
+  return Math.max(0.05, Math.min(0.9, childRatio));
+};
+
 const progressPercent = computed<number | null>(() => {
   if (isCompleted.value) return 100;
-  if (!isRunning.value) return 0;
+  if (!isRunning.value && !isFailed.value) return 0;
+
+  // Preferred: weighted phase model over the real tree.
+  if (steps.value.length) {
+    let total = 0;
+    let acc = 0;
+    for (const name of PHASE_ORDER) {
+      const w = PHASE_WEIGHT[name];
+      total += w;
+      acc += w * phaseCompletion(name);
+    }
+    const pct = Math.round((acc / total) * 100);
+    if (isFailed.value) return Math.min(99, Math.max(1, pct));
+    return Math.max(1, Math.min(95, pct));
+  }
+
+  // Fallback for older cm-ant that sends no steps: time against the expected total.
+  if (isFailed.value) return null;
   const start = props.startAt ? Date.parse(props.startAt) : NaN;
   const expectedMs = (props.expectedSeconds ?? 0) * 1000;
   if (!start || Number.isNaN(start) || expectedMs <= 0) return null;
@@ -105,6 +240,7 @@ const progressPercent = computed<number | null>(() => {
   return Math.max(2, Math.min(95, Math.round(pct)));
 });
 
+// ── Marks + tooltip ─────────────────────────────────────────────────────────────
 const stepStateClass = (status: string) => ({
   'is-ok': status === 'ok',
   'is-running': status === 'running',
@@ -120,67 +256,148 @@ const STEP_MARK: Record<string, string> = {
   skipped: '–',
 };
 const stepMark = (status: string) => STEP_MARK[status] ?? '○';
+const elapsedText = (n?: number) => (n && n > 0 ? ` (${n}s)` : '');
+
+// Hover tooltip (badge variant): the tree as text, with the failing step's detail.
+const TOOLTIP_MARK: Record<string, string> = {
+  ok: '[OK]',
+  running: '[..]',
+  failed: '[X]',
+  pending: '[ ]',
+  skipped: '[-]',
+};
+const tooltipText = computed(() => {
+  const lines: string[] = [];
+  for (const p of steps.value) {
+    const mark = TOOLTIP_MARK[p.status] ?? `[${p.status}]`;
+    lines.push(`${mark} ${stepLabel(p.name)}${elapsedText(p.elapsedSec)}`);
+    for (const c of p.children ?? []) {
+      const cm = TOOLTIP_MARK[c.status] ?? `[${c.status}]`;
+      let line = `    ${cm} ${stepLabel(c.name)}`;
+      if (c.message) line += ` — ${c.message}`;
+      lines.push(line);
+      if (c.detail && (c.status === 'failed' || c.status === 'running')) {
+        for (const d of c.detail.split('\n')) lines.push(`        ${d}`);
+      }
+    }
+  }
+  if (lines.length) lines.push('');
+  if (props.startAt) lines.push(`Started: ${props.startAt}`);
+  if (props.finishAt) lines.push(`Finished: ${props.finishAt}`);
+  if (props.failureMessage && !steps.value.length) {
+    lines.push(`Error: ${props.failureMessage}`);
+  }
+  return lines.join('\n');
+});
+const badgeLabel = computed(() => primaryLine.value || props.statusLabel || '');
+const hasSteps = computed(() => steps.value.length > 0);
 </script>
 
 <template>
-  <div class="load-test-progress" data-testid="load-test-progress">
-    <!-- two-line summary above the bar (not in 'steps' mode, which is the finished step list) -->
-    <p
-      v-if="variant !== 'steps'"
-      class="lt-primary"
-      data-testid="load-test-progress-primary"
+  <!-- badge: a status chip with the step tree on hover (Evaluate Perf header, Information terminal cell) -->
+  <p-tooltip
+    v-if="variant === 'badge'"
+    :contents="tooltipText"
+    position="bottom"
+    :options="{ classes: ['p-tooltip', 'load-test-step-tooltip'] }"
+  >
+    <span
+      class="lt-badge"
+      :class="{ running: isRunning, failed: isFailed }"
+      data-testid="load-test-status-badge"
     >
-      {{ primaryLine }}
-    </p>
-    <p
-      v-if="variant !== 'steps' && secondaryLine"
-      class="lt-secondary"
-      data-testid="load-test-progress-secondary"
-    >
-      {{ secondaryLine }}
-    </p>
+      {{ badgeLabel }}
+    </span>
+  </p-tooltip>
 
-    <!-- the bar, with a live indicator while polling -->
-    <div v-if="variant !== 'steps'" class="lt-bar-row">
-      <div class="lt-bar" data-testid="load-test-progress-bar">
-        <div
-          class="lt-fill"
-          :class="{ indeterminate: progressPercent === null }"
-          :style="progressPercent !== null ? { width: progressPercent + '%' } : {}"
-        ></div>
-      </div>
-      <span
-        v-if="progressPercent !== null"
-        class="lt-pct"
-        data-testid="load-test-progress-pct"
-        >{{ progressPercent }}%</span
+  <div v-else class="load-test-progress" data-testid="load-test-progress">
+    <!-- two-line summary above the bar (full only — the live text is what makes compact jump) -->
+    <template v-if="variant === 'full'">
+      <p class="lt-primary" data-testid="load-test-progress-primary">
+        {{ primaryLine }}
+      </p>
+      <p
+        v-if="secondaryLine"
+        class="lt-secondary"
+        data-testid="load-test-progress-secondary"
       >
-      <!-- shows the value is live: spinning while polling, so a bar stuck at 60% reads as
-           "still checking" rather than "gave up". Stops when polling stops. -->
-      <span
-        v-if="isPolling"
-        class="lt-live"
-        data-testid="load-test-progress-live"
-        title="Checking…"
-      ></span>
-    </div>
+        {{ secondaryLine }}
+      </p>
+    </template>
 
-    <!-- every step below the bar, no scrollbar; errors in red -->
+    <!-- the bar. compact keeps a fixed height (single label line) so the cell never shakes. -->
+    <template v-if="variant === 'full' || variant === 'compact'">
+      <p
+        v-if="variant === 'compact'"
+        class="lt-compact-label"
+        data-testid="load-test-progress-primary"
+      >
+        {{ primaryLine }}
+      </p>
+      <div class="lt-bar-row">
+        <div class="lt-bar" data-testid="load-test-progress-bar">
+          <div
+            class="lt-fill"
+            :class="{ indeterminate: progressPercent === null }"
+            :style="progressPercent !== null ? { width: progressPercent + '%' } : {}"
+          ></div>
+        </div>
+        <span
+          v-if="progressPercent !== null"
+          class="lt-pct"
+          data-testid="load-test-progress-pct"
+          >{{ progressPercent }}%</span
+        >
+        <!-- live: spinning while polling, so a bar sitting at one value reads as "still
+             checking" rather than "gave up". Stops when polling stops. -->
+        <span
+          v-if="isPolling"
+          class="lt-live"
+          data-testid="load-test-progress-live"
+          title="Checking…"
+        ></span>
+      </div>
+    </template>
+
+    <!-- the phase / sub-step tree (full + steps). Left-aligned; failed steps in red with detail. -->
     <ul
-      v-if="(variant === 'full' || variant === 'steps') && steps.length"
+      v-if="(variant === 'full' || variant === 'steps') && hasSteps"
       class="lt-steps"
       data-testid="load-test-progress-steps"
     >
       <li
-        v-for="s in steps"
-        :key="s.name"
-        class="lt-step"
-        :class="stepStateClass(s.status)"
-        :data-testid="`load-test-step-${s.name}`"
+        v-for="phase in steps"
+        :key="phase.name"
+        class="lt-phase"
+        :data-testid="`load-test-step-${phase.name}`"
       >
-        <span class="lt-step-mark">{{ stepMark(s.status) }}</span>
-        <span class="lt-step-label">{{ stepLabel(s.name) }}</span>
-        <span v-if="s.message" class="lt-step-msg">— {{ s.message }}</span>
+        <div class="lt-row lt-parent" :class="stepStateClass(phase.status)">
+          <span class="lt-mark">{{ stepMark(phase.status) }}</span>
+          <span class="lt-label">{{ stepLabel(phase.name) }}</span>
+          <span class="lt-elapsed">{{ elapsedText(phase.elapsedSec) }}</span>
+        </div>
+        <ul v-if="phase.children && phase.children.length" class="lt-children">
+          <li
+            v-for="c in phase.children"
+            :key="c.name"
+            class="lt-row lt-child"
+            :class="stepStateClass(c.status)"
+            :data-testid="`load-test-step-${c.name}`"
+          >
+            <span class="lt-mark">{{ stepMark(c.status) }}</span>
+            <span class="lt-label">{{ stepLabel(c.name) }}</span>
+            <span class="lt-elapsed">{{ elapsedText(c.elapsedSec) }}</span>
+            <span v-if="c.message" class="lt-msg">— {{ c.message }}</span>
+            <!-- verbose cause for a failed step, wrapped, left-aligned -->
+            <div
+              v-if="c.detail && c.status === 'failed'"
+              class="lt-detail"
+              :data-testid="`load-test-step-detail-${c.name}`"
+            >
+              {{ c.detail }}
+            </div>
+          </li>
+        </ul>
       </li>
     </ul>
   </div>
@@ -208,10 +425,23 @@ const stepMark = (status: string) => STEP_MARK[status] ?? '○';
   word-break: break-word;
 }
 
+/* compact label: a single line, ellipsised, so its height never changes (no vertical shake) */
+.lt-compact-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #343a40;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+  height: 17px;
+}
+
 .lt-bar-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  height: 16px;
 }
 
 .lt-bar {
@@ -251,7 +481,6 @@ const stepMark = (status: string) => STEP_MARK[status] ?? '○';
   text-align: right;
 }
 
-/* live indicator — a small spinner shown only while polling */
 .lt-live {
   width: 12px;
   height: 12px;
@@ -259,6 +488,7 @@ const stepMark = (status: string) => STEP_MARK[status] ?? '○';
   border-top-color: transparent;
   border-radius: 50%;
   animation: lt-spin 0.8s linear infinite;
+  flex-shrink: 0;
 }
 
 @keyframes lt-spin {
@@ -267,46 +497,130 @@ const stepMark = (status: string) => STEP_MARK[status] ?? '○';
   }
 }
 
+/* ── the phase / sub-step tree ── */
 .lt-steps {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   margin-top: 6px;
   list-style: none;
   padding: 0;
+  text-align: left;
 }
 
-.lt-step {
+.lt-children {
+  list-style: none;
+  padding: 0;
+  margin: 2px 0 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lt-row {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: 6px;
   font-size: 12px;
   color: #495057;
   word-break: break-word;
 }
 
-.lt-step-mark {
+.lt-parent {
+  font-weight: 700;
+  color: #343a40;
+  font-size: 12.5px;
+}
+
+.lt-child {
+  padding-left: 20px;
+}
+
+.lt-mark {
   width: 14px;
   text-align: center;
   flex-shrink: 0;
 }
 
-.lt-step.is-ok .lt-step-mark {
+.lt-elapsed {
+  color: #adb5bd;
+  font-weight: 400;
+}
+
+.lt-msg {
+  color: #868e96;
+  font-weight: 400;
+}
+
+/* status colours */
+.lt-row.is-ok .lt-mark {
   color: #2f9e44;
 }
-.lt-step.is-running {
+.lt-row.is-running {
   font-weight: 600;
 }
-.lt-step.is-running .lt-step-mark {
+.lt-row.is-running .lt-mark,
+.lt-row.is-running .lt-msg {
   color: #1971c2;
 }
-/* errors in red (user-specified) */
-.lt-step.is-failed,
-.lt-step.is-failed .lt-step-mark {
+.lt-row.is-failed,
+.lt-row.is-failed .lt-mark,
+.lt-row.is-failed .lt-msg {
   color: #e03131;
 }
-.lt-step.is-pending,
-.lt-step.is-skipped {
+.lt-row.is-pending,
+.lt-row.is-skipped {
   color: #adb5bd;
+}
+
+/* verbose failure cause — normal weight, red, wrapped, left-aligned (never centred) */
+.lt-detail {
+  flex-basis: 100%;
+  margin: 2px 0 2px 20px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: #c92a2a;
+  background-color: #fff5f5;
+  border-left: 2px solid #ffc9c9;
+  border-radius: 2px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: left;
+}
+
+/* ── badge chip ── */
+.lt-badge {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background-color: #f1f3f5;
+  color: #495057;
+  max-width: 340px;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.35;
+  cursor: default;
+}
+.lt-badge.running {
+  background-color: #e7f5ff;
+  color: #1971c2;
+}
+.lt-badge.failed {
+  background-color: #fff0f0;
+  color: #e03131;
+}
+</style>
+
+<!-- global: keep the long, multi-line tooltip readable (default .tooltip-inner is white-space:pre
+     and clips lines past 640px). pre-wrap + word-break lets the failure detail wrap. -->
+<style lang="postcss">
+.p-tooltip.load-test-step-tooltip .tooltip-inner {
+  max-width: 460px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: left;
 }
 </style>

@@ -183,22 +183,22 @@ export class DataMapper {
     if (schema.required && Array.isArray(schema.required)) {
       schema.required.forEach((field: string) => {
         if (data === undefined || data === null || data[field] === undefined) {
-          errors.push(`필수 필드 '${field}'가 누락되었습니다.`);
+          errors.push(`Required field '${field}' is missing.`);
         }
       });
     }
 
     // 타입 검증
     if (schema.type === 'string' && typeof data !== 'string') {
-      errors.push(`문자열 타입이어야 합니다.`);
+      errors.push(`Must be a string type.`);
     } else if (schema.type === 'integer' && typeof data !== 'number') {
-      errors.push(`정수 타입이어야 합니다.`);
+      errors.push(`Must be an integer type.`);
     } else if (schema.type === 'boolean' && typeof data !== 'boolean') {
-      errors.push(`불린 타입이어야 합니다.`);
+      errors.push(`Must be a boolean type.`);
     } else if (schema.type === 'object' && typeof data !== 'object') {
-      errors.push(`객체 타입이어야 합니다.`);
+      errors.push(`Must be an object type.`);
     } else if (schema.type === 'array' && !Array.isArray(data)) {
-      errors.push(`배열 타입이어야 합니다.`);
+      errors.push(`Must be an array type.`);
     }
 
     return {

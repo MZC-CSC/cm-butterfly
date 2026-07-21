@@ -173,11 +173,11 @@ export class SchemaAnalyzer {
    */
   static getComplexityDescription(complexity: string): string {
     const descriptions: Record<string, string> = {
-      'basic': '기본 타입 - 단순한 값',
-      'composite': '복합 타입 - 기본 타입들의 조합',
-      'complex': '복잡한 타입 - 중첩된 구조 포함'
+      'basic': 'Basic type - a simple value',
+      'composite': 'Composite type - a combination of basic types',
+      'complex': 'Complex type - includes nested structure'
     };
     
-    return descriptions[complexity] || '알 수 없는 타입';
+    return descriptions[complexity] || 'Unknown type';
   }
 }
