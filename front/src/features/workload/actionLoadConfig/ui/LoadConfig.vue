@@ -308,7 +308,7 @@ function handelClose() {
             <template #default="{ invalid }">
               <div class="flex gap-1">
                 <p-select-dropdown
-                  class="flex-1"
+                  class="flex-1 min-w-0"
                   :menu="loadConfigModel.protocol.menu"
                   :selected="loadConfigModel.protocol.selected"
                   :placeholder="'Protocol'"
@@ -318,7 +318,7 @@ function handelClose() {
                   v-model="loadConfigModel.inputModels.path.value"
                   data-testid="load-config-path"
                   :invalid="invalid"
-                  class="flex-2"
+                  class="flex-2 min-w-0"
                   :placeholder="'Path'"
                   block
                 />
@@ -400,7 +400,7 @@ function handelClose() {
           <div class="flex gap-1">
             <p-field-group
               :invalid="!loadConfigModel.inputModels.rampUpTime.isValid"
-              class="flex-1 !m-0"
+              class="flex-1 !m-0 min-w-0"
               :label="'RampUp Time'"
               required
             >
@@ -417,7 +417,7 @@ function handelClose() {
             </p-field-group>
             <p-field-group
               :invalid="!loadConfigModel.inputModels.rampUpSteps.isValid"
-              class="flex-1 !m-0"
+              class="flex-1 !m-0 min-w-0"
               :label="'RampUp Steps'"
               required
             >
@@ -459,10 +459,10 @@ function handelClose() {
             <p>Collect Additional System Metrics</p>
           </div>
           <p-divider class="mt-2 mb-2" />
-          <div class="flex w-full gap-1">
+          <div class="flex flex-col w-full gap-2">
             <p-field-group
               :invalid="!loadConfigModel.inputModels.agentHostName.isValid"
-              class="!m-0 flex-2"
+              class="!m-0"
               :label="'Agent Hostname'"
             >
               <template #default="{ invalid }">
@@ -475,8 +475,8 @@ function handelClose() {
               </template>
             </p-field-group>
             <p-field-group
-              class="!m-0 flex-1"
-              :label="'Agent Hostname'"
+              class="!m-0"
+              :label="'Agent Installed'"
               required
             >
               <template #default="{ invalid }">
