@@ -101,7 +101,7 @@ function createTableFromArray(
 
     return {
       columns: [
-        { key: '_index', label: '순번', width: '80px' },
+        { key: '_index', label: 'No.', width: '80px' },
         ...columns
       ],
       rows
@@ -110,8 +110,8 @@ function createTableFromArray(
     // 기본값 배열인 경우
     return {
       columns: [
-        { key: 'index', label: '순번', width: '80px' },
-        { key: 'value', label: '값', width: '200px' }
+        { key: 'index', label: 'No.', width: '80px' },
+        { key: 'value', label: 'Value', width: '200px' }
       ],
       rows: limitedArray.map((item, index) => ({
         index: index + 1,
@@ -148,8 +148,8 @@ function createTableFromObject(
 function createSimpleTable(key: string, value: any): TableData {
   return {
     columns: [
-      { key: 'key', label: '키', width: '200px' },
-      { key: 'value', label: '값', width: '300px' }
+      { key: 'key', label: 'Key', width: '200px' },
+      { key: 'value', label: 'Value', width: '300px' }
     ],
     rows: [{
       key,
@@ -220,7 +220,7 @@ function flattenObject(obj: any, maxDepth: number, currentDepth: number = 0): Re
     const value = obj[key];
     
     if (Array.isArray(value)) {
-      flattened[key] = `[${value.length}개 항목]`;
+      flattened[key] = `[${value.length} items]`;
     } else if (typeof value === 'object' && value !== null) {
       if (currentDepth < maxDepth - 1) {
         const nested = flattenObject(value, maxDepth, currentDepth + 1);
@@ -255,13 +255,13 @@ export function createMigrationDataTables(jsonData: any): TableData[] {
         // 서버 기본 정보 표
         tables.push({
           columns: [
-            { key: 'field', label: '필드', width: '200px' },
-            { key: 'value', label: '값', width: '300px' }
+            { key: 'field', label: 'Field', width: '200px' },
+            { key: 'value', label: 'Value', width: '300px' }
           ],
           rows: [
-            { field: '서버 인덱스', value: serverIndex + 1 },
-            { field: '에러', value: server.errors?.join(', ') || '없음' },
-            { field: '소스 연결 ID', value: data.source_connection_info_id || 'N/A' }
+            { field: 'Server Index', value: serverIndex + 1 },
+            { field: 'Error', value: server.errors?.join(', ') || 'None' },
+            { field: 'Source Connection ID', value: data.source_connection_info_id || 'N/A' }
           ]
         });
 
@@ -269,13 +269,13 @@ export function createMigrationDataTables(jsonData: any): TableData[] {
         if (server.migration_list?.binaries?.length > 0) {
           tables.push({
             columns: [
-              { key: 'name', label: '이름', width: '200px' },
-              { key: 'version', label: '버전', width: '100px' },
-              { key: 'binary_path', label: '바이너리 경로', width: '250px' },
-              { key: 'needed_libraries', label: '필요 라이브러리', width: '200px' },
-              { key: 'custom_configs', label: '커스텀 설정', width: '200px' },
-              { key: 'custom_data_paths', label: '커스텀 데이터 경로', width: '200px' },
-              { key: 'order', label: '순서', width: '80px' }
+              { key: 'name', label: 'Name', width: '200px' },
+              { key: 'version', label: 'Version', width: '100px' },
+              { key: 'binary_path', label: 'Binary Path', width: '250px' },
+              { key: 'needed_libraries', label: 'Required Libraries', width: '200px' },
+              { key: 'custom_configs', label: 'Custom Configs', width: '200px' },
+              { key: 'custom_data_paths', label: 'Custom Data Paths', width: '200px' },
+              { key: 'order', label: 'Order', width: '80px' }
             ],
             rows: server.migration_list.binaries.map((binary: any) => ({
               name: binary.name || 'N/A',
@@ -293,15 +293,15 @@ export function createMigrationDataTables(jsonData: any): TableData[] {
         if (server.migration_list?.containers?.length > 0) {
           tables.push({
             columns: [
-              { key: 'name', label: '컨테이너 이름', width: '200px' },
-              { key: 'container_id', label: '컨테이너 ID', width: '150px' },
-              { key: 'image_name', label: '이미지 이름', width: '150px' },
-              { key: 'image_version', label: '이미지 버전', width: '100px' },
-              { key: 'container_status', label: '상태', width: '100px' },
-              { key: 'runtime', label: '런타임', width: '100px' },
-              { key: 'network_mode', label: '네트워크 모드', width: '120px' },
-              { key: 'restart_policy', label: '재시작 정책', width: '120px' },
-              { key: 'order', label: '순서', width: '80px' }
+              { key: 'name', label: 'Container Name', width: '200px' },
+              { key: 'container_id', label: 'Container ID', width: '150px' },
+              { key: 'image_name', label: 'Image Name', width: '150px' },
+              { key: 'image_version', label: 'Image Version', width: '100px' },
+              { key: 'container_status', label: 'Status', width: '100px' },
+              { key: 'runtime', label: 'Runtime', width: '100px' },
+              { key: 'network_mode', label: 'Network Mode', width: '120px' },
+              { key: 'restart_policy', label: 'Restart Policy', width: '120px' },
+              { key: 'order', label: 'Order', width: '80px' }
             ],
             rows: server.migration_list.containers.map((container: any) => ({
               name: container.name || 'N/A',
@@ -321,14 +321,14 @@ export function createMigrationDataTables(jsonData: any): TableData[] {
         if (server.migration_list?.kubernetes?.length > 0) {
           tables.push({
             columns: [
-              { key: 'version', label: 'K8s 버전', width: '100px' },
+              { key: 'version', label: 'K8s Version', width: '100px' },
               { key: 'kube_config', label: 'Kube Config', width: '200px' },
-              { key: 'replicas', label: '레플리카 수', width: '100px' },
-              { key: 'cpu_limit', label: 'CPU 제한', width: '100px' },
-              { key: 'memory_limit', label: '메모리 제한', width: '100px' },
-              { key: 'cpu_request', label: 'CPU 요청', width: '100px' },
-              { key: 'memory_request', label: '메모리 요청', width: '100px' },
-              { key: 'order', label: '순서', width: '80px' }
+              { key: 'replicas', label: 'Replicas', width: '100px' },
+              { key: 'cpu_limit', label: 'CPU Limit', width: '100px' },
+              { key: 'memory_limit', label: 'Memory Limit', width: '100px' },
+              { key: 'cpu_request', label: 'CPU Request', width: '100px' },
+              { key: 'memory_request', label: 'Memory Request', width: '100px' },
+              { key: 'order', label: 'Order', width: '80px' }
             ],
             rows: server.migration_list.kubernetes.map((k8s: any) => ({
               version: k8s.version || 'N/A',
@@ -347,15 +347,15 @@ export function createMigrationDataTables(jsonData: any): TableData[] {
         if (server.migration_list?.packages?.length > 0) {
           tables.push({
             columns: [
-              { key: 'name', label: '패키지 이름', width: '150px' },
-              { key: 'version', label: '버전', width: '100px' },
-              { key: 'needed_packages', label: '필요 패키지', width: '200px' },
-              { key: 'need_to_delete_packages', label: '삭제할 패키지', width: '200px' },
-              { key: 'repo_url', label: '저장소 URL', width: '200px' },
-              { key: 'gpg_key_url', label: 'GPG 키 URL', width: '200px' },
-              { key: 'custom_configs', label: '커스텀 설정', width: '200px' },
-              { key: 'custom_data_paths', label: '커스텀 데이터 경로', width: '200px' },
-              { key: 'order', label: '순서', width: '80px' }
+              { key: 'name', label: 'Package Name', width: '150px' },
+              { key: 'version', label: 'Version', width: '100px' },
+              { key: 'needed_packages', label: 'Required Packages', width: '200px' },
+              { key: 'need_to_delete_packages', label: 'Packages to Remove', width: '200px' },
+              { key: 'repo_url', label: 'Repository URL', width: '200px' },
+              { key: 'gpg_key_url', label: 'GPG Key URL', width: '200px' },
+              { key: 'custom_configs', label: 'Custom Configs', width: '200px' },
+              { key: 'custom_data_paths', label: 'Custom Data Paths', width: '200px' },
+              { key: 'order', label: 'Order', width: '80px' }
             ],
             rows: server.migration_list.packages.map((pkg: any) => ({
               name: pkg.name || 'N/A',
@@ -377,13 +377,13 @@ export function createMigrationDataTables(jsonData: any): TableData[] {
     if (data.softwareModel) {
       tables.push({
         columns: [
-          { key: 'field', label: '필드', width: '200px' },
-          { key: 'value', label: '값', width: '300px' }
+          { key: 'field', label: 'Field', width: '200px' },
+          { key: 'value', label: 'Value', width: '300px' }
         ],
         rows: [
           { field: 'ID', value: data.softwareModel.id || 'N/A' },
-          { field: '이름', value: data.softwareModel.name || 'N/A' },
-          { field: '설명', value: data.softwareModel.description || 'N/A' }
+          { field: 'Name', value: data.softwareModel.name || 'N/A' },
+          { field: 'Description', value: data.softwareModel.description || 'N/A' }
         ]
       });
     }
@@ -392,10 +392,10 @@ export function createMigrationDataTables(jsonData: any): TableData[] {
     console.error('JSON 파싱 오류:', error);
     tables.push({
       columns: [
-        { key: 'error', label: '오류', width: '500px' }
+        { key: 'error', label: 'Error', width: '500px' }
       ],
       rows: [
-        { error: 'JSON 데이터를 파싱할 수 없습니다.' }
+        { error: 'Cannot parse JSON data.' }
       ]
     });
   }

@@ -1773,7 +1773,7 @@ export default {
                   </div>
                   <div class="field-content-box">
                     <div @click="logMigrationList(field)" style="cursor: pointer; margin-bottom: 8px;">
-                      {{ getMigrationListContent(field) }} (클릭하여 로그 출력)
+                      {{ getMigrationListContent(field) }} (click to view log)
                     </div>
                   </div>
                 </div>

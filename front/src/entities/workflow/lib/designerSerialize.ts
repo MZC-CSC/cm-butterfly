@@ -136,7 +136,7 @@ export function validateDesignerSequence(
       if (step.componentType === 'task') {
         const name = String(step.name ?? '').trim();
         if (!name) {
-          problems.push('이름이 비어 있는 task 가 있습니다.');
+          problems.push('There is a task with an empty name.');
           return;
         }
         nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
@@ -144,7 +144,7 @@ export function validateDesignerSequence(
       }
 
       if (!countTasks(step)) {
-        problems.push(`${step.name}: 상자가 비어 있어 저장되지 않습니다.`);
+        problems.push(`${step.name}: the box is empty and will not be saved.`);
       }
       visit(step.sequence);
     });
@@ -156,12 +156,12 @@ export function validateDesignerSequence(
     .filter(([, count]) => count > 1)
     .forEach(([name]) =>
       problems.push(
-        `이름이 겹칩니다: ${name} — 워크플로우 안에서 이름은 하나여야 합니다.`,
+        `Duplicate name: ${name} — names must be unique within a workflow.`,
       ),
     );
 
   if (!nameCounts.size) {
-    problems.push('실행할 task 가 없습니다.');
+    problems.push('There is no task to run.');
   }
 
   return problems;
@@ -185,7 +185,7 @@ export function reviewDesignerSequence(sequence: DesignerStepLike[]): string[] {
         );
         if (branches.length === 1) {
           notices.push(
-            `${step.name}: 갈래가 하나뿐입니다 — 이대로 저장하면 그냥 한 줄로 이어집니다. 갈래를 하나 더 넣거나 상자를 지우세요.`,
+            `${step.name}: only one branch — saving as is just links it into a single line. Add another branch or remove the box.`,
           );
         }
       }

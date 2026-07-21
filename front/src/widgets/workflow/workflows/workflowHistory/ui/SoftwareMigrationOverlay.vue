@@ -93,7 +93,7 @@ const loadSwMigrationStatus = async () => {
   if (!props.executionIds || props.executionIds.length === 0) {
     swMigrationDataList.value = [];
     swError.value =
-      '이 태스크에 소프트웨어 마이그레이션 실행 ID가 없어 결과를 조회할 수 없습니다.';
+      'This task has no software migration execution ID, so results cannot be retrieved.';
     return;
   }
 
@@ -113,13 +113,13 @@ const loadSwMigrationStatus = async () => {
           // 응답이 비어 있으면 그대로 드러낸다. 예전에는 목업으로 대체해서
           // 마이그레이션이 성공한 것처럼 보였다.
           throw new Error(
-            `소프트웨어 마이그레이션 상태를 가져오지 못했습니다 (execution ${executionId})`,
+            `Failed to fetch software migration status (execution ${executionId})`,
           );
         } catch (apiError) {
           swError.value =
             apiError instanceof Error
               ? apiError.message
-              : `소프트웨어 마이그레이션 상태를 가져오지 못했습니다 (execution ${executionId})`;
+              : `Failed to fetch software migration status (execution ${executionId})`;
           return null;
         }
       }),
@@ -135,7 +135,7 @@ const loadSwMigrationStatus = async () => {
     swError.value =
       error instanceof Error
         ? error.message
-        : '소프트웨어 마이그레이션 상태를 가져오지 못했습니다';
+        : 'Failed to fetch software migration status';
   } finally {
     swLoading.value = false;
   }
