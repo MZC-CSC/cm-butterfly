@@ -1,11 +1,9 @@
 import axios from 'axios';
-import { McmpRouter } from '@/app/providers/router';
-import { AUTH_ROUTE } from '@/pages/auth/auth.route';
 import { axiosPost, IAxiosResponse } from '@/shared/libs/api/index';
 import { IUserLoginResponse } from '@/entities';
 import { jwtDecode } from 'jwt-decode';
 import LocalStorageConnector from '@/shared/libs/access-localstorage/localStorageConnector';
-import { clearSession } from '@/shared/libs/auth/session';
+import { handleSessionExpired } from '@/shared/libs/auth/session';
 
 interface IJwtToken {
   access_token: string;
@@ -85,17 +83,11 @@ export default class JwtTokenProvider {
       }
       return refreshRes;
     } catch (error: any) {
-      // A failed refresh means the session is over. Clear it fully — not just the token —
-      // so the background polling (job tracking, notifications, activity watch) stops. If it
-      // keeps running it hits the API again, gets another 401, fails to refresh, and shows
-      // this same popup on a loop, even on the login screen where there is no session left.
-      clearSession();
-
-      alert('User Session Expired.\n Please login again');
-      McmpRouter.getRouter()
-        .replace({ name: AUTH_ROUTE.LOGIN._NAME })
-        .catch(() => {});
-
+      // A failed refresh means the session is over. Hand it to the one place that clears the
+      // session (stopping all polling) and shows the expired popup exactly once — several
+      // in-flight requests fail to refresh at the same moment, and without the single handler
+      // each one popped its own blocking alert to dismiss.
+      handleSessionExpired();
       return Promise.reject(error);
     }
   }

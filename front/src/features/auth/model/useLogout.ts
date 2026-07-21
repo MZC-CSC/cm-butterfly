@@ -5,6 +5,7 @@
 import { axiosPost } from '@/shared/libs/api';
 import {
   clearSession,
+  handleSessionExpired,
   msUntilExpiry,
   msSinceActivity,
   msSinceSessionStart,
@@ -40,11 +41,9 @@ export async function logout(): Promise<void> {
   window.location.replace(LOGIN_PATH);
 }
 
-/** 세션이 만료됐을 때의 처리 — 알린 뒤 로그인 화면으로 보낸다. */
+/** 세션이 만료됐을 때의 처리 — 중앙 핸들러가 한 번만 알리고 로그인 화면으로 보낸다. */
 function expireSession(): void {
-  clearSession();
-  alert('User Session Expired.\n Please login again');
-  window.location.replace(LOGIN_PATH);
+  handleSessionExpired();
 }
 
 const IDLE_LIMIT_MS = 60 * 60 * 1000; // 마지막 조작 후 이만큼 지나면 끊는다

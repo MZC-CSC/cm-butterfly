@@ -10,6 +10,7 @@
 import JwtTokenProvider from '@/shared/libs/token';
 import { stopTracking } from '@/shared/libs/tracking/runner';
 import { stopNotificationPolling } from '@/entities/notification/lib/notificationStore';
+import { stopAllPolling } from '@/shared/libs/polling';
 
 const LOGIN_AUTH_STORAGE = 'LOGIN_AUTH';
 const SESSION_STARTED_STORAGE = 'MCMP_SESSION_STARTED';
@@ -121,12 +122,36 @@ export function unwatchActivity(): void {
  * 브라우저에 남은 로그인 흔적을 모두 지운다.
  *
  * 화면 이동은 하지 않는다. 부르는 쪽이 이어서 처리한다.
+ *
+ * 폴링은 개별로 끄지 않고 `stopAllPolling()` 한 번으로 끈다 — 화면·기능마다 흩어진 폴링(작업 추적,
+ * 알림, 활동 감시, 부하테스트 상태)이 세션이 끊긴 뒤에도 남아 api를 때리면 다시 401 → 만료 처리로
+ * 돌아가기 때문이다. 새 폴링은 레지스트리에 등록만 하면 여기서 함께 멈춘다.
  */
 export function clearSession(): void {
   JwtTokenProvider.getProvider().removeToken();
   localStorage.removeItem(LOGIN_AUTH_STORAGE);
   localStorage.removeItem(SESSION_STARTED_STORAGE);
+  stopAllPolling();
+  // 레지스트리에 아직 등록되지 않은 앱 수준 폴러도 확실히 멈춘다(이중이어도 idempotent).
   stopTracking();
   stopNotificationPolling();
   unwatchActivity();
+}
+
+// 세션 만료를 화면 어디서 감지하든 처리는 한 번만 일어나게 한다. 만료 순간 진행 중이던 여러 요청이
+// 동시에 401을 받아 각자 갱신에 실패하는데, 가드가 없으면 저마다 blocking alert 를 띄워 사용자가
+// 만료 팝업을 여러 번 닫아야 했다. 첫 번째만 지우고·알리고·로그인 화면으로 보내고 나머지는 조용히
+// 세션만 정리한다. 전체 페이지 이동으로 다음 로그인 때 이 플래그가 자연히 초기화된다(BAR-1576).
+let sessionExpiredHandled = false;
+
+/** 세션 만료를 한 번만 처리한다 — 지우고, 한 번 알리고, 로그인 화면으로 보낸다. */
+export function handleSessionExpired(): void {
+  if (sessionExpiredHandled) {
+    clearSession();
+    return;
+  }
+  sessionExpiredHandled = true;
+  clearSession();
+  alert('User Session Expired.\n Please login again');
+  window.location.replace('/auth/login');
 }
