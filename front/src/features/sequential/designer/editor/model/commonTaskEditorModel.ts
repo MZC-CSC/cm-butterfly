@@ -1030,7 +1030,7 @@ export function useCommonTaskEditorModel() {
           
           // 빈 객체임을 표시하기 위한 특별한 플래그 추가
           (emptyObjectContext as any).isEmptyObject = true;
-          (emptyObjectContext as any).emptyMessage = 'property 정의되지 않음';
+          (emptyObjectContext as any).emptyMessage = 'property not defined';
           
           contexts.push(emptyObjectContext);
           console.log(`✅ Empty nested object field ${key} created (depth: ${depth})`);

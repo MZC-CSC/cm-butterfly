@@ -341,7 +341,7 @@ export default defineComponent({
     function getFieldDescription(description?: string, example?: string): string {
       let desc = description || '';
       if (example) {
-        desc += desc ? ` (예: ${example})` : `예: ${example}`;
+        desc += desc ? ` (e.g. ${example})` : `e.g. ${example}`;
       }
       return desc;
     }

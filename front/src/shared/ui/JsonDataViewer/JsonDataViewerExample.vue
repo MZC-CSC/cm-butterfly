@@ -1,19 +1,19 @@
 <template>
   <div class="json-data-viewer-example">
-    <h2 class="text-2xl font-bold mb-6">JSON 데이터 뷰어 예시</h2>
+    <h2 class="text-2xl font-bold mb-6">JSON Data Viewer Example</h2>
     
     <div class="mb-6">
-      <h3 class="text-lg font-semibold mb-3">통합 뷰어 (표 + 트리 + JSON)</h3>
+      <h3 class="text-lg font-semibold mb-3">Combined Viewer (Table + Tree + JSON)</h3>
       <JsonDataViewer
         :json-data="migrationData"
         :use-migration-format="true"
-        :table-titles="['서버 정보', '바이너리', '컨테이너', 'Kubernetes', '패키지', '소프트웨어 모델']"
+        :table-titles="['Server Info', 'Binary', 'Container', 'Kubernetes', 'Package', 'Software Model']"
         :available-views="['table', 'tree', 'raw']"
       />
     </div>
 
     <div class="mb-6">
-      <h3 class="text-lg font-semibold mb-3">트리 뷰만</h3>
+      <h3 class="text-lg font-semibold mb-3">Tree View Only</h3>
       <JsonDataTree
         :json-data="generalData"
         :show-search="true"
@@ -24,7 +24,7 @@
     </div>
 
     <div class="mb-6">
-      <h3 class="text-lg font-semibold mb-3">표 뷰만</h3>
+      <h3 class="text-lg font-semibold mb-3">Table View Only</h3>
       <JsonDataTable
         :json-data="generalData"
         :use-migration-format="false"
@@ -33,12 +33,12 @@
 
     <!-- 노드 클릭 정보 -->
     <div v-if="clickedNode" class="node-info">
-      <h4 class="text-md font-semibold mb-2">클릭된 노드 정보:</h4>
+      <h4 class="text-md font-semibold mb-2">Clicked Node Info:</h4>
       <div class="p-4" style="background-color: #f3f4f6; border-radius: 4px;">
-        <p><strong>경로:</strong> {{ clickedNode.path }}</p>
-        <p><strong>타입:</strong> {{ clickedNode.type }}</p>
-        <p><strong>라벨:</strong> {{ clickedNode.label }}</p>
-        <p v-if="clickedNode.value !== undefined"><strong>값:</strong> {{ clickedNode.value }}</p>
+        <p><strong>Path:</strong> {{ clickedNode.path }}</p>
+        <p><strong>Type:</strong> {{ clickedNode.type }}</p>
+        <p><strong>Label:</strong> {{ clickedNode.label }}</p>
+        <p v-if="clickedNode.value !== undefined"><strong>Value:</strong> {{ clickedNode.value }}</p>
       </div>
     </div>
   </div>

@@ -16,7 +16,7 @@
     <div v-if="sshConnId" class="field">
       <label class="field-label">SSH Connection</label>
       <input class="text-input readonly" type="text" :value="sshConnId" readonly />
-      <p class="hint">Task component에 고정된 SSH 연결입니다.</p>
+      <p class="hint">This is an SSH connection fixed on the task component.</p>
     </div>
 
     <div class="field">
@@ -28,7 +28,7 @@
         placeholder="e.g. df -h"
         @input="onCommand"
       ></textarea>
-      <p class="hint">원격 호스트에서 SSHOperator로 실행됩니다.</p>
+      <p class="hint">Runs on the remote host via SSHOperator.</p>
     </div>
   </div>
 </template>

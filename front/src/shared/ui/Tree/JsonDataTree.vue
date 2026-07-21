@@ -5,7 +5,7 @@
       <input
         v-model="searchTerm"
         type="text"
-        placeholder="검색..."
+        placeholder="Search..."
         class="search-input"
         @input="handleSearch"
       />

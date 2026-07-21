@@ -90,7 +90,7 @@ function handleClickCredentialName(credential: { id: string }) {
 // 모달 관련 핸들러 (필요 시 구현)
 // 모달에서 트리거된 이벤트 처리
 function handleAddCredentialTrigger() {
-  showSuccessMessage('Success', 'Credential이 성공적으로 추가되었습니다.');
+  showSuccessMessage('Success', 'Credential added successfully.');
   modalStates.addCredentialGroup.trigger = true;
 }
 </script>

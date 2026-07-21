@@ -521,7 +521,7 @@ function handleSave(e: { name: string; description: string }) {
                 :data-id="item.name || ''"
                 :title="
                   item.hasMissingInfo
-                    ? `필수정보가 누락돼 있습니다. 워크플로우 구현할 때 해당 항목(${item.missingFields || 'Spec, Image'})을 채워야 합니다`
+                    ? `Required information is missing. You must fill in these fields (${item.missingFields || 'Spec, Image'}) when building the workflow.`
                     : undefined
                 "
               >

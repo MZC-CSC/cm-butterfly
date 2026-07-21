@@ -16,7 +16,7 @@
     <div v-if="endpoint" class="field">
       <label class="field-label">Endpoint</label>
       <input class="text-input readonly" type="text" :value="`${method} ${endpoint}`" readonly />
-      <p class="hint">Task component에 고정된 API 요청입니다.</p>
+      <p class="hint">This is an API request fixed on the task component.</p>
     </div>
 
     <div class="field">
@@ -25,10 +25,10 @@
         class="text-input"
         type="text"
         :value="model.request_body"
-        placeholder="응답을 body로 사용할 이전 task 이름"
+        placeholder="Name of a previous task whose response is used as the body"
         @input="onSource"
       />
-      <p class="hint">지정한 task의 XCom 결과가 이 요청의 body로 전달됩니다.</p>
+      <p class="hint">The XCom result of the specified task is passed as the body of this request.</p>
     </div>
 
     <div class="field">
@@ -37,10 +37,10 @@
         class="text-input"
         type="text"
         :value="model.response_path"
-        placeholder="예: $.targetInfra (선택)"
+        placeholder="e.g. $.targetInfra (optional)"
         @input="onResponsePath"
       />
-      <p class="hint">이전 task 응답에서 추출할 JSONPath (선택).</p>
+      <p class="hint">JSONPath to extract from the previous task response (optional).</p>
     </div>
   </div>
 </template>

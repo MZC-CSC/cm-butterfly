@@ -215,7 +215,7 @@ async function handleDeleteCredentials() {
   );
 
   if (selectedCredentialIds.length === 0) {
-    showErrorMessage('Error', '삭제할 Credential을 선택하지 않았습니다.');
+    showErrorMessage('Error', 'No Credential selected to delete.');
     return;
   }
 
@@ -229,13 +229,13 @@ async function handleDeleteCredentials() {
 
         showSuccessMessage(
           'Success',
-          `Credential '${credentialName}'이(가) 성공적으로 삭제되었습니다.`,
+          `Credential '${credentialName}' deleted successfully.`,
         );
       } else {
         showErrorMessage(
           'Error',
           data.status?.message ||
-            `Credential '${credentialName}' 삭제에 실패했습니다.`,
+            `Failed to delete Credential '${credentialName}'.`,
         );
       }
     }
@@ -248,7 +248,7 @@ async function handleDeleteCredentials() {
   } catch (error: any) {
     showErrorMessage(
       'Error',
-      error.message || '삭제 요청 중 오류가 발생했습니다.',
+      error.message || 'An error occurred during the delete request.',
     );
   } finally {
     // 모달 닫기
