@@ -18,6 +18,7 @@ import {
 } from 'vue';
 import LoadConfig from '@/features/workload/actionLoadConfig/ui/LoadConfig.vue';
 import { trackLoadTest } from '@/entities/vm/lib/loadTestTracker';
+import { registerPoller } from '@/shared/libs/polling';
 import { showErrorMessage, toErrorMessage } from '@/shared/utils';
 import { IVm } from '@/entities/mci/model';
 import VmInformation from '@/widgets/workload/vm/vmInformation/ui/VmInformation.vue';
@@ -252,12 +253,17 @@ watch(
   { immediate: true },
 );
 
+// Register the load-test status poll so a session end stops it centrally (BAR-1576). Without
+// this the poll keeps hitting the API after logout and reopens the "session expired" path.
+let unregisterPoller: (() => void) | null = null;
 onMounted(() => {
   initToolBoxTableModel();
+  unregisterPoller = registerPoller(stopLoadStatusPolling);
 });
 
 onBeforeUnmount(() => {
   stopLoadStatusPolling();
+  unregisterPoller?.();
 });
 
 async function getMciInfo() {
