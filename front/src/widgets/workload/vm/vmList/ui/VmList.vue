@@ -160,12 +160,22 @@ function handleStopLoadTest() {
     .catch(e => showErrorMessage('error', e.errorMsg?.value ?? 'Stop failed'));
 }
 let loadStatusPollTimer: ReturnType<typeof setTimeout> | null = null;
+// Whether the live status poll is currently running. Reactive so the progress display can
+// show it is still updating — a bar stuck at 60% then reads as "still checking" rather than
+// "gave up". The timer handle itself is not reactive, hence this flag.
+const isLoadTestPolling = ref(false);
+// Whether a load test is in progress on the selected VM — drives disabling Load Config so a
+// second run cannot be started over a running one.
+const isLoadTestRunning = computed(() =>
+  ['Running', 'Collecting results'].includes(currentLoadTestStatusLabel.value),
+);
 
 function stopLoadStatusPolling() {
   if (loadStatusPollTimer) {
     clearTimeout(loadStatusPollTimer);
     loadStatusPollTimer = null;
   }
+  isLoadTestPolling.value = false;
 }
 const { mciStore, initToolBoxTableModel, vmListTableModel, setMci } =
   useVmListModel();
@@ -345,6 +355,7 @@ function setVmLoadTestResult() {
         const status = result?.executionStatus;
         if (status && !LOADTEST_TERMINAL_STATUS.includes(status)) {
           // still running → keep polling for status
+          isLoadTestPolling.value = true;
           loadStatusPollTimer = setTimeout(() => setVmLoadTestResult(), 5000);
         } else if (status && LOADTEST_TERMINAL_STATUS.includes(status)) {
           // finished or failed → stop polling. The state change remounts the result
@@ -496,6 +507,12 @@ function handleTemplateManagerClose() {
             :lastloadtest-state-response="
               resLoadStatus.data.value?.responseData?.result
             "
+            :load-test-status="currentLoadTestStatusLabel"
+            :load-test-start-at="currentLoadTestStartAt"
+            :load-test-steps="currentLoadTestSteps"
+            :load-test-expected-seconds="currentLoadTestExpectedSeconds"
+            :is-load-test-running="isLoadTestRunning"
+            :is-load-test-polling="isLoadTestPolling"
             @openLoadconfig="handleLoadStatus"
             @openTemplateManager="handleTemplateManager"
           />
@@ -519,6 +536,8 @@ function handleTemplateManagerClose() {
             :load-test-failure-message="currentLoadTestFailureMessage"
             :load-test-steps="currentLoadTestSteps"
             :load-test-expected-seconds="currentLoadTestExpectedSeconds"
+            :is-load-test-running="isLoadTestRunning"
+            :is-load-test-polling="isLoadTestPolling"
             @openLoadconfig="handleLoadStatus"
             @openTemplateManager="handleTemplateManagerOpen"
             @stopLoadTest="handleStopLoadTest"
@@ -549,6 +568,11 @@ function handleTemplateManagerClose() {
       :load-status-label="currentLoadTestStatusLabel"
       :is-terminal="isCurrentLoadTestTerminal"
       :is-failed="currentLoadTestStatusLabel === 'Failed'"
+      :load-test-start-at="currentLoadTestStartAt"
+      :load-test-steps="currentLoadTestSteps"
+      :load-test-expected-seconds="currentLoadTestExpectedSeconds"
+      :load-test-failure-message="currentLoadTestFailureMessage"
+      :is-load-test-polling="isLoadTestPolling"
       @close="handleLoadConfigSuccessClose"
     />
     <ScenarioTemplateManagerModal

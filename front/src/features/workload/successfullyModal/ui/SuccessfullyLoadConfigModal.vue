@@ -7,6 +7,8 @@ import {
 } from '@cloudforet-test/mirinae';
 import { useDefinitionTableModel } from '@/shared/hooks/table/definitionTable/useDefinitionTableModel';
 import { onBeforeMount, watch } from 'vue';
+import { ILoadTestExecutionStep } from '@/entities/mci/model';
+import LoadTestProgress from '@/widgets/workload/vm/loadTestProgress/ui/LoadTestProgress.vue';
 
 interface IProps {
   scenarioName: string;
@@ -15,6 +17,12 @@ interface IProps {
   loadStatusLabel?: string;
   isTerminal?: boolean;
   isFailed?: boolean;
+  // Show the live progress detail (bar, two-line message, full steps) in the popup too.
+  loadTestStartAt?: string;
+  loadTestSteps?: ILoadTestExecutionStep[];
+  loadTestExpectedSeconds?: number;
+  loadTestFailureMessage?: string;
+  isLoadTestPolling?: boolean;
 }
 
 const props = defineProps<IProps>();
@@ -94,6 +102,18 @@ function handleClose(e) {
             </div>
           </template>
         </p-definition-table>
+        <!-- Live progress while the run is ongoing: same bar/steps as the Evaluate Perf tab,
+             so the popup shows a clearly distinguished, moving state rather than a bare word. -->
+        <load-test-progress
+          v-if="!props.isTerminal"
+          variant="full"
+          :status-label="props.loadStatusLabel"
+          :steps="props.loadTestSteps"
+          :start-at="props.loadTestStartAt"
+          :expected-seconds="props.loadTestExpectedSeconds"
+          :failure-message="props.loadTestFailureMessage"
+          :is-polling="props.isLoadTestPolling"
+        />
         <section class="content">
           <h2>Notification</h2>
           <label

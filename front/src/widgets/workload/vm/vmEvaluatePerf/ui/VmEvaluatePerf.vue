@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { PButton, PTooltip } from '@cloudforet-test/mirinae';
-import { computed, Ref, ref, watch, onBeforeUnmount } from 'vue';
+import { computed, Ref } from 'vue';
 import { ILoadTestExecutionStep } from '@/entities/mci/model';
 import LoadTestEvaluationMetric from '@/widgets/workload/vm/vmEvaluatePerf/ui/LoadTestEvaluationMetric.vue';
 import LoadTestResourceMetric from '@/widgets/workload/vm/vmEvaluatePerf/ui/LoadTestResourceMetric.vue';
 import LoadTestAggregationTable from '@/widgets/workload/vm/vmEvaluatePerf/ui/LoadTestAggregationTable.vue';
+import LoadTestProgress from '@/widgets/workload/vm/loadTestProgress/ui/LoadTestProgress.vue';
 
 interface IProps {
   mciId: string;
@@ -21,6 +22,10 @@ interface IProps {
   loadTestSteps?: ILoadTestExecutionStep[];
   // 진행률 바용 예상 총 소요(초) — cm-ant totalExpectedExecutionSecond.
   loadTestExpectedSeconds?: number;
+  // While a run is in progress, block re-opening Load Config (no second run over the first).
+  isLoadTestRunning?: boolean;
+  // Turn on the live indicator in the progress display while the poll is running.
+  isLoadTestPolling?: boolean;
 }
 
 const props = defineProps<IProps>();
@@ -32,6 +37,14 @@ const emit = defineEmits([
   'reRun',
 ]);
 
+// Load Config while a run is in progress would start a second run over the first. Guard the
+// handler as well as disabling the button — mirinae's disabled is a class only and leaves the
+// click reaching the element (DESIGN-MIRINAE §1.6), so a visual-only guard would not hold.
+function handleOpenLoadconfig() {
+  if (props.isLoadTestRunning) return;
+  emit('openLoadconfig');
+}
+
 const isLoadTestRunning = computed(() =>
   ['Running', 'Collecting results'].includes(props.loadTestStatus ?? ''),
 );
@@ -40,39 +53,9 @@ const isLoadTestFailed = computed(() => props.loadTestStatus === 'Failed');
 // 결과(차트·집계)는 성공(Completed)일 때만 노출. 실패/진행 중엔 결과 조회를 하지 않는다.
 const isLoadTestCompleted = computed(() => props.loadTestStatus === 'Completed');
 
-// 진행률 바 — startAt·예상 소요(초)로 경과 비율 계산. 진행 중엔 1초 틱으로 부드럽게 갱신.
-const nowMs = ref(Date.now());
-let tickTimer: ReturnType<typeof setInterval> | null = null;
-const stopTick = () => {
-  if (tickTimer) {
-    clearInterval(tickTimer);
-    tickTimer = null;
-  }
-};
-watch(
-  isLoadTestRunning,
-  running => {
-    if (running) {
-      nowMs.value = Date.now();
-      if (!tickTimer) tickTimer = setInterval(() => (nowMs.value = Date.now()), 1000);
-    } else {
-      stopTick();
-    }
-  },
-  { immediate: true },
-);
-onBeforeUnmount(stopTick);
-
-// 진행률(%). 완료=100, startAt/예상초 없으면 null(indeterminate 바). 진행 중엔 2~95%로 캡(종료 전 100% 방지).
-const progressPercent = computed<number | null>(() => {
-  if (isLoadTestCompleted.value) return 100;
-  if (!isLoadTestRunning.value) return 0;
-  const start = props.loadTestStartAt ? Date.parse(props.loadTestStartAt) : NaN;
-  const expectedMs = (props.loadTestExpectedSeconds ?? 0) * 1000;
-  if (!start || Number.isNaN(start) || expectedMs <= 0) return null;
-  const pct = ((nowMs.value - start) / expectedMs) * 100;
-  return Math.max(2, Math.min(95, Math.round(pct)));
-});
+// The in-progress detail (two-line message, progress bar, full step list) is drawn by the
+// shared LoadTestProgress. This component keeps only the status badge (hover detail) and the
+// result / failed / empty branches.
 
 // 단계(steps[]) 표현 매핑 — cm-ant ExecutionStep/StepStatus.
 const STEP_LABEL: Record<string, string> = {
@@ -165,7 +148,8 @@ const statusTooltip = computed(() => {
           data-testid="vm-load-config-open"
           style-type="secondary"
           icon-left="ic_settings"
-          @click="emit('openLoadconfig')"
+          :disabled="props.isLoadTestRunning"
+          @click="handleOpenLoadconfig"
         >
           Load Config
         </p-button>
@@ -217,26 +201,21 @@ const statusTooltip = computed(() => {
     </div>
     <div
       v-else-if="isLoadTestRunning"
-      class="load-test-empty"
-      data-testid="load-test-progress"
+      class="load-test-running-panel"
+      data-testid="load-test-progress-panel"
     >
-      Load test in progress ({{ badgeLabel }})…<br />
-      <span v-if="currentStep?.message" class="progress-step-msg">{{
-        currentStep.message
-      }}</span>
-      <!-- 진행률 바: startAt·예상 소요로 경과 비율(예상 없으면 indeterminate). -->
-      <div class="load-test-progress-bar" data-testid="load-test-progress-bar">
-        <div
-          class="load-test-progress-fill"
-          :class="{ indeterminate: progressPercent === null }"
-          :style="progressPercent !== null ? { width: progressPercent + '%' } : {}"
-        ></div>
-      </div>
-      <span v-if="progressPercent !== null" class="progress-pct"
-        >{{ progressPercent }}%</span
-      >
-      <br />
-      The results will appear here once it finishes.
+      <LoadTestProgress
+        variant="full"
+        :status-label="props.loadTestStatus"
+        :steps="props.loadTestSteps"
+        :start-at="props.loadTestStartAt"
+        :expected-seconds="props.loadTestExpectedSeconds"
+        :failure-message="props.loadTestFailureMessage"
+        :is-polling="props.isLoadTestPolling"
+      />
+      <p class="load-test-running-hint">
+        The results will appear here once it finishes.
+      </p>
     </div>
     <div
       v-else-if="isLoadTestFailed"
@@ -335,51 +314,17 @@ const statusTooltip = computed(() => {
   line-height: 1.35;
 }
 
-.progress-step-msg {
-  display: block;
-  margin: 4px 0;
+/* In-progress panel: shared LoadTestProgress + a hint line. The bar and steps are drawn by the shared component. */
+.load-test-running-panel {
+  padding: 24px 16px;
+  border: 1px dashed #dee2e6;
+  border-radius: 4px;
+}
+
+.load-test-running-hint {
+  margin-top: 12px;
   font-size: 13px;
-  color: #495057;
-  word-break: break-word;
-}
-
-.load-test-progress-bar {
-  width: 60%;
-  max-width: 420px;
-  height: 8px;
-  margin: 10px auto 4px auto;
-  background-color: #e9ecef;
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.load-test-progress-fill {
-  height: 100%;
-  background-color: #1971c2;
-  border-radius: 999px;
-  transition: width 0.6s ease;
-}
-
-/* 예상 소요를 모를 때: 좌우로 흐르는 indeterminate 애니메이션 */
-.load-test-progress-fill.indeterminate {
-  width: 35%;
-  animation: load-test-indeterminate 1.4s ease-in-out infinite;
-}
-
-@keyframes load-test-indeterminate {
-  0% {
-    margin-left: -35%;
-  }
-  100% {
-    margin-left: 100%;
-  }
-}
-
-.progress-pct {
-  display: block;
-  font-size: 12px;
-  color: #1971c2;
-  font-weight: 600;
+  color: #868e96;
 }
 
 .load-test-status-badge.running {
