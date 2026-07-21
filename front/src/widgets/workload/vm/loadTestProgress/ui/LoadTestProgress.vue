@@ -114,15 +114,12 @@ const SUB_LABEL: Record<string, string> = {
   'result_fetch.file_network': 'Network metrics',
   'result_fetch.persist': 'Persist',
 };
-// Expected sub-step count per phase, used as a stable denominator for progress. cm-ant seeds
-// sub-steps as the run reaches them, so children.length grows over time; the catalog does not.
+// Sub-step count per phase, a stable denominator for progress. Only these phases report
+// sub-steps; generator_install/jmx_prepare/jmeter_run/result_fetch record at the phase level
+// only, so they have no children and are scored by phase status (see childCompletion).
 const PHASE_SUBCOUNT: Record<string, number> = {
   precheck: 5,
-  generator_install: 6,
   agent_install: 3,
-  jmx_prepare: 2,
-  jmeter_run: 4,
-  result_fetch: 6,
 };
 // The load run is the bulk of the wall-clock time; the checks and installs around it are quick.
 // Weighting the phases keeps a stuck pre-check near the start of the bar instead of near the end.
