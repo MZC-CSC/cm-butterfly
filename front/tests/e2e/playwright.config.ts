@@ -94,6 +94,22 @@ export default defineConfig({
       grepInvert: includeCostly ? undefined : /@costly/,
     },
     {
+      // 알림 배지 검증(@notify)은 @mock 으로 hermetic 하게 돈다 — 실행 결과를 우리 tracker 가
+      // 어떻게 배지로 만드는지만 보므로 시드(실 소스 수집)나 클라우드 자원이 필요 없다. 그래서
+      // functional 과 달리 seed 에 의존하지 않는 독립 레인으로 둔다(로그인만 실 백엔드로 나간다).
+      name: 'notify',
+      use: { ...devices['Desktop Chrome'] },
+      grep: /@notify/,
+    },
+    {
+      // 알림 배지 실 데이터 검증(@live) — mock 없이 실제 실행/실제 알림까지 확인한다. 요금 안전
+      // 예제만 쓰므로 클라우드 자원을 만들지 않지만, 실 실행이 끝날 때까지 넉넉히 기다린다.
+      name: 'live',
+      use: { ...devices['Desktop Chrome'] },
+      grep: /@live/,
+      timeout: 8 * 60_000,
+    },
+    {
       name: 'scenario',
       use: { ...devices['Desktop Chrome'] },
       dependencies: ['seed'],
