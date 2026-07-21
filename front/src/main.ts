@@ -17,6 +17,7 @@ import { startNotificationPolling } from '@/entities/notification/lib/notificati
 // 통째로 사라지므로(BAR-1531 에서 겪었다) 여기서 명시적으로 들여온다.
 import '@/entities/mci/lib/deleteTracker';
 import '@/entities/vm/lib/loadTestTracker';
+import '@/entities/workflow/lib/workflowTracker';
 
 const pinia = createPinia();
 Vue.use(PiniaVuePlugin);
