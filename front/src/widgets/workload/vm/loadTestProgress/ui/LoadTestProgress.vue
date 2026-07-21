@@ -166,6 +166,13 @@ const currentLeaf = computed(() => {
 // Line 1: status + where it is now ("Running · Pre-check › Metric port open").
 const primaryLine = computed(() => {
   const base = props.statusLabel ?? '';
+  // On failure, naming the sub-step ("Failed · Pre-check › Target reachable") reads as if that
+  // check passed. Say only which phase failed ("Pre-check Failed"); the failing step and its
+  // cause are in the step list / tooltip below.
+  if (isFailed.value) {
+    const failedPhase = [...steps.value].reverse().find(p => p.status === 'failed');
+    return failedPhase ? `${stepLabel(failedPhase.name)} Failed` : base;
+  }
   const cur = currentLeaf.value;
   if (!cur) return base;
   let where = stepLabel(cur.phase.name);
