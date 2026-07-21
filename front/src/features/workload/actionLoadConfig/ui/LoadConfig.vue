@@ -142,6 +142,7 @@ async function validate() {
 
 async function handleConfirm() {
   const isValid = await validate();
+  const im = loadConfigModel.inputModels;
 
   if (isValid && !resRunLoadTest.isLoading.value) {
     resRunLoadTest
@@ -177,11 +178,22 @@ async function handleConfirm() {
         // that key the only way left to ask how the run turned out is by name, and names are
         // reused, so the answer can come back describing another VM's run.
         const loadTestKey = res?.data?.responseData?.result ?? '';
-        emit(
-          'success',
-          loadConfigModel.inputModels.scenarioName.value,
-          loadTestKey,
-        );
+        // Hand back exactly what was submitted so Re-run can pre-fill from it. The server's
+        // GetLoadTestExecutionInfo cannot be relied on here: a run that fails in pre-check has
+        // no execution info and the call 500s, which is why Re-run came up empty.
+        const submitted: ILoadConfigInitialValues = {
+          scenarioName: im.scenarioName.value,
+          virtualUsers: im.virtualUsers.value,
+          testDuration: im.testDuration.value,
+          rampUpTime: im.rampUpTime.value,
+          rampUpSteps: im.rampUpSteps.value,
+          method: loadConfigModel.methods.selected,
+          protocol: loadConfigModel.protocol.selected,
+          port: im.port.value,
+          path: im.path.value,
+          bodyData: im.bodyData.value,
+        };
+        emit('success', im.scenarioName.value, loadTestKey, submitted);
       })
       .catch(e => {
         showErrorMessage('error', e.errorMsg);
