@@ -53,7 +53,7 @@ const getRawDataValue = () => {
       <!-- Property 정의되지 않음 메시지 -->
       <div class="no-properties-message">
         <div class="message-icon">⚠️</div>
-        <div class="message-text">Property 정의되지 않음</div>
+        <div class="message-text">Property not defined</div>
       </div>
       
       <!-- 기본 입력 필드 -->

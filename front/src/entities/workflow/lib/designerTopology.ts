@@ -63,7 +63,7 @@ export function analyzeTopology(
   const groupOf = new Map<string, string>();
   flat.forEach(({ task, groupName }) => {
     if (byName.has(task.name)) {
-      warnings.push(`이름이 겹치는 task 가 있습니다: ${task.name}`);
+      warnings.push(`There are tasks with duplicate names: ${task.name}`);
     }
     byName.set(task.name, task);
     groupOf.set(task.name, groupName);
@@ -76,7 +76,7 @@ export function analyzeTopology(
       const name = String(dep);
       if (!byName.has(name)) {
         warnings.push(
-          `${task.name} 이(가) 존재하지 않는 task 에 의존합니다: ${name}`,
+          `${task.name} depends on a task that does not exist: ${name}`,
         );
         return;
       }
@@ -266,7 +266,7 @@ export function analyzeTopology(
 
   if (!representable) {
     warnings.push(
-      '이 워크플로우의 실행 순서는 화면이 그대로 그릴 수 있는 모양이 아닙니다 — 그림과 실제 실행이 달라지므로 열지 않습니다.',
+      'This workflow execution order cannot be drawn on screen as-is — the diagram would differ from the actual execution, so it will not be opened.',
     );
   }
 

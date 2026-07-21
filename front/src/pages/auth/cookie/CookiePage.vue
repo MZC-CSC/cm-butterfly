@@ -15,7 +15,7 @@ async function setServerCookie() {
 
 async function setClientCookie() {
   document.cookie =
-    'clientCookie=클라이언트에 대한 정보; path=/; max-age=3600; SameSite=None; Secure;';
+    'clientCookie=client information; path=/; max-age=3600; SameSite=None; Secure;';
   alert('Client cookie is set');
 }
 

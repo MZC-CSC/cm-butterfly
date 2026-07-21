@@ -69,15 +69,15 @@ export default defineComponent({
       }
       
       const defaultTitles = [
-        '서버 정보',
-        '바이너리 정보',
-        '컨테이너 정보',
-        'Kubernetes 정보',
-        '패키지 정보',
-        '소프트웨어 모델 정보'
+        'Server Info',
+        'Binary Info',
+        'Container Info',
+        'Kubernetes Info',
+        'Package Info',
+        'Software Model Info'
       ];
       
-      return defaultTitles[index] || `표 ${index + 1}`;
+      return defaultTitles[index] || `Table ${index + 1}`;
     },
     formatCellValue(value: any): string {
       if (value === null || value === undefined) {

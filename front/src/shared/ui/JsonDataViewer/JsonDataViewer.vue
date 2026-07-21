@@ -44,13 +44,13 @@
               @click="copyToClipboard"
               :disabled="!rawJsonString"
             >
-              📋 복사
+              📋 Copy
             </button>
             <button
               class="format-button"
               @click="toggleFormat"
             >
-              {{ isFormatted ? '압축' : '포맷' }}
+              {{ isFormatted ? 'Minify' : 'Format' }}
             </button>
           </div>
           <pre class="raw-json-content">{{ rawJsonString }}</pre>
@@ -62,24 +62,24 @@
     <div v-if="selectedNode" class="node-info-modal" @click="closeNodeInfo">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <h3>노드 정보</h3>
+          <h3>Node Info</h3>
           <button class="close-button" @click="closeNodeInfo">×</button>
         </div>
         <div class="modal-body">
           <div class="info-item">
-            <label>경로:</label>
+            <label>Path:</label>
             <span>{{ selectedNode.path }}</span>
           </div>
           <div class="info-item">
-            <label>타입:</label>
+            <label>Type:</label>
             <span>{{ selectedNode.type }}</span>
           </div>
           <div class="info-item">
-            <label>라벨:</label>
+            <label>Label:</label>
             <span>{{ selectedNode.label }}</span>
           </div>
           <div v-if="selectedNode.value !== undefined" class="info-item">
-            <label>값:</label>
+            <label>Value:</label>
             <pre class="value-content">{{ formatNodeValue(selectedNode.value) }}</pre>
           </div>
         </div>
@@ -130,8 +130,8 @@ export default defineComponent({
     // 사용 가능한 탭들
     const tabs = computed(() => {
       const allTabs = [
-        { key: 'table', label: '표', icon: '📊' },
-        { key: 'tree', label: '트리', icon: '🌳' },
+        { key: 'table', label: 'Table', icon: '📊' },
+        { key: 'tree', label: 'Tree', icon: '🌳' },
         { key: 'raw', label: 'JSON', icon: '📄' }
       ];
       
@@ -146,7 +146,7 @@ export default defineComponent({
           ? JSON.stringify(data, null, 2)
           : JSON.stringify(data);
       } catch (error) {
-        return 'JSON 파싱 오류: ' + (error as Error).message;
+        return 'JSON parse error: ' + (error as Error).message;
       }
     });
 

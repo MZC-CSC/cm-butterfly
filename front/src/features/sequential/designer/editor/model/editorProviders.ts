@@ -94,7 +94,7 @@ export function editorProviders() {
               <label>Name:</label>
               <input type="text" id="if-name" value="${step.name}" style="width: 100%; padding: 8px; margin-top: 4px;" />
             </div>
-            <p style="margin-top: 16px; color: #666;">조건에 따라 true 또는 false 브랜치로 분기합니다.</p>
+            <p style="margin-top: 16px; color: #666;">Branches to the true or false branch depending on the condition.</p>
           </div>
         `;
 
