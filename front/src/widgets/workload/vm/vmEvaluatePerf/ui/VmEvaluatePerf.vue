@@ -226,6 +226,14 @@ const statusTooltip = computed(() => {
       <span v-if="props.loadTestFailureMessage" class="failure-detail">
         {{ props.loadTestFailureMessage }}<br />
       </span>
+      <!-- Which steps ran before it failed, so it is clear how far it got. -->
+      <div v-if="props.loadTestSteps && props.loadTestSteps.length" class="failed-steps">
+        <LoadTestProgress
+          variant="steps"
+          :status-label="props.loadTestStatus"
+          :steps="props.loadTestSteps"
+        />
+      </div>
       Check the target server and load generator, then start again with
       <strong>Re-run</strong>.
     </div>
@@ -340,6 +348,12 @@ const statusTooltip = computed(() => {
 .load-test-failed {
   border-color: #ffc9c9;
   color: #e03131;
+}
+
+.load-test-failed .failed-steps {
+  display: inline-block;
+  text-align: left;
+  margin: 10px auto;
 }
 
 .load-test-failed .failure-detail {
