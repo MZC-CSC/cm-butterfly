@@ -4,6 +4,8 @@ import { onBeforeMount, reactive, ref, watch, watchEffect } from 'vue';
 import { useSourceServiceDetailModel } from '@/widgets/source/sourceServices/sourceServiceDetail/model/sourceServiceDetailModel';
 import {
   useGetInfraSourceGroup,
+  useGetInfraInfoSourceGroup,
+  useGetSoftwareInfoSourceGroup,
   useGetSourceService,
 } from '@/entities/sourceService/api';
 import { showErrorMessage } from '@/shared/utils';
@@ -36,11 +38,13 @@ const refreshSourceGroupConnectionInfoStatus =
   useRefreshSourceGroupConnectionInfoStatus(null);
 const getSourceService = useGetSourceService(null);
 const resGetInfraSourceGroup = useGetInfraSourceGroup(null);
+const resGetInfraInfoSourceGroup = useGetInfraInfoSourceGroup(null);
 const infraModel = ref<any>(null);
 
 // Software 관련 상태
 const softwareModel = ref<any>(null);
 const resCollectSWSourceGroup = useCollectSWSourceGroup(null);
+const resGetSoftwareInfoSourceGroup = useGetSoftwareInfoSourceGroup(null);
 
 const modalState = reactive({
   open: false,
@@ -81,6 +85,8 @@ watchEffect(() => {
 });
 
 function getSourceGroupInfras() {
+  // Collect the infra (import-infra-source-group), then show its structured
+  // JSON form (get-infra-info-source-group) in the viewer's left "Meta" pane.
   resGetInfraSourceGroup
     .execute({
       pathParams: {
@@ -88,14 +94,21 @@ function getSourceGroupInfras() {
       },
     })
     .then(res => {
-      if (res.data.responseData) {
-        sourceServiceStore.mappinginfraModel(
-          props.selectedServiceId,
-          res.data.responseData,
-        );
-        infraModel.value = res.data.responseData;
-        loadSourceServiceData(props.selectedServiceId);
-
+      if (!res.data.responseData) return undefined;
+      sourceServiceStore.mappinginfraModel(
+        props.selectedServiceId,
+        res.data.responseData,
+      );
+      loadSourceServiceData(props.selectedServiceId);
+      return resGetInfraInfoSourceGroup.execute({
+        pathParams: {
+          sgId: props.selectedServiceId,
+        },
+      });
+    })
+    .then(infoRes => {
+      if (infoRes && infoRes.data.responseData) {
+        infraModel.value = infoRes.data.responseData;
         // 데이터를 가져온 후 자동으로 모달 열기
         modalState.open = true;
       }
@@ -107,6 +120,8 @@ function getSourceGroupInfras() {
 }
 
 function getSourceGroupSoftware() {
+  // Collect the software (import-software-source-group), then show its
+  // structured JSON form (get-software-info-source-group) in the pane.
   resCollectSWSourceGroup
     .execute({
       pathParams: {
@@ -114,14 +129,21 @@ function getSourceGroupSoftware() {
       },
     })
     .then(res => {
-      if (res.data.responseData) {
-        sourceServiceStore.mappingSoftwareModel(
-          props.selectedServiceId,
-          res.data.responseData,
-        );
-        softwareModel.value = res.data.responseData;
-        loadSourceServiceData(props.selectedServiceId);
-
+      if (!res.data.responseData) return undefined;
+      sourceServiceStore.mappingSoftwareModel(
+        props.selectedServiceId,
+        res.data.responseData,
+      );
+      loadSourceServiceData(props.selectedServiceId);
+      return resGetSoftwareInfoSourceGroup.execute({
+        pathParams: {
+          sgId: props.selectedServiceId,
+        },
+      });
+    })
+    .then(infoRes => {
+      if (infoRes && infoRes.data.responseData) {
+        softwareModel.value = infoRes.data.responseData;
         // 데이터를 가져온 후 자동으로 모달 열기
         softwareModalState.open = true;
       }
