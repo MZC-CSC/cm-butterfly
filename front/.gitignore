@@ -33,3 +33,6 @@ test-results/
 .iml
 *.idea
 *.xml
+.env.development
+.env.local
+.env.*.local
