@@ -253,7 +253,7 @@ watch(
   { immediate: true },
 );
 
-// Register the load-test status poll so a session end stops it centrally (BAR-1576). Without
+// Register the load-test status poll so a session end stops it centrally. Without
 // this the poll keeps hitting the API after logout and reopens the "session expired" path.
 let unregisterPoller: (() => void) | null = null;
 onMounted(() => {

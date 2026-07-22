@@ -199,7 +199,7 @@ interface LoadGeneratorInstallInfo {
 
 // One stage of a load test run (cm-ant FR-MA2-PERF-007-08 steps[]).
 //
-// cm-ant returns these already shaped as a tree (BAR-1553): the top level is the phases
+// cm-ant returns these already shaped as a tree: the top level is the phases
 // (precheck · generator_install · agent_install · jmx_prepare · jmeter_run · result_fetch)
 // and each phase carries its sub-steps in `children`. A caller that only wants the phases
 // can ignore `children` and see what it saw before.

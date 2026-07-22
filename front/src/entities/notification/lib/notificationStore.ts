@@ -11,7 +11,7 @@ import {
 import { showNotificationToast } from '@/shared/utils';
 
 /**
- * 알림 배지 (BAR-1536)
+ * 알림 배지
  *
  * 오래 걸리는 작업(인프라 삭제·부하 테스트·워크플로우 실행)은 끝나는 순간 사용자가 다른 화면에 있다.
  * 그 결과를 알리는 것이 이 모듈이고, **작업이 무엇인지·어떻게 알아냈는지는 모른다.**
@@ -32,7 +32,7 @@ let pollTimer: ReturnType<typeof setTimeout> | null = null;
 let running = false;
 
 /**
- * Whether an arriving notification also flashes on screen (BAR-1579).
+ * Whether an arriving notification also flashes on screen.
  *
  * The inbox always keeps it; this only controls the extra two-second toast. Stored in
  * localStorage like the workflow settings, defaulting to on — the toast is the point of the

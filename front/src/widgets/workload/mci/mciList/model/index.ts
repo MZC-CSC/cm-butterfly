@@ -60,7 +60,7 @@ export function useMciListModel(props: IProps) {
         description: mciRes.description,
         id: mciRes.id,
         // 삭제 추적의 키. id 는 곧 이름이라 지우고 같은 이름으로 다시 만들면 겹치므로,
-        // 행을 고유하게 가리키려면 uid 가 필요하다(BAR-1531).
+ // 행을 고유하게 가리키려면 uid 가 필요하다.
         uid: mciRes.uid,
         status: mciRes.status,
         provider: getCloudProvidersInVms(mciRes.vm),

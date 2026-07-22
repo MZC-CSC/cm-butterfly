@@ -6,7 +6,7 @@ import { ILoadTestExecutionStep } from '@/entities/mci/model';
 /**
  * Shared load-test progress display — the single place that knows how a run is shown.
  *
- * cm-ant returns steps[] already shaped as a tree (BAR-1553): the top level is the phases
+ * cm-ant returns steps[] already shaped as a tree: the top level is the phases
  * and each phase carries its sub-steps in `children`. Everything derived from that — labels,
  * the current running leaf, the whole-process percentage, the hover tooltip — lives here so
  * the Evaluate Perf tab, the Information tab and the Load Config popup all render from one

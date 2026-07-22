@@ -97,7 +97,7 @@ export function useSequentialToolboxModel() {
   function getFixedModel(task: ITaskComponentInfoResponse): fixedModel {
     // 스키마 properties의 description은 *설명(힌트)*이지 값이 아니다. 값은 빈 문자열로 두어
     // 사용자가 채우거나(수동 task) 자동 생성 task는 빈 값→백엔드 기본값을 쓰게 한다.
-    // (과거 description을 값으로 저장해 예: beetle 마이그레이션 useExisting=<설명문>이 되어 400 발생 — BAR-1393)
+ // (과거 description을 값으로 저장해 예: beetle 마이그레이션 useExisting=<설명문>이 되어 400 발생)
     const pathParamsKeyValue = task?.data.path_params?.properties
       ? Object.entries(task.data.path_params?.properties).reduce(
           (acc, [key]) => {
