@@ -3,7 +3,7 @@ import Vue from 'vue';
 type InsertMethod = 'append' | 'prepend';
 
 /**
- * @param {Object} component - 동적으로 생성할 Vue 컴포넌트
+ * @param {Object} component - The Vue component to create dynamically
  */
 export function insertDynamicComponent(
   component: any,

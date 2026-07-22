@@ -26,12 +26,12 @@ const resCreateTargetSoftwareModel = createTargetSoftwareModel(null);
 const sourceEditorRef = ref<any>(null);
 const recommendedEditorRef = ref<any>(null);
 
-// 소스 모델 데이터
+// source model data
 const sourceModel = computed(() =>
   sourceModelStore.getSourceModelById(props.sourceModelId),
 );
 
-// 소스 소프트웨어 모델 데이터 (JSON 표시용)
+// source software model data (for JSON display)
 const sourceSoftwareModelData = computed(() => {
   if (sourceModel.value?.sourceSoftwareModel) {
     return sourceModel.value.sourceSoftwareModel;
@@ -39,7 +39,7 @@ const sourceSoftwareModelData = computed(() => {
   return null;
 });
 
-// 소스 모델 JSON string
+// source model JSON string
 const sourceSoftwareModelString = computed(() => {
   if (!sourceSoftwareModelData.value) return '{}';
   try {
@@ -50,10 +50,10 @@ const sourceSoftwareModelString = computed(() => {
   }
 });
 
-// 추천 모델 결과 데이터 (JSON 표시용)
+// recommended model result data (for JSON display)
 const recommendedModelData = ref<any>(null);
 
-// 추천 모델 JSON string
+// recommended model JSON string
 const recommendedModelString = computed(() => {
   if (!recommendedModelData.value) return '{}';
   try {
@@ -64,10 +64,10 @@ const recommendedModelString = computed(() => {
   }
 });
 
-// 로딩 상태
+// loading state
 const isLoading = ref(false);
 
-// Save TargetModel 모달 상태
+// Save TargetModel modal state
 const saveTargetModelModal = reactive({
   open: false,
   context: {
@@ -109,15 +109,15 @@ watch(
 );
 
 /**
- * 실패 사유를 화면에 남긴다. 토스트는 5초 뒤 사라지는데, 사용자가 결과를 기다리는 자리는
- * 오른쪽 결과 패널이다. 사유가 거기 남아 있지 않으면 "그냥 빈 화면"으로만 보인다.
+ * Keep the failure reason on screen. The toast disappears after 5 seconds, but where the user
+ * is waiting for the result is the right-hand result panel. If the reason isn't left there, it just looks like "an empty screen".
  */
 const loadErrorReason = ref<string | null>(null);
 
 /**
- * 백엔드가 준 실패 사유를 꺼낸다. 두 가지 형태로 들어온다:
- *  - HTTP 오류 → execute()가 `{ error, errorMsg, status }`(ref)로 reject
- *  - 본문에 에러 상태가 실려 온 경우 → 아래에서 Error로 던진 것
+ * Extract the failure reason the backend gave. It arrives in two forms:
+ *  - HTTP error → execute() rejects with `{ error, errorMsg, status }` (ref)
+ *  - error status carried in the body → thrown as an Error below
  */
 function toFailureReason(e: any): string | null {
   const fromRequest = e?.errorMsg?.value ?? e?.errorMsg;
@@ -139,7 +139,7 @@ async function handleGetMigrationList() {
       sourceSoftwareModelData.value,
     );
 
-    // 응답의 status.code를 확인하여 에러 여부 판단
+    // check the response's status.code to determine whether it's an error
     const statusCode = response?.data?.status?.code;
     if (statusCode && statusCode >= 400) {
       throw new Error(
@@ -148,7 +148,7 @@ async function handleGetMigrationList() {
       );
     }
 
-    // API 응답 데이터를 recommendedModelData에 저장
+    // store the API response data in recommendedModelData
     recommendedModelData.value =
       recommendSoftwareModel.tableModel.tableState.items[0]?.originalData ||
       null;
@@ -156,9 +156,9 @@ async function handleGetMigrationList() {
     // Let a failure look like a failure. This used to fall back to dummy recommendations, so a dead
     // cm-grasshopper still rendered a plausible-looking result and the breakage went unnoticed.
     //
-    // 사유까지 함께 보여준다 — cm-grasshopper는 소스 그룹·커넥션을 실행 시점에 다시 조회하므로,
-    // 수집 당시엔 있었으나 그 뒤 지워진 커넥션을 참조하는 소스 모델은 "not found"로 정당하게 실패한다.
-    // 그때 사유가 없으면 사용자는 무엇이 없어서 실패했는지 알 길이 없다.
+    // Also show the reason — cm-grasshopper re-queries source groups and connections at run time, so
+    // a source model referencing a connection that existed at collection time but was deleted afterward legitimately fails with "not found".
+    // Without the reason at that point, the user has no way to know what was missing.
     console.error('Failed to load software migration list:', error);
     recommendedModelData.value = null;
     loadErrorReason.value = toFailureReason(error);
@@ -175,7 +175,7 @@ function handleCloseModal() {
   emit('update:close-modal', false);
 }
 
-// Save 버튼 클릭 핸들러
+// Save button click handler
 function handleSaveTargetModel() {
   if (!recommendedModelData.value) {
     console.warn('No migration recommendations data to save');
@@ -185,20 +185,20 @@ function handleSaveTargetModel() {
   saveTargetModelModal.open = true;
 }
 
-// Save 모달 닫기 핸들러
+// Save modal close handler
 function handleCloseSaveModal() {
   saveTargetModelModal.open = false;
 }
 
-// 실제 저장 처리
+// perform the actual save
 function handleCreateTargetModel(e) {
   saveTargetModelModal.context.name = e.name;
   saveTargetModelModal.context.description = e.description;
 
-  // Source Software Model에서 isInitUserModel 값 가져오기
+  // get the isInitUserModel value from the Source Software Model
   const isInitUserModel =
     sourceSoftwareModelData.value?.isInitUserModel ?? false;
-  const userId = authStore.id; // 로그인 유저의 ID 사용
+  const userId = authStore.id; // use the logged-in user's ID
   const userModelVersion = sourceModel.value?.userModelVersion ?? 'v0.1';
 
   const requestBody = {
@@ -241,7 +241,7 @@ function handleCreateTargetModel(e) {
     >
       <template #add-info>
         <div class="json-viewer-layout">
-          <!-- 왼쪽: Source Model JSON Viewer -->
+          <!-- Left: Source Model JSON Viewer -->
           <p-pane-layout class="json-editor-pane">
             <p class="editor-title">Source Software Model</p>
             <div class="editor-wrapper">
@@ -259,7 +259,7 @@ function handleCreateTargetModel(e) {
             </div>
           </p-pane-layout>
 
-          <!-- 가운데: Recommend Model 버튼 -->
+          <!-- Center: Recommend Model button -->
           <button
             class="convert-btn"
             data-testid="sw-recommend-get"
@@ -279,12 +279,12 @@ function handleCreateTargetModel(e) {
             <p-spinner v-if="isLoading" class="spinner" size="md" />
           </button>
 
-          <!-- 오른쪽: Recommended Model 결과 JSON Viewer -->
+          <!-- Right: Recommended Model result JSON Viewer -->
           <p-pane-layout class="json-editor-pane">
             <p class="editor-title">Migration Recommendations</p>
             <!--
-              실패하면 빈 뷰어 대신 사유를 이 자리에 남긴다. 사용자가 결과를 기다리는 자리가
-              여기이고, 토스트는 5초 뒤 사라져 "왜 비었는지"가 남지 않는다.
+              On failure, leave the reason here instead of an empty viewer. This is where the user
+              waits for the result, and the toast disappears after 5 seconds, leaving no "why it's empty".
             -->
             <div
               v-if="loadErrorReason"
@@ -337,7 +337,7 @@ function handleCreateTargetModel(e) {
       </template>
     </create-form>
 
-    <!-- Save Software Migration as Target Model 모달 -->
+    <!-- Save Software Migration as Target Model modal -->
     <simple-edit-form
       v-if="saveTargetModelModal.open"
       header-title="Save Software Migration as Target Model"
@@ -395,7 +395,7 @@ function handleCreateTargetModel(e) {
     min-height: 400px;
   }
 
-  /* 실패 사유 — 결과 뷰어와 같은 자리를 차지해 "빈 화면"이 되지 않게 한다 */
+  /* failure reason — occupies the same spot as the result viewer so it isn't an "empty screen" */
   .recommend-error {
     background-color: white;
     padding: 1.25rem;
@@ -413,7 +413,7 @@ function handleCreateTargetModel(e) {
     font-size: 0.875rem;
   }
 
-  /* 서버가 준 문구는 그대로 보여준다 — 길거나 식별자가 섞여 있어도 잘리지 않게 */
+  /* show the server's message as-is — don't truncate even if it's long or contains identifiers */
   .recommend-error__reason {
     color: #3b3b3b;
     font-size: 0.8125rem;

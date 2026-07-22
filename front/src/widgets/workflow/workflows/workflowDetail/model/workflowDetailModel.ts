@@ -22,11 +22,12 @@ export function useWorkflowDetailModel() {
       { label: 'Description', name: 'description', disableCopy: true },
       { label: 'Created Date Time', name: 'created_at' },
       { label: 'Updated Date Time', name: 'updated_at' },
-      // 'Workflow Tool'·'Workflow JSON' 링크는 여기서 뺐다. 편집이냐 실행이냐는
-      // **실행 상태 화면 한 곳에서** 정한다 — 거기서만 실행 이력을 보고 원본 편집·
-      // 복제 편집·JSON 편집을 갈라 줄 수 있다. 상세에서 곧장 열면 그 판단을 건너뛰고,
-      // 그것을 막으려 상세에도 같은 판정을 복제해 두면 두 곳이 어긋난다.
-      // 상세는 *이 워크플로우가 무엇인지*만 적고, 할 수 있는 일은 실행 상태에 모은다.
+      // The 'Workflow Tool' and 'Workflow JSON' links were removed here. Whether to edit or run is
+      // decided **in one place, the run-status screen** — only there can we look at the run history and
+      // split between editing the original, editing a clone, and editing the JSON. Opening straight from
+      // the detail view skips that decision, and duplicating the same logic in the detail view to prevent
+      // that would let the two places drift apart. The detail view only states *what this workflow is*;
+      // the things you can do are gathered on the run-status screen.
     ];
   }
 

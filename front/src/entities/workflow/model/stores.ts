@@ -19,10 +19,11 @@ export const useWorkflowStore = defineStore(NAMESPACE, () => {
   const taskComponents = ref<ITaskComponent[]>([]);
 
   /**
-   * API 응답 → 스토어에 담는 형태.
+   * API response → the shape stored in the store.
    *
-   * 담는 형태를 아는 곳은 여기 하나뿐이다. 목록으로 담든 한 건으로 담든 이 함수를
-   * 거치므로, 저장 구조가 바뀌어도 고칠 곳은 여기 한 곳이다.
+   * This is the only place that knows the stored shape. Whether stored as a list or a
+   * single item, everything goes through this function, so if the storage structure
+   * changes, this is the one place to fix.
    */
   function toWorkflowEntry(workflow: IWorkflowResponse): IWorkflow {
     return {
@@ -44,11 +45,11 @@ export const useWorkflowStore = defineStore(NAMESPACE, () => {
   }
 
   /**
-   * 한 건 담기·갱신.
+   * Insert or update a single item.
    *
-   * 목록 화면은 이 배열을 watch 해서 표를 그린다. 그래서 자리를 바꿔 끼우지 않고
-   * *배열을 새로 만들어* 넣는다 — push로 밀어 넣으면 목록이 다시 그려지지 않아,
-   * 복제로 새로 생긴 워크플로우가 목록에 나타나지 않는다.
+   * The list screen watches this array to render the table. So instead of swapping an
+   * element in place, we *build a new array*. Pushing into it wouldn't re-render the
+   * list, and a workflow newly created by cloning wouldn't appear in the list.
    */
   function upsertWorkflow(workflow: IWorkflowResponse) {
     const entry = toWorkflowEntry(workflow);
@@ -60,11 +61,12 @@ export const useWorkflowStore = defineStore(NAMESPACE, () => {
   }
 
   /**
-   * 워크플로우를 돌려준다. 캐시에 없으면 받아서 채운 뒤 돌려준다.
+   * Return the workflow. If it isn't in the cache, fetch it, fill the cache, then return it.
    *
-   * 캐시 정책을 여기 한 곳에만 둔다. 호출자가 "없으면 목록을 다시 받아 넣는" 일을
-   * 각자 하기 시작하면, 워크플로우를 새로 만드는 기능이 생길 때마다 같은 코드가
-   * 늘어나고 어디선가 빠뜨린다 (복제본을 편집기로 열었을 때 빈 화면이 뜬 것이 그 예다).
+   * The cache policy lives in this one place. If callers each start doing "refetch the
+   * list if it's missing", the same code multiplies every time a new create-workflow
+   * feature appears and someone somewhere leaves it out (the blank screen when opening
+   * a clone in the editor was one such case).
    */
   async function ensureWorkflowById(
     workflowId: string | null | undefined,
@@ -74,9 +76,9 @@ export const useWorkflowStore = defineStore(NAMESPACE, () => {
     const cached = getWorkflowById(workflowId);
     if (cached) return cached;
 
-    // 컴포저블(useGetWorkflow)은 컴포넌트 setup 맥락에서 쓰도록 만들어져 있다.
-    // 스토어 액션에서 부르면 요청이 정상적으로 끝나지 않아 호출자가 계속 기다리게 된다.
-    // 그래서 여기서는 axios 호출을 직접 쓴다.
+    // The composable (useGetWorkflow) is built to be used within a component setup
+    // context. Called from a store action, the request doesn't finish properly and the
+    // caller keeps waiting. So here we use the axios call directly.
     const response = await axiosPost<IAxiosResponse<IWorkflowResponse>, any>(
       'cm-cicada/get-workflow',
       { pathParams: { wfId: workflowId } },
@@ -111,8 +113,8 @@ export const useWorkflowStore = defineStore(NAMESPACE, () => {
 
   function setTaskComponents(_taskComponents: ITaskComponent[]) {
     taskComponents.value = _taskComponents.map(taskComponent => {
-      // cm-cicada Type/Spec 응답을 legacy `data` 형태로 정규화 (idempotent).
-      // 정규화하지 않으면 `.data` 가 undefined 라 상세 JSON 뷰가 비어 보인다.
+      // Normalize the cm-cicada Type/Spec response into the legacy `data` shape (idempotent).
+      // Without normalizing, `.data` is undefined so the detail JSON view looks empty.
       normalizeTaskComponentInPlace(taskComponent);
       return {
         created_at: taskComponent.created_at,
@@ -126,7 +128,7 @@ export const useWorkflowStore = defineStore(NAMESPACE, () => {
       };
     });
 
-    // 각 task component의 model 정보를 콘솔에 출력
+    // Print each task component's model information to the console
     console.log('=== Task Components Model Information ===');
     _taskComponents.forEach(taskComponent => {
       console.log(`Task: ${taskComponent.name}`, {
@@ -136,7 +138,7 @@ export const useWorkflowStore = defineStore(NAMESPACE, () => {
         updated_at: taskComponent.updated_at,
       });
 
-      // Task component의 body_params 모델 정보 상세 출력
+      // Print the task component's body_params model information in detail
       if (taskComponent.data && (taskComponent.data as any).body_params) {
         console.log(
           `📋 ${taskComponent.name} Body Params Model:`,

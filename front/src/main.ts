@@ -13,8 +13,8 @@ import { clearSession } from '@/shared/libs/auth/session';
 import { startSessionExpiryWatch } from '@/features/auth/model/useLogout';
 import { startTracking } from '@/shared/libs/tracking/runner';
 import { startNotificationPolling } from '@/entities/notification/lib/notificationStore';
-// 체커는 import 되는 순간 러너에 자기를 등록한다. 아무도 이 모듈을 부르지 않으면 번들에서
-// 통째로 사라지므로 여기서 명시적으로 들여온다.
+// Each checker registers itself with the runner the moment it is imported. If no one
+// references these modules they get dropped from the bundle entirely, so import them explicitly here.
 import '@/entities/mci/lib/deleteTracker';
 import '@/entities/vm/lib/loadTestTracker';
 import '@/entities/workflow/lib/workflowTracker';
@@ -29,12 +29,12 @@ async function init() {
 
   try {
     await JwtTokenProvider.validateToken();
-    // 새로고침·새 탭으로 들어온 경우다. 로그인 절차를 다시 타지 않으므로 여기서 이어 붙인다.
+    // This is a page refresh or a new tab. The login flow does not run again, so hook it up here.
     startSessionExpiryWatch();
     void startTracking();
     void startNotificationPolling();
   } catch (e) {
-    // 서버가 거절한 토큰을 그대로 두면 라우터 가드가 살아 있는 세션으로 오인한다.
+    // Leaving a server-rejected token in place would make the router guard mistake it for a live session.
     clearSession();
     McmpRouter.getRouter()
       .push({ name: AUTH_ROUTE.LOGIN._NAME })

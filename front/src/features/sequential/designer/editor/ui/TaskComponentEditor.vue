@@ -120,21 +120,21 @@ export default defineComponent({
   },
   emits: ['saveComponentName', 'saveContext', 'saveFixedModel'],
   setup(props, { emit }) {
-    // props를 reactive하게 사용하기 위해 computed로 래핑
+    // Wrap in computed to use props reactively
     const step = computed(() => props.step);
     const taskEditorModel = useCommonTaskEditorModel();
     const jsonEditor = ref();
     const isInitialized = ref(false);
 
-    // Workflow Store에서 task components 가져오기
+    // Get the task components from the Workflow Store
     const workflowStore = useWorkflowStore();
     const { taskComponents } = storeToRefs(workflowStore);
 
-    // 현재 task에 해당하는 task component의 data 찾기
+    // Find the data of the task component corresponding to the current task
     const getCurrentTaskComponentData = () => {
       console.log('=== Finding Task Component Data ===');
       
-      // 1. Step properties에 직접 저장된 taskComponentData 확인 (우선순위)
+      // 1. Check taskComponentData stored directly in the step properties (priority)
       if ((step.value.properties as any)?.taskComponentData) {
         console.log('✅ Found taskComponentData in step.properties');
         const taskComponentData = (step.value.properties as any).taskComponentData;
@@ -143,7 +143,7 @@ export default defineComponent({
         return taskComponentData;
       }
       
-      // 2. Store에서 찾기 (fallback)
+      // 2. Look it up in the Store (fallback)
       const taskName = step.value.name || step.value.type;
       console.log('🔍 Task name:', taskName);
       console.log('🔍 Task type:', step.value.type);
@@ -172,7 +172,7 @@ export default defineComponent({
     const queryParams = ref<Record<string, any>>({});
     const queryParamsSchema = ref<any>(null);
     
-    // Body Parameters - JSON Editor용 Schema와 Model 분리
+    // Body Parameters - separate the Schema and Model for the JSON Editor
     const bodyParamsSchema = ref<Record<string, any>>({
       type: 'object',
       title: 'Body Parameters',
@@ -182,7 +182,7 @@ export default defineComponent({
     
     const bodyParamsModel = ref<Record<string, any>>({});
     
-    // 초기 데이터 저장 (비교용 - originalData와 비교)
+    // Store the initial data (for comparison - against originalData)
     const initialData = ref<{
       name: string;
       path_params: Record<string, any>;
@@ -197,7 +197,7 @@ export default defineComponent({
       request_body: ''
     });
     
-    // 전체 Task Schema (디버그용)
+    // The whole Task Schema (for debugging)
     const taskSchema = ref({
       type: 'object',
       title: 'Task Component Configuration',
@@ -234,7 +234,7 @@ export default defineComponent({
       required: ['name', 'type']
     });
 
-    // body_params 기반 동적 스키마 생성
+    // Build a dynamic schema based on body_params
     const generateBodyParamsSchema = (bodyParams: any) => {
       if (!bodyParams || typeof bodyParams !== 'object') {
         return {
@@ -246,7 +246,7 @@ export default defineComponent({
 
       const properties: any = {};
       
-      // bodyParams의 각 속성을 분석하여 스키마 생성
+      // Analyze each bodyParams property to build the schema
       for (const [key, value] of Object.entries(bodyParams)) {
         const title = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
         
@@ -282,7 +282,7 @@ export default defineComponent({
             default: value
           };
         } else if (typeof value === 'object' && value !== null) {
-          // 객체인 경우 재귀적으로 처리
+          // For an object, handle it recursively
           const nestedSchema = generateBodyParamsSchema(value);
           properties[key] = {
             type: 'object',
@@ -311,7 +311,7 @@ export default defineComponent({
       };
     };
 
-    // Task Model (reactive data) - body_params 중심 구조
+    // Task Model (reactive data) - body_params centered structure
     const taskModel = ref({
       name: '',
       type: 'task',
@@ -321,18 +321,18 @@ export default defineComponent({
       body_params: {}
     });
 
-    // Component Name 관련 메서드들
+    // Component Name related methods
     const getComponentNameTitle = () => {
       return (taskEditorModel.componentNameModel as any)?.context?.title || '';
     };
 
     const getComponentNameValue = () => {
-      // componentNameModel은 단순 ref이므로 .value로 직접 접근
+      // componentNameModel is a plain ref, so access it directly via .value
       return (taskEditorModel.componentNameModel as any)?.value || '';
     };
 
     const setComponentNameValue = (value: string) => {
-      // componentNameModel은 단순 ref이므로 .value로 직접 설정
+      // componentNameModel is a plain ref, so set it directly via .value
       if (taskEditorModel.componentNameModel) {
         (taskEditorModel.componentNameModel as any).value = value;
       }
@@ -346,23 +346,23 @@ export default defineComponent({
       return (taskEditorModel.componentNameModel as any)?.context?.model?.onBlur;
     };
 
-    // Vue 2.7 템플릿에서 사용할 이벤트 핸들러 (타입 단언 제거)
+    // Event handlers for use in the Vue 2.7 template (type assertions removed)
     const handleComponentNameInput = (event: Event) => {
       const target = event.target as HTMLInputElement;
       setComponentNameValue(target.value);
       
-      // step.name 업데이트를 위해 emit
+      // emit to update step.name
       // editorProviders: step.name = e
       emit('saveComponentName', target.value);
       console.log('✅ Task name updated:', target.value);
     };
 
-    // Step Properties 접근 메서드 (타입 단언을 script로 이동)
+    // Step Properties accessor methods (moved the type assertions into script)
     const getStepProperties = () => {
       return step.value.properties;
     };
 
-    // Task Component Name Getter (Property Order Config용)
+    // Task Component Name Getter (for Property Order Config)
     const getCurrentTaskComponentName = (): string => {
       // Use step.type instead of step.name because step.name is user-editable
       // and property sorting should be based on the fixed task component type
@@ -387,7 +387,7 @@ export default defineComponent({
       return Object.keys(queryParams.value).length > 0;
     };
 
-    // Body Parameters 존재 여부 확인 (computed property로 변경하여 reactive하게)
+    // Check whether Body Parameters exist (made a computed property to be reactive)
     const hasBodyParams = computed(() => {
       const result = bodyParamsSchema.value && 
              bodyParamsSchema.value.properties && 
@@ -401,7 +401,7 @@ export default defineComponent({
       return result;
     });
 
-    // Body Parameters Property Names (정렬 적용)
+    // Body Parameters Property Names (sorting applied)
     const sortedBodyParamPropertyNames = computed(() => {
       console.log('⭐ sortedBodyParamPropertyNames computed called!');
       console.log('   bodyParamsSchema.value:', bodyParamsSchema.value);
@@ -448,7 +448,7 @@ export default defineComponent({
       return queryParamsSchema.value?.required?.includes(key) || false;
     };
 
-    // Path/Query Parameters 업데이트 핸들러
+    // Path/Query Parameters update handler
     const handlePathParamInput = (key: string, event: Event) => {
       const target = event.target as HTMLInputElement;
       pathParams.value[key] = target.value;
@@ -473,7 +473,7 @@ export default defineComponent({
       }
     };
     
-    // Path/Query Params 변경 시 step.properties.fixedModel 업데이트
+    // Update step.properties.fixedModel when Path/Query Params change
     const updateStepWithParams = () => {
       console.log('=== Updating path/query params ===');
       console.log('Path params:', pathParams.value);
@@ -505,16 +505,16 @@ export default defineComponent({
         console.error('❌ BUG: query_params is missing from fixedModel!');
       }
       
-      // 부모 컴포넌트에 변경사항 전달
-      // ⚠️ IMPORTANT: editorProviders에서 step.properties.fixedModel = e 로 할당하므로
-      // 전체 step이 아니라 fixedModel만 emit해야 함!
+      // Pass the changes to the parent component
+      // ⚠️ IMPORTANT: editorProviders assigns step.properties.fixedModel = e, so
+      // must emit only fixedModel, not the whole step!
       emit('saveFixedModel', updatedStep.properties.fixedModel);
       
       console.log('✅ Auto-saved path/query params to step.properties.fixedModel');
       console.log('===================================');
     };
 
-    // JSON Editor 관련 메서드들 (공식 예시 기반)
+    // JSON Editor related methods (based on the official example)
     const resetEditor = () => {
       console.log('Resetting JSON Editor');
       if (jsonEditor.value) {
@@ -526,13 +526,13 @@ export default defineComponent({
       console.log('=== Saving Task Configuration ===');
       console.log('Current taskModel:', taskModel.value);
       
-      // model 구조에 맞게 저장
+      // Store it to match the model structure
       const model = step.value.properties?.model || {} as any;
       const modelProperties = (model as any).properties || {};
       
       let updatedModel;
       if (modelProperties.targetSoftwareModel) {
-        // grasshopper_task_software_migration의 경우 targetSoftwareModel 업데이트
+        // For grasshopper_task_software_migration, update targetSoftwareModel
         updatedModel = {
           ...model,
           properties: {
@@ -542,7 +542,7 @@ export default defineComponent({
         };
         console.log('Updating targetSoftwareModel structure');
       } else if (modelProperties && Object.keys(modelProperties).length > 0) {
-        // Step Model Properties를 사용하는 경우 properties 업데이트
+        // When using Step Model Properties, update properties
         updatedModel = {
           ...model,
           properties: {
@@ -552,7 +552,7 @@ export default defineComponent({
         };
         console.log('Updating Step Model Properties structure');
       } else {
-        // 일반적인 경우 data 구조 사용
+        // In the general case, use the data structure
         updatedModel = {
           ...model,
           data: {
@@ -583,12 +583,12 @@ export default defineComponent({
       console.log('Model structure being saved:', updatedModel);
       console.log('Body params being saved:', taskModel.value.body_params);
 
-      // 부모 컴포넌트에 변경사항 전달
-      // ⚠️ IMPORTANT: editorProviders에서 각각 할당하므로 해당 property만 emit
+      // Pass the changes to the parent component
+      // ⚠️ IMPORTANT: editorProviders assigns each one, so emit only that property
       emit('saveComponentName', updatedStep.name);  // step.name = e
       emit('saveContext', updatedModel);  // step.properties.model = e
       
-      // fixedModel 업데이트 (path_params, query_params)
+      // Update fixedModel (path_params, query_params)
       if (taskModel.value.path_params || taskModel.value.query_params) {
         const updatedFixedModel = {
           path_params: taskModel.value.path_params || pathParams.value || {},
@@ -601,7 +601,7 @@ export default defineComponent({
     };
 
 
-    // 초기화
+    // Initialize
     onMounted(async () => {
       console.log('\n\n\n');
       console.log('═══════════════════════════════════════════════════════════════');
@@ -626,7 +626,7 @@ export default defineComponent({
       console.log('═══════════════════════════════════════════════════════════════');
       console.log('\n');
       
-      // Step 데이터를 taskModel에 매핑
+      // Map the Step data onto taskModel
       if (step.value) {
         console.log('=== Step Structure Analysis ===');
         console.log('Step:', step.value);
@@ -634,11 +634,11 @@ export default defineComponent({
         console.log('Step.properties.model:', step.value.properties?.model);
         console.log('Step.properties.originalData:', (step.value.properties as any)?.originalData);
         
-        // Task Component의 data 가져오기 (list-task-component의 결과)
+        // Get the Task Component's data (the result of list-task-component)
         const taskComponentData = getCurrentTaskComponentData();
         console.log('Task Component Data from store:', taskComponentData);
         
-        // model 구조에서 params 추출
+        // Extract params from the model structure
         const model = step.value.properties?.model || {} as any;
         const modelProperties = (model as any).properties || {};
         
@@ -650,7 +650,7 @@ export default defineComponent({
         console.log('modelProperties:', modelProperties);
         console.log('modelProperties keys:', Object.keys(modelProperties));
         
-        // model에서 기존 데이터 확인
+        // Check the existing data in model
         let existingBodyParamsData: any = null;
         let hasExistingData = false;
         
@@ -661,7 +661,7 @@ export default defineComponent({
         console.log('modelProperties:', modelProperties);
         console.log('modelProperties keys:', Object.keys(modelProperties));
         
-        // modelProperties의 각 필드 상세 로그
+        // Detailed log for each modelProperties field
         if (modelProperties && Object.keys(modelProperties).length > 0) {
           console.log('📊 modelProperties detail:');
           Object.keys(modelProperties).forEach(key => {
@@ -677,20 +677,20 @@ export default defineComponent({
           });
         }
         
-        // ✨ 데이터 로딩 우선순위 (✅ CORRECTED):
-        // Priority 1: step.properties.model (현재 세션의 최신 데이터 - Task Editor를 닫고 다시 열 때 변경사항 유지)
-        // Priority 2: originalData.request_body (초기 로드 시 fallback)
+        // ✨ Data loading priority (✅ CORRECTED):
+        // Priority 1: step.properties.model (latest data of the current session - changes are kept when the Task Editor is closed and reopened)
+        // Priority 2: originalData.request_body (fallback on initial load)
         
         const originalData = (step.value.properties as any)?.originalData;
         
-        // Priority 1: step.properties.model 먼저 확인 (현재 세션의 최신 데이터)
-        console.log('🔍 Priority 1: Checking step.properties.model (current session data - 변경사항 포함)');
+        // Priority 1: check step.properties.model first (latest data of the current session)
+        console.log('🔍 Priority 1: Checking step.properties.model (current session data - includes changes)');
         console.log('   model:', model);
         console.log('   model keys:', Object.keys(model));
         console.log('   modelProperties:', modelProperties);
         console.log('   modelProperties keys:', Object.keys(modelProperties));
         
-        // model이 실제 데이터인지 확인 (schema 제외)
+        // Check whether model is actual data (excluding schema)
         const modelIsSchema = model.type === 'object' && 
                              model.properties && 
                              typeof model.properties === 'object';
@@ -698,18 +698,18 @@ export default defineComponent({
         console.log('   🔍 Is model a schema?:', modelIsSchema);
         
         if (!modelIsSchema && model && Object.keys(model).length > 0) {
-          // model이 schema가 아니고 데이터가 있으면 사용
+          // Use model if it is not a schema and has data
           
-          // modelProperties가 있으면 (properties 안에 실제 데이터가 있는 경우)
+          // If modelProperties exist (when the actual data is inside properties)
           if (modelProperties && Object.keys(modelProperties).length > 0) {
-            // modelProperties의 targetSoftwareModel이 schema가 아닌지 확인
+            // Check whether modelProperties' targetSoftwareModel is not a schema
             const targetSoftwareModelProp = (modelProperties as any).targetSoftwareModel;
             if (targetSoftwareModelProp) {
               const isTSMSchema = targetSoftwareModelProp.type === 'object' && 
                                  targetSoftwareModelProp.properties;
               
               if (!isTSMSchema) {
-                // targetSoftwareModel이 schema가 아니면 실제 데이터
+                // If targetSoftwareModel is not a schema, it is actual data
                 existingBodyParamsData = modelProperties;
                 hasExistingData = true;
                 console.log('✅ Using step.properties.model (contains current changes)');
@@ -718,14 +718,14 @@ export default defineComponent({
                 console.log('⚠️ step.properties.model.properties.targetSoftwareModel is schema');
               }
             } else {
-              // targetSoftwareModel이 없으면 modelProperties 전체가 데이터일 수 있음
+              // If there is no targetSoftwareModel, all of modelProperties may be data
               existingBodyParamsData = modelProperties;
               hasExistingData = true;
               console.log('✅ Using step.properties.model (no targetSoftwareModel schema)');
               console.log('   Data keys:', Object.keys(existingBodyParamsData));
             }
           } else {
-            // modelProperties가 없으면 model 자체를 사용
+            // If there are no modelProperties, use the model itself
             existingBodyParamsData = model;
             hasExistingData = true;
             console.log('✅ Using step.properties.model directly (current changes)');
@@ -735,7 +735,7 @@ export default defineComponent({
           console.log('⚠️ step.properties.model is schema or empty');
         }
         
-        // Priority 2: originalData.request_body 확인 (fallback - 초기 로드 시에만)
+        // Priority 2: check originalData.request_body (fallback - only on initial load)
         if (!hasExistingData) {
           console.log('🔍 Priority 2: Checking originalData.request_body (fallback for initial load)');
           console.log('   originalData:', originalData);
@@ -746,9 +746,9 @@ export default defineComponent({
           
           let requestBody = originalData.request_body;
 
-          // cm-cicada 런타임 참조("infra_recommend_get.cloudInfraModel" 등)는 리터럴
-          // 값이 아니므로 파싱하지 않는다. 파싱하면 {}로 떨어져 값이 사라진다. 참조인
-          // 경우 originalData 폴백을 건너뛰고 컴포넌트 스키마/스켈레톤 기반 렌더링에 맡긴다.
+          // A cm-cicada runtime reference (e.g. "infra_recommend_get.cloudInfraModel") is not a
+          // literal value, so it is not parsed. Parsing it collapses it to {} and the value disappears. When it is a
+          // reference, skip the originalData fallback and leave it to component schema/skeleton based rendering.
           if (
             typeof requestBody === 'string' &&
             isReferenceRequestBody(requestBody)
@@ -758,7 +758,7 @@ export default defineComponent({
               requestBody,
             );
           } else if (typeof requestBody === 'string') {
-            // JSON 문자열이면 파싱
+            // If it is a JSON string, parse it
             try {
               console.log('   📦 Parsing JSON string (length:', requestBody.length, ')');
               requestBody = JSON.parse(requestBody);
@@ -770,7 +770,7 @@ export default defineComponent({
             }
           }
           
-          // request_body가 실제 데이터인지 확인 (schema 제외)
+          // Check whether request_body is actual data (excluding schema)
           const requestBodyIsSchema = requestBody && typeof requestBody === 'object' && 
                                      requestBody.type === 'object' && 
                                      requestBody.properties && 
@@ -806,16 +806,16 @@ export default defineComponent({
           // No need to decode again here (prevents double decoding)
         }
         
-        // Schema와 Data 분리
-        let bodyParamsSchemaSource: any = null;  // Schema (form 구조)
+        // Separate Schema and Data
+        let bodyParamsSchemaSource: any = null;  // Schema (form structure)
         let pathParamsData: any = {};
         let queryParamsData: any = {};
-        let bodyParamsData: any = {};  // 실제 저장된 데이터
+        let bodyParamsData: any = {};  // The actually stored data
         
-        // path/query 파라미터는 body 유무와 무관하게 처리한다.
-        // 예전에는 이 추출이 body_params 조건 안에 들어 있어서, body 없는 GET 컴포넌트
-        // (예: honeybee_task_get_infra_refined)의 path 입력란이 아예 그려지지 않았고,
-        // 값을 넣을 방법이 없어 저장 후 워크플로우 실행이 실패했다.
+        // path/query parameters are handled regardless of whether a body exists.
+        // This extraction used to be inside the body_params condition, so a body-less GET component
+        // (e.g. honeybee_task_get_infra_refined) was not drawn at all,
+        // with no way to enter values, workflow execution failed after saving.
         if (taskComponentData) {
           const pathParamsSchemaObj = (taskComponentData as any).path_params;
           const queryParamsSchemaObj = (taskComponentData as any).query_params;
@@ -837,16 +837,16 @@ export default defineComponent({
         }
 
         if (taskComponentData && (taskComponentData as any).body_params) {
-          // Schema는 taskComponentData에서
+          // The Schema comes from taskComponentData
           bodyParamsSchemaSource = (taskComponentData as any).body_params;
           
-          // Data는 existingBodyParamsData에서 (originalData.request_body 또는 model.properties)
+          // Data comes from existingBodyParamsData (originalData.request_body or model.properties)
           if (hasExistingData) {
             console.log('✅ Using existing data');
             console.log('   existingBodyParamsData keys:', Object.keys(existingBodyParamsData));
             console.log('   existingBodyParamsData sample:', JSON.stringify(existingBodyParamsData).substring(0, 200));
             
-            // 🔍 Final schema check: existingBodyParamsData가 schema가 아닌지 한번 더 확인
+            // 🔍 Final schema check: check once more that existingBodyParamsData is not a schema
             const stillLooksLikeSchema = existingBodyParamsData.type === 'object' && 
                                         existingBodyParamsData.properties && 
                                         typeof existingBodyParamsData.properties === 'object';
@@ -864,12 +864,12 @@ export default defineComponent({
             bodyParamsData = {};
           }
           
-          // 실제 저장된 path_params와 query_params 데이터 가져오기
+          // Get the actually stored path_params and query_params data
           const originalData = (step.value.properties as any)?.originalData;
           const savedPathParams = (model as any)?.path_params || originalData?.path_params || {};
           const savedQueryParams = (model as any)?.query_params || originalData?.query_params || {};
           
-          // Schema에서 정의된 필드에 실제 값이 있으면 덮어쓰기
+          // If a field defined in the Schema has an actual value, overwrite it
           Object.keys(savedPathParams).forEach(key => {
             if (pathParamsData.hasOwnProperty(key)) {
               pathParamsData[key] = savedPathParams[key];
@@ -893,14 +893,14 @@ export default defineComponent({
           console.log('existingBodyParamsData keys:', Object.keys(existingBodyParamsData));
           console.log('existingBodyParamsData:', existingBodyParamsData);
           
-          // Schema도 model 데이터 구조로부터 생성
+          // Build the Schema from the model data structure too
           bodyParamsSchemaSource = {
             type: 'object',
             properties: {},
             required: []
           };
           
-          // 데이터 구조를 분석하여 schema 생성
+          // Analyze the data structure to build the schema
           Object.keys(existingBodyParamsData).forEach(key => {
             const value = existingBodyParamsData[key];
             const propSchema: any = { type: 'string' };
@@ -914,7 +914,7 @@ export default defineComponent({
                     type: 'object',
                     properties: {}
                   };
-                  // 객체 배열의 첫 번째 item 구조 분석
+                  // Analyze the structure of the first item in the object array
                   Object.keys(firstItem).forEach(itemKey => {
                     const itemValue = firstItem[itemKey];
                     if (Array.isArray(itemValue)) {
@@ -957,7 +957,7 @@ export default defineComponent({
           pathParamsData = (model as any).path_params || {};
           queryParamsData = (model as any).query_params || {};
         } else {
-          // Task Component가 없으면 fallback (기존 로직)
+          // Fallback when there is no Task Component (existing logic)
           console.log('=== ⚠️ PATH C: Task Component not found, using fallback logic ===');
           
           if (modelProperties.targetSoftwareModel) {
@@ -984,13 +984,13 @@ export default defineComponent({
         console.log('Path params data:', pathParamsData);
         console.log('Query params data:', queryParamsData);
         
-        // 분리된 params 변수에 할당
+        // Assign to the separated params variables
         pathParams.value = pathParamsData;
         queryParams.value = queryParamsData;
         
-        // Body Params Schema와 Model 설정
+        // Set the Body Params Schema and Model
         if (bodyParamsSchemaSource) {
-          // Schema 설정 (Task Component의 body_params)
+          // Set the Schema (the Task Component's body_params)
           console.log('=== Setting Body Params ===');
           console.log('1️⃣ Schema (form structure):');
           console.log('   Full schema:', bodyParamsSchemaSource);
@@ -999,7 +999,7 @@ export default defineComponent({
           console.log('   - Properties keys:', Object.keys(bodyParamsSchemaSource.properties || {}));
           console.log('   - Required:', bodyParamsSchemaSource.required);
           
-          // Schema의 각 property 상세 정보
+          // Details for each Schema property
           if (bodyParamsSchemaSource.properties) {
             console.log('   Schema properties detail:');
             Object.keys(bodyParamsSchemaSource.properties).forEach(key => {
@@ -1013,8 +1013,8 @@ export default defineComponent({
             });
           }
           
-          // vue-json-ui-editor에 schema 전달
-          // Schema 구조를 기반으로 데이터 매핑
+          // Pass the schema to vue-json-ui-editor
+          // Map the data based on the Schema structure
           let finalProperties = bodyParamsSchemaSource.properties || {};
           let finalRequired = bodyParamsSchemaSource.required || [];
           let finalBodyParamsData = bodyParamsData;
@@ -1022,25 +1022,25 @@ export default defineComponent({
           console.log('📋 Schema structure analysis:');
           console.log('   Schema properties:', Object.keys(finalProperties));
           
-          // Schema에 targetSoftwareModel이 있는지 확인
+          // Check whether the Schema has a targetSoftwareModel
           if (finalProperties.targetSoftwareModel && 
               finalProperties.targetSoftwareModel.properties) {
             console.log('🔍 Schema has targetSoftwareModel property');
             console.log('   targetSoftwareModel properties:', Object.keys(finalProperties.targetSoftwareModel.properties));
             
-            // 데이터 구조 확인
+            // Check the data structure
             if (bodyParamsData && Object.keys(bodyParamsData).length > 0) {
               console.log('📊 Data structure analysis:');
               console.log('   Data keys:', Object.keys(bodyParamsData));
               
-              // 데이터가 { targetSoftwareModel: {...} } 형태인지 확인
+              // Check whether the data is in the form { targetSoftwareModel: {...} }
               if (bodyParamsData.targetSoftwareModel) {
                 console.log('✅ Data already has targetSoftwareModel wrapper');
                 console.log('   Data.targetSoftwareModel keys:', Object.keys(bodyParamsData.targetSoftwareModel));
                 finalBodyParamsData = bodyParamsData;
               } else {
-                // 데이터가 { servers: [...], source_connection_info_id: "..." } 형태면
-                // Schema 구조에 맞춰 { targetSoftwareModel: { servers: [...], ... } }로 변환
+                // If the data is in the form { servers: [...], source_connection_info_id: "..." }
+                // Convert to { targetSoftwareModel: { servers: [...], ... } } to match the Schema structure
                 console.log('🔄 Wrapping data to match schema structure');
                 console.log('   Before wrap:', Object.keys(bodyParamsData));
                 finalBodyParamsData = {
@@ -1050,10 +1050,10 @@ export default defineComponent({
               }
             }
             
-            // Schema는 그대로 사용 (targetSoftwareModel 포함)
+            // Use the Schema as is (including targetSoftwareModel)
             console.log('✅ Using schema as-is (with targetSoftwareModel)');
           } else {
-            // Schema에 targetSoftwareModel이 없으면 데이터도 그대로
+            // If the Schema has no targetSoftwareModel, keep the data as is too
             console.log('✅ Schema has no targetSoftwareModel, using data as-is');
             finalBodyParamsData = bodyParamsData;
           }
@@ -1068,12 +1068,12 @@ export default defineComponent({
           console.log('✅ Schema type:', bodyParamsSchema.value.type);
           console.log('✅ Schema properties keys:', Object.keys(bodyParamsSchema.value.properties));
           
-          // Model 설정 (실제 데이터)
+          // Set the Model (actual data)
           console.log('2️⃣ Setting model data...');
           console.log('   finalBodyParamsData type:', typeof finalBodyParamsData);
           console.log('   finalBodyParamsData keys:', Object.keys(finalBodyParamsData || {}));
           
-          // 🔍 CRITICAL CHECK: finalBodyParamsData가 schema인지 확인
+          // 🔍 CRITICAL CHECK: verify whether finalBodyParamsData is a schema
           if (finalBodyParamsData && 
               finalBodyParamsData.type === 'object' && 
               finalBodyParamsData.properties &&
@@ -1086,12 +1086,12 @@ export default defineComponent({
             bodyParamsModel.value = {};
           } else {
             // No need to decode here - already decoded in existingBodyParamsData
-            // existingBodyParamsData에서 이미 디코딩되었으므로 여기서는 불필요
+            // Already decoded from existingBodyParamsData, so not needed here
             bodyParamsModel.value = finalBodyParamsData || {};
             console.log('✅ Data set to bodyParamsModel.value');
           }
           
-          // 데이터 매핑 결과 상세 로그
+          // Detailed log of the data mapping result
           if (Object.keys(bodyParamsModel.value).length > 0) {
             console.log('✅ Data successfully mapped to form');
             console.log('   📦 Mapped fields:', Object.keys(bodyParamsModel.value));
@@ -1122,7 +1122,7 @@ export default defineComponent({
             console.log('ℹ️ No data to map, showing empty form');
           }
           
-          // 전체 taskSchema 업데이트 (디버그용)
+          // Update the whole taskSchema (for debugging)
           (taskSchema.value as any) = {
             type: 'object',
             title: 'Task Component Configuration',
@@ -1134,7 +1134,7 @@ export default defineComponent({
           
           console.log('Updated full taskSchema (for debug):', taskSchema.value);
         } else if (Object.keys(bodyParamsData).length > 0) {
-          // body_params가 데이터 형식이면 스키마 생성
+          // If body_params is in data form, build the schema
           console.log('Generating schema from body_params data:', bodyParamsData);
           const generatedSchema = generateBodyParamsSchema(bodyParamsData);
           console.log('Generated body_params schema:', generatedSchema);
@@ -1142,7 +1142,7 @@ export default defineComponent({
           bodyParamsSchema.value = generatedSchema;
           
           // No need to decode here - already decoded in existingBodyParamsData
-          // existingBodyParamsData에서 이미 디코딩되었으므로 여기서는 불필요
+          // Already decoded from existingBodyParamsData, so not needed here
           bodyParamsModel.value = bodyParamsData;
           
           console.log('Updated bodyParamsSchema with generated schema');
@@ -1165,16 +1165,16 @@ export default defineComponent({
         console.log('Full taskSchema (debug):', taskSchema.value);
         console.log('Full taskModel (debug):', taskModel.value);
         
-        // vue-json-ui-editor는 reactive schema prop를 통해 자동으로 업데이트됨
+        // vue-json-ui-editor updates automatically via the reactive schema prop
         console.log('✅ Body params schema set reactively via :schema prop');
       }
 
-      // TaskEditorModel 초기화
+      // Initialize TaskEditorModel
       if (step.value?.properties?.fixedModel) {
         taskEditorModel.setParamsContext(step.value.properties.fixedModel);
       }
 
-      // Task Name 설정: canInsertStep에서 이미 고유한 이름이 생성되었으므로 그대로 사용
+      // Set the Task Name: a unique name was already generated in canInsertStep, so use it as is
       console.log('🔍 TaskComponentEditor - Reading task name:');
       console.log('   step.value.name:', step.value?.name);
       console.log('   step.value.type:', step.value?.type);
@@ -1188,15 +1188,15 @@ export default defineComponent({
       console.log('✅ Task name set to:', taskName);
       console.log('✅ Task name value from getter:', getComponentNameValue());
       
-      // 초기 데이터 저장 (비교용)
-      // ✨ BeetleTaskEditor 방식: originalData가 아닌 현재 model 상태 사용
+      // Store the initial data (for comparison)
+      // ✨ BeetleTaskEditor approach: use the current model state, not originalData
       const currentModel = step.value.properties?.model || {};
       initialData.value = {
         name: step.value.name || '',
         path_params: { ...pathParams.value },
         query_params: { ...queryParams.value },
         body_params: JSON.parse(JSON.stringify(bodyParamsModel.value)),
-        request_body: JSON.stringify(currentModel)  // 현재 model 상태 저장 (BeetleTaskEditor 방식)
+        request_body: JSON.stringify(currentModel)  // Store the current model state (BeetleTaskEditor approach)
       };
       
       console.log('=== Initial Data Saved (for comparison - BeetleTaskEditor style) ===');
@@ -1210,7 +1210,7 @@ export default defineComponent({
       isInitialized.value = true;
     });
 
-    // 데이터 비교 함수 (초기 데이터와 현재 데이터 비교)
+    // Data comparison function (compare the initial data with the current data)
     const compareWithInitialData = () => {
       console.log('\n');
       console.log('═══════════════════════════════════════════════════════════════');
@@ -1223,42 +1223,42 @@ export default defineComponent({
       const currentBodyParams = bodyParamsModel.value;
       const currentRequestBody = JSON.stringify(step.value.properties?.model);
       
-      // Name 비교
+      // Compare Name
       const nameChanged = currentName !== initialData.value.name;
       console.log('\n📌 Task Name:');
       console.log('  Initial:', initialData.value.name);
       console.log('  Current:', currentName);
       console.log('  Changed:', nameChanged ? '❌ YES' : '✅ NO (Same)');
       
-      // Path Params 비교
+      // Compare Path Params
       const pathParamsChanged = JSON.stringify(currentPathParams) !== JSON.stringify(initialData.value.path_params);
       console.log('\n📌 Path Params:');
       console.log('  Initial:', JSON.stringify(initialData.value.path_params));
       console.log('  Current:', JSON.stringify(currentPathParams));
       console.log('  Changed:', pathParamsChanged ? '❌ YES' : '✅ NO (Same)');
       
-      // Query Params 비교
+      // Compare Query Params
       const queryParamsChanged = JSON.stringify(currentQueryParams) !== JSON.stringify(initialData.value.query_params);
       console.log('\n📌 Query Params:');
       console.log('  Initial:', JSON.stringify(initialData.value.query_params));
       console.log('  Current:', JSON.stringify(currentQueryParams));
       console.log('  Changed:', queryParamsChanged ? '❌ YES' : '✅ NO (Same)');
       
-      // Body Params 비교
+      // Compare Body Params
       const bodyParamsChanged = JSON.stringify(currentBodyParams) !== JSON.stringify(initialData.value.body_params);
       console.log('\n📌 Body Params (step.properties.model):');
       console.log('  Initial:', JSON.stringify(initialData.value.body_params));
       console.log('  Current:', JSON.stringify(currentBodyParams));
       console.log('  Changed:', bodyParamsChanged ? '❌ YES' : '✅ NO (Same)');
       
-      // Request Body 비교 (originalData와 비교)
+      // Compare Request Body (against originalData)
       const requestBodyChanged = currentRequestBody !== initialData.value.request_body;
       console.log('\n📌 Request Body (for API):');
       console.log('  Initial (from originalData):', initialData.value.request_body);
       console.log('  Current (will be sent):', currentRequestBody);
       console.log('  Changed:', requestBodyChanged ? '❌ YES' : '✅ NO (Same)');
       
-      // 전체 요약
+      // Overall summary
       const anyChanges = nameChanged || pathParamsChanged || queryParamsChanged || bodyParamsChanged;
       console.log('\n📊 Summary:');
       console.log('  Any changes detected:', anyChanges ? '❌ YES - Data was modified' : '✅ NO - Data is identical to original');
@@ -1289,12 +1289,12 @@ export default defineComponent({
       };
     };
 
-    // Body Params Schema 변경 감지 (reactive prop으로 자동 업데이트됨)
+    // Detect Body Params Schema changes (updated automatically via the reactive prop)
     watch(bodyParamsSchema, (newSchema) => {
       console.log('Body Params Schema changed (auto-updated via reactive prop):', newSchema);
     }, { deep: true });
 
-    // Body Params Model 변경 감지 - 변경 시 자동으로 step.properties.model 업데이트
+    // Detect Body Params Model changes - automatically update step.properties.model on change
     watch(bodyParamsModel, (newModel) => {
       console.log('\n');
       console.log('═══════════════════════════════════════════════════════════════');
@@ -1334,10 +1334,10 @@ export default defineComponent({
       // ✅ Looks good, proceed with save
       console.log('✅ newModel validation passed - looks like actual data');
       
-      // step.properties.model을 newModel로 직접 업데이트
-      // convertToCicadaTask는 JSON.stringify(step.properties.model)을 request_body로 사용
+      // Update step.properties.model directly with newModel
+      // convertToCicadaTask uses JSON.stringify(step.properties.model) as the request_body
       // Note: Keep plain text in memory. Encoding happens only in workflowEditorModel.ts
-      // 메모리에는 plain text로 유지. Encoding은 workflowEditorModel.ts에서만 수행
+      // Keep it as plain text in memory. Encoding is done only in workflowEditorModel.ts
       let modelToSave = { ...newModel };
       
       console.log('📤 Model to save:');
@@ -1348,16 +1348,16 @@ export default defineComponent({
         ...step.value,
         properties: {
           ...step.value.properties,
-          model: modelToSave  // actual data를 직접 저장
+          model: modelToSave  // Store the actual data directly
         }
       };
       
       console.log('📝 Updated step.properties.model keys:', Object.keys(updatedStep.properties.model));
       console.log('📝 Updated step.properties.model (first 300 chars):', JSON.stringify(updatedStep.properties.model).substring(0, 300));
       
-      // 부모 컴포넌트에 변경사항 전달
-      // ⚠️ IMPORTANT: editorProviders에서 step.properties.model = e 로 할당하므로
-      // 전체 step이 아니라 model만 emit해야 함!
+      // Pass the changes to the parent component
+      // ⚠️ IMPORTANT: editorProviders assigns step.properties.model = e, so
+      // must emit only model, not the whole step!
       emit('saveContext', updatedStep.properties.model);
       
       console.log('✅ Auto-saved body params changes to step.properties.model');
@@ -1462,7 +1462,7 @@ export default defineComponent({
         // watch will auto-save changes
       },
       
-      // JSON Editor Methods (공식 예시 기반)
+      // JSON Editor Methods (based on the official example)
       resetEditor,
       saveConfiguration,
       generateBodyParamsSchema,
@@ -1569,14 +1569,14 @@ export default defineComponent({
   padding: 0;
 }
 
-/* vue-json-ui-editor 기본 스타일 */
+/* vue-json-ui-editor base styles */
 .json-editor-container :deep(.json-editor) {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-size: 14px;
   line-height: 1.5;
 }
 
-/* 폼 전체 스타일 */
+/* Styles for the whole form */
 .json-editor-container :deep(.el-form) {
   margin: 0;
   padding: 0;
@@ -1675,7 +1675,7 @@ export default defineComponent({
   border-color: #409eff;
 }
 
-/* JSON Editor 슬롯 버튼 스타일 (공식 예시 기반) */
+/* JSON Editor slot button styles (based on the official example) */
 .json-editor-container :deep(.json-editor button) {
   display: inline-block;
   line-height: 1;
@@ -1716,7 +1716,7 @@ export default defineComponent({
   border-color: #409eff;
 }
 
-/* 객체/배열 스타일 */
+/* Object/array styles */
 .json-editor-container :deep(.json-editor-object) {
   border: 1px solid #dcdfe6;
   border-radius: 4px;

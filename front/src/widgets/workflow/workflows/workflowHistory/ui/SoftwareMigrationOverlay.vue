@@ -29,12 +29,12 @@ interface IRunInfo {
 const props = defineProps<Props>();
 const emit = defineEmits(['close']);
 
-// SW 마이그레이션 상태 데이터 관리 (여러 execution ID의 결과를 저장)
+// Manage SW migration status data (stores results for multiple execution IDs)
 const swMigrationDataList = ref<any[]>([]);
 const swLoading = ref(false);
 const swError = ref<string>('');
 
-// Run Information definition table 모델
+// Run Information definition table model
 const { tableState: runInfoTableState } = useDefinitionTableModel<IRunInfo>();
 
 // Toolbox Table model
@@ -68,7 +68,7 @@ const handlePageSizeChange = (pageSize: number) => {
   swTableModel.handleChange(null);
 };
 
-// 상태 뱃지 스타일
+// Status badge style
 const getStatusBadgeType = (status: string) => {
   switch (status) {
     case 'finished':
@@ -86,10 +86,11 @@ const getStatusBadgeType = (status: string) => {
   }
 };
 
-// SW 마이그레이션 상태 로드 - 모든 execution ID에 대해 병렬로 조회
+// Load SW migration status - query all execution IDs in parallel
 const loadSwMigrationStatus = async () => {
-  // 조회할 실행 ID가 없으면 왜 결과가 없는지 말한다. 조용히 빈 화면을 보여주면
-  // 사용자는 "설치된 소프트웨어가 없다"고 읽는다 — 사실은 조회 자체를 못 한 것이다.
+  // If there is no execution ID to query, say why there are no results. Silently
+  // showing an empty screen reads to the user as "no software is installed" — when in
+  // fact the query itself couldn't run.
   if (!props.executionIds || props.executionIds.length === 0) {
     swMigrationDataList.value = [];
     swError.value =
@@ -110,8 +111,8 @@ const loadSwMigrationStatus = async () => {
             return data.value.responseData;
           }
 
-          // 응답이 비어 있으면 그대로 드러낸다. 예전에는 목업으로 대체해서
-          // 마이그레이션이 성공한 것처럼 보였다.
+          // If the response is empty, surface it as is. Previously it was replaced
+          // with a mock, which made the migration look successful.
           throw new Error(
             `Failed to fetch software migration status (execution ${executionId})`,
           );
@@ -141,7 +142,7 @@ const loadSwMigrationStatus = async () => {
   }
 };
 
-// Run Information 데이터 업데이트
+// Update Run Information data
 const updateRunInfoData = (executionId: string) => {
   if (!props.selectedRun) return;
 
@@ -198,7 +199,7 @@ watch(
   { deep: true },
 );
 
-// executionIds가 변경될 때마다 SW 상태 로드
+// Load SW status whenever executionIds change
 watch(
   () => props.executionIds,
   () => {
@@ -248,7 +249,7 @@ onBeforeMount(() => {
           <p>Loading software migration status...</p>
         </div>
 
-        <!-- Error — 실패를 목업으로 덮지 않고 그대로 알린다 -->
+        <!-- Error — report the failure as is instead of masking it with a mock -->
         <div
           v-else-if="swError"
           class="error-section"

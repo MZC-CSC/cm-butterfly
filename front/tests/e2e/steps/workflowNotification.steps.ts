@@ -159,7 +159,7 @@ function installHandlers(mockApi: any) {
 Given(
   '추적에 남은 워크플로우 작업을 준비한다: 이름 {string}, 동작 {string}, 결과 {string}',
   async ({ mockApi }, name: string, action: string, result: string) => {
-    expect(mockApi, '이 시나리오는 @mock 태그가 필요하다').not.toBeNull();
+    expect(mockApi, 'this scenario requires the @mock tag').not.toBeNull();
     resetState();
     installHandlers(mockApi);
 

@@ -30,22 +30,22 @@ const route = useRoute();
 const pageName = 'Workflows';
 
 /**
- * 실행 뷰어에서 복제해 편집하기.
+ * Clone from the run viewer and edit.
  *
- * 값을 바꿔 다시 돌리고 싶을 때 *원본을 고치지 않는다* — 엔진은 "그 실행에 쓰인 정의"를
- * 돌려주지 않으므로, 원본을 고치면 그 워크플로우의 과거 실행이 화면에서 엉뚱한 값으로
- * 보이게 된다. 복제본을 선택 상태로 바꾸고 그것을 에디터로 연다.
+ * When you want to change values and run again, *don't edit the original* — the engine does not
+ * return "the definition used for that run", so editing the original makes that workflow's past
+ * runs show wrong values on screen. Set the clone as selected and open it in the editor.
  */
 function handleEditClone(clonedWorkflowId: string) {
-  // 복제본은 뷰어가 이미 스토어에 넣었다. 목록도 편집기도 스토어를 보고 그리므로
-  // 여기서 목록을 다시 받아올 필요가 없다 — 목록을 다시 받으면 표가 다시 그려지며
-  // 방금 연 편집기가 닫힌다.
+  // The viewer already put the clone in the store. Both the list and the editor render from the
+  // store, so there's no need to refetch the list here — refetching redraws the table and closes
+  // the editor we just opened.
   selectedWorkflowId.value = clonedWorkflowId;
   modalState.workflowToolModal.open = true;
 }
 
 /**
- * 미실행 원본을 그래픽 에디터로 (복제 없이). 실행 이력이 없어 원본을 직접 고쳐도 된다.
+ * Open an unrun original in the graphic editor (without cloning). With no run history, editing the original directly is fine.
  */
 function handleEditOriginal(workflowId: string) {
   selectedWorkflowId.value = workflowId;
@@ -53,11 +53,11 @@ function handleEditOriginal(workflowId: string) {
 }
 
 /**
- * 병렬이라 그래픽 에디터가 못 다루는 워크플로우를 JSON 에디터로 연다.
- * 원본(미실행 Edit) 또는 복제본(실행됨 Clone&Edit) — 어느 쪽이든 id로 스토어에서
- * 정의를 꺼내 JSON 에디터에 넘긴다. (복제본은 뷰어가 이미 스토어에 넣었다.)
+ * Open a workflow the graphic editor can't handle (because it's parallel) in the JSON editor.
+ * Original (unrun Edit) or clone (run Clone&Edit) — either way, pull the definition from the
+ * store by id and pass it to the JSON editor. (The viewer already put the clone in the store.)
  */
-/** 워크플로우 툴이 그대로 옮길 수 없는 그래프는 JSON 에디터로 연다 */
+/** Open graphs the workflow tool can't move over as-is in the JSON editor */
 function handleEditJson(workflowId: string) {
   selectedWorkflowId.value = workflowId;
   const wf = workflowStore.getWorkflowById(workflowId);
@@ -67,8 +67,8 @@ function handleEditJson(workflowId: string) {
 }
 
 /**
- * 저장이 끝나면 실행 상태로 보낸다. 저장 다음에 하는 일은 대개 *실행*이고,
- * 상태 화면에서 실행·수정을 이어 정할 수 있다.
+ * After saving, send to the run-status view. The usual next step after saving is *running*,
+ * and the status screen lets you go on to decide between running and editing.
  */
 function handleSavedWorkflow(workflowId: string) {
   if (workflowId) selectedWorkflowId.value = workflowId;
@@ -78,10 +78,10 @@ function handleSavedWorkflow(workflowId: string) {
 const selectedWorkflowId = ref<string>('');
 
 /**
- * 다른 화면(목표 모델)에서 워크플로우를 만들고 넘어온 경우.
+ * When arriving after creating a workflow on another screen (the target model).
  *
- * 저장 직후 도착지는 화면이 달라도 같아야 한다 — 그쪽은 탭을 바꿀 수 없으니 어느
- * 워크플로우인지를 쿼리로 넘겨 주고, 여기서 그것을 골라 실행 상태로 연다.
+ * The destination right after saving should be the same even from a different screen — that side
+ * can't switch tabs, so it passes which workflow via the query, and here we pick it and open the run status.
  */
 onMounted(() => {
   const wfId = route.query.wfId;
@@ -107,8 +107,8 @@ const modalState = reactive({
 });
 
 const mainTabState = reactive({
-  // 워크플로우를 고르면 **실행 상태를 먼저 보여준다.** 여기서 실행할지 고칠지가
-  // 갈리고(이력 유무로 버튼이 달라진다), 정의 자체는 그 아래 그래프로 보인다.
+  // When a workflow is selected, **show the run status first.** This is where running vs. editing
+  // is decided (the buttons differ by whether there is history), and the definition itself is shown as a graph below.
   activeTab: 'runViewer',
   tabs: [
     {

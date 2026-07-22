@@ -41,7 +41,7 @@ const resGetInfraSourceGroup = useGetInfraSourceGroup(null);
 const resGetInfraInfoSourceGroup = useGetInfraInfoSourceGroup(null);
 const infraModel = ref<any>(null);
 
-// Software 관련 상태
+// Software-related state
 const softwareModel = ref<any>(null);
 const resCollectSWSourceGroup = useCollectSWSourceGroup(null);
 const resGetSoftwareInfoSourceGroup = useGetSoftwareInfoSourceGroup(null);
@@ -54,7 +54,7 @@ const modalState = reactive({
   },
 });
 
-// Software 모달 상태
+// Software modal state
 const softwareModalState = reactive({
   open: false,
   context: {
@@ -109,7 +109,7 @@ function getSourceGroupInfras() {
     .then(infoRes => {
       if (infoRes && infoRes.data.responseData) {
         infraModel.value = infoRes.data.responseData;
-        // 데이터를 가져온 후 자동으로 모달 열기
+        // Automatically open the modal after fetching the data
         modalState.open = true;
       }
     })
@@ -144,7 +144,7 @@ function getSourceGroupSoftware() {
     .then(infoRes => {
       if (infoRes && infoRes.data.responseData) {
         softwareModel.value = infoRes.data.responseData;
-        // 데이터를 가져온 후 자동으로 모달 열기
+        // Automatically open the modal after fetching the data
         softwareModalState.open = true;
       }
     })

@@ -16,13 +16,13 @@ export interface ISourceModelResponse {
   id: string;
   isCloudModel: boolean;
   isInitUserModel: boolean;
-  isSoftwareModel?: boolean; // 추가: software model 여부
+  isSoftwareModel?: boolean; // added: whether this is a software model
   isTargetModel: boolean;
-  migrationType?: string; // 추가: migration type (Infra/Software)
+  migrationType?: string; // added: migration type (Infra/Software)
   onpremModelVersion: string;
-  onpremiseInfraModel?: OnPremiseInfraModel; // 선택적으로 변경
-  sourceSoftwareModel?: any; // 추가: software model data
-  connection_info_list?: any[]; // 추가: connection info list
+  onpremiseInfraModel?: OnPremiseInfraModel; // changed to optional
+  sourceSoftwareModel?: any; // added: software model data
+  connection_info_list?: any[]; // added: connection info list
   updateTime: string;
   userId: string;
   userModelName: string;
@@ -31,7 +31,7 @@ export interface ISourceModelResponse {
 
 interface OnPremiseInfraModel {
   network: Network;
-  // cm-beetle/imdl 모델의 필드. cm-honeybee·cm-damselfly가 이 구조체를 그대로 응답에 싣는다.
+  // Field from the cm-beetle/imdl model. cm-honeybee and cm-damselfly return this struct as-is in their responses.
   nodes: Server[];
 }
 

@@ -25,14 +25,14 @@ interface IProps {
   ip: string;
 }
 
-// ScenarioTemplate 인터페이스는 ILoadTestScenarioCatalog로 대체
-// ILoadTestScenarioCatalog가 이미 모든 필드를 포함하므로 별도 확장 불필요
+// The ScenarioTemplate interface is replaced by ILoadTestScenarioCatalog
+// ILoadTestScenarioCatalog already includes all fields, so no separate extension is needed
 type ScenarioTemplate = ILoadTestScenarioCatalog;
 
 defineProps<IProps>();
 const emit = defineEmits(['close']);
 
-// 템플릿 저장을 위한 폼 데이터
+// Form data for saving a template
 const templateForm = reactive({
   name: '',
   description: '',
@@ -42,17 +42,17 @@ const templateForm = reactive({
   rampUpSteps: '',
 });
 
-// API 훅들
+// API hooks
 const { data: catalogsData, execute: fetchCatalogs } =
   useGetAllLoadTestScenarioCatalogs();
 
-// 저장된 템플릿 목록
+// List of saved templates
 const savedTemplates = ref<ScenarioTemplate[]>([]);
 const activeTab = ref<'save' | 'load'>('save');
 const editingTemplate = ref<ScenarioTemplate | null>(null);
 const loading = ref(false);
 
-// 템플릿 저장
+// Save the template
 async function saveTemplate() {
   if (!templateForm.name.trim()) {
     showErrorMessage('failed', 'Please enter a template name.');
@@ -63,7 +63,7 @@ async function saveTemplate() {
 
   try {
     if (editingTemplate.value) {
-      // 수정 모드
+      // Edit mode
       const updateData: IUpdateLoadTestScenarioCatalogRequest = {
         name: templateForm.name,
         description: templateForm.description,
@@ -79,7 +79,7 @@ async function saveTemplate() {
       showSuccessMessage('success', 'Template updated successfully.');
       editingTemplate.value = null;
     } else {
-      // 새로 생성
+      // Create new
       const createData: ICreateLoadTestScenarioCatalogRequest = {
         name: templateForm.name,
         description: templateForm.description,
@@ -95,10 +95,10 @@ async function saveTemplate() {
       showSuccessMessage('success', 'Template saved successfully.');
     }
 
-    // 목록 새로고침
+    // Refresh the list
     await loadTemplates();
 
-    // 폼 초기화
+    // Reset the form
     resetForm();
   } catch (error) {
     console.error('Failed to save template:', error);
@@ -108,7 +108,7 @@ async function saveTemplate() {
   }
 }
 
-// 템플릿 수정
+// Edit the template
 function editTemplate(template: ScenarioTemplate) {
   editingTemplate.value = template;
   templateForm.name = template.name;
@@ -117,10 +117,10 @@ function editTemplate(template: ScenarioTemplate) {
   templateForm.duration = template.duration;
   templateForm.rampUpTime = template.rampUpTime;
   templateForm.rampUpSteps = template.rampUpSteps;
-  activeTab.value = 'save'; // 저장 탭으로 이동
+  activeTab.value = 'save'; // Switch to the save tab
 }
 
-// 템플릿 삭제
+// Delete the template
 async function deleteTemplate(templateId: number) {
   loading.value = true;
 
@@ -129,7 +129,7 @@ async function deleteTemplate(templateId: number) {
       useDeleteLoadTestScenarioCatalog(templateId);
     await deleteCatalogExecute();
     showSuccessMessage('success', 'Template deleted successfully.');
-    // 목록 새로고침
+    // Refresh the list
     await loadTemplates();
   } catch (error) {
     console.error('Failed to delete template:', error);
@@ -147,12 +147,12 @@ function cancelEdit() {
 function handleClose() {
   editingTemplate.value = null;
   resetForm();
-  // 탭 리셋
+  // Reset the tab
   activeTab.value = 'save';
   emit('close');
 }
 
-// 폼 리셋 함수
+// Form reset helper
 function resetForm() {
   templateForm.name = '';
   templateForm.description = '';
@@ -162,7 +162,7 @@ function resetForm() {
   templateForm.rampUpSteps = '';
 }
 
-// API에서 템플릿 로드
+// Load templates from the API
 async function loadTemplates() {
   loading.value = true;
 
@@ -182,7 +182,7 @@ async function loadTemplates() {
   }
 }
 
-// 컴포넌트 마운트 시 템플릿 로드
+// Load templates when the component mounts
 onMounted(() => {
   loadTemplates();
 });
@@ -201,7 +201,7 @@ onMounted(() => {
   >
     <template #body>
       <div class="template-manager">
-        <!-- 탭 헤더 -->
+        <!-- Tab header -->
         <div class="tab-header">
           <button
             :class="['tab-button', { active: activeTab === 'save' }]"
@@ -217,7 +217,7 @@ onMounted(() => {
           </button>
         </div>
 
-        <!-- 템플릿 저장 탭 -->
+        <!-- Save template tab -->
         <div v-if="activeTab === 'save'" class="tab-content">
           <div class="save-section">
             <h3>
@@ -331,7 +331,7 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- 템플릿 불러오기 탭 -->
+        <!-- Load template tab -->
         <div v-if="activeTab === 'load'" class="tab-content">
           <div class="load-section">
             <h3>Saved Templates</h3>

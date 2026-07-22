@@ -37,19 +37,19 @@ const resCreateSourceModel = useCreateOnpremmodel(null);
 const resCreateSoftwareModel = useCreateSourceSoftwareModel(null);
 const serverCode = ref<string>('');
 
-// migrationType 또는 isSoftwareModel 값으로 Software/Infra 구분
+// Distinguish Software/Infra by the migrationType or isSoftwareModel value
 const isSoftwareModel = computed(() => {
-  // targetModel에 isSoftwareModel 속성이 있으면 그것을 우선 사용
+  // If targetModel has an isSoftwareModel property, prefer it
   if (targetModel.value?.isSoftwareModel !== undefined) {
     return targetModel.value.isSoftwareModel;
   }
-  
-  // isSoftwareModel이 없으면 migrationType으로 판단
+
+  // If isSoftwareModel is absent, decide by migrationType
   if (!targetModel.value?.migrationType) return false;
   return targetModel.value.migrationType.toLowerCase().startsWith('sw');
 });
 
-// 모달 제목을 동적으로 설정
+// Set the modal title dynamically
 const modalTitle = computed(() => {
   const baseTitle = 'Custom & View Source Model';
   if (isSoftwareModel.value) {
@@ -66,7 +66,7 @@ watch(
       props.sourceModelId,
     );
     
-    // 디버깅을 위한 로그 출력
+    // Log output for debugging
     console.log('=== CustomViewSourceModel Debug Info ===');
     console.log('targetModel.value:', targetModel.value);
     console.log('isSoftwareModel (from targetModel):', targetModel.value?.isSoftwareModel);
@@ -79,9 +79,9 @@ watch(
     console.log('connection_info_list length:', targetModel.value?.connection_info_list?.length);
     console.log('=====================================');
     
-    // migrationType에 따라 다른 데이터 처리
+    // Handle the data differently depending on migrationType
     if (isSoftwareModel.value) {
-      // Software 모델인 경우
+      // For a Software model
       if (targetModel.value?.sourceSoftwareModel) {
         try {
           serverCode.value = JSON.stringify(targetModel.value.sourceSoftwareModel, null, 2);
@@ -94,7 +94,7 @@ watch(
         console.warn('Source software model data is not available');
       }
     } else {
-      // Infra 모델인 경우 (기존 로직)
+      // For an Infra model (existing logic)
       const nodes = targetModel.value?.onpremiseInfraModel?.nodes;
       if (nodes) {
         try {
@@ -125,7 +125,7 @@ function handleSaveModal(e) {
   modalState.context.description = e.description;
 
   if (isSoftwareModel.value) {
-    // Software 모델 저장
+    // Save the Software model
     const softwareRequestBody = {
       description: e.description,
       isInitUserModel: false,
@@ -151,7 +151,7 @@ function handleSaveModal(e) {
         showErrorMessage('error', e.errorMsg);
       });
   } else {
-    // Infra 모델 저장 (기존 로직)
+    // Save the Infra model (existing logic)
     if (!targetModel.value?.onpremiseInfraModel) {
       showErrorMessage('error', 'Infra model data is not available');
       return;

@@ -19,26 +19,26 @@ const emit = defineEmits([
 const { targetModelStore, setTargetModelId, initTable, tableModel } =
   useTargetModelDetailModel();
 
-// Software 모델인지 판단하는 computed
+// Computed that decides whether this is a Software model
 const isSoftwareModel = computed(() => {
   const targetModel = targetModelStore.getTargetModelById(props.selectedTargetModelId);
-  
-  // modelType이 'SoftwareModel'이면 Software 모델로 간주
+
+  // Treat as a Software model if modelType is 'SoftwareModel'
   if (targetModel?.modelType === 'SoftwareModel') {
     return true;
   }
-  
-  // targetSoftwareModel이 있으면 Software 모델로 간주 (기존 호환성)
+
+  // Treat as a Software model if targetSoftwareModel exists (backward compatibility)
   if (targetModel?.targetSoftwareModel) {
     return true;
   }
-  
-  // migrationType이 'software'이면 Software 모델로 간주 (기존 호환성)
+
+  // Treat as a Software model if migrationType is 'software' (backward compatibility)
   if (targetModel?.migrationType === 'software') {
     return true;
   }
-  
-  // 기본적으로 Infra 모델로 간주
+
+  // Default to an Infra model
   return false;
 });
 
@@ -89,12 +89,12 @@ function handleJsonModal() {
   emit('update:custom-view-json-modal', true);
   emit('update:target-model-name', targetModelName.value);
   
-  // Software 모델인 경우 targetSoftwareModel 정보를 전달
+  // For a Software model, pass along the targetSoftwareModel info
   if (isSoftwareModel.value) {
     const targetModel = targetModelStore.getTargetModelById(props.selectedTargetModelId);
     if (targetModel?.targetSoftwareModel) {
-      // targetSoftwareModel 정보를 부모 컴포넌트로 전달
-      // 이 정보는 CustomViewTargetModel에서 사용됩니다
+      // Pass the targetSoftwareModel info to the parent component
+      // This info is used by CustomViewTargetModel
       console.log('Software model detected, targetSoftwareModel:', targetModel.targetSoftwareModel);
     }
   }

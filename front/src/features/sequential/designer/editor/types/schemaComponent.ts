@@ -1,6 +1,6 @@
 /**
  * Schema Component Types
- * Composite Pattern을 적용한 Schema 컴포넌트의 타입 정의
+ * Type definitions for Schema components using the Composite Pattern
  */
 
 export interface SchemaComponent {

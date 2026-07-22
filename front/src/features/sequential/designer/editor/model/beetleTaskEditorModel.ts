@@ -76,7 +76,7 @@ export function useTaskEditorModel() {
   }>();
   const componentNameModel = ref();
   
-  // originalObject를 저장할 변수 추가
+  // add a variable to hold originalObject
   let originalObject: any = null;
 
   function loadInputContext(
@@ -126,7 +126,7 @@ export function useTaskEditorModel() {
   }
 
   function setParamsContext(fixedModel: fixedModel) {
-    // path_params에서 nsId가 있으면 DEFAULT_NAMESPACE 값으로 설정
+    // if nsId exists in path_params, set it to the DEFAULT_NAMESPACE value
     const processedPathParams = { ...fixedModel.path_params };
     if ('nsId' in processedPathParams) {
       processedPathParams.nsId = DEFAULT_NAMESPACE;
@@ -155,10 +155,10 @@ export function useTaskEditorModel() {
   }
 
   function setFormContext(object: object | '') {
-    // originalObject 저장 (새로운 모델 구조인 경우 전체 객체 저장)
+    // store originalObject (store the whole object for the new model structure)
     if (typeof object === 'object' && object !== null && 'targetInfra' in object) {
       originalObject = object;
-      // targetInfra만 추출하여 처리
+      // extract and process only targetInfra
       object = (object as any).targetInfra || '';
     } else {
       originalObject = null;
@@ -203,7 +203,7 @@ export function useTaskEditorModel() {
   }
 
   function convertFormModelToStepProperties(): object {
-    // 새로운 모델 구조만 지원: originalObject에 targetInfra 값만 업데이트
+    // support only the new model structure: update just the targetInfra value on originalObject
     const updatedTargetVmInfra: any = {};
     
     formContext.value.forEach(data => {
@@ -235,7 +235,7 @@ export function useTaskEditorModel() {
       }
     });
     
-    // originalObject의 targetInfra만 업데이트하고 전체 객체 반환
+    // update only targetInfra on originalObject and return the whole object
     return {
       ...originalObject,
       targetInfra: updatedTargetVmInfra
@@ -304,7 +304,7 @@ export function useTaskEditorModel() {
     }
   }
 
-  //return 같은게 있으면 true 없으면 false
+  //returns true if something like a duplicate exists, false otherwise
   function entityKeyValidation(
     model: UnwrapRef<ReturnType<typeof useInputModel<string>>>,
   ): boolean {

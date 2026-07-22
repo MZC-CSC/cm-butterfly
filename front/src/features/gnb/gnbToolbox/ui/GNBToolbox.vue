@@ -31,8 +31,9 @@ const dictionary = [
   'wls',
 ];
 
-// tb-0.12.9 현행화(MCI→Infra) — 라우트 name/menuId는 유지하되 breadcrumb 표시만 현행 용어로.
-// 사전 분해된 토막(mci/wls)을 표시 시점에만 치환한다.
+// tb-0.12.9 update (MCI→Infra) — keep the route name/menuId, only render the
+// breadcrumb with the current terminology. Swap the pre-split tokens (mci/wls)
+// at display time only.
 const breadcrumbDisplayRename: Record<string, string> = {
   mci: 'Infra',
   wls: 'Workloads',

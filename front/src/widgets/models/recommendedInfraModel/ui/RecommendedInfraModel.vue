@@ -36,7 +36,7 @@ const emit = defineEmits(['update:close-modal']);
 
 const auth = useAuth();
 
-// VM 데이터 유효성 검사 헬퍼 함수
+// Helper to validate VM data
 function isValidVmData(vm: any): boolean {
   return vm && 
          vm.specId && 
@@ -45,11 +45,11 @@ function isValidVmData(vm: any): boolean {
          vm.imageId.trim() !== '';
 }
 
-// "empty" 문구를 빨간색으로 표시하는 헬퍼 함수
+// Helper to render the "empty" text in red
 function formatEmptyValue(value: string): string {
   if (!value) return '';
-  
-  // "empty" 문자열을 빨간색으로 변환 (단어 단위로 대체)
+
+  // Turn the "empty" string red (replace on a whole-word basis)
   return value.replace(/\bempty\b/g, '<span style="color: red; font-weight: bold;">empty</span>');
 }
 const recommendInfraModel = useRecommendedInfraModel();
@@ -113,10 +113,10 @@ const targetSourceModel = computed(() =>
   recommendInfraModel.sourceModelStore.getSourceModelById(props.sourceModelId),
 );
 
-// Query parameter 입력값
+// Query parameter inputs
 const candidateLimit = ref<number>(3);
 const minimumMatchRateMin = ref<number | null>(null);
-const minimumMatchRateMax = ref<number>(100);  // 기본값 100
+const minimumMatchRateMax = ref<number>(100);  // default 100
 
 const modalState = reactive({
   targetModal: false,
@@ -132,7 +132,7 @@ async function getRecommendModelList() {
   recommendInfraModel.initToolBoxTableModel();
 
   try {
-    // minimumMatchRate 파라미터 조합
+    // Assemble the minimumMatchRate parameter
     let minimumMatchRateParam: string | number | null = null;
     if (minimumMatchRateMin.value !== null && minimumMatchRateMax.value !== null) {
       minimumMatchRateParam = `${minimumMatchRateMin.value}-${minimumMatchRateMax.value}`;
@@ -142,7 +142,7 @@ async function getRecommendModelList() {
       minimumMatchRateParam = minimumMatchRateMax.value;
     }
     
-    // Candidates API 호출 (복수 후보 조회)
+    // Call the Candidates API (fetch multiple candidates)
     const getRecommendCandidates = useGetRecommendModelCandidates(
       targetSourceModel.value?.onpremiseInfraModel || null,
       provider.selected,
@@ -159,20 +159,20 @@ async function getRecommendModelList() {
     console.log('res.data type:', typeof res.data);
     console.log('res.data keys:', res.data ? Object.keys(res.data) : 'null');
     
-    // API 응답 구조: { responseData: { data: [...] } }
+    // API response shape: { responseData: { data: [...] } }
     if (res.data?.responseData?.data && Array.isArray(res.data.responseData.data)) {
       const candidates = res.data.responseData.data;
       console.log(`Found ${candidates.length} candidate(s)`);
       
-      // 각 후보에 대해 비용 계산 및 데이터 정제
+      // Compute cost and clean up data for each candidate
       const processedCandidates = candidates.map((candidate, index) => {
         console.log(`Processing candidate ${index + 1}:`, JSON.stringify(candidate, null, 2));
         
-        // API 응답 데이터 검증 및 정리
+        // Validate and clean up the API response data
         if (candidate.targetInfra?.nodeGroups) {
           const originalLength = candidate.targetInfra.nodeGroups.length;
           
-          // 무효한 데이터 로깅
+          // Log invalid data
           const invalidVms = candidate.targetInfra.nodeGroups.filter(vm => 
             !vm || !vm.specId || vm.specId.trim() === '' || !vm.imageId || vm.imageId.trim() === ''
           );
@@ -181,7 +181,7 @@ async function getRecommendModelList() {
             console.warn(`Candidate ${index + 1}: Found ${invalidVms.length} invalid VMs`);
           }
           
-          // 무효한 데이터의 빈 필드를 "empty"로 대체
+          // Replace empty fields of invalid data with "empty"
           candidate.targetInfra.nodeGroups = candidate.targetInfra.nodeGroups.map(vm => {
             const updatedVm = { ...vm };
             if (!vm.specId || vm.specId.trim() === '') {
@@ -194,7 +194,7 @@ async function getRecommendModelList() {
           });
         }
 
-        // 비용 계산 (targetSpecList 기반)
+        // Cost calculation (based on targetSpecList)
         try {
           let totalCostPerHour = 0;
           let currency = '';
@@ -261,12 +261,12 @@ async function getRecommendModelList() {
       console.log('Processed candidates:', processedCandidates);
       console.log('=== End Response Log ===');
 
-      // n개의 후보를 모두 테이블에 표시
+      // Show all n candidates in the table
       try {
         const tableItems = processedCandidates.map((candidate, index) => {
           console.log(`Organizing table item ${index + 1}:`, candidate);
           const item = recommendInfraModel.organizeRecommendedModelTableItem(candidate);
-          item.index = index + 1; // 순번 추가
+          item.index = index + 1; // add the sequence number
           console.log(`Organized item ${index + 1}:`, item);
           return item;
         });
@@ -314,7 +314,7 @@ function handleSave(e: { name: string; description: string }) {
   description.value = e.description;
 
   try {
-    // selectIndex는 배열 형태([0], [1], [2], ...)로 저장되므로 첫 번째 요소를 추출
+    // selectIndex is stored as an array ([0], [1], [2], ...), so extract the first element
     const selectIndex = recommendInfraModel.tableModel.tableState.selectIndex;
     const rowIndex = Array.isArray(selectIndex) ? selectIndex[0] : selectIndex as number;
 
@@ -329,30 +329,31 @@ function handleSave(e: { name: string; description: string }) {
       throw new Error('Selected model has no VM nodeGroups');
     }
 
-    // 선택된 Row의 데이터를 가공 없이 그대로 사용
-    // 주의: selectIndex는 테이블 행의 인덱스이고, 이미 displayItems[rowIndex]에서 해당 모델을 가져왔으므로
-    // nodeGroups에서는 첫 번째 VM(인덱스 0)을 사용해야 함 (CSP/Region 추출용)
+    // Use the selected row's data as-is, without processing.
+    // Note: selectIndex is the table row index, and we already got the model from
+    // displayItems[rowIndex], so within nodeGroups we should use the first VM
+    // (index 0) — for extracting CSP/Region.
     const selectedVm = selectedModel.targetInfra.nodeGroups[0];
-    
-    // 기존 targetInfra를 그대로 사용 (가공 없이)
+
+    // Use the existing targetInfra as-is (no processing)
     const modifiedTargetVmInfra = {
       ...selectedModel.targetInfra
-      // nodeGroups는 원본 그대로 유지
+      // Keep nodeGroups exactly as the original
     };
 
-    // API 스펙에 맞는 cloudInfraModel 구조 생성
+    // Build the cloudInfraModel structure per the API spec
     const cloudInfraModel = {
       description: selectedModel.description || '',
       status: selectedModel.status || '',
       targetSecurityGroupList: selectedModel.targetSecurityGroupList || [],
       targetSshKey: selectedModel.targetSshKey || {},
       targetVNet: selectedModel.targetVNet || {},
-      targetInfra: modifiedTargetVmInfra, // 가공되지 않은 targetInfra 사용
+      targetInfra: modifiedTargetVmInfra, // use the unprocessed targetInfra
       targetOsImageList: selectedModel.targetOsImageList || [],
       targetSpecList: selectedModel.targetSpecList || []
     };
 
-    // specId가 빈 문자열이거나 +가 없는 경우 기본값 사용
+    // Use defaults if specId is an empty string or has no +
     let csp = 'default-csp';
     let region = 'default-region';
     
@@ -367,7 +368,7 @@ function handleSave(e: { name: string; description: string }) {
     resCreateTargetModel
       .execute({
         request: {
-          cloudInfraModel: cloudInfraModel as any, // 가공되지 않은 데이터 전달
+          cloudInfraModel: cloudInfraModel as any, // pass the unprocessed data
           csp: csp,
           description: description.value,
           isInitUserModel: true,
@@ -403,7 +404,7 @@ function handleSave(e: { name: string; description: string }) {
     >
       <template #add-info>
         <div class="flex gap-4 flex-col w-full">
-          <!-- Provider, Region, Search 버튼을 같은 라인에 배치 -->
+          <!-- Place the Provider, Region and Search buttons on the same line -->
           <section class="select-service-box flex w-full items-center gap-4">
             <p class="text-label-lg font-bold">Provider</p>
             <p-select-dropdown
@@ -432,7 +433,7 @@ function handleSave(e: { name: string; description: string }) {
               "
             ></p-select-dropdown>
             
-            <!-- Search 버튼을 오른쪽 끝으로 -->
+            <!-- Push the Search button to the far right -->
             <div class="flex-grow"></div>
             <p-button
               data-testid="recommend-search"
@@ -442,7 +443,7 @@ function handleSave(e: { name: string; description: string }) {
               Search
             </p-button>
           </section>
-          <!-- Query Parameters를 가로로 배치 -->
+          <!-- Lay out the Query Parameters horizontally -->
           <section class="select-service-box flex w-full items-center gap-4">
             <!-- Candidate Limit with tooltip -->
             <p class="text-label-lg font-bold" title="Maximum number of recommended infrastructures to return (default: 3)">Candidate Limit</p>
@@ -504,11 +505,14 @@ function handleSave(e: { name: string; description: string }) {
             @change="recommendInfraModel.tableModel.handleChange"
           >
             <!--
-              첫 컬럼(No.)에 후보의 완전/불완전 마커를 함께 싣는다.
-              - 사람용: 스펙·이미지에 이상값이 있으면 번호 앞에 빨간 "!" 를 붙이고,
-                호버 시 실제로 빈 컬럼명을 안내한다(경고만, 저장은 막지 않는다).
-              - E2E용: data-complete="true|false" 로 완전한 후보만 기계적으로 선택하게 한다.
-              판정은 model의 hasMissingRequiredFields 와 동일 기준(item.hasMissingInfo).
+              Carry the candidate's complete/incomplete marker in the first column (No.).
+              - For humans: if the spec or image has bad values, prefix the number with
+                a red "!", and on hover indicate which columns are actually empty
+                (warning only, doesn't block saving).
+              - For E2E: use data-complete="true|false" so tests can mechanically pick
+                only complete candidates.
+              The judgment uses the same criterion as the model's hasMissingRequiredFields
+              (item.hasMissingInfo).
             -->
             <template #col-index-format="{ item }">
               <span

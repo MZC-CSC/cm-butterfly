@@ -18,15 +18,15 @@ import {
 const { Given, When, Then } = createBdd(test);
 
 /**
- * 성능 검증(부하테스트) 준비·실행 스텝.
+ * Performance verification (load test) preparation and execution steps.
  *
- * ★ 배경: cm-butterfly가 생성한 EC2에는 아무것도 설치돼 있지 않다.
- *   부하테스트를 하려면 대상 서버에 웹서버(nginx)가 떠 있어야 하므로,
- *   (SW 마이그레이션으로 설치하는 흐름이 아니면) cb-tumblebug 원격명령(PostCmdInfra)으로 nginx를 설치하고
- *   외부 접근을 확인한 뒤, cm-ant 부하테스트(웹 Load Config UI = POST /load/tests/run)를 실행한다.
+ * ★ Background: an EC2 instance created by cm-butterfly has nothing installed on it.
+ *   A load test requires a web server (nginx) running on the target, so
+ *   (unless the flow installs it via SW migration) we install nginx via a cb-tumblebug remote command (PostCmdInfra),
+ *   confirm external access, then run the cm-ant load test (web Load Config UI = POST /load/tests/run).
  *
- * nginx 설치·접근확인은 butterfly UI에 대응 화면이 없어 *테스트 전제조건*으로 API로 수행한다(원격명령 API).
- * 부하테스트 자체는 사용자 흐름대로 UI(Load Config)로 진행한다.
+ * nginx install and access check have no matching screen in the butterfly UI, so they are done via API as *test preconditions* (remote command API).
+ * The load test itself proceeds through the UI (Load Config), following the user flow.
  */
 
 async function loginToken(request: APIRequestContext): Promise<string> {
@@ -39,9 +39,9 @@ async function loginToken(request: APIRequestContext): Promise<string> {
 }
 
 /**
- * 생성된 인프라의 첫 노드 공인 IP 조회 (cm-beetle/GetInfra 경유).
- * 마이그레이션 직후 노드가 Creating이라 공인 IP가 아직 비어 있을 수 있으므로,
- * 채워질 때까지 폴링한다(최대 ~5분). IP가 있으면 SSH·원격명령이 가능한 상태로 본다.
+ * Fetch the public IP of the created infrastructure's first node (via cm-beetle/GetInfra).
+ * Right after migration the node is Creating, so the public IP may still be empty; poll until it's
+ * filled (up to ~5 minutes). Once there's an IP, the node is considered ready for SSH/remote commands.
  */
 async function fetchNodePublicIp(
   request: APIRequestContext,
@@ -59,8 +59,8 @@ async function fetchNodePublicIp(
     const infra = body?.responseData?.data ?? body?.responseData ?? {};
     const node = (infra.node ?? [])[0] ?? {};
     nodeId = node.id ?? nodeId;
-    // 원격명령은 노드가 실제로 쓰는 계정으로 나가야 한다. tumblebug이 만든 노드의 계정은 `cb-user`이며,
-    // 소스 서버의 SSH 계정(ubuntu)과 다르다 — 그걸 그대로 쓰면 명령이 붙지 못한다.
+    // A remote command must go out as the account the node actually uses. A tumblebug-created node's account is `cb-user`,
+    // which differs from the source server's SSH account (ubuntu) — using that directly would fail to connect the command.
     scenarioState.nodeUserName =
       node.nodeUserName ?? scenarioState.nodeUserName;
     scenarioState.securityGroupIds =
@@ -73,11 +73,11 @@ async function fetchNodePublicIp(
 }
 
 /**
- * 워크로드의 보안그룹에 80 포트를 연다.
+ * Open port 80 on the workload's security group.
  *
- * 마이그레이션이 만든 인프라의 보안그룹은 *소스 서버에서 수집한 것*을 따라간다. 소스에 웹서버가 없으면
- * 80이 안 열려 있고, 그러면 nginx를 올려도 밖에서 못 붙어 부하테스트를 할 수 없다.
- * 이미 열려 있으면 tumblebug이 거부하는데, 그건 오류가 아니라 "이미 됨"이므로 무시한다.
+ * The security group of the migration-created infrastructure follows *what was collected from the source server*. If the
+ * source has no web server, 80 isn't open, and then even after bringing up nginx you can't reach it externally to load test.
+ * If it's already open, tumblebug rejects it, but that's not an error — it means "already done", so it's ignored.
  */
 async function openHttpPort(
   request: APIRequestContext,
@@ -108,23 +108,23 @@ async function openHttpPort(
         },
       },
     );
-    console.log(`[perf] 보안그룹 ${sgId} 80 포트 개방 → ${r.status()}`);
+    console.log(`[perf] opened port 80 on security group ${sgId} → ${r.status()}`);
   }
   if (sgIds.length === 0) {
     console.warn(
-      '[perf] 노드의 보안그룹 id를 찾지 못했다 — 80이 이미 열려 있길 기대하고 진행한다.',
+      "[perf] couldn't find the node's security group id — proceeding on the hope that 80 is already open.",
     );
   }
 }
 
 /**
- * "그리고 생성된 워크로드의 80 포트를 개방한다"
+ * "And open port 80 of the created workload"
  *
- * 마이그레이션이 만든 보안그룹은 *소스 서버에서 수집한 것*을 따라간다. 소스의 인바운드에 80이 없으면
- * 타깃에도 없고, 그러면 소프트웨어(nginx)가 올라가 있어도 밖에서 못 붙어 부하테스트를 할 수 없다.
+ * The migration-created security group follows *what was collected from the source server*. If the source's inbound
+ * has no 80, the target doesn't either, and then even with the software (nginx) up you can't reach it externally to load test.
  *
- * 콘솔에는 보안그룹 규칙을 손보는 화면이 없어, 이 단계만 API로 처리한다(테스트 전제조건).
- * 노드 공인 IP도 여기서 확보해 이후 단계(외부 접근 확인·부하 대상)가 쓴다.
+ * The console has no screen for editing security group rules, so this step alone is done via API (a test precondition).
+ * The node's public IP is also obtained here for later steps (external access check, load target) to use.
  */
 Given('생성된 워크로드의 80 포트를 개방한다', async ({ request }) => {
   const token = await loginToken(request);
@@ -145,7 +145,7 @@ Given('생성된 워크로드의 80 포트를 개방한다', async ({ request })
   );
 });
 
-/** 타깃 노드에서 명령을 돌리고 *표준출력만* 돌려준다 (응답에는 명령문도 실려 오므로 그걸 매칭하면 안 된다) */
+/** Run a command on the target node and return *stdout only* (the response also carries the command text, so don't match on that) */
 async function nodeStdout(
   request: APIRequestContext,
   token: string,
@@ -173,14 +173,14 @@ async function nodeStdout(
 }
 
 /**
- * "그리고 부하테스트 대상 웹서버를 준비한다"
+ * "And prepare the web server for the load test"
  *
- * 부하테스트는 웹서버가 있어야 성립한다. 원래 의도는 **소프트웨어 마이그레이션이 올린 nginx** 를 그대로
- * 대상으로 삼는 것이고, 그게 됐으면 아무것도 하지 않는다.
+ * A load test only holds up with a web server present. The original intent is to use **the nginx brought up by the
+ * software migration** directly as the target, and if that worked, do nothing.
  *
- * 안 됐으면 여기서 nginx를 올려 부하테스트를 이어간다. 대신 **무엇이 일어났는지 감추지 않는다** —
- * 마이그레이션이 올린 것인지 우리가 준비한 것인지 로그와 리포트에 그대로 남긴다. 마이그레이션의 성패는
- * 앞의 결과 확인 스텝이 이미 따로 판정했으므로, 이 준비 단계가 그 판정을 덮지 않는다.
+ * If it didn't, bring up nginx here to continue the load test. But **don't hide what happened** —
+ * whether the migration brought it up or we prepared it is recorded as-is in the log and report. The migration's
+ * success or failure was already judged separately by the earlier result-check step, so this preparation step doesn't override that verdict.
  */
 Given('부하테스트 대상 웹서버를 준비한다', async ({ request, $testInfo }) => {
   test.setTimeout(15 * 60_000);
@@ -194,13 +194,13 @@ Given('부하테스트 대상 웹서버를 준비한다', async ({ request, $tes
   if (running(out)) {
     scenarioState.nginxFromMigration = true;
     console.log(
-      '[perf] nginx가 이미 돌고 있다 — 소프트웨어 마이그레이션이 올린 것을 그대로 쓴다.',
+      '[perf] nginx is already running — use what the software migration brought up as-is.',
     );
   } else {
     scenarioState.nginxFromMigration = false;
     console.warn(
-      `[perf] ★ 소프트웨어 마이그레이션이 nginx를 올리지 못했다(systemctl is-active → ${out.trim() || '없음'}). ` +
-        '부하테스트를 이어가기 위해 테스트가 직접 설치한다. 마이그레이션 성패는 앞 단계에서 이미 판정했다.',
+      `[perf] ★ the software migration failed to bring up nginx (systemctl is-active → ${out.trim() || 'none'}). ` +
+        'The test installs it directly to continue the load test. The migration success/failure was already judged in an earlier step.',
     );
     await nodeStdout(request, token, [
       'sudo apt-get update -y',
@@ -227,7 +227,7 @@ Given('부하테스트 대상 웹서버를 준비한다', async ({ request, $tes
 });
 
 /**
- * "그러면 nginx가 외부에서 접근 가능하다" — 노드 공인 IP:80 접근 확인
+ * "Then nginx is accessible from outside" — check access to the node's public IP:80
  */
 Then('nginx가 외부에서 접근 가능하다', async ({ request }) => {
   const ip = scenarioState.nodePublicIp;
@@ -235,14 +235,14 @@ Then('nginx가 외부에서 접근 가능하다', async ({ request }) => {
     ip,
     '노드 공인 IP를 확인하지 못함(인프라 생성/조회 확인 필요)',
   ).toBeTruthy();
-  // 서비스 기동·보안그룹 반영에 시간이 걸리므로 재시도
+  // service startup and security group propagation take time, so retry
   let ok = false;
   for (let i = 0; i < 12 && !ok; i++) {
     try {
       const r = await request.get(`http://${ip}:80/`, { timeout: 8000 });
       ok = r.status() < 500;
     } catch {
-      /* 재시도 */
+      /* retry */
     }
     if (!ok) await new Promise(r => setTimeout(r, 10_000));
   }
@@ -250,9 +250,9 @@ Then('nginx가 외부에서 접근 가능하다', async ({ request }) => {
 });
 
 /**
- * "그리고 생성된 워크로드에 부하 테스트를 실행한다" — 워크로드 화면에서 부하테스트(Load Config) 실행.
- * 대상 호스트는 방금 nginx를 올린 노드 공인 IP. 비용 보호: test-data.workload.loadTest(짧고 가벼운 설정).
- * (Load Config UI가 호출하는 cm-ant POST /load/tests/run 이 곧 검증 대상)
+ * "And run a load test on the created workload" — run the load test (Load Config) from the workload screen.
+ * The target host is the node public IP where nginx was just brought up. Cost protection: test-data.workload.loadTest (a short, light config).
+ * (The cm-ant POST /load/tests/run that the Load Config UI calls is the thing under verification)
  */
 When('생성된 워크로드에 부하 테스트를 실행한다', async ({ page }) => {
   const { WorkloadPage } = await import('../pages/workload.page');
@@ -264,7 +264,7 @@ When('생성된 워크로드에 부하 테스트를 실행한다', async ({ page
   await wl.selectMci(scenarioState.infraName ?? workload.infraName);
   await wl.openServerTab();
   await wl.selectNode(workload.nodeName);
-  // Load Config 모달을 열어 nginx 서버(host:80)로 부하 설정 후 실행
+  // open the Load Config modal, configure load against the nginx server (host:80), then run
   await wl.runLoadTest({
     scenarioName: workload.loadTest.scenarioName,
     targetHost,
@@ -276,20 +276,21 @@ When('생성된 워크로드에 부하 테스트를 실행한다', async ({ page
     rampUpSteps: workload.loadTest.rampUpSteps,
   });
 
-  // ★ 여기서부터 시간을 잰다 — 부하발생기 VM 생성·JMeter 설치는 이 앞이라 포함되지 않는다.
-  //   재고 싶은 건 "부하를 걸기 시작해 결과(CSV)가 완성될 때까지"다.
+  // ★ start timing from here — the load-generator VM creation and JMeter install come before this and aren't included.
+  //   what we want to measure is "from starting to apply load until the result (CSV) is complete".
   loadTiming = startLoadTestTiming();
 });
 
-/** 이번 시나리오의 부하테스트 소요시간 (실행 스텝 → 결과 조회 스텝으로 넘긴다) */
+/** this scenario's load-test elapsed time (passed from the run step to the result-check step) */
 let loadTiming: LoadTestTiming | undefined;
 
 /**
- * "그러면 부하 테스트 결과가 조회된다"
+ * "Then the load test result is retrieved"
  *
- * 화면에 결과가 뜨는지 보는 것과 *별개로*, cm-ant 쪽 실행 상태도 함께 지켜본다.
- * 결과가 안 보일 때 (a) 아직 안 끝난 건지 (b) 끝났는데 콘솔이 못 그리는 건지 갈라야 하기 때문이다.
- * 소요시간은 리포트에 붙는다 — 가끔 아주 오래 걸리는 일이 있어 숫자로 남겨 둔다.
+ * *Separately* from watching whether the result shows on screen, also watch the cm-ant execution status.
+ * This is because when the result doesn't appear, we must distinguish (a) whether it isn't finished yet from
+ * (b) whether it finished but the console can't render it.
+ * The elapsed time is attached to the report — it occasionally takes very long, so we keep the number.
  */
 Then('부하 테스트 결과가 조회된다', async ({ page, request, $testInfo }) => {
   test.setTimeout(20 * 60_000);
@@ -299,7 +300,7 @@ Then('부하 테스트 결과가 조회된다', async ({ page, request, $testInf
   const timing = loadTiming ?? startLoadTestTiming();
   const token = await loginToken(request);
 
-  // cm-ant 실행 상태 감시와 화면 확인을 나란히 돌린다.
+  // run the cm-ant execution-status watch and the screen check in parallel.
   const watching = watchLoadTest(request, token, timing).catch(() => {});
 
   try {

@@ -43,7 +43,7 @@ export default defineComponent({
     },
   },
   setup(props) {
-    // 데이터 타입 체크 헬퍼 함수
+    // Data type check helper functions
     const isPrimitive = (value: any) => {
       return (
         typeof value === 'string' || 

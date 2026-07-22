@@ -35,18 +35,18 @@ const createSourceSoftwareModel = useCreateSourceSoftwareModel(null);
 const getInfraInfoRefined = useGetInfraInfoRefined(props.sgId, props.connId);
 const getSoftwareInfoRefined = useGetSoftwareInfoRefined(props.sgId, props.connId);
 
-// 데이터 타입에 따라 적절한 변환 함수 선택
+// pick the appropriate conversion function based on the data type
 const getConvertFunction = computed(() => {
-  // dataType prop에 따라 변환 함수 선택
+  // pick the conversion function based on the dataType prop
   if (props.dataType === 'software') {
     return handleConvertSoftware();
   }
-  
-  // 기본적으로 Infra 변환 함수 사용
+
+  // use the Infra conversion function by default
   return handleConvertInfra();
 });
 
-// dataType에 따라 동적으로 title 생성
+// dynamically build the title based on dataType
 const modalTitle = computed(() => {
   const baseTitle = 'Source Connection Viewer';
   if (props.dataType === 'software') {
@@ -64,11 +64,11 @@ const handleSave = () => {
 const handleMetaViewer = e => {
   isSaveModal.value = false;
   
-  // Software 타입인 경우 CreateSourceSoftwareModel 호출
+  // for the Software type, call CreateSourceSoftwareModel
   if (props.dataType === 'software') {
     console.log('MetaViewer Creating Source Software Model with data:', convertedData.value);
     
-    // API 응답에서 sourceSoftwareModel 속성 추출
+    // extract the sourceSoftwareModel property from the API response
     const sourceSoftwareModelData = convertedData.value?.sourceSoftwareModel || convertedData.value;
     console.log('MetaViewer Extracted sourceSoftwareModel data:', sourceSoftwareModelData);
     
@@ -90,7 +90,7 @@ const handleMetaViewer = e => {
         showErrorMessage('error', e.errorMsg);
       });
   } else {
-    // Infra 타입인 경우 기존 CreateOnpremmodel 호출
+    // for the Infra type, call the existing CreateOnpremmodel
     createOnpremmodel
       .execute({
         request: {

@@ -47,7 +47,7 @@ const modal = reactive({
 });
 
 const isDataLoaded = ref(false);
-const tableKey = ref(0); // 컴포넌트 재렌더링을 위한 key
+const tableKey = ref(0); // key for forcing a component re-render
 
 onBeforeMount(() => {
   initToolBoxTableModel();
@@ -135,7 +135,7 @@ async function fetchTaskComponentsList() {
     }
     nextTick(() => {
       isDataLoaded.value = true;
-      // 데이터 로드 후 컴포넌트 재렌더링
+      // Re-render the component after data loads
       tableKey.value++;
     });
   } catch (e) {
@@ -160,14 +160,14 @@ watch(
   <div>
     <p-horizontal-layout :key="tableKey" :height="adjustedDynamicHeight">
       <template #container="{ height }">
-        <!-- 로딩 중일 때 스피너 표시 -->
+        <!-- Show a spinner while loading -->
         <table-loading-spinner
           :loading="getTaskComponentList.isLoading.value"
           :height="height"
           message="Loading task components..."
         />
         
-        <!-- 로딩 완료 후 테이블 표시 -->
+        <!-- Show the table after loading completes -->
         <p-toolbox-table
           data-testid="taskcomponent-list-table"
           v-if="!getTaskComponentList.isLoading.value"

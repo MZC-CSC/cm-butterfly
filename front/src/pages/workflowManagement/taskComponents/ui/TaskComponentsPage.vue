@@ -43,7 +43,7 @@ const mainTabState = reactive({
   ],
 });
 
-// cm-cicada type/spec 전환: TaskComponent는 { type, spec } 스키마(구 options/param_option 폐기)
+// cm-cicada type/spec migration: TaskComponent uses the { type, spec } schema (old options/param_option removed)
 const schema = {
   json: true,
   properties: {
@@ -64,7 +64,7 @@ function handleClickTemplateComponentId(id: string) {
 
 async function handleUpdateTaskComponent(updatedData: object) {
   try {
-    // 신 스키마: { type, spec, name, description }를 top-level로 전송(구 { data } 래핑 폐기)
+    // New schema: send { type, spec, name, description } at the top level (old { data } wrapper removed)
     const { data } = await updateTaskComponent.execute({
       pathParams: {
         tcId: selectedTaskComponentId.value,
@@ -99,7 +99,7 @@ async function getTaskComponentById() {
       },
     });
 
-    // 신 스키마: TaskComponent가 top-level { type, spec, ... }(구 .data 래핑 폐기)
+    // New schema: TaskComponent is top-level { type, spec, ... } (old .data wrapper removed)
     if (
       data.responseData &&
       Object.values(data.responseData).length > 0
@@ -125,7 +125,7 @@ async function handleUpdateTaskComponentEdit() {
     if (selectedTaskComponentId.value.length > 0) {
       await getTaskComponentById()
         .then(async r => {
-          // 신 스키마: { type, spec, ... }를 top-level로 전송(구 { data } 래핑 폐기)
+          // New schema: send { type, spec, ... } at the top level (old { data } wrapper removed)
           const { data } = await updateTaskComponent.execute({
             pathParams: {
               tcId: selectedTaskComponentId.value,

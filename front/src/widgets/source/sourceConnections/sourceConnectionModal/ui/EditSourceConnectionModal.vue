@@ -30,7 +30,7 @@ const validStates = ref<Map<number | string, boolean>>(new Map());
 
 const handleValidChange = (id: number | string, valid: boolean) => {
   validStates.value.set(id, valid);
-  // 모든 connection이 유효한지 확인
+  // Check whether every connection is valid
   const allValid = Array.from(validStates.value.values()).every(v => v);
   isDisabled.value =
     allValid &&
@@ -55,7 +55,7 @@ const handleCancel = () => {
 
 const saveLoading = ref<boolean>(false);
 
-// Add 모드인지 Edit 모드인지 확인
+// Determine whether this is Add mode or Edit mode
 const isAddMode = computed(
   () =>
     props.multiSelectedConnectionIds.length === 0 &&
@@ -85,7 +85,7 @@ const deleteSourceConnection = (id: number | string) => {
   if (index !== -1) {
     uniqueSourceConnectionsByIds.value.splice(index, 1);
     validStates.value.delete(id);
-    // 삭제 후 validation 상태 재계산
+    // Recompute the validation state after deletion
     const allValid = Array.from(validStates.value.values()).every(v => v);
     isDisabled.value =
       allValid &&
@@ -93,15 +93,16 @@ const deleteSourceConnection = (id: number | string) => {
   }
 };
 
-// EditSourceConnectionInfo 로직 통합
+// Consolidated EditSourceConnectionInfo logic
 const sourceConnectionsByIds = ref<any[]>([]);
 const uniqueSourceConnectionsByIds = ref<any[]>([]);
 let isInitialized = false;
 
-// 이미 등록된 연결은 입력란을 모두 비운 채로 연다. 기존 값은 placeholder 로만
-// 보여주고, 사용자가 실제로 입력한 항목만 검증·전송한다. 특히 인증 3항목은
-// 서버가 암호화해 내려주므로 그 값을 입력란에 되돌려 넣으면 저장된 평문을
-// 암호문으로 덮어써 연결이 깨진다.
+// An already-registered connection opens with all input fields empty. Existing values are
+// shown only as placeholders, and only fields the user actually enters are validated and sent.
+// In particular, the three credential fields are returned encrypted by the server, so putting
+// those values back into the inputs would overwrite the stored plaintext with ciphertext and
+// break the connection.
 const toEditableRow = (connId: string) => {
   const stored = sourceConnectionStore.getConnectionById(connId) as any;
   return {
@@ -118,7 +119,7 @@ const toEditableRow = (connId: string) => {
   };
 };
 
-// 선택된 Connection ID에 따라 데이터 로드
+// Load data based on the selected Connection ID
 watchEffect(() => {
   if (props.multiSelectedConnectionIds.length === 1) {
     sourceConnectionsByIds.value = [
@@ -131,7 +132,7 @@ watchEffect(() => {
     props.multiSelectedConnectionIds.length === 0 &&
     props.selectedConnectionId.length === 0
   ) {
-    // 새 Connection 추가인 경우
+    // Adding a new Connection
     sourceConnectionsByIds.value = [
       {
         _id: connectionIdCounter++,
@@ -146,7 +147,7 @@ watchEffect(() => {
   }
 });
 
-// 중복 제거
+// Remove duplicates
 watchEffect(() => {
   uniqueSourceConnectionsByIds.value = Array.from(
     new Map(
@@ -158,14 +159,14 @@ watchEffect(() => {
   );
 });
 
-// connectionInfoData 업데이트 및 validStates 초기화 (한 번만)
+// Update connectionInfoData and initialize validStates (only once)
 watchEffect(
   () => {
     if (uniqueSourceConnectionsByIds.value.length > 0) {
-      // connectionInfoData를 uniqueSourceConnectionsByIds와 동일하게 유지
+      // Keep connectionInfoData in sync with uniqueSourceConnectionsByIds
       connectionInfoData.value = uniqueSourceConnectionsByIds.value;
 
-      // validStates가 아직 초기화되지 않았거나 크기가 다를 때만 초기화
+      // Initialize only when validStates isn't initialized yet or the size differs
       if (
         !isInitialized ||
         validStates.value.size !== uniqueSourceConnectionsByIds.value.length
@@ -184,12 +185,13 @@ watchEffect(
   { flush: 'sync' },
 );
 
-// 입력란이 비어 있으면 "그대로 두겠다"는 뜻이므로 요청에 담지 않는다.
+// An empty input field means "leave it as-is," so it's not included in the request.
 //
-// 이름은 뺀다. 연계 시스템이 커넥션 이름에 전역 유니크 제약을 걸어 두어
-// (`connection_infos.name`, 대소문자 무시) 다른 소스 그룹의 커넥션과도 부딪히는데,
-// 이 화면은 여러 건을 한 번에 저장하므로 중간에 실패하면 어디까지 반영됐는지
-// 알기 어렵다. 이름은 목록·상세의 개별 수정에서 한 건씩 처리한다.
+// Name is excluded. The linked system puts a global uniqueness constraint on connection names
+// (`connection_infos.name`, case-insensitive), so a name can collide even with connections in
+// other source groups. Since this screen saves multiple entries at once, if one fails midway
+// it's hard to tell how far it was applied. Name changes are handled one at a time via the
+// per-item edit in the list/detail views.
 const UPDATABLE_FIELDS = [
   'description',
   'ip_address',
@@ -206,7 +208,7 @@ const buildUpdateRequest = (info: any) => {
     if (value === undefined || value === null) return;
     const trimmed = String(value).trim();
     if (trimmed === '') return;
-    // 입력했지만 기존 값과 같으면 보낼 이유가 없다.
+    // If entered but identical to the existing value, there's no reason to send it.
     const current = info._original?.[field];
     if (current !== undefined && String(current) === trimmed) return;
     request[field] = trimmed;
@@ -214,11 +216,12 @@ const buildUpdateRequest = (info: any) => {
   return request;
 };
 
-// 이미 등록된 연결은 이름을 잠근다. 이름 충돌은 저장 시점에야 서버가 알려주는데,
-// 이 화면은 여러 건을 순차 저장하므로 한 건이 실패해도 나머지가 이미 반영된
-// 뒤일 수 있다. 이름 변경은 목록·상세의 개별 수정에서 한 건씩 처리한다.
+// An already-registered connection has its name locked. Name collisions are only reported by
+// the server at save time, and since this screen saves multiple entries sequentially, one
+// failure can happen after the others were already applied. Name changes are handled one at a
+// time via the per-item edit in the list/detail views.
 const getReadonlyFields = (connection: any) => {
-  // 새로 추가하는 연결은 이름을 입력해야 하므로 잠그지 않는다.
+  // A newly added connection needs a name entered, so don't lock it.
   if (!connection.id) return [] as string[];
   return ['name'];
 };
@@ -227,18 +230,18 @@ const handleAddSourceConnection = async () => {
   saveLoading.value = true;
 
   try {
-    // connection들을 기존(id 있음)과 신규(id 없음)로 분리
+    // Split connections into existing (has id) and new (no id)
     const existingConnections = connectionInfoData.value.filter(
       info => info.id,
     );
     const newConnections = connectionInfoData.value.filter(info => !info.id);
 
-    // 기존 connection 업데이트 — 사용자가 실제로 입력한 항목만 담는다.
-    // 연계 시스템은 전달된 항목만 반영하고 나머지는 기존 값을 유지하므로,
-    // 빈 값을 함께 보낼 필요가 없다.
+    // Update existing connections — include only the fields the user actually entered.
+    // The linked system applies only the fields sent and keeps the existing values for the
+    // rest, so there's no need to send empty values along.
     for (const info of existingConnections) {
       const request = buildUpdateRequest(info);
-      // 바꾼 것이 없으면 요청을 보내지 않는다.
+      // If nothing changed, don't send the request.
       if (Object.keys(request).length === 0) continue;
 
       await updateConnectionInfo.execute({
@@ -250,7 +253,7 @@ const handleAddSourceConnection = async () => {
       });
     }
 
-    // 새 connection 생성
+    // Create new connections
     for (const info of newConnections) {
       await createConnectionInfo.execute({
         pathParams: {
@@ -279,9 +282,10 @@ const handleAddSourceConnection = async () => {
       (error as any).errorMsg?.value ===
       'constraint failed: UNIQUE constraint failed: connection_infos.name (2067)'
     ) {
-      // 이름 유니크 제약은 소스 그룹 단위가 아니라 전체 범위이고 대소문자를
-      // 구분하지 않는다. 지금 보고 있는 그룹에 같은 이름이 없어도 다른 그룹의
-      // 연결과 부딪힐 수 있어, 어디서 충돌했는지 알 수 없는 채로 막힌다.
+      // The name uniqueness constraint is global rather than per source group, and is
+      // case-insensitive. Even if the group you're viewing has no matching name, it can
+      // collide with a connection in another group, so it gets blocked without any way to
+      // tell where the conflict happened.
       showErrorMessage(
         'failed',
         'Connection name already in use. Names must be unique across all source groups, ignoring case.',

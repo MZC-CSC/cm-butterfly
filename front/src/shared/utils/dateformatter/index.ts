@@ -40,7 +40,7 @@ export function formatDateWithMilliseconds(
       HH: String(d.getHours()).padStart(2, '0'),
       mm: String(d.getMinutes()).padStart(2, '0'),
       ss: String(d.getSeconds()).padStart(2, '0'),
-      SSS: String(d.getMilliseconds()).padStart(3, '0'), // 밀리세컨드 추가
+      SSS: String(d.getMilliseconds()).padStart(3, '0'), // add milliseconds
     };
 
     return format.replace(/yyyy|MM|dd|HH|mm|ss|SSS/g, matched => map[matched]);

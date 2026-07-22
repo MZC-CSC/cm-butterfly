@@ -1,15 +1,15 @@
 import { ApiMock, ok } from '../apiMock';
 
 /**
- * cm-honeybee(소스 컴퓨팅) mock — 소스그룹·연결정보·수집.
- * 유닛 테스트가 연계 프레임워크 없이 소스 등록→선택→수집 흐름을 완결하도록 stateful 저장소를 둔다.
- * 응답 키·스키마는 front 소비 형태에 정확히 맞춘다:
- *  - list-source-group    → responseData.source_group[] (각 항목 connection_info_status_count.connection_info_total)
+ * cm-honeybee (source computing) mock — source groups, connection info, collection.
+ * Keeps a stateful store so unit tests can complete the source register → select → collect flow without the linked frameworks.
+ * Response keys and schema match exactly what the front consumes:
+ *  - list-source-group    → responseData.source_group[] (each item has connection_info_status_count.connection_info_total)
  *  - list-connection-info → responseData.connection_info[] (ISourceConnectionInfo: id/name/ip_address/user/status ...)
- *  - 등록 성공            → data.status.code === 200
+ *  - register success     → data.status.code === 200
  */
 
-/** ISourceConnectionInfo 형태(front setConnection이 읽는 필드) */
+/** ISourceConnectionInfo shape (the fields front setConnection reads) */
 type Conn = {
   id: string;
   name: string;
@@ -39,7 +39,7 @@ export function registerHoneybeeMocks(mock: ApiMock): ApiMock {
   const latest = () => groups[groups.length - 1];
 
   return mock.use({
-    // 소스그룹 등록 (연결정보 connection_info 동반 가능) — 명시 라우팅 opId
+    // Register a source group (may include connection_info) — explicitly routed opId
     'cm-honeybee/register-source-group': ({ body }) => {
       const req = body?.request ?? body ?? {};
       const id = `sg-${seq++}`;
@@ -66,7 +66,7 @@ export function registerHoneybeeMocks(mock: ApiMock): ApiMock {
       return ok({ id, name: req.name });
     },
 
-    // 소스그룹 목록
+    // Source group list
     'list-source-group': () =>
       ok({
         source_group: groups.map(g => ({
@@ -81,24 +81,24 @@ export function registerHoneybeeMocks(mock: ApiMock): ApiMock {
         })),
       }),
 
-    // 소스그룹 상세
+    // Source group detail
     'get-source-group': ({ body }) => {
       const id =
         body?.pathParams?.sgId ?? body?.pathParams?.id ?? body?.request?.id;
       return ok(findGroup(id) ?? latest() ?? null);
     },
 
-    // 연결·에이전트 상태 점검
+    // Connection and agent status check
     'agent-and-connection-check': () => ok({ status: 'Success' }),
 
-    // 연결정보 목록 — responseData.connection_info[]
+    // Connection info list — responseData.connection_info[]
     'list-connection-info': ({ body }) => {
       const id = body?.pathParams?.sgId ?? body?.request?.sourceGroupId;
       const g = findGroup(id) ?? latest();
       return ok({ connection_info: g?.connections ?? [] });
     },
 
-    // 인프라 수집 (연결단위/그룹단위) — 수집 상태를 Success로 표시
+    // Infra collection (per-connection / per-group) — marks collection status as Success
     'import-infra': ({ body }) => {
       const g = latest();
       g?.connections.forEach(c => (c.collectInfraStatus = 'Success'));
@@ -108,7 +108,7 @@ export function registerHoneybeeMocks(mock: ApiMock): ApiMock {
       latest()?.connections.forEach(c => (c.collectInfraStatus = 'Success'));
       return ok({ status: 'Success' });
     },
-    // 소프트웨어 수집
+    // Software collection
     'import-software': () => {
       latest()?.connections.forEach(c => (c.collectSwStatus = 'Success'));
       return ok({ status: 'Success' });
@@ -118,13 +118,13 @@ export function registerHoneybeeMocks(mock: ApiMock): ApiMock {
       return ok({ status: 'Success' });
     },
 
-    // 수집 정제 결과 조회 — 최소 인프라 정보(연결단위/그룹단위)
+    // Query refined collection results — minimal infra info (per-connection / per-group)
     'get-infra-info-refined': () => ok(sampleRefinedInfra()),
     'get-infra-info-source-group-refined': () => ok(sampleRefinedInfra()),
     'get-software-info-refined': () => ok({ software: [] }),
     'get-software-info-source-group-refined': () => ok({ software: [] }),
 
-    // 삭제(단건/일괄)
+    // Delete (single / bulk)
     'delete-source-group': ({ body }) => {
       const id = body?.pathParams?.sgId ?? body?.request?.id;
       const i = groups.findIndex(g => g.id === id);
@@ -134,7 +134,7 @@ export function registerHoneybeeMocks(mock: ApiMock): ApiMock {
   });
 }
 
-/** 수집 정제 결과 최소 샘플(화면이 조회 가능 상태를 렌더하기 위한 값) */
+/** Minimal sample of refined collection results (values so the screen can render a viewable state) */
 function sampleRefinedInfra() {
   return {
     compute: {

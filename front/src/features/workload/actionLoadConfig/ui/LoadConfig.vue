@@ -36,15 +36,15 @@ const emit = defineEmits(['close', 'success']);
 const loadConfigModel = useLoadConfigModel();
 const resRunLoadTest = useRunLoadTest(null);
 
-// API 훅
+// API hooks
 const { data: catalogsData, execute: fetchCatalogs } =
   useGetAllLoadTestScenarioCatalogs();
 
-// 템플릿 관련 상태
+// Template-related state
 const savedTemplates = ref<any[]>([]);
 const selectedTemplate = ref<string>('');
 
-// 템플릿 로드
+// Load templates
 async function loadTemplates() {
   try {
     await fetchCatalogs();
@@ -60,23 +60,23 @@ async function loadTemplates() {
   }
 }
 
-// 템플릿 선택 시 필드 자동 채우기
+// Auto-fill fields when a template is selected
 function applyTemplate(templateName: string) {
   if (!templateName) return;
 
-  // 선택된 템플릿 찾기
+  // Find the selected template
   const template = savedTemplates.value.find(t => t.name === templateName);
   if (!template) return;
 
-  // 템플릿 데이터를 폼에 적용
+  // Apply the template data to the form
   loadConfigModel.inputModels.virtualUsers.value = template.virtualUsers;
   loadConfigModel.inputModels.testDuration.value = template.duration;
   loadConfigModel.inputModels.rampUpTime.value = template.rampUpTime;
   loadConfigModel.inputModels.rampUpSteps.value = template.rampUpSteps;
 }
 
-// Re-run 초기값을 폼에 반영(마지막 실행 파라미터 pre-fill).
-// host(agent/target)는 선택된 VM IP를 그대로 쓰므로 여기서 덮어쓰지 않는다.
+// Apply the re-run initial values to the form (pre-fill with the last run's parameters).
+// host (agent/target) uses the selected VM IP as-is, so we don't overwrite it here.
 function applyInitialConfig(cfg: ILoadConfigInitialValues) {
   const im = loadConfigModel.inputModels;
   if (cfg.scenarioName !== undefined) im.scenarioName.value = cfg.scenarioName;
@@ -92,12 +92,12 @@ function applyInitialConfig(cfg: ILoadConfigInitialValues) {
     loadConfigModel.protocol.selected = cfg.protocol.toLowerCase();
 }
 
-// 템플릿 적용을 위한 expose
+// expose for applying templates
 defineExpose({
   applyTemplate,
 });
 
-// 컴포넌트 마운트 시 템플릿 로드
+// Load templates when the component mounts
 onMounted(() => {
   loadTemplates();
 });
@@ -232,7 +232,7 @@ async function handleConfirm() {
 }
 
 function handelClose() {
-  // 폼 리셋
+  // Reset the form
   loadConfigModel.inputModels.scenarioName.value = '';
   loadConfigModel.inputModels.targetHostName.value = '';
   loadConfigModel.inputModels.port.value = '';

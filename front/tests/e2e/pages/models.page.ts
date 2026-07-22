@@ -2,38 +2,38 @@ import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 
 /**
- * ModelsPage — 모델(소스/타깃/추천) 도메인의 "어디서/어떻게"를 모으는 Page Object.
+ * ModelsPage — the Page Object that gathers the "where/how" of the model (source/target/recommend) domain.
  *
- * ★ 시나리오(.feature)는 "소스 모델로 저장한다", "저비용으로 추천받는다" 같은 *의도*만 담고,
- *   실제 화면 위치(URL)와 요소(셀렉터)·저장·추천 조작은 여기 한 곳에 둔다.
- *   → 화면이 바뀌면 이 파일만 고치면 되고, 한국어 시나리오는 그대로 유지된다.
+ * ★ Scenarios (.feature) hold only the *intent*, like "save as a source model" or "get a low-cost recommendation",
+ *   while the actual screen location (URL), elements (selectors), and save/recommend operations live here in one place.
+ *   → When the screen changes, only this file needs fixing, and the Korean scenarios stay as they are.
  *
- * 다루는 화면(cm-damselfly 모델 + cm-beetle 추천):
- *   - 소스 모델 목록/상세  /main/models/source-models  (GetModels · CreateOnPremModel/UpdateOnPremModel)
- *   - 타깃 모델 목록/상세  /main/models/target-models  (GetModels · CreateCloudModel)
- *   - 추천(모달)           RecommendVmInfraCandidates · Updateandgetestimatecost · GetProviderList/GetRegions
+ * Screens covered (cm-damselfly models + cm-beetle recommendation):
+ *   - source model list/detail  /main/models/source-models  (GetModels · CreateOnPremModel/UpdateOnPremModel)
+ *   - target model list/detail  /main/models/target-models  (GetModels · CreateCloudModel)
+ *   - recommend (modal)     RecommendVmInfraCandidates · Updateandgetestimatecost · GetProviderList/GetRegions
  *
- * ★ 비용 보호: 추천 결과에서 *가장 저렴한 후보*(월 예상비용 최소)를 선택하고, 필요 시 스펙 급(nano/small)을
- *   maxClass 이하로 검증한다. 소스가 nano면 추천도 nano/small급으로 나오며, 최저가 후보 선택으로 저비용을 강제한다.
+ * ★ Cost protection: from the recommendation results, pick the *cheapest candidate* (lowest estimated monthly cost), and if needed verify the spec class (nano/small)
+ *   is at or below maxClass. If the source is nano, recommendations also come out at nano/small class, and picking the cheapest candidate enforces low cost.
  */
 export class ModelsPage {
-  /** ★ 화면 위치(URL) */
+  /** ★ Screen locations (URL) */
   static readonly sourceModelsPath = '/main/models/source-models';
   static readonly targetModelsPath = '/main/models/target-models';
 
   constructor(private readonly page: Page) {}
 
   // ───────────────────────────────────────────────────────────────────
-  // 셀렉터 (data-testid 우선, 아직 부여 전이면 role/text placeholder fallback)
-  //  → 프론트에 data-testid 부여(BAR-880) 후 fallback 제거 예정.
+  // Selectors (prefer data-testid; before it is assigned, fall back to role/text placeholder)
+  //  → the fallback will be removed once data-testid is assigned in the front (BAR-880).
   // ───────────────────────────────────────────────────────────────────
 
-  /** 모델 목록 테이블(소스/타깃 공용 — 화면 진입 후 첫 p-toolbox-table) */
+  /** Model list table (shared by source/target — the first p-toolbox-table after entering the screen) */
   private get listTable(): Locator {
     return this.page.getByTestId('model-list-table');
   }
 
-  /** 이름으로 모델 목록 행 */
+  /** A model list row by name */
   private modelRow(name: string): Locator {
     return this.page
       .getByTestId(`model-row-${name}`)
@@ -41,38 +41,38 @@ export class ModelsPage {
       .first();
   }
 
-  /** 모델 목록의 페이지네이션 */
+  /** Pagination of the model list */
   private get listPagination(): TablePagination {
     return new TablePagination(this.page, this.listTable);
   }
 
   /**
-   * 목록에서 모델 행을 실제로 노출시킨다.
+   * Actually reveal a model row in the list.
    *
-   * 상단 검색창은 mirinae query 태그 방식이라 이 테이블에 필터가 붙어 있지 않다(입력해도 안 줄어든다).
-   * 목록은 15행씩 끊기므로 방금 만든 모델이 1페이지에 없을 수 있다. 검색에 기대지 말고
-   * *페이지를 넘겨 가며* 찾고, 몇 페이지에서 찾았는지도 남긴다.
+   * The top search box uses mirinae's query-tag scheme, so no filter is attached to this table (typing does not narrow it).
+   * The list is paged at 15 rows, so a just-created model may not be on page 1. Don't rely on search;
+   * find it by *paging through*, and record which page it was found on.
    */
   private async revealModel(name: string): Promise<number> {
     return this.listPagination.expectRowSomewhere(this.modelRow(name), name);
   }
 
-  /** 소스 모델 상세 — "Custom & View Source Model"(온프렘 정보 편집·저장 진입) */
+  /** Source model detail — "Custom & View Source Model" (entry to edit/save on-prem info) */
   private get customViewSourceLink(): Locator {
     return this.page.getByTestId('source-detail-custom-view');
   }
 
-  /** 소스 모델 상세 — "View Recommended List"(추천 모달 진입) */
+  /** Source model detail — "View Recommended List" (entry to the recommend modal) */
   private get viewRecommendLink(): Locator {
     return this.page.getByTestId('source-detail-view-recommend');
   }
 
-  /** 모달(CreateForm) 내 SAVE 버튼 — Custom & View의 저장 */
+  /** The SAVE button in the modal (CreateForm) — the save of Custom & View */
   private get createFormSaveButton(): Locator {
     return this.page.getByTestId('create-form-save');
   }
 
-  /** 이름 입력 모달(SimpleEditForm) — Model Name 인풋 */
+  /** Name input modal (SimpleEditForm) — the Model Name input */
   private get modelNameInput(): Locator {
     return this.page
       .locator(
@@ -81,41 +81,41 @@ export class ModelsPage {
       .or(this.page.getByPlaceholder(/model name/i));
   }
 
-  /** 이름 입력 모달(SimpleEditForm) — 확정(Save) 버튼 */
+  /** Name input modal (SimpleEditForm) — the confirm (Save) button */
   private get modelNameConfirmButton(): Locator {
     return this.page.getByTestId('model-name-save');
   }
 
-  /** 저장 성공 아이콘 모달의 Confirm 버튼 */
+  /** The Confirm button of the save-success icon modal */
   private get successConfirmButton(): Locator {
     return this.page
       .getByTestId('model-save-confirm')
       .or(this.page.getByRole('button', { name: /^confirm$/i }));
   }
 
-  // ── 추천 모달(RecommendedInfraModel) ──────────────────────────────
+  // ── Recommend modal (RecommendedInfraModel) ──────────────────────────────
 
-  /** 추천 모달 컨테이너(CreateForm) */
+  /** Recommend modal container (CreateForm) */
   private get recommendModal(): Locator {
     return this.page.getByTestId('recommend-modal');
   }
 
-  /** CSP(Provider) 선택 드롭다운 */
+  /** CSP (Provider) select dropdown */
   private get providerDropdown(): Locator {
     return this.page.getByTestId('recommend-provider-select');
   }
 
-  /** Region 선택 드롭다운 */
+  /** Region select dropdown */
   private get regionDropdown(): Locator {
     return this.page.getByTestId('recommend-region-select');
   }
 
-  /** 추천 실행(Search) 버튼 */
+  /** Run recommendation (Search) button */
   private get searchButton(): Locator {
     return this.page.getByTestId('recommend-search');
   }
 
-  /** 후보 개수(Candidate Limit) 인풋 */
+  /** Candidate count (Candidate Limit) input */
   private get candidateLimitInput(): Locator {
     return this.page
       .locator(
@@ -124,18 +124,18 @@ export class ModelsPage {
       .or(this.recommendModal.getByPlaceholder('3'));
   }
 
-  /** 추천 결과 테이블 행 */
+  /** Recommendation result table rows */
   private get recommendRows(): Locator {
     return this.page.getByTestId('recommend-result-table').locator('tbody tr');
   }
 
-  /** "Save as a Target Model" 버튼 */
+  /** "Save as a Target Model" button */
   private get saveAsTargetButton(): Locator {
     return this.page.getByTestId('recommend-save-target');
   }
 
   // ───────────────────────────────────────────────────────────────────
-  // 화면 이동
+  // Navigation
   // ───────────────────────────────────────────────────────────────────
 
   async gotoSourceModels(): Promise<void> {
@@ -157,13 +157,13 @@ export class ModelsPage {
     await expect(this.modelRow(name)).toBeVisible({ timeout: 15_000 });
   }
 
-  /** 목록에서 모델 행을 선택(상세 탭 노출) */
+  /** Select a model row from the list (reveals the detail tab) */
   async selectModel(name: string): Promise<void> {
     await this.revealModel(name);
     await this.modelRow(name).click();
   }
 
-  /** 목록의 첫 번째 모델(수집 직후 최신 소스 등)을 선택 */
+  /** Select the first model in the list (e.g. the latest source right after collection) */
   async selectFirstModel(): Promise<string> {
     const first = this.listTable.locator('tbody tr').first();
     await expect(first).toBeVisible({ timeout: 15_000 });
@@ -173,12 +173,12 @@ export class ModelsPage {
   }
 
   // ───────────────────────────────────────────────────────────────────
-  // 소스(온프렘) 모델 저장 — CustomViewSourceModel(CreateOnPremModel)
+  // Save source (on-prem) model — CustomViewSourceModel (CreateOnPremModel)
   // ───────────────────────────────────────────────────────────────────
 
   /**
-   * 이미 선택된 소스 모델의 상세에서 "Custom & View Source Model"을 열고,
-   * 수집된 온프렘 정보를 지정한 이름의 소스 모델로 저장한다.
+   * From the detail of an already-selected source model, open "Custom & View Source Model" and
+   * save the collected on-prem info as a source model with the given name.
    */
   async saveAsSourceModel(name: string): Promise<void> {
     await this.customViewSourceLink.click();
@@ -188,16 +188,16 @@ export class ModelsPage {
   }
 
   // ───────────────────────────────────────────────────────────────────
-  // 추천 → 타깃 모델 저장 (RecommendVmInfraCandidates + CreateCloudModel)
+  // Recommend → save target model (RecommendVmInfraCandidates + CreateCloudModel)
   // ───────────────────────────────────────────────────────────────────
 
-  /** 선택된 소스 모델의 상세에서 추천 모달을 연다 */
+  /** Open the recommend modal from the selected source model's detail */
   async openRecommend(): Promise<void> {
     await this.viewRecommendLink.click();
     await expect(this.recommendModal).toBeVisible({ timeout: 15_000 });
   }
 
-  /** CSP(Provider) 선택 — mirinae PSelectDropdown */
+  /** Select CSP (Provider) — mirinae PSelectDropdown */
   async selectProvider(csp: string): Promise<void> {
     await this.providerDropdown.click();
     await this.page
@@ -208,7 +208,7 @@ export class ModelsPage {
       .click();
   }
 
-  /** Region 선택 — 라벨은 "display / regionName" 형식이라 부분일치로 매칭 */
+  /** Select Region — the label is in "display / regionName" form, so match by partial match */
   async selectRegion(region: string): Promise<void> {
     await this.regionDropdown.click();
     await this.page
@@ -219,31 +219,31 @@ export class ModelsPage {
       .click();
   }
 
-  /** 후보 개수 설정(선택) */
+  /** Set the candidate count (optional) */
   async setCandidateLimit(limit: number): Promise<void> {
     await this.candidateLimitInput.fill(String(limit));
   }
 
-  /** 추천 실행 — 결과 행이 나올 때까지 대기 */
+  /** Run recommendation — wait until result rows appear */
   async runRecommend(): Promise<void> {
     await this.searchButton.click();
     await expect(this.recommendRows.first()).toBeVisible({ timeout: 30_000 });
   }
 
   /**
-   * ★ 저비용 강제 + 값 완전성 보장 — 추천 결과 중
-   *   ① 필수 값(spec·이미지·비용)이 *모두 채워진* 후보 중에서
-   *   ② *월 예상비용이 가장 낮은* 후보를 선택한다.
+   * ★ Enforce low cost + ensure value completeness — among the recommendation results,
+   *   ① from candidates whose required values (spec, image, cost) are *all filled in*,
+   *   ② pick the candidate with the *lowest estimated monthly cost*.
    *
-   *   이유: 추천 응답에서 일부 후보는 필드가 비어 오는데, 그 후보를 타깃 모델로 저장하면
-   *   워크플로우 실행 시 빈 값/설명문이 그대로 넘어가 실패한다([[ISSUE-workflow-form-desc-as-value]] / BAR-1393).
-   *   그래서 *값이 모두 채워진 후보*만 후보군으로 삼는다.
+   *   Reason: in the recommendation response some candidates come with empty fields, and saving such a candidate as a target model
+   *   makes the empty values / description text carry over on workflow execution and fail ([[ISSUE-workflow-form-desc-as-value]] / BAR-1393).
+   *   So only candidates *with all values filled in* are considered.
    *
-   *   모든 후보가 불완전하면 예외를 던진다 → 그 경우 cm-beetle 추천 응답(필드 범위)을
-   *   소스레벨로 병행 검증해야 한다(추천 API가 왜 빈 값을 주는지).
+   *   If all candidates are incomplete, throw an exception → in that case the cm-beetle recommendation response (field coverage)
+   *   must be verified in parallel at the source level (why the recommend API returns empty values).
    *
-   *   비용 셀 형식: "<monthly>/mon (<hourly>/hour)<currency>".
-   *   반환: 선택한 후보의 spec 표기(급 검증용).
+   *   Cost cell format: "<monthly>/mon (<hourly>/hour)<currency>".
+   *   Returns: the selected candidate's spec label (for class verification).
    */
   async selectLowestCostCandidate(): Promise<{
     spec: string;
@@ -267,16 +267,16 @@ export class ModelsPage {
         : Number.POSITIVE_INFINITY;
       const spec = this.parseSpecToken(text);
 
-      // 값 완전성 판정 — cm-beetle 실측(2026-07-05)상 specId/imageId는 nano에서도 채워지고,
-      // 프론트는 *specId/imageId가 빈* 후보에만 리터럴 "empty"(빨간 글씨)를 렌더한다
-      // (RecommendedInfraModel.getRecommendModelList → formatEmptyValue). 따라서 "모든 셀 비었나"가
-      // 아니라 *spec 토큰 존재 + "empty" 미포함*으로 판정한다(정상적으로 비는 다른 컬럼에 오판 방지).
+      // Value-completeness check — per cm-beetle measurements (2026-07-05), specId/imageId are filled even for nano, and
+      // the front renders the literal "empty" (red text) only for candidates with *empty specId/imageId*
+      // (RecommendedInfraModel.getRecommendModelList → formatEmptyValue). So we decide not by "are all cells empty"
+      // but by *spec token present + no "empty"* (to avoid misjudging other columns that are legitimately empty).
       const hasEmptyPlaceholder = /\bempty\b/i.test(text);
       const complete = !!spec && !hasEmptyPlaceholder;
       if (!complete) continue;
 
       completeCount++;
-      // 완전한 후보 중 최저가. 월비용이 없으면(급 정보만) 첫 완전 후보를 채택.
+      // Cheapest among complete candidates. If there is no monthly cost (only class info), take the first complete candidate.
       if (minIndex < 0 || (Number.isFinite(price) && price < minPrice)) {
         minPrice = price;
         minIndex = i;
@@ -291,7 +291,7 @@ export class ModelsPage {
       );
     }
 
-    // 단일 선택 테이블 — (완전한 후보 중) 최저가 행 클릭
+    // Single-select table — click the cheapest row (among complete candidates)
     await rows.nth(minIndex).click();
     return {
       spec: minSpec,
@@ -300,14 +300,14 @@ export class ModelsPage {
   }
 
   /**
-   * 허용 급(maxClass) *안에서 가장 큰* 후보를 고른다.
+   * Pick the *largest* candidate *within* the allowed class (maxClass).
    *
-   * ★ 왜 최저가가 아닌가 — 소프트웨어 마이그레이션은 타깃에서 패키지를 하나씩 설치한다. 그런데 추천 목록에
-   *   OS 기반 패키지까지 통째로 들어와, micro급 타깃에서는 CPU가 포화돼 사실상 끝나지 않는다(실측: 40분에
-   *   39개 중 11개). 그러면 "마이그레이션이 되는가"를 확인할 수가 없다.
+   * ★ Why not the cheapest — software migration installs packages one by one on the target. But the recommendation list
+   *   also pulls in whole OS-level packages, so on a micro-class target the CPU saturates and it practically never finishes (measured: in 40 min,
+   *   11 of 39). Then we cannot verify "does the migration work".
    *
-   *   그래서 *요금 상한(maxClass)은 유지하되*, 그 안에서 가장 큰 것을 골라 마이그레이션이 실제로 끝날 수
-   *   있게 한다. 상한은 여전히 강제되므로 요금 보호는 그대로다.
+   *   So *keeping the cost cap (maxClass)*, we pick the largest within it so the migration can actually finish.
+   *   The cap is still enforced, so cost protection is unchanged.
    */
   async selectLargestCandidateWithinClass(
     maxClass: string,
@@ -326,8 +326,8 @@ export class ModelsPage {
         .map(t => t.trim())
         .join(' ');
       const spec = this.parseSpecToken(text);
-      if (!spec || /\bempty\b/i.test(text)) continue; // 값이 덜 채워진 후보는 쓸 수 없다
-      if (!isSpecWithinClass(spec, maxClass)) continue; // 요금 상한은 그대로 지킨다
+      if (!spec || /\bempty\b/i.test(text)) continue; // a candidate with under-filled values is unusable
+      if (!isSpecWithinClass(spec, maxClass)) continue; // keep the cost cap as is
 
       const token = Object.keys(SPEC_CLASS_RANK).find(k =>
         spec.toLowerCase().includes(k),
@@ -350,26 +350,26 @@ export class ModelsPage {
 
     await rows.nth(bestIndex).click();
     console.log(
-      `[recommend] "${maxClass}" 급 이하 중 최대 스펙 선택: ${bestSpec}`,
+      `[recommend] selected the largest spec at or below "${maxClass}" class: ${bestSpec}`,
     );
     return { spec: bestSpec, monthlyPrice: bestPrice };
   }
 
   /**
-   * ★ 완전(complete) 후보 선택 — 프론트가 붙인 `data-complete="true"` 마커로 고른다.
+   * ★ Select a complete candidate — chosen by the `data-complete="true"` marker the front attaches.
    *
-   *   왜 이 경로가 필요한가 — 추천 응답 중 일부 후보는 spec/image에 이상값(빈 값 또는 `string`·`npt`·
-   *   `undefined` 같은 가짜 타입)이 들어와 있다. 그런 후보를 타깃 모델로 저장하면 저장은 되지만, 이후
-   *   마이그레이션(MCI 생성) 때 cm-beetle이 이미지를 못 풀어 조용히 실패한다(인프라 0대). 실제로 지난
-   *   검증에서 이 이유로 인프라가 만들어지지 않았다.
+   *   Why this path is needed — in the recommendation response, some candidates have bad spec/image values (empty, or fake types
+   *   like `string`·`npt`·`undefined`). Saving such a candidate as a target model does save, but later
+   *   during migration (MCI creation) cm-beetle cannot resolve the image and fails silently (0 infra). In fact, in the last
+   *   verification, infra was not created for this reason.
    *
-   *   기존 `selectLargestCandidateWithinClass` 는 화면에 렌더된 리터럴 "empty" 텍스트로만 걸렀는데,
-   *   `string` 같은 *가짜 값*은 "empty"가 아니라 통과했다. 그래서 프론트가 모델 값 자체를 검사해 붙이는
-   *   `data-complete` 마커(useRecommendedInfraModel.hasMissingRequiredFields 기준)로 판정한다.
+   *   The existing `selectLargestCandidateWithinClass` filtered only by the literal "empty" text rendered on screen,
+   *   but *fake values* like `string` are not "empty" and slipped through. So we decide by the
+   *   `data-complete` marker the front attaches by inspecting the model values themselves (based on useRecommendedInfraModel.hasMissingRequiredFields).
    *
-   *   선택 정책 — 완전한 후보 중에서 요금 상한(maxClass) 이하이면서 *가장 큰* 스펙을 고른다(상한은 그대로
-   *   지켜 요금 보호). 완전한 후보가 하나도 없으면 예외를 던진다 — 그 경우 문제는 프론트가 아니라
-   *   cm-beetle 추천 응답이 값을 채우지 못하는 것이므로, 소스레벨로 병행 검증해야 한다.
+   *   Selection policy — among complete candidates, pick the *largest* spec that is at or below the cost cap (maxClass) (the cap is
+   *   still kept for cost protection). If there is no complete candidate at all, throw an exception — in that case the problem is not the front but
+   *   that the cm-beetle recommendation response fails to fill the values, so it must be verified in parallel at the source level.
    */
   async selectCompleteCandidate(
     maxClass: string,
@@ -405,7 +405,7 @@ export class ModelsPage {
       }
       completeCount++;
 
-      // 요금 상한은 그대로 지킨다(급 판별 가능할 때만). 판별 불가면 통과시킨다.
+      // Keep the cost cap as is (only when the class can be determined). If it cannot, let it pass.
       if (spec && !isSpecWithinClass(spec, maxClass)) continue;
 
       const token = Object.keys(SPEC_CLASS_RANK).find(k =>
@@ -432,12 +432,12 @@ export class ModelsPage {
 
     await rows.nth(bestIndex).click();
     console.log(
-      `[recommend] 완전 후보 선택(마커 기준): ${bestSpec} — 완전 ${completeCount}/${count}, 불완전 ${incompleteCount}`,
+      `[recommend] selected a complete candidate (by marker): ${bestSpec} — complete ${completeCount}/${count}, incomplete ${incompleteCount}`,
     );
     return { spec: bestSpec, monthlyPrice: bestPrice };
   }
 
-  /** 추천 결과를 지정 이름의 타깃 모델(클라우드 모델)로 저장 */
+  /** Save the recommendation result as a target model (cloud model) with the given name */
   async saveAsTargetModel(name: string): Promise<void> {
     await this.saveAsTargetButton.click(); // → SimpleEditForm(Save Target Model)
     await this.modelNameInput.fill(name);
@@ -446,15 +446,15 @@ export class ModelsPage {
     await this.successConfirmButton.click();
   }
 
-  /** 타깃 모델 상세의 "Make Workflow"로 워크플로우 에디터를 연다(워크플로우 생성 진입점).
-   *  Workflows 목록의 Add는 disabled이며, 생성은 타깃 모델에서 시작한다. */
+  /** Open the workflow editor via "Make Workflow" on the target model detail (the workflow creation entry point).
+   *  Add on the Workflows list is disabled, and creation starts from a target model. */
   async openWorkflowEditorFromTarget(targetName: string): Promise<void> {
     await this.gotoTargetModels();
     await this.selectModel(targetName);
     await this.page.getByTestId('target-make-workflow').click();
   }
 
-  // ── SW(소프트웨어) 모델 추천 (인프라와 동일 과정: 소스 SW 모델 → 추천 → 타깃 SW 모델 저장) ──
+  // ── SW (software) model recommendation (same process as infra: source SW model → recommend → save target SW model) ──
 
   private get swRecommendModal(): Locator {
     return this.page.getByTestId('sw-recommend-modal');
@@ -466,43 +466,43 @@ export class ModelsPage {
     return this.page.getByTestId('sw-recommend-save-target');
   }
 
-  /** 소스 SW 모델 상세에서 SW 추천 모달을 연다 (인프라 openRecommend에 대응) */
+  /** Open the SW recommend modal from the source SW model detail (corresponds to infra openRecommend) */
   async openSoftwareRecommend(): Promise<void> {
     await this.viewRecommendLink.click();
     await expect(this.swRecommendModal).toBeVisible({ timeout: 15_000 });
   }
 
-  /** SW 마이그레이션 추천 실행 (Get Migration Recommendations) */
+  /** Run the SW migration recommendation (Get Migration Recommendations) */
   async runSoftwareRecommend(): Promise<void> {
     await this.swGetRecommendButton.click();
-    // 추천 결과 영역이 채워질 시간을 관대하게 대기
+    // Wait generously for the recommendation result area to fill
     await this.page.waitForTimeout(2_000);
   }
 
   /**
-   * 추천 결과를 지정 이름의 타깃 SW 모델로 저장 (CreateTargetSoftwareModel).
+   * Save the recommendation result as a target SW model with the given name (CreateTargetSoftwareModel).
    *
-   * SW 저장은 인프라 저장과 성공 UX가 다르다 — 성공하면 토스트만 뜨고 저장 폼이 닫힌다(확인 모달이 없다).
-   * 예전엔 인프라와 똑같이 "Confirm" 버튼을 기다렸는데 SW에는 그런 버튼이 없어서, 있지도 않은 걸
-   * 15초 기다리다 죽었다.
+   * SW save has a different success UX from infra save — on success only a toast appears and the save form closes (no confirm modal).
+   * Previously it waited for a "Confirm" button just like infra, but SW has no such button, so it waited 15 seconds
+   * for something that doesn't exist and died.
    *
-   * 폼의 열림/닫힘은 *실제로 보이는 요소*인 이름 입력칸으로 판정한다. SimpleEditForm의 뿌리인
-   * PButtonModal에 testid를 달아 봐야 래퍼라 가시 요소로 잡히지 않는다(load-config 모달에서 이미 겪은 함정).
+   * Whether the form is open/closed is decided by the name input, an *actually visible element*. Attaching a testid to
+   * PButtonModal, the root of SimpleEditForm, doesn't help since it is a wrapper and isn't caught as a visible element (a trap already hit in the load-config modal).
    */
   async saveAsTargetSoftwareModel(name: string): Promise<void> {
     await this.swSaveTargetButton.click(); // → SimpleEditForm(Save Software Migration as Target Model)
     await expect(this.modelNameInput).toBeVisible({ timeout: 15_000 });
     await this.modelNameInput.fill(name);
     await this.modelNameConfirmButton.click();
-    // 저장 성공 = 폼이 닫힌다(이름 입력칸이 사라진다). 실패하면 폼이 열린 채 남아 여기서 잡힌다.
+    // Save success = the form closes (the name input disappears). On failure the form stays open and is caught here.
     await expect(this.modelNameInput).toBeHidden({ timeout: 20_000 });
   }
 
-  // ── 유틸 ──────────────────────────────────────────────────────────
+  // ── Utils ──────────────────────────────────────────────────────────
 
-  /** 행 텍스트에서 spec 표기(예: "t3.nano", "e2-small")를 대략 추출 */
+  /** Roughly extract the spec label (e.g. "t3.nano", "e2-small") from the row text */
   private parseSpecToken(rowText: string): string {
-    // spec 셀은 "csp+region+spec" 중 마지막 조각을 표시. 공백 분해 후 spec처럼 보이는 토큰 우선.
+    // The spec cell shows the last piece of "csp+region+spec". After splitting on whitespace, prefer the token that looks like a spec.
     const tokens = rowText.split(/\s+/).filter(Boolean);
     const specLike = tokens.find(t =>
       /nano|micro|small|medium|large|\.|-/.test(t),
@@ -511,7 +511,7 @@ export class ModelsPage {
   }
 }
 
-/** 스펙 급 순위 — 낮을수록 저비용. maxClass 이하 검증에 사용. */
+/** Spec class ranking — lower is cheaper. Used to verify at or below maxClass. */
 export const SPEC_CLASS_RANK: Record<string, number> = {
   nano: 1,
   micro: 2,
@@ -522,9 +522,9 @@ export const SPEC_CLASS_RANK: Record<string, number> = {
 };
 
 /**
- * spec 표기가 maxClass 급 이하인지 판단.
- * 표기에서 급 토큰(nano/micro/small/…)을 찾아 순위를 비교한다.
- * 급 토큰을 찾지 못하면 판단 불가로 true(검증 스킵)를 반환한다.
+ * Decide whether the spec label is at or below the maxClass class.
+ * Find the class token (nano/micro/small/…) in the label and compare the ranking.
+ * If no class token is found, return true (skip verification) as undecidable.
  */
 export function isSpecWithinClass(spec: string, maxClass: string): boolean {
   const maxRank = SPEC_CLASS_RANK[maxClass.toLowerCase()];

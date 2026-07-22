@@ -8,16 +8,17 @@ import { scenarioState } from '../support/world';
 const { Given, When, Then } = createBdd(test);
 
 /**
- * 모델(소스/타깃/추천) 도메인 스텝.
- * 문장(의도) ↔ 액션 연결만 담당하고, 화면 위치·요소는 ModelsPage(Page Object)에 있다.
- * 기능(@unit) 스텝과 마이그레이션 시나리오(@migration) 재사용 스텝을 함께 제공한다.
+ * Model (source/target/recommendation) domain steps.
+ * Handles only the sentence (intent) ↔ action wiring; screen locations and elements live in
+ * ModelsPage (the Page Object).
+ * Provides both functional (@unit) steps and migration scenario (@migration) reuse steps.
  */
 
-/** 마지막 추천 스펙(같은 파일 안에서만 쓰므로 모듈 지역변수로 충분) */
+/** Last recommended spec (only used within this file, so a module-local variable is enough) */
 let lastRecommendedSpec = '';
 
 // ───────────────────────────────────────────────────────────────────────
-// 화면 이동·조회 (유닛)
+// Navigation and lookups (unit)
 // ───────────────────────────────────────────────────────────────────────
 
 Given('소스 모델 화면을 연다', async ({ page }) => {
@@ -37,9 +38,10 @@ Then('소스 모델 목록이 보인다', async ({ page }) => {
 });
 
 Then('소스 모델 목록에 {string} 이 보인다', async ({ page }, name: string) => {
-  // 소스 모델 화면에 있다고 가정하지 않는다.
-  // 앞 스텝이 소스 서비스 화면(수집 팝업)에 머물러 있으면 거기 검색창을 뒤지게 되는데,
-  // 소스그룹 이름이 모델 이름과 같으면 *엉뚱한 화면에서 우연히 통과*한다(실제로 그렇게 통과하고 있었다).
+  // Don't assume we're on the source model screen.
+  // If a previous step is still on the source service screen (the collection popup), it would
+  // search that screen's search box, and if the source group name equals the model name it would
+  // *accidentally pass on the wrong screen* (which is exactly what was happening).
   const models = new ModelsPage(page);
   await models.gotoSourceModels();
   await models.expectModelInList(uniqueName(name));
@@ -51,24 +53,25 @@ Then('타깃 모델 목록에 {string} 이 보인다', async ({ page }, name: st
   await models.expectModelInList(uniqueName(name));
 });
 
-/** "{string} 소스 모델을 선택한다" — 목록에서 지정 소스 모델 행 선택(상세 노출) */
+/** "{string} 소스 모델을 선택한다" — select the given source model row in the list (reveals detail) */
 Given('{string} 소스 모델을 선택한다', async ({ page }, name: string) => {
   await new ModelsPage(page).selectModel(uniqueName(name));
   scenarioState.sourceModelName = uniqueName(name);
 });
 
 // ───────────────────────────────────────────────────────────────────────
-// 소스(온프렘) 모델 저장 (유닛 + 마이그레이션 재사용)
+// Save source (on-prem) model (unit + migration reuse)
 // ───────────────────────────────────────────────────────────────────────
 
 /**
- * ★ 마이그레이션 재사용 스텝 — "그리고 수집된 정보를 소스 모델로 저장한다"
- * 수집 직후 목록의 최신 소스를 선택해 온프렘 정보를 소스 모델로 저장한다.
- * 이름은 test-data.sourceServer.name 기준.
+ * ★ Migration reuse step — "그리고 수집된 정보를 소스 모델로 저장한다"
+ * Right after collection, select the newest source in the list and save the on-prem info as a
+ * source model. The name is based on test-data.sourceServer.name.
  */
-// "수집된 정보를 소스 모델로 저장한다"는 소스 서비스 화면(수집 결과 Refine 팝업) 흐름이라 source.steps.ts에 정의한다.
+// "수집된 정보를 소스 모델로 저장한다" is a source service screen flow (the collection-result Refine
+// popup), so it's defined in source.steps.ts.
 
-/** 유닛(파라미터) — "수집된 정보를 {string} 소스 모델로 저장하면" */
+/** Unit (parameterized) — "수집된 정보를 {string} 소스 모델로 저장하면" */
 When(
   '수집된 정보를 {string} 소스 모델로 저장하면',
   async ({ page }, name: string) => {
@@ -81,12 +84,13 @@ When(
 );
 
 // ───────────────────────────────────────────────────────────────────────
-// 추천(저비용) → 타깃 모델 저장 (유닛 + 마이그레이션 재사용)
+// Recommend (low cost) → save target model (unit + migration reuse)
 // ───────────────────────────────────────────────────────────────────────
 
 /**
- * "저비용 타깃 인프라를 추천받는다/추천받으면" — 현재 선택된 소스 모델로 추천 모달을 열고
- * CSP/Region(test-data.targetSpec)을 지정해 추천 실행. 저비용 강제는 결과 선택 단계에서.
+ * "저비용 타깃 인프라를 추천받는다/추천받으면" — open the recommendation modal for the currently
+ * selected source model and run the recommendation with CSP/Region (test-data.targetSpec) specified.
+ * Forcing low cost happens at the result-selection step.
  */
 Given('저비용 타깃 인프라를 추천받는다', async ({ page }) => {
   await recommend(page);
@@ -97,9 +101,9 @@ When('저비용 타깃 인프라를 추천받으면', async ({ page }) => {
   lastRecommendedSpec = spec;
 });
 
-/** "추천 스펙이 {string} 급 이하이다" — 최저가 후보 스펙이 maxClass 급 이하인지 검증 */
-// 첫 인자는 fixture 객체 자리다. 이 step 은 fixture 를 쓰지 않지만, playwright-bdd 가
-// 첫 인자를 파싱해 주입할 fixture 를 정하므로 빈 구조분해라도 반드시 있어야 한다.
+/** "추천 스펙이 {string} 급 이하이다" — verify the lowest-cost candidate spec is at or below maxClass */
+// The first argument is the fixture-object slot. This step doesn't use a fixture, but playwright-bdd
+// parses the first argument to decide which fixtures to inject, so an empty destructure must be present.
 Then(
   '추천 스펙이 {string} 급 이하이다',
   // eslint-disable-next-line no-empty-pattern
@@ -111,7 +115,7 @@ Then(
   },
 );
 
-/** 유닛 — "추천 결과 중 가장 저렴한 스펙을 {string} 타깃 모델로 저장하면" */
+/** Unit — "추천 결과 중 가장 저렴한 스펙을 {string} 타깃 모델로 저장하면" */
 When(
   '추천 결과 중 가장 저렴한 스펙을 {string} 타깃 모델로 저장하면',
   async ({ page }, name: string) => {
@@ -123,16 +127,18 @@ When(
 );
 
 /**
- * ★ 마이그레이션 재사용 스텝 —
+ * ★ Migration reuse step —
  * "만약 타깃 인프라를 {string} 저비용으로 추천받아 타깃 모델로 저장하면"
- * 현재 선택/저장된 소스 모델로 저비용 추천을 실행하고, 최저가 후보를 타깃 모델로 저장한다.
- * {string}은 사람이 읽는 라벨(예: "small급 저비용")이며 실제 CSP/Region/급은 test-data.targetSpec.
+ * Runs a low-cost recommendation for the currently selected/saved source model and saves the
+ * lowest-cost candidate as a target model.
+ * The {string} is a human-readable label (e.g. "small급 저비용"); the actual CSP/Region/class come
+ * from test-data.targetSpec.
  */
 When(
   '타깃 인프라를 {string} 저비용으로 추천받아 타깃 모델로 저장하면',
   async ({ page }, _label: string) => {
     const models = new ModelsPage(page);
-    // 수집 결과로 저장한 인프라 소스모델(OnPremiseModel)을 선택한 뒤 추천 모달 진입
+    // Select the infra source model (OnPremiseModel) saved from the collection result, then enter the recommendation modal
     await models.gotoSourceModels();
     await models.selectModel(
       scenarioState.sourceModelName ?? uniqueName(sourceServer.name),
@@ -140,18 +146,19 @@ When(
     await models.openRecommend();
     await models.selectProvider(targetSpec.csp);
     await models.selectRegion(targetSpec.region);
-    // 후보 개수를 늘려 cm-beetle이 값이 채워진 후보를 반환할 확률을 높인다(소스 스펙이 낮으면 그래도 빌 수 있음).
+    // Increase the candidate count to raise the odds cm-beetle returns filled-in candidates (may still be empty if the source spec is low).
     await models.setCandidateLimit(
       Number(process.env.TEST_RECOMMEND_LIMIT || 20),
     );
     await models.runRecommend();
-    // 요금 상한(maxClass) 안에서 *가장 큰* 후보를 고른다. 최저가(micro급)를 고르면 소프트웨어 마이그레이션이
-    // CPU 포화로 끝나지 않아, 정작 확인하려던 "마이그레이션이 되는가"를 볼 수가 없다.
+    // Pick the *largest* candidate within the cost cap (maxClass). Picking the cheapest (micro class)
+    // makes software migration never finish due to CPU saturation, so you can't see the very thing
+    // you meant to check — "does migration work".
     const chosen = await models.selectLargestCandidateWithinClass(
       targetSpec.maxClass,
     );
     lastRecommendedSpec = chosen.spec;
-    // 요금 상한 확인(급 판별 가능할 때만)
+    // Confirm the cost cap (only when the class can be determined)
     expect(
       isSpecWithinClass(chosen.spec, targetSpec.maxClass),
       `추천 스펙 "${chosen.spec}" 이(가) "${targetSpec.maxClass}" 급 이하가 아님`,
@@ -164,13 +171,14 @@ When(
 );
 
 /**
- * ★ 완전 후보 재사용 스텝 —
+ * ★ Complete-candidate reuse step —
  * "만약 타깃 인프라를 완전한 후보로 추천받아 타깃 모델로 저장하면"
  *
- * 저비용 추천과 같은 과정이되, 결과에서 프론트가 붙인 `data-complete="true"` 마커로 *값이 모두 채워진*
- * 후보만 고른다(§4 근본원인: 이미지/스펙 이상값 후보를 저장하면 이후 인프라가 안 만들어진다).
- * 완전 후보가 하나도 없으면 selectCompleteCandidate 가 명확한 메시지로 실패한다 — 그 자체가
- * cm-beetle 추천 응답 결함의 증거다.
+ * Same process as the low-cost recommendation, but from the results it picks only candidates that
+ * are *fully filled in*, using the `data-complete="true"` marker the front-end attaches (§4 root
+ * cause: saving a candidate with bad image/spec values means the infra can't be created later).
+ * If there's not a single complete candidate, selectCompleteCandidate fails with a clear message —
+ * which is itself evidence of a defect in cm-beetle's recommendation response.
  */
 When(
   '타깃 인프라를 완전한 후보로 추천받아 타깃 모델로 저장하면',
@@ -183,7 +191,7 @@ When(
     await models.openRecommend();
     await models.selectProvider(targetSpec.csp);
     await models.selectRegion(targetSpec.region);
-    // 후보를 넉넉히 받아 완전 후보가 섞여 나올 확률을 높인다.
+    // Request plenty of candidates to raise the odds a complete one is among them.
     await models.setCandidateLimit(
       Number(process.env.TEST_RECOMMEND_LIMIT || 20),
     );
@@ -202,10 +210,10 @@ When(
 );
 
 // ───────────────────────────────────────────────────────────────────────
-// 내부 헬퍼
+// Internal helpers
 // ───────────────────────────────────────────────────────────────────────
 
-/** 현재 선택된 소스 모델로 추천 모달을 열고 CSP/Region 지정 후 실행. 최저가 후보 스펙 반환. */
+/** Open the recommendation modal for the currently selected source model, set CSP/Region, and run. Returns the lowest-cost candidate spec. */
 async function recommend(
   page: import('@playwright/test').Page,
 ): Promise<string> {
@@ -219,7 +227,7 @@ async function recommend(
 }
 
 // ───────────────────────────────────────────────────────────────────────
-// SW(소프트웨어) 모델 추천 — 인프라와 동일 과정(소스 SW 모델 → 추천 → 타깃 SW 모델 저장)
+// SW (software) model recommendation — same process as infra (source SW model → recommend → save target SW model)
 // ───────────────────────────────────────────────────────────────────────
 
 /** "{string} 소프트웨어 소스 모델을 선택한다" */
@@ -234,7 +242,8 @@ Given(
 
 /**
  * "소프트웨어 마이그레이션을 추천받아 {string} 타깃 SW 모델로 저장하면"
- * — 인프라 추천과 동일: 소스 SW 모델 상세에서 추천 실행 후 타깃 SW 모델로 저장.
+ * — Same as infra recommendation: run the recommendation from the source SW model detail, then
+ * save as a target SW model.
  */
 When(
   '소프트웨어 마이그레이션을 추천받아 {string} 타깃 SW 모델로 저장하면',
@@ -246,7 +255,7 @@ When(
   },
 );
 
-/** "타깃 SW 모델 목록에 {string} 이 보인다" */
+/** "타깃 SW 모델 목록에 {string} 이 보인다" — the target SW model list shows {string} */
 Then(
   '타깃 SW 모델 목록에 {string} 이 보인다',
   async ({ page }, name: string) => {
@@ -257,15 +266,16 @@ Then(
 );
 
 // ───────────────────────────────────────────────────────────────────────
-// 커스텀 모델 — 소스 모델을 제목만 바꿔 저장하면 커스텀 모델이 된다
+// Custom model — saving a source model with only the title changed makes it a custom model
 // ───────────────────────────────────────────────────────────────────────
 
 /**
  * "{string} 소스 모델을 {string} 커스텀 모델로 저장하면"
  *
- * 소스 모델 상세의 "Custom & View Source Model"에서 수집된 온프렘 정보를 확인하고, 이름만 바꿔 저장한다.
- * 이렇게 저장된 것이 커스텀 모델이다(인프라·소프트웨어 모두 같은 절차).
- * 이후 추천은 이 커스텀 모델을 기준으로 진행되므로 전역 상태에 기록해 둔다.
+ * In the source model detail's "Custom & View Source Model", review the collected on-prem info and
+ * save it with only the name changed. What's saved this way is a custom model (same procedure for
+ * both infra and software).
+ * Subsequent recommendations run against this custom model, so record it in global state.
  */
 When(
   '{string} 소스 모델을 {string} 커스텀 모델로 저장하면',

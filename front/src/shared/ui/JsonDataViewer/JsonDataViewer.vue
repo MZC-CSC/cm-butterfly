@@ -1,6 +1,6 @@
 <template>
   <div class="json-data-viewer">
-    <!-- 탭 헤더 -->
+    <!-- Tab header -->
     <div class="tab-header">
       <button
         v-for="tab in tabs"
@@ -13,9 +13,9 @@
       </button>
     </div>
 
-    <!-- 탭 컨텐츠 -->
+    <!-- Tab content -->
     <div class="tab-content">
-      <!-- Table 뷰 -->
+      <!-- Table view -->
       <div v-if="activeTab === 'table'" class="tab-panel">
         <JsonDataTable
           :json-data="jsonData"
@@ -24,7 +24,7 @@
         />
       </div>
 
-      <!-- Tree 뷰 -->
+      <!-- Tree view -->
       <div v-if="activeTab === 'tree'" class="tab-panel">
         <JsonDataTree
           :json-data="jsonData"
@@ -35,7 +35,7 @@
         />
       </div>
 
-      <!-- Raw JSON 뷰 -->
+      <!-- Raw JSON view -->
       <div v-if="activeTab === 'raw'" class="tab-panel">
         <div class="raw-json-container">
           <div class="raw-json-header">
@@ -58,7 +58,7 @@
       </div>
     </div>
 
-    <!-- 노드 클릭 정보 모달 -->
+    <!-- Node click info modal -->
     <div v-if="selectedNode" class="node-info-modal" @click="closeNodeInfo">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
@@ -127,7 +127,7 @@ export default defineComponent({
     const selectedNode = ref<TreeNode | null>(null);
     const isFormatted = ref(true);
 
-    // 사용 가능한 탭들
+    // Available tabs
     const tabs = computed(() => {
       const allTabs = [
         { key: 'table', label: 'Table', icon: '📊' },
@@ -138,7 +138,7 @@ export default defineComponent({
       return allTabs.filter(tab => props.availableViews.includes(tab.key));
     });
 
-    // Raw JSON 문자열
+    // Raw JSON string
     const rawJsonString = computed(() => {
       try {
         const data = typeof props.jsonData === 'string' ? JSON.parse(props.jsonData) : props.jsonData;
@@ -150,33 +150,33 @@ export default defineComponent({
       }
     });
 
-    // 노드 클릭 처리
+    // Handle node click
     const handleNodeClick = (node: TreeNode) => {
       selectedNode.value = node;
     };
 
-    // 노드 정보 모달 닫기
+    // Close the node info modal
     const closeNodeInfo = () => {
       selectedNode.value = null;
     };
 
-    // JSON 포맷 토글
+    // Toggle JSON formatting
     const toggleFormat = () => {
       isFormatted.value = !isFormatted.value;
     };
 
-    // 클립보드에 복사
+    // Copy to clipboard
     const copyToClipboard = async () => {
       try {
         await navigator.clipboard.writeText(rawJsonString.value);
-        // 성공 알림 (실제 프로젝트에서는 toast 알림 사용)
-        console.log('클립보드에 복사되었습니다.');
+        // Success notification (use a toast notification in the real project)
+        console.log('Copied to clipboard.');
       } catch (error) {
-        console.error('복사 실패:', error);
+        console.error('Copy failed:', error);
       }
     };
 
-    // 노드 값 포맷팅
+    // Format the node value
     const formatNodeValue = (value: any) => {
       if (value === null) return 'null';
       if (value === undefined) return 'undefined';

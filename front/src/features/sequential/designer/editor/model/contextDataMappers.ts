@@ -10,11 +10,11 @@ import {
 } from './contextCreators';
 
 /**
- * 데이터와 함께 컨텍스트를 생성하는 함수들
+ * Functions that build contexts along with their data
  */
 
 /**
- * 배열 데이터를 컨텍스트에 매핑
+ * Map array data into a context
  */
 export function mapArrayDataToContext(
   context: any,
@@ -28,14 +28,14 @@ export function mapArrayDataToContext(
     schemaItems: schema.items
   });
 
-  // 1단계: 배열 데이터 길이만큼 컨텍스트 추가 (Add Item과 동일한 효과)
+  // Step 1: add contexts to match the array data length (same effect as Add Item)
   console.log(`=== Adding ${data.length} array items (like clicking Add Item) ===`);
   
   const existingLength = context.context.values.length;
   const dataLength = data.length;
   
   if (dataLength > existingLength) {
-    // 더 많은 데이터가 있으면 항목 추가
+    // If there's more data, add items
     console.log(`Adding ${dataLength - existingLength} new items to existing ${existingLength} items`);
     for (let i = existingLength; i < dataLength; i++) {
       if (createAccordionSlotFn) {
@@ -47,11 +47,11 @@ export function mapArrayDataToContext(
       }
     }
   } else if (dataLength < existingLength) {
-    // 더 적은 데이터가 있으면 항목 제거
+    // If there's less data, remove items
     console.log(`Removing ${existingLength - dataLength} excess items`);
     context.context.values.splice(dataLength);
   } else if (existingLength === 0) {
-    // 배열이 비어있으면 데이터 길이만큼 추가
+    // If the array is empty, add items to match the data length
     console.log(`Array is empty, adding ${dataLength} items`);
     for (let i = 0; i < dataLength; i++) {
       if (createAccordionSlotFn) {
@@ -64,16 +64,16 @@ export function mapArrayDataToContext(
     }
   }
 
-  // 2단계: 각 배열 아이템에 데이터 매핑
+  // Step 2: map data into each array item
   data.forEach((item, index) => {
     if (context.context.values[index]) {
       console.log(`Mapping data to array item ${index}:`, item);
       
       if (Array.isArray(item)) {
         console.log(`Array item ${index} is also an array, processing nested array`);
-        // 중첩 배열 처리 로직 추가 가능
+        // Nested-array handling logic could be added here
       } else {
-        // 단순 값인 경우
+        // Simple value case
         console.log(`Array item ${index} is simple value:`, item);
         if (context.context.values[index].context?.model) {
           context.context.values[index].context.model.value = item?.toString() || '';
@@ -84,7 +84,7 @@ export function mapArrayDataToContext(
 }
 
 /**
- * 중첩 객체 데이터를 컨텍스트에 매핑
+ * Map nested object data into a context
  */
 export function mapNestedObjectDataToContext(
   context: any,
@@ -98,13 +98,13 @@ export function mapNestedObjectDataToContext(
     schema
   });
 
-  // Properties가 없는 빈 객체인 경우 처리
+  // Handle the case of an empty object with no properties
   if (!schema.properties || Object.keys(schema.properties).length === 0) {
     console.log(`Empty object detected, storing raw data:`, data);
     
-    // 빈 객체인 경우 데이터를 직접 저장
+    // For an empty object, store the data directly
     if (data && typeof data === 'object') {
-      // context에 rawData 속성으로 저장
+      // Store it on the context as a rawData property
       if (!context.context.rawData) {
         context.context.rawData = {};
       }
@@ -125,7 +125,7 @@ export function mapNestedObjectDataToContext(
         propertyType: propertySchema?.type
       });
 
-      // 해당 속성의 컨텍스트 찾기
+      // Find the context for this property
       const propertyContext = context.context.values.find((ctx: any) => 
         (ctx.context?.title === propertyName) || (ctx.context?.subject === propertyName)
       );
@@ -136,7 +136,7 @@ export function mapNestedObjectDataToContext(
           contextSubject: propertyContext.context?.subject
         });
 
-        // 속성 타입에 따른 데이터 매핑
+        // Map data based on the property type
         if (propertySchema?.type === 'string' && propertyContext.type === 'input' && propertyContext.context?.model) {
           propertyContext.context.model.value = propertyData || '';
           console.log(`Set string value for ${propertyName}: ${propertyData}`);
@@ -150,7 +150,7 @@ export function mapNestedObjectDataToContext(
       } else {
         console.warn(`Context not found for property: ${propertyName}`);
         
-        // 컨텍스트가 없으면 생성 시도
+        // If no context exists, try to create one
         if (createAccordionSlotFn) {
           console.log(`🔧 ATTEMPTING TO CREATE CONTEXT FOR PROPERTY: ${propertyName}`);
           const newContext = createAccordionSlotFn(propertyData, 0, propertySchema);
@@ -158,7 +158,7 @@ export function mapNestedObjectDataToContext(
             context.context.values.push(newContext);
             console.log(`✅ Created context for property: ${propertyName}`);
             
-            // 새로 생성된 컨텍스트로 데이터 매핑
+            // Map data into the newly created context
             if (propertySchema?.type === 'array' && Array.isArray(propertyData)) {
               console.log(`🔧 PROCESSING NEWLY CREATED ARRAY PROPERTY ${propertyName} with ${propertyData.length} items`);
               mapArrayDataToContext(newContext, propertyData, propertySchema, createAccordionSlotFn);
@@ -174,7 +174,7 @@ export function mapNestedObjectDataToContext(
 }
 
 /**
- * 중첩 배열 필드 데이터 매핑
+ * Map nested-array field data
  */
 export function mapNestedArrayFieldData(
   context: any,
@@ -188,7 +188,7 @@ export function mapNestedArrayFieldData(
     arraySchemaItems: arraySchema.items
   });
 
-  // 1단계: 배열 데이터 길이만큼 컨텍스트 추가
+  // Step 1: add contexts to match the array data length
   const existingLength = context.context.values.length;
   const dataLength = arrayData.length;
   
@@ -205,7 +205,7 @@ export function mapNestedArrayFieldData(
     }
   }
 
-  // 2단계: 각 배열 아이템의 데이터 매핑
+  // Step 2: map data for each array item
   arrayData.forEach((item, index) => {
     if (context.context.values[index]) {
       console.log(`Processing nested array item ${index}:`, item);
@@ -222,7 +222,7 @@ export function mapNestedArrayFieldData(
               fieldType: fieldSchema?.type
             });
             
-            // 해당 필드의 컨텍스트 찾기
+            // Find the context for this field
             const fieldContext = context.context.values[index].context?.values?.find((ctx: any) => 
               (ctx.context?.title === fieldName) || (ctx.context?.subject === fieldName)
             );
@@ -233,7 +233,7 @@ export function mapNestedArrayFieldData(
                 contextSubject: fieldContext.context?.subject
               });
 
-              // 필드 타입에 따른 데이터 매핑
+              // Map data based on the field type
               if (fieldSchema?.type === 'string' && fieldContext.type === 'input' && fieldContext.context?.model) {
                 fieldContext.context.model.value = fieldData || '';
                 console.log(`Set string value for ${fieldName}: ${fieldData}`);
@@ -247,7 +247,7 @@ export function mapNestedArrayFieldData(
             } else {
               console.warn(`Field context not found for: ${fieldName}`);
               
-              // migration_list 컨텍스트가 없으면 생성
+              // Create the migration_list context if it doesn't exist
               if (fieldName === 'migration_list' && fieldData && typeof fieldData === 'object' && createAccordionSlotFn) {
                 console.log(`🔧 CREATING MIGRATION_LIST CONTEXT FOR ARRAY ITEM ${index}`);
                 
@@ -263,11 +263,11 @@ export function mapNestedArrayFieldData(
                   context.context.values[index].context.values.push(newMigrationListContext);
                   console.log(`✅ Created migration_list context for array item ${index}`);
                   
-                  // containers 배열 처리
+                  // Process the containers array
                   if (fieldData.containers && Array.isArray(fieldData.containers) && fieldData.containers.length > 0) {
                     console.log(`🔧 PROCESSING CONTAINERS IN NEWLY CREATED MIGRATION_LIST: ${fieldData.containers.length} items`);
                     
-                    // containers 컨텍스트 찾기
+                    // Find the containers context
                     const containersContext = newMigrationListContext.context?.values?.find((ctx: any) => 
                       (ctx.context?.title === 'containers') || (ctx.context?.subject === 'containers')
                     );
@@ -290,7 +290,7 @@ export function mapNestedArrayFieldData(
 }
 
 /**
- * 단순 필드 데이터 매핑 (재귀 호출 없음)
+ * Map simple field data (no recursive calls)
  */
 export function mapSimpleFieldData(
   context: any,

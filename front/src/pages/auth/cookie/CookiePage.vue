@@ -22,7 +22,7 @@ async function setClientCookie() {
 async function readCookies() {
   try {
     const res = await axiosInstance.get('/read-cookies');
-    console.log('서버에서 받은 쿠키들');
+    console.log('Cookies received from the server');
     console.log(res.data);
   } catch (error) {
     console.error(error);

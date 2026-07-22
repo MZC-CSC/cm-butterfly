@@ -5,16 +5,16 @@ import { NavigationPage } from '../pages/navigation.page';
 const { When, Then } = createBdd(test);
 
 /**
- * 네비게이션 스텝 — 상단 5개 메뉴 카테고리 라우팅 스모크.
- * 화면 위치(URL)와 카테고리 별칭은 NavigationPage에만 둔다.
+ * Navigation steps — routing smoke test for the 5 top-menu categories.
+ * The URLs and category aliases live only in NavigationPage.
  */
 
-/** ★ 재사용 — "\"Cloud Resources\" 메뉴로 이동하면" */
+/** ★ Reusable — the "navigate to the {menu} menu" step */
 When('{string} 메뉴로 이동하면', async ({ page }, category: string) => {
   await new NavigationPage(page).gotoCategory(category);
 });
 
-/** ★ 재사용 — "\"Cloud Resources\" 화면이 보인다" */
+/** ★ Reusable — the "the {screen} screen is visible" step */
 Then('{string} 화면이 보인다', async ({ page }, category: string) => {
   await new NavigationPage(page).expectCategoryLoaded(category);
 });

@@ -1,22 +1,22 @@
 import { Page, expect, Locator } from '@playwright/test';
 
 /**
- * LoginPage — "어디서/어떻게"가 명시적으로 정의되는 계층 (Page Object).
+ * LoginPage — the layer where "where/how" is explicitly defined (Page Object).
  *
- * ★ 시나리오(.feature)의 "로그인한다"는 *의도*만 담고,
- *   실제 화면 위치(URL)와 요소(셀렉터)는 여기 한 곳에 모읍니다.
- *   → 화면이 바뀌면 이 파일만 고치면 되고, 한국어 시나리오는 그대로 유지됩니다.
+ * ★ The scenario's (.feature) "logs in" captures only the *intent*,
+ *   while the actual screen location (URL) and elements (selectors) are gathered here in one place.
+ *   → When the screen changes, only this file needs fixing, and the Korean scenarios stay as-is.
  */
 export class LoginPage {
-  /** ★ 화면 위치(URL) — "로그인 화면이 어디인가"를 명시 */
+  /** ★ screen location (URL) — states "where the login screen is" */
   static readonly path = '/auth/login';
 
   constructor(private readonly page: Page) {}
 
   /**
-   * 셀렉터 중앙화 (소스 변경 시 이 파일만 수정).
-   * 안정화를 위해 data-testid를 우선 사용하고, 아직 부여 전이면 placeholder/role로 fallback.
-   * → 프론트에 data-testid 부여(BAR-880) 후 fallback 제거 예정.
+   * Centralized selectors (on source changes, only this file is edited).
+   * Prefer data-testid for stability, falling back to placeholder/role where it isn't assigned yet.
+   * → The fallback will be removed once data-testid is assigned in the front (BAR-880).
    */
   private get idInput(): Locator {
     return this.page
@@ -36,13 +36,13 @@ export class LoginPage {
     return this.page.getByTestId('login-submit');
   }
 
-  /** 로그인 화면으로 이동 — 여기서 "어디"가 결정됨 */
+  /** navigate to the login screen — "where" is decided here */
   async goto(): Promise<void> {
     await this.page.goto(LoginPage.path);
     await expect(this.idInput).toBeVisible();
   }
 
-  /** 자격증명 입력 후 로그인. 성공 시 /main 으로 이동 */
+  /** enter credentials and log in. On success, navigate to /main */
   async login(id: string, password: string): Promise<void> {
     await this.idInput.fill(id);
     await this.passwordInput.fill(password);
@@ -54,7 +54,7 @@ export class LoginPage {
   }
 
   async expectLoginFailed(): Promise<void> {
-    // 로그인 화면에 머무름(메인으로 이동하지 않음)
+    // stays on the login screen (does not navigate to main)
     await expect(this.page).toHaveURL(/\/auth\/login/);
   }
 }

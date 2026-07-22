@@ -12,17 +12,21 @@ import {
 } from '@/entities/notification';
 
 /**
- * 알림 목록
+ * Notification list
  *
- * 한 레이어 안에서 **아코디언으로 펼친다.** 팝업 위에 또 팝업을 띄우면 닫는 동선이 꼬이고 뒤 목록이
- * 가려진다. 클릭한 항목 바로 아래에 펼쳐지면 어느 메시지의 상세인지 헷갈릴 일이 없다.
+ * Entries **expand as an accordion** within a single layer. Stacking a popup on top of a
+ * popup tangles the dismissal flow and hides the list behind it. Expanding right below the
+ * clicked item leaves no doubt about which message the detail belongs to.
  *
- * 읽음은 **[Confirm] 을 눌렀을 때만**이다. 여는 것만으로 읽음이 되면 스쳐 지나가도 사라져,
- * 정작 봐야 할 것을 못 보게 된다.
+ * An item is marked read **only when [Confirm] is pressed**. If merely opening it counted
+ * as read, items would vanish as you skim past them, and you'd miss what you actually need
+ * to see.
  *
- * 목록·빈 상태를 미리내 컴포넌트에 맡기지 않고 직접 그린다. 슬롯이 비면 컴포넌트 기본 폴백이
- * 대신 렌더돼 *에러 없이 엉뚱한 것이 나오는* 사고가 있었다([DESIGN-MIRINAE](../../../../../design)).
- * 이 화면은 구조가 단순해 직접 그리는 편이 안전하다.
+ * We render the list and empty state ourselves rather than leaving them to a mirinae
+ * component. There was an incident where an empty slot caused the component's default
+ * fallback to render instead, producing *the wrong thing with no error*
+ * ([DESIGN-MIRINAE](../../../../../design)). This screen is simple enough that drawing it
+ * ourselves is safer.
  */
 
 withDefaults(defineProps<{ visible?: boolean }>(), { visible: false });
@@ -47,7 +51,7 @@ const confirmAll = async () => {
   await readAllNotifications();
 };
 
-/** 화면 문구는 영문 기준이다. */
+/** On-screen text is in English. */
 const elapsed = (iso: string): string => {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return '';
@@ -60,10 +64,10 @@ const elapsed = (iso: string): string => {
 };
 
 /**
- * 한 줄에 들어가지 않는 메시지는 자른다.
+ * Truncate messages that don't fit on one line.
  *
- * 레이어 폭에 맞춘 값이다. 늘리면 줄이 넘쳐 행 높이가 들쭉날쭉해지고 목록을 눈으로 훑기 어려워진다.
- * 전체 문구는 펼쳐서 본다.
+ * This value is tuned to the layer width. Increasing it lets lines overflow, making row
+ * heights uneven and the list harder to skim. The full text is seen by expanding the item.
  */
 const MESSAGE_MAX = 48;
 const shortMessage = (message: string): string =>
@@ -71,7 +75,7 @@ const shortMessage = (message: string): string =>
     ? `${message.slice(0, MESSAGE_MAX)}...`
     : message;
 
-// 설정: 새 알림을 화면 팝업으로도 보여줄지. 기어를 누르면 목록 위에 한 줄로 펼친다.
+// Setting: whether new notifications also show as an on-screen popup. Clicking the gear expands one line above the list.
 const showSettings = ref(false);
 const toggleSettings = () => {
   showSettings.value = !showSettings.value;
@@ -106,7 +110,7 @@ const onPopupToggle = (on: boolean) => setNotificationPopupEnabled(on);
       </div>
     </div>
 
-    <!-- 설정: 새 알림 수신 시 화면 팝업 표시 여부 (localStorage, 기본 켜짐) -->
+    <!-- Setting: whether to show an on-screen popup when a new notification arrives (localStorage, on by default) -->
     <div
       v-if="showSettings"
       class="menu-settings"
@@ -140,8 +144,9 @@ const onPopupToggle = (on: boolean) => setNotificationPopupEnabled(on);
         >
           <button type="button" class="item-row" @click="toggle(item.id)">
             <!--
-              색은 클래스가 아니라 `color` prop 으로 준다. 미리내 아이콘은 색을 아이콘 정의 안에
-              칠해 두기 때문에, CSS 로 덮어도 **아무 일도 일어나지 않고 조용히 원래 색으로 나온다.**
+              Set the color via the `color` prop, not a class. mirinae icons bake the color
+              into the icon definition, so overriding it with CSS **does nothing and silently
+              renders the original color.**
             -->
             <p-i
               class="level-icon"
@@ -215,7 +220,7 @@ const onPopupToggle = (on: boolean) => setNotificationPopupEnabled(on);
     }
   }
 
-  /* 설정 한 줄 — 새 알림 화면 팝업 표시 여부 */
+  /* Settings row — whether to show an on-screen popup for new notifications */
   .menu-settings {
     @apply flex items-center justify-between border-b border-gray-200;
     padding: 0.5rem 0.875rem;
@@ -227,7 +232,7 @@ const onPopupToggle = (on: boolean) => setNotificationPopupEnabled(on);
     }
   }
 
-  /* 목록만 스크롤한다 — 헤더와 [Mark all read] 는 늘 보여야 한다. */
+  /* Only the list scrolls — the header and [Mark all read] must always stay visible. */
   .menu-body {
     max-height: 24rem;
     overflow-y: auto;
@@ -258,7 +263,7 @@ const onPopupToggle = (on: boolean) => setNotificationPopupEnabled(on);
         @apply flex-shrink-0;
       }
 
-      /* 카테고리는 폭을 고정한다. 오른쪽에 두거나 폭이 흔들리면 눈으로 훑기 어렵다. */
+      /* Fix the category width. Placing it on the right or letting the width vary makes it hard to skim. */
       .category {
         @apply flex-shrink-0 text-gray-500;
         width: 4.5rem;

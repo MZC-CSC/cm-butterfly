@@ -8,23 +8,24 @@ import { WorkflowPage } from '../pages/workflow.page';
 const { Then } = createBdd(test);
 
 /**
- * 소프트웨어 마이그레이션 결과 확인 스텝.
+ * Step for verifying software migration results.
  *
- * ★ 무엇을 판정하나 — **우리(콘솔) 쪽이 제대로 호출했는가** 다.
+ * ★ What it judges — **whether our side (the console) called correctly.**
  *
- *   소프트웨어가 실제로 다 설치됐는지는 cm-grasshopper의 몫이고, 지금은 소프트웨어에 따라 되는 것도 있고
- *   안 되는 것도 있다. 그걸 이유로 e2e를 실패시키면, 콘솔이 멀쩡한데도 매번 빨간 불이 켜져 정작 우리 쪽
- *   회귀를 못 본다.
+ *   Whether the software actually all installed is cm-grasshopper's job, and right now it works
+ *   for some software and not for others. Failing e2e over that would light it red every time even
+ *   though the console is fine, hiding the regressions on our side that we actually care about.
  *
- *   그래서 이렇게 가른다.
+ *   So we split it this way.
  *
- *   | 상황 | 판정 |
- *   |------|------|
- *   | grasshopper에 우리 실행 기록이 없다 / 대상이 우리 인프라가 아니다 | **실패** — 우리가 잘못 불렀다 |
- *   | 결과 화면(View SW)이 안 뜨거나 오류를 낸다 | **실패** — 콘솔이 결과를 못 보여준다 |
- *   | 실행 기록도 있고 화면도 결과를 보여주는데, 일부 소프트웨어가 failed | **통과 + 보고** — grasshopper 몫 |
+ *   | Situation | Verdict |
+ *   |-----------|---------|
+ *   | grasshopper has no record of our execution / the target isn't our infra | **Fail** — we called wrong |
+ *   | The result screen (View SW) doesn't appear or errors out | **Fail** — the console can't show the result |
+ *   | The execution record exists and the screen shows results, but some software failed | **Pass + report** — grasshopper's job |
  *
- *   어느 쪽이든 소프트웨어별 성공/실패는 리포트에 남긴다. "돌렸더니 이렇게 나왔다"가 이 테스트의 산출물이다.
+ *   Either way, per-software success/failure is recorded in the report. "We ran it and this is what
+ *   came out" is this test's deliverable.
  */
 
 async function loginToken(request: APIRequestContext): Promise<string> {
@@ -44,7 +45,7 @@ interface SwStatus {
   error_message?: string;
 }
 
-/** 실행 목록 — 어떤 실행이 어느 노드를 대상으로 도는지 */
+/** Execution list — which execution targets which node */
 async function fetchExecutions(
   request: APIRequestContext,
   token: string,
@@ -58,7 +59,7 @@ async function fetchExecutions(
   return Array.isArray(rd) ? rd : (rd?.status_list ?? []);
 }
 
-/** 실행 상세 — 소프트웨어별 상태(콘솔의 결과 화면이 쓰는 바로 그 API) */
+/** Execution detail — per-software status (the exact API the console's result screen uses) */
 async function fetchExecutionDetail(
   request: APIRequestContext,
   token: string,
@@ -75,7 +76,7 @@ async function fetchExecutionDetail(
   return (await res.json().catch(() => null))?.responseData ?? null;
 }
 
-/** 이번 시나리오가 만든 인프라의 *노드 id* — 실행을 가려내는 열쇠다. */
+/** The *node id* of the infra this scenario created — the key for singling out the execution. */
 async function fetchOurNodeId(
   request: APIRequestContext,
   token: string,
@@ -95,16 +96,17 @@ async function fetchOurNodeId(
 }
 
 /**
- * 이번 시나리오의 실행만 고른다.
+ * Pick only this scenario's executions.
  *
- * ★ 이름으로도 노드 id로도 거를 수 없다.
+ * ★ It can't be filtered by name or by node id.
  *
- *   cm-beetle은 타깃 인프라를 늘 같은 이름(`infra101`)으로 만들고, cb-tumblebug은 그 인프라의 노드에
- *   **같은 노드 id를 다시 부여한다**(`vm-<subgroup>-1`). 그래서 앞선 실행이 남긴 grasshopper 기록이
- *   이름으로도 노드로도 이번 것과 똑같아 보인다. 실제로 지난 실행 2건이 이번 것으로 잡혔다.
+ *   cm-beetle always creates the target infra with the same name (`infra101`), and cb-tumblebug
+ *   **reassigns the same node id** to that infra's nodes (`vm-<subgroup>-1`). So grasshopper records
+ *   left by earlier executions look identical to this one by both name and node. Two past executions
+ *   were in fact picked up as this one.
  *
- *   구분되는 건 **시각**뿐이다 — 워크플로우를 실행한 시점 이후에 시작된 것만 우리 것이다.
- *   (시계 차이·지연을 고려해 2분 여유를 둔다.)
+ *   The only thing that distinguishes them is the **time** — only those started after the moment we
+ *   ran the workflow are ours. (We allow a 2-minute margin for clock skew and delay.)
  */
 const CLOCK_SKEW_MS = 2 * 60_000;
 
@@ -124,10 +126,10 @@ const TERMINAL =
   /^(finished|failed|success|succeeded|completed|finished with error)$/i;
 
 /**
- * "그러면 소프트웨어 마이그레이션 결과가 조회된다"
+ * Step "then the software migration results are retrieved"
  *
- * grasshopper가 끝날 때까지 기다렸다가, 소프트웨어별 결과를 모아 리포트에 남긴다.
- * 실패로 판정하는 건 *우리 호출이 잘못됐을 때*뿐이다.
+ * Waits until grasshopper finishes, then collects per-software results into the report.
+ * The only thing judged as a failure is *when our call was wrong*.
  */
 Then(
   '소프트웨어 마이그레이션 결과가 조회된다',
@@ -136,7 +138,7 @@ Then(
     const token = await loginToken(request);
     const infraId = scenarioState.infraId ?? scenarioState.infraName;
 
-    // 0) 이번에 만든 노드 id — 이게 있어야 앞선 실행이 남긴 기록과 구분된다(인프라 이름은 늘 같다).
+    // 0) The node id created this time — needed to distinguish from records left by earlier executions (the infra name is always the same).
     const nodeId =
       scenarioState.nodeId || (await fetchOurNodeId(request, token));
     scenarioState.nodeId = nodeId;
@@ -145,7 +147,7 @@ Then(
       `"${infraId}" 의 노드 id를 확인하지 못했다 — 인프라 생성이 끝나지 않았을 수 있다.`,
     ).toBeTruthy();
 
-    // 1) 우리 노드를 대상으로 하는 실행이 잡힐 때까지 기다린다. 이게 안 잡히면 우리가 잘못 부른 것이다.
+    // 1) Wait until an execution targeting our node is found. If none is found, we called wrong.
     let ours: any[] = [];
     for (let i = 0; i < 20 && ours.length === 0; i++) {
       ours = (await fetchExecutions(request, token)).filter(e =>
@@ -162,10 +164,10 @@ Then(
 
     scenarioState.swExecutionIds = ours.map(e => e.execution_id);
     console.log(
-      `[sw] 이번 노드(${nodeId}) 대상 실행 ${ours.length}건: ${scenarioState.swExecutionIds.join(', ')}`,
+      `[sw] ${ours.length} execution(s) targeting this node (${nodeId}): ${scenarioState.swExecutionIds.join(', ')}`,
     );
 
-    // 2) 끝날 때까지 기다린다(최대 45분). 안 끝나도 그 시점까지의 결과를 보고한다.
+    // 2) Wait until it finishes (up to 45 minutes). If it doesn't finish, report the results up to that point.
     const deadline = Date.now() + 45 * 60_000;
     let rows: SwStatus[] = [];
     let settled = false;
@@ -189,7 +191,7 @@ Then(
 
     scenarioState.swMigrationRows = rows;
 
-    // 3) 결과를 사람이 읽을 수 있게 정리해 리포트에 붙인다.
+    // 3) Format the results into something human-readable and attach it to the report.
     const done = rows.filter(r => /finish|success|complete/i.test(r.status));
     const failed = rows.filter(r => /fail|error/i.test(r.status));
     const md = [
@@ -225,8 +227,8 @@ Then(
     });
     console.log('\n' + md + '\n');
 
-    // 4) 여기서 실패시키지 않는다 — 소프트웨어별 성패는 grasshopper 몫이고, 우리는 결과를 확인·보고한다.
-    //    다만 *아무 소프트웨어도 처리되지 않았다면* grasshopper가 요청을 아예 못 받은 것이니 우리 쪽을 의심한다.
+    // 4) Don't fail here — per-software success/failure is grasshopper's job, and we verify and report the results.
+    //    But *if no software was processed at all*, grasshopper never received the request, so we suspect our side.
     expect(
       rows.length,
       '소프트웨어 마이그레이션 대상이 하나도 없다 — 타깃 SW 모델이 비어 있거나 요청 본문이 잘못 갔다(우리 쪽 문제).',
@@ -235,10 +237,11 @@ Then(
 );
 
 /**
- * "그리고 소프트웨어 마이그레이션 결과 화면에 소프트웨어별 상태가 보인다"
+ * Step "and the software migration result screen shows per-software status"
  *
- * 실행 이력의 "View SW" → 결과 화면. 사용자가 결과를 보는 경로가 여기다.
- * 화면이 보여주는 것과 API가 말하는 것이 같은지도 대조한다 — 다르면 화면이 거짓말을 하고 있는 것이다.
+ * The execution history's "View SW" → the result screen. This is the path where the user sees the
+ * results. It also cross-checks that what the screen shows matches what the API says — if they
+ * differ, the screen is lying.
  */
 Then(
   '소프트웨어 마이그레이션 결과 화면에 소프트웨어별 상태가 보인다',
@@ -267,7 +270,7 @@ Then(
 
     const shown = await wf.readSoftwareMigrationRows();
     console.log(
-      `[sw] 결과 화면 ${shown.length}행 — ${shown
+      `[sw] result screen ${shown.length} row(s) — ${shown
         .slice(0, 5)
         .map(r => `${r.name}:${r.status}`)
         .join(', ')}${shown.length > 5 ? ' …' : ''}`,
@@ -278,7 +281,7 @@ Then(
       '결과 화면에 소프트웨어가 한 줄도 없다 — API는 결과를 주는데 화면이 못 그리고 있다.',
     ).toBeGreaterThan(0);
 
-    // API가 말한 소프트웨어가 화면에도 있는지 대조한다(화면이 빈 껍데기를 보여주고 있지 않은지).
+    // Cross-check that the software the API reported is also on the screen (that the screen isn't just an empty shell).
     const fromApi = new Set(
       (scenarioState.swMigrationRows ?? []).map(
         (r: SwStatus) => r.software_name,

@@ -42,9 +42,9 @@ const onLogoutClick = () => {
         @update:visible="updateOpenedMenu('notifications', $event)"
       />
       <!--
-        종 아이콘 자리에 로그아웃을 숨겨 두고 있었다. 하는 일과 보이는 모양을 맞춘다.
-        미리내에는 로그아웃 아이콘이 없어 svg 를 직접 넣는다 — 미리내를 걷어낼 때도 그대로 남는다.
-        클릭은 아이콘 자신이 받는다. 예전처럼 감싼 div 가 받으면 알림을 눌러도 로그아웃될 수 있다.
+        Logout used to be hidden behind the bell icon. Make what it does match how it looks.
+        Mirinae has no logout icon, so we inline the svg directly — it stays even when Mirinae is removed.
+        The icon itself receives the click. If a wrapping div received it as before, clicking a notification could log you out.
       -->
       <button
         type="button"
@@ -55,10 +55,11 @@ const onLogoutClick = () => {
         @click="onLogoutClick"
       >
         <!--
-          크기·색·선 두께는 옆 알림 아이콘(미리내 `ic_gnb_bell`)에 맞춘 값이다. 그 아이콘은
-          32 좌표계를 22px 로 그리고 회색(#898995)으로 채우는 방식이라 선이 얇아 보인다.
-          여기서는 24 좌표계를 같은 22px 로 줄이고 선을 1.3 으로 낮춰 실효 두께를 비슷하게 맞췄다.
-          숫자를 바꾸면 두 아이콘의 굵기·높이가 어긋나니 함께 확인한다.
+          The size, color, and stroke width are matched to the adjacent notification icon
+          (Mirinae `ic_gnb_bell`). That icon draws a 32 coordinate system at 22px filled
+          with gray (#898995), so its strokes look thin. Here we shrink a 24 coordinate
+          system to the same 22px and lower the stroke to 1.3 to match the effective width.
+          Changing the numbers makes the two icons' weight and height diverge, so check them together.
         -->
         <svg
           width="22"
@@ -92,7 +93,7 @@ const onLogoutClick = () => {
 
     .logout-button {
       @apply flex items-center justify-center;
-      /* 알림 아이콘과 같은 회색(gray.500 = #898995). 상속하면 본문 글자색(거의 검정)이라 혼자 도드라진다. */
+      /* Same gray as the notification icon (gray.500 = #898995). If inherited, it would take the body text color (near black) and stand out on its own. */
       @apply text-gray-500;
       cursor: pointer;
 

@@ -5,7 +5,7 @@ import {
   startNotificationPolling,
   stopNotificationPolling,
 } from '@/entities/notification/lib/notificationStore';
-// 체커 자기 등록을 위한 부수효과 import (트리 셰이킹 방지).
+// Side-effect imports so the checkers self-register (prevents tree-shaking).
 import '@/entities/mci/lib/deleteTracker';
 import '@/entities/vm/lib/loadTestTracker';
 
@@ -27,9 +27,9 @@ export const useAuthStore = defineStore('auth', {
       this.id = loginData.id;
       this.role = loginData.role;
       this.isLogin = true;
-      // 로그인 시점이 삭제 추적의 트리거다. 서버에 남아 있는 요청이 있으면 어느 브라우저에서
-      // 접속했든 여기서 이어받아 확인한다 — 앞서 다른 자리에서 낸 삭제가 끝났는지 실패했는지를
-      // 워크로드 화면에 들어가기 *전에* 정리해 둔다.
+      // Login is the trigger for delete tracking. If requests remain on the server, we pick
+      // them up and check them here regardless of which browser signed in — resolving whether
+      // a delete issued elsewhere finished or failed *before* entering the workload screen.
       void startTracking();
       void startNotificationPolling();
     },

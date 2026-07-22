@@ -6,15 +6,17 @@
       </div>
 
       <!--
-        병렬 상자는 이름을 받지 않는다.
+        A parallel box does not take a name.
 
-        갈라짐을 표시하는 것이지 묶음이 아니라서 이름이 놓일 자리가 없다 — 화면에도
-        그려지지 않고(라이브러리가 병렬에는 이름표를 그리지 않는다), 저장할 때도
-        그룹 상자 안에 있으면 바깥 그룹으로 묶여 이름이 사라진다. 입력란만 있고
-        아무 데도 남지 않으면 사용자는 저장됐다고 믿게 된다.
+        It marks a branch point, not a grouping, so there is nowhere for a name to
+        live — it isn't drawn on the canvas (the library draws no label for parallel
+        boxes), and on save, if it sits inside a group box it gets folded into the
+        outer group and the name is lost. With only an input field and nothing kept
+        anywhere, the user is left believing it was saved.
 
-        이름을 붙이고 싶은 대상은 *묶음*이고 그건 TaskGroup 이 맡는다 — 이름표도
-        화면에 그려진다. 병렬을 TaskGroup 안에 넣으면 그 이름이 그 구간의 이름이 된다.
+        What you actually want to name is the *grouping*, and that's what a TaskGroup
+        handles — its label is drawn on the canvas too. Put the parallel box inside a
+        TaskGroup and that name becomes the name of the section.
       -->
       <div v-if="isLaunchPad" class="parallel-note">
         <p>
@@ -49,7 +51,7 @@
         </span>
       </div>
 
-      <!-- Description (Optional) — 이름과 같은 이유로 병렬에는 두지 않는다 -->
+      <!-- Description (Optional) — omitted for parallel boxes for the same reason as the name -->
       <div v-if="!isLaunchPad" class="params-section">
         <h5 class="params-title">Description (optional)</h5>
         <div class="params-content">
@@ -63,7 +65,7 @@
         </div>
       </div>
 
-      <!-- Info Box — 병렬은 위 설명이 같은 말을 이미 하므로 두지 않는다 -->
+      <!-- Info Box — omitted for parallel boxes since the note above already says the same thing -->
       <div v-if="!isLaunchPad" :style="infoBoxStyle">
         <strong :style="{ color: iconColor }"
           >{{ icon }} {{ infoTitle }}</strong
@@ -98,7 +100,7 @@ export default defineComponent({
     const isNameValid = ref(true);
     const errorMessage = ref('');
 
-    // 동적 설정 (TaskGroup vs launchPad)
+    // Dynamic settings (TaskGroup vs launchPad)
     const isLaunchPad = computed(
       () => props.step.componentType === 'launchPad',
     );
@@ -143,14 +145,14 @@ export default defineComponent({
     function handleNameChange() {
       const newName = containerName.value.trim();
 
-      // 빈 이름 체크
+      // Check for empty name
       if (!newName) {
         isNameValid.value = false;
         errorMessage.value = '⚠️ Name cannot be empty';
         return;
       }
 
-      // 중복 체크 (재귀적으로 전체 workflow 검사)
+      // Check for duplicates (recursively scan the whole workflow)
       function findDuplicateInSequence(
         sequence: any[],
         targetName: string,

@@ -8,53 +8,54 @@ import { snapshotCspResources, orphanReport } from '../support/orphanResources';
 const { Given, When, Then } = createBdd(test);
 
 /**
- * 강제 삭제 대상 인프라. 실패 사유를 확인하는 스텝에서 정해지고, 강제 삭제 실행·고아 리포트 스텝이 쓴다.
- * (강제 삭제는 CSP 자원을 남기므로 어떤 인프라였는지 끝까지 붙들고 있어야 리포트를 만들 수 있다.)
+ * The infra targeted for force deletion. It is set in the step that checks the failure reason, and used by
+ * the force-delete and orphan-report steps.
+ * (A force delete leaves CSP resources behind, so we must hold on to which infra it was until the end to build the report.)
  */
 let forceDeleteTarget: string | null = null;
 
 /**
- * 워크로드(인프라 MCI + 노드 VM + 부하테스트) 스텝.
+ * Workload steps (infra MCI + node VMs + load test).
  *
- * ★ 현행화: 인프라 조회는 cm-beetle 경유(ListInfra), 삭제는 DeleteInfra,
- *   식별자는 infraId/nodeId. 부하테스트는 cm-ant(Runloadtest 등).
+ * ★ Current design: infra lookup goes through cm-beetle (ListInfra), deletion via DeleteInfra,
+ *   identifiers are infraId/nodeId. Load testing goes through cm-ant (Runloadtest, etc.).
  *
- * 화면 위치·셀렉터는 이 파일이 아니라 WorkloadPage(Page Object)에 있다.
- * 유닛 테스트와 마이그레이션 시나리오가 이 스텝을 함께 재사용한다.
+ * URLs and selectors live in WorkloadPage (the Page Object), not in this file.
+ * Both the unit tests and the migration scenarios reuse these steps.
  */
 
 // ─────────────────────────────────────────────────────────────
-// MCI(인프라) 목록·상세 — ListInfra / cm-beetle/GetInfra
+// MCI (infra) list and detail — ListInfra / cm-beetle/GetInfra
 // ─────────────────────────────────────────────────────────────
 
-/** "워크로드 인프라 목록을 연다" — 목록 화면 진입 후 로딩 확인 */
+/** Step "open the workload infra list" — enter the list screen and confirm loading */
 Given('워크로드 인프라 목록을 연다', async ({ page }) => {
   const wl = new WorkloadPage(page);
   await wl.gotoMci();
   await wl.expectMciListLoaded();
 });
 
-/** "인프라 목록이 조회된다" — ListInfra 결과 렌더 확인 */
+/** Step "the infra list is loaded" — confirm the ListInfra result rendered */
 Then('인프라 목록이 조회된다', async ({ page }) => {
   await new WorkloadPage(page).expectMciListLoaded();
 });
 
-/** "\"e2e-target-infra\" 인프라가 목록에 보인다" */
+/** Step "the {infra} infra appears in the list" */
 Then('{string} 인프라가 목록에 보인다', async ({ page }, infraName: string) => {
   await new WorkloadPage(page).expectMciVisible(infraName);
 });
 
-/** "\"e2e-target-infra\" 인프라를 선택한다" */
+/** Step "select the {infra} infra" */
 When('{string} 인프라를 선택한다', async ({ page }, infraName: string) => {
   await new WorkloadPage(page).selectMci(infraName);
 });
 
-/** "인프라 상세 정보가 보인다" — cm-beetle/GetInfra 상세 테이블 확인 */
+/** Step "the infra detail is shown" — confirm the cm-beetle/GetInfra detail table */
 Then('인프라 상세 정보가 보인다', async ({ page }) => {
   await new WorkloadPage(page).openDetailTab();
 });
 
-/** "\"e2e-target-infra\" 인프라의 서버 목록을 연다" — 인프라 선택 후 서버 탭 진입 */
+/** Step "open the server list of the {infra} infra" — select the infra, then enter the server tab */
 When(
   '{string} 인프라의 서버 목록을 연다',
   async ({ page }, infraName: string) => {
@@ -64,7 +65,7 @@ When(
   },
 );
 
-/** "\"e2e-target-node\" 노드가 서버 목록에 보인다" */
+/** Step "the {node} node appears in the server list" */
 Then(
   '{string} 노드가 서버 목록에 보인다',
   async ({ page }, nodeName: string) => {
@@ -72,16 +73,16 @@ Then(
   },
 );
 
-/** "\"e2e-target-node\" 노드를 선택한다" — 노드 카드 클릭(정보/부하테스트 탭 활성화) */
+/** Step "select the {node} node" — click the node card (activates the info / load-test tabs) */
 When('{string} 노드를 선택한다', async ({ page }, nodeName: string) => {
   await new WorkloadPage(page).selectNode(nodeName);
 });
 
 // ─────────────────────────────────────────────────────────────
-// 삭제 — DeleteInfra (@costly / 파괴적)
+// Deletion — DeleteInfra (@costly / destructive)
 // ─────────────────────────────────────────────────────────────
 
-/** "\"e2e-target-infra\" 인프라를 삭제한다" — 선택→삭제 모달→키워드 확인→confirm */
+/** Step "delete the {infra} infra" — select -> delete modal -> keyword confirmation -> confirm */
 When('{string} 인프라를 삭제한다', async ({ page }, infraName: string) => {
   const wl = new WorkloadPage(page);
   await wl.selectMci(infraName);
@@ -89,21 +90,21 @@ When('{string} 인프라를 삭제한다', async ({ page }, infraName: string) =
   await wl.confirmDelete(infraName, 'normal');
 });
 
-/** "\"e2e-target-infra\" 인프라가 목록에서 사라진다" — 삭제 후 목록 재조회 확인 */
+/** Step "the {infra} infra disappears from the list" — re-fetch the list after deletion and confirm */
 Then(
   '{string} 인프라가 목록에서 사라진다',
   async ({ page }, infraName: string) => {
     const wl = new WorkloadPage(page);
     await wl.gotoMci();
     await wl.expectMciListLoaded();
-    // 재조회 후 행 부재 확인
+    // Confirm the row is absent after re-fetching
     await expect(wl.mciRow(infraName)).toHaveCount(0, { timeout: 20_000 });
   },
 );
 
-// ── BAR-1444 비동기 삭제 흐름 ──────────────────────────────────────────────
+// ── BAR-1444 asynchronous deletion flow ──────────────────────────────────
 
-/** "\"e2e-del-infra\" 인프라를 삭제하면 삭제 처리 중 화면이 뜬다" — 선택→모달→confirm→progress 확인 */
+/** Step "deleting the {infra} infra shows a deletion-in-progress screen" — select -> modal -> confirm -> confirm progress */
 When(
   '{string} 인프라를 삭제하면 삭제 처리 중 화면이 뜬다',
   async ({ page }, infraName: string) => {
@@ -115,7 +116,7 @@ When(
   },
 );
 
-/** "\"e2e-del-infra\" 인프라가 삭제되어 목록에서 사라진다" — 완료까지 목록을 새로고침하며 부재 확인(전 페이지) */
+/** Step "the {infra} infra is deleted and disappears from the list" — refresh the list until done and confirm absence (all pages) */
 Then(
   '{string} 인프라가 삭제되어 목록에서 사라진다',
   async ({ page }, infraName: string) => {
@@ -123,12 +124,12 @@ Then(
   },
 );
 
-/** "삭제 처리 중 모달을 닫는다" — progress 단계 [닫기]. 목록으로 돌아가 삭제 상태 컬럼을 본다. */
+/** Step "close the deletion-in-progress modal" — [Close] on the progress step. Return to the list and look at the delete-status column. */
 When('삭제 처리 중 모달을 닫는다', async ({ page }) => {
   await new WorkloadPage(page).closeDeleteModal();
 });
 
-/** "목록에서 \"e2e-dup-infra\" 의 삭제 상태가 \"진행 중\" 으로 보인다" */
+/** Step "in the list, the delete status of {infra} shows as \"in progress\"" */
 Then(
   '목록에서 {string} 의 삭제 상태가 {string} 으로 보인다',
   async ({ page }, _infraName: string, status: string) => {
@@ -139,18 +140,18 @@ Then(
   },
 );
 
-/** "\"e2e-dup-infra\" 인프라를 다시 삭제하려 하면 이미 처리 중 안내가 나온다" — 중복 삭제 방어 */
+/** Step "trying to delete the {infra} infra again shows an already-in-progress notice" — duplicate-delete guard */
 When(
   '{string} 인프라를 다시 삭제하려 하면 이미 처리 중 안내가 나온다',
   async ({ page }, infraName: string) => {
     const wl = new WorkloadPage(page);
-    // 모달을 닫으면 목록이 다시 그려지며 선택이 풀리므로, 선택부터 다시 한다.
+    // Closing the modal re-renders the list and clears the selection, so re-select first.
     await wl.reselectAndTriggerDelete(infraName);
     await wl.expectDeleteAlreadyInProgress();
   },
 );
 
-/** "\"mock-del-infra\" 인프라의 삭제 모달을 연다" — 요청은 내지 않고 모달만 연다. */
+/** Step "open the delete modal of the {infra} infra" — opens only the modal, sends no request. */
 When(
   '{string} 인프라의 삭제 모달을 연다',
   async ({ page }, infraName: string) => {
@@ -161,16 +162,16 @@ When(
 );
 
 /**
- * "모달이 배경을 막아 다른 화면으로 이동할 수 없다"
+ * Step "the modal blocks the background so you cannot navigate away"
  *
- * 요소가 보이는지가 아니라 *실제로 클릭할 수 있는지* 로 판정한다. 모달이 배경을 덮고 있으면
- * 클릭 시도가 가로막혀 실패해야 한다.
+ * Judged by whether an element is *actually clickable*, not whether it is visible. If the modal covers the
+ * background, the click attempt should be blocked and fail.
  */
 Then('모달이 배경을 막아 다른 화면으로 이동할 수 없다', async ({ page }) => {
   await new WorkloadPage(page).expectBackgroundBlocked();
 });
 
-/** "화면을 새로고침한다" */
+/** Step "refresh the screen" */
 When('화면을 새로고침한다', async ({ page }) => {
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page
@@ -179,16 +180,16 @@ When('화면을 새로고침한다', async ({ page }) => {
 });
 
 /**
- * "화면이 잠기지 않고 조작할 수 있다"
+ * Step "the screen is not locked and can be operated"
  *
- * ★ 이걸 왜 보나 — 모달이 닫혔는데 오버레이만 남으면 화면이 멈춘 것처럼 되지만 *눈으로는 정상으로
- *   보인다.* 요소 존재 여부로는 잡히지 않으므로 실제 클릭 가능 여부로 단언한다.
+ * ★ Why check this — if the modal closed but only the overlay remains, the screen behaves as if frozen while
+ *   *looking normal to the eye.* Element presence does not catch it, so we assert on actual clickability.
  */
 Then('화면이 잠기지 않고 조작할 수 있다', async ({ page }) => {
   await new WorkloadPage(page).expectScreenInteractive();
 });
 
-/** 조사 "로/으로" 차이를 흡수하기 위한 같은 뜻의 스텝("에러 로 보인다"). */
+/** A synonymous step to absorb the Korean particle difference "ro/euro" (the "shows as error" phrasing). */
 Then(
   '목록에서 {string} 의 삭제 상태가 {string} 로 보인다',
   async ({ page }, _infraName: string, status: string) => {
@@ -199,7 +200,7 @@ Then(
   },
 );
 
-/** "\"e2e-del-infra\" 인프라를 다시 삭제하려 하면 실패 사유와 함께 복구 선택지가 나온다" */
+/** Step "trying to delete the {infra} infra again shows the failure reason along with recovery options" */
 When(
   '{string} 인프라를 다시 삭제하려 하면 실패 사유와 함께 복구 선택지가 나온다',
   async ({ page }, infraName: string) => {
@@ -212,10 +213,10 @@ When(
 );
 
 /**
- * "강제 삭제를 실행하면 삭제 처리 중 화면이 뜬다"
+ * Step "running a force delete shows a deletion-in-progress screen"
  *
- * ★ 강제 삭제는 CSP 자원을 남긴다. 지우고 나면 무엇이 남았는지 알 수 없으므로, 실행 *직전에*
- *   자원 ID 스냅샷을 떠 둔다(아래 고아 리포트 스텝이 이 스냅샷을 쓴다).
+ * ★ A force delete leaves CSP resources behind. Once deleted there is no way to tell what remains, so *just
+ *   before* running it we take a snapshot of the resource IDs (the orphan-report step below uses this snapshot).
  */
 When('강제 삭제를 실행하면 삭제 처리 중 화면이 뜬다', async ({ page }) => {
   const wl = new WorkloadPage(page);
@@ -227,7 +228,7 @@ When('강제 삭제를 실행하면 삭제 처리 중 화면이 뜬다', async (
   await wl.expectDeleteInProgress();
 });
 
-/** "강제 삭제로 남은 CSP 리소스를 결과서에 기록한다" — 고아 리소스 후처리 리포트 */
+/** Step "record the CSP resources left by the force delete in the result report" — orphan-resource post-processing report */
 Then('강제 삭제로 남은 CSP 리소스를 결과서에 기록한다', async () => {
   if (!forceDeleteTarget) {
     throw new Error('대상 인프라를 알 수 없어 고아 리포트를 만들 수 없다.');
@@ -236,15 +237,15 @@ Then('강제 삭제로 남은 CSP 리소스를 결과서에 기록한다', async
     forceDeleteTarget,
     '강제 삭제(force) 수행 — 시나리오',
   );
-  // 리포트 본문을 테스트 로그에 남겨, 결과서에 그대로 옮길 수 있게 한다.
+  // Emit the report body to the test log so it can be copied verbatim into the result report.
   console.log(md);
 });
 
 // ─────────────────────────────────────────────────────────────
-// 부하테스트 — Runloadtest / Getlastloadtest* (@costly)
+// Load test — Runloadtest / Getlastloadtest* (@costly)
 // ─────────────────────────────────────────────────────────────
 
-/** "\"e2e-target-node\" 노드로 부하테스트를 실행한다" — Evaluate Perf 탭→Load Config→실행 */
+/** Step "run a load test on the {node} node" — Evaluate Perf tab -> Load Config -> run */
 When(
   '{string} 노드로 부하테스트를 실행한다',
   async ({ page }, nodeName: string) => {
@@ -257,7 +258,7 @@ When(
   },
 );
 
-/** "부하테스트 결과가 표시된다" — 집계 테이블·결과/리소스 메트릭 렌더 확인 */
+/** Step "the load-test result is displayed" — confirm the summary table and result/resource metrics rendered */
 Then('부하테스트 결과가 표시된다', async ({ page }) => {
   await new WorkloadPage(page).expectLoadTestResult(
     scenarioState.infraName ?? workload.infraName,
@@ -266,22 +267,22 @@ Then('부하테스트 결과가 표시된다', async ({ page }) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// 시나리오 카탈로그 — *LoadTestScenarioCatalog*
+// Scenario catalog — *LoadTestScenarioCatalog*
 // ─────────────────────────────────────────────────────────────
 
-/** "부하테스트 시나리오 템플릿 \"e2e-template\"을 저장한다" */
+/** Step "save the load-test scenario template {name}" */
 When(
   '부하테스트 시나리오 템플릿 {string}을 저장한다',
   async ({ page }, name: string) => {
     const wl = new WorkloadPage(page);
-    // 시나리오 템플릿 버튼은 노드 상세의 Evaluate Perf 탭에 있다.
+    // The scenario-template button is on the Evaluate Perf tab of the node detail.
     await wl.openEvaluatePerfTab();
     await wl.openScenarioTemplates();
     await wl.saveScenarioTemplate(name);
   },
 );
 
-/** "시나리오 템플릿 \"e2e-template\"이 카탈로그에 보인다" */
+/** Step "the scenario template {name} appears in the catalog" */
 Then(
   '시나리오 템플릿 {string}이 카탈로그에 보인다',
   async ({ page }, name: string) => {
@@ -290,34 +291,34 @@ Then(
 );
 
 // ─────────────────────────────────────────────────────────────
-// ★ 마이그레이션 시나리오 재사용 — 인스턴스 생성 확인 / 중지
+// ★ Migration scenario reuse — verify instance creation / stop
 // ─────────────────────────────────────────────────────────────
 
 /**
- * "그러면 타깃 EC2 인스턴스가 정상 생성된다"
- * 워크로드 목록에서 마이그레이션으로 생성된 인프라(및 노드)가 실재하는지 확인.
- * fixtures/test-data.ts의 workload.infraName / workload.nodeName 기준.
+ * Step "then the target EC2 instance is created successfully"
+ * Confirm that the infra (and node) created by the migration actually exists in the workload list.
+ * Based on workload.infraName / workload.nodeName from fixtures/test-data.ts.
  */
 Then('타깃 EC2 인스턴스가 정상 생성된다', async ({ page }) => {
-  // 워크플로우 툴에서 인프라 이름을 바꿨다면 *그 이름*으로 확인해야 한다.
-  // 고정 이름(infra101)만 보면, 이름을 바꾼 게 실제로 반영됐는지 알 수 없다.
+  // If the infra was renamed in the workflow tool, we must verify against *that name*.
+  // Looking only at the fixed name (infra101) would not tell us whether the rename actually took effect.
   const infraName = scenarioState.infraName ?? workload.infraName;
   await new WorkloadPage(page).expectInstanceCreated(
     infraName,
     workload.nodeName,
   );
 
-  // 여기서 확인된 인프라가 이후 단계(소프트웨어 마이그레이션·원격명령·부하테스트)의 대상이다.
-  // cb-tumblebug/cm-beetle 에서 인프라의 id는 곧 이름이다.
+  // The infra verified here is the target of the later steps (software migration, remote command, load test).
+  // In cb-tumblebug/cm-beetle, an infra's id is its name.
   scenarioState.infraName = infraName;
   scenarioState.infraId = infraName;
 });
 
 /**
- * "그러면 생성된 인프라가 Running 상태가 된다"
- * 노드 이름은 cm-beetle이 정하는 값이라 사전에 단정하기 어렵다. 그래서 여기서는 *인프라(MCI)가 실재하고
- * 노드가 Running 인지*까지만 확인한다(노드 이름 대조는 하지 않는다). 워크플로우 툴에서 바꾼 이름
- * (scenarioState.infraName)으로 조회한다.
+ * Step "then the created infra reaches the Running state"
+ * The node name is chosen by cm-beetle, so it is hard to assert in advance. So here we only confirm that
+ * *the infra (MCI) exists and the node is Running* (we do not match the node name). We look it up by the
+ * name changed in the workflow tool (scenarioState.infraName).
  */
 Then('생성된 인프라가 Running 상태가 된다', async ({ page }) => {
   const infraName = scenarioState.infraName ?? workload.infraName;
@@ -326,16 +327,16 @@ Then('생성된 인프라가 Running 상태가 된다', async ({ page }) => {
 });
 
 /**
- * "그리고 생성된 인스턴스를 중지한다"
- * 요금 보호 — terminate 금지, suspend/stop 만. 마이그레이션 시나리오 정리 단계에서 재사용.
+ * Step "and stop the created instance"
+ * Cost protection — no terminate, only suspend/stop. Reused in the migration scenario cleanup step.
  */
 Given('생성된 인스턴스를 중지한다', async ({ page }) => {
   await new WorkloadPage(page).stopInstance(workload.infraName);
 });
 
 /**
- * "그리고 생성된 인프라를 중지한다" — 워크플로우 툴에서 바꾼 이름(scenarioState.infraName)으로 중지한다.
- * §6-4 방침: 검증 후 인프라는 *삭제하지 않고 중지만* 한다(모델·커넥션도 보존).
+ * Step "and stop the created infra" — stop it by the name changed in the workflow tool (scenarioState.infraName).
+ * Per the §6-4 policy: after verification, the infra is *only stopped, not deleted* (models and connections are preserved too).
  */
 Given('생성된 인프라를 중지한다', async ({ page }) => {
   const infraName = scenarioState.infraName ?? workload.infraName;
@@ -343,14 +344,15 @@ Given('생성된 인프라를 중지한다', async ({ page }) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// ★ 시나리오 재사용 — 생성된 인프라의 상세·노드 확인
+// ★ Scenario reuse — verify the detail and nodes of the created infra
 //
-// 이 두 검증은 인프라가 *실제로 살아 있어야* 성립한다. 인프라를 만드는 유일한 경로가
-// 마이그레이션 워크플로우(=EC2 프로비저닝)라서, 기능(@unit) 테스트로 떼어 두면 만들어 줄 사람이 없어
-// 항상 타임아웃으로 죽었다. 그래서 인프라를 실제로 만드는 시나리오 안에서, 데이터가 살아 있는 동안 본다.
+// These two checks only hold if the infra is *actually alive*. The only way to create an infra is the
+// migration workflow (= EC2 provisioning), so isolating them as functional (@unit) tests left no one to
+// create it, and they always died on timeout. So we run them inside the scenario that actually creates the
+// infra, while the data is still alive.
 // ─────────────────────────────────────────────────────────────
 
-/** "그리고 생성된 인프라의 상세 정보가 보인다" — cm-beetle/GetInfra 상세 */
+/** Step "and the detail of the created infra is shown" — cm-beetle/GetInfra detail */
 Given('생성된 인프라의 상세 정보가 보인다', async ({ page }) => {
   const wl = new WorkloadPage(page);
   await wl.gotoMci();
@@ -359,17 +361,18 @@ Given('생성된 인프라의 상세 정보가 보인다', async ({ page }) => {
   await wl.openDetailTab();
 });
 
-/** "그리고 생성된 인프라의 노드 목록이 보인다" — 서버(노드) 탭 */
+/** Step "and the node list of the created infra is shown" — server (node) tab */
 Given('생성된 인프라의 노드 목록이 보인다', async ({ page }) => {
   const wl = new WorkloadPage(page);
-  // ⚠️ 여기서 selectMci를 다시 부르면 안 된다 — 행 선택은 체크박스 토글이라, 앞 스텝에서 이미 선택해 둔 것을
-  //    한 번 더 누르면 *선택이 풀린다*. 선택이 풀리면 Detail/Server 탭 자체가 사라져서 서버 탭을 못 찾는다.
-  //    (실제로 그렇게 실패했다.) 앞 스텝(상세 정보가 보인다)이 선택해 둔 상태를 그대로 쓴다.
+  // ⚠️ Do not call selectMci again here — row selection is a checkbox toggle, so pressing again on what a
+  //    previous step already selected *clears the selection*. Once cleared, the Detail/Server tabs disappear
+  //    and the server tab cannot be found. (This actually failed that way.) Reuse the selected state that the
+  //    previous step ("the detail is shown") left in place.
   await wl.openServerTab();
   await wl.expectNodeVisible(workload.nodeName);
 });
 
-/** "먼저 앞선 실행이 남긴 워크로드를 정리한다" — 같은 이름(infra101)의 죽은 인프라가 남아 있으면 지우고 시작 */
+/** Step "first clean up the workload left by a previous run" — if a dead infra with the same name (infra101) remains, remove it before starting */
 Given('앞선 실행이 남긴 워크로드를 정리한다', async ({ page }) => {
   await new WorkloadPage(page).removeStaleInfra(workload.infraName);
 });

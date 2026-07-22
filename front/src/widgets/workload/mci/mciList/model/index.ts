@@ -19,8 +19,8 @@ export function useMciListModel(props: IProps) {
   const mciStore = useMCIStore();
   const { mcis } = storeToRefs(mciStore);
 
-  // tb-0.12.9 현행화: MCI 목록은 cm-beetle ListInfra 경유. option은 ""(전체) 또는 "id"만 유효하며,
-  // 구 tumblebug의 'normal'은 거부(400 "invalid option")된다 → ''(전체 조회).
+  // tb-0.12.9 update: the MCI list goes through cm-beetle ListInfra. Only "" (all) or "id" are
+  // valid options; the old tumblebug 'normal' is rejected (400 "invalid option") → '' (fetch all).
   const resMciList = useGetMciList(props.nsId, '');
   const loading = ref<boolean>(true);
 
@@ -59,8 +59,8 @@ export function useMciListModel(props: IProps) {
         name: mciRes.name,
         description: mciRes.description,
         id: mciRes.id,
-        // 삭제 추적의 키. id 는 곧 이름이라 지우고 같은 이름으로 다시 만들면 겹치므로,
- // 행을 고유하게 가리키려면 uid 가 필요하다.
+        // Key for delete tracking. id is effectively the name, so deleting and recreating with
+        // the same name collides; uid is needed to point to a row uniquely.
         uid: mciRes.uid,
         status: mciRes.status,
         provider: getCloudProvidersInVms(mciRes.vm),
@@ -80,9 +80,10 @@ export function useMciListModel(props: IProps) {
       .execute()
       .then(res => {
         if (res.data.responseData) {
-          // tb-0.12.9 현행화: MCI 목록이 cm-beetle ListInfra 경유로 바뀌며 응답이 cm-beetle 표준
-          // 래퍼(responseData.data.infra[])로 온다. 구 tumblebug 직접 응답(responseData.infra)도
-          // fallback으로 허용해 양쪽을 안전하게 읽는다. (mci→infra 키 전환 + data 래퍼 반영)
+          // tb-0.12.9 update: the MCI list now goes through cm-beetle ListInfra, so the response
+          // arrives in the cm-beetle standard wrapper (responseData.data.infra[]). The old direct
+          // tumblebug response (responseData.infra) is also allowed as a fallback to read both
+          // safely. (mci→infra key change + data wrapper applied)
           const infraList = res.data.responseData.data?.infra ?? [];
           mciStore.setMcis(infraList);
 

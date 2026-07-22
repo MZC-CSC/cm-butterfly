@@ -66,7 +66,7 @@ type PathParamsModel = {
   };
 };
 
-// 새로운 Context 타입들 추가
+// Additional Context types
 type NestedObjectContext = {
   type: 'nestedObject';
   context: {
@@ -111,7 +111,7 @@ export function useGrasshopperTaskEditorModel() {
   }>();
   const componentNameModel = ref();
   
-  // originalObject를 저장할 변수 추가
+  // Variable to hold originalObject
   let originalObject: any = null;
 
   function loadInputContext(
@@ -152,14 +152,14 @@ export function useGrasshopperTaskEditorModel() {
       },
       content: Object.entries(object)
         .filter(([key, value]: [key: string, value: any]) => {
-          // string 타입이거나 객체 타입인 경우 모두 처리
+          // Handle both string and object types
           return typeof value === 'string' || (typeof value === 'object' && value !== null);
         })
         .map(([key, value]: [key: string, value: any]) => {
           if (typeof value === 'string') {
             return loadInputContext(key, value, depth + 1, 'string');
           } else if (typeof value === 'object' && value !== null) {
-            // 객체인 경우 JSON.stringify로 변환하여 표시
+            // For objects, stringify with JSON to display
             return loadInputContext(key, JSON.stringify(value, null, 2), depth + 1, 'object');
           }
           return loadInputContext(key, '', depth + 1, 'string');
@@ -167,7 +167,7 @@ export function useGrasshopperTaskEditorModel() {
     };
   }
 
-  // 새로운 Context 생성 함수들
+  // Context creation functions
   function loadNestedObjectContext(
     key: string,
     object: any,
@@ -202,12 +202,12 @@ export function useGrasshopperTaskEditorModel() {
     array: any[],
     depth: number = 0,
   ): ArrayContext | ObjectArrayContext | AccordionContext {
-    console.log(`=== loadArrayContext 시작 ===`);
+    console.log(`=== loadArrayContext start ===`);
     console.log(`key: ${key}, depth: ${depth}, array:`, array);
     
-    // depth 5인 경우 AccordionContext 사용 (객체 배열이든 문자열 배열이든)
+    // At depth 5, use AccordionContext (whether an object array or a string array)
     if (depth === 5 && array.length > 0) {
-      console.log(`depth ${depth}에서 AccordionContext 사용`);
+      console.log(`using AccordionContext at depth ${depth}`);
       return loadArrayAccordionContext(key, array, depth);
     }
     
@@ -221,7 +221,7 @@ export function useGrasshopperTaskEditorModel() {
         // @ts-ignore
         values.push(loadArrayContext(`${key}[${index}]`, item, depth + 1));
       } else if (typeof item === 'object' && item !== null) {
-        // servers 배열의 경우 특별 처리
+        // Special handling for the servers array
         if (key === 'servers') {
           values.push(loadServerContext(`${key}[${index}]`, item, index, depth + 1));
         } else {
@@ -245,7 +245,7 @@ export function useGrasshopperTaskEditorModel() {
     array: any[],
     depth: number = 0,
   ): AccordionContext {
-    console.log(`=== loadArrayAccordionContext 시작 ===`);
+    console.log(`=== loadArrayAccordionContext start ===`);
     console.log(`key: ${key}, depth: ${depth}, array:`, array);
     
     const depthPrefix = `[d-sub-${depth}-array] `;
@@ -255,19 +255,19 @@ export function useGrasshopperTaskEditorModel() {
       context: {
         subject: `${depthPrefix}${key}`,
         values: array.map((item, index) => {
-          console.log(`ArrayAccordionContext 처리 중 - index: ${index}, item:`, item);
+          console.log(`processing ArrayAccordionContext - index: ${index}, item:`, item);
           
           const content: Array<InputContext> = [];
           
           if (typeof item === 'object' && item !== null) {
-            // 객체의 각 속성을 InputContext로 변환
+            // Convert each object property into an InputContext
             Object.entries(item).forEach(([subKey, subValue]) => {
               console.log(`  - ${subKey}: ${subValue} (${typeof subValue})`);
               content.push(loadInputContext(subKey, String(subValue), depth + 1, typeof subValue));
             });
           } else {
-            // 문자열, 숫자, 불린 등의 기본 타입을 InputContext로 변환
-            console.log(`  - 기본 타입: ${item} (${typeof item})`);
+            // Convert primitive types (string, number, boolean) into an InputContext
+            console.log(`  - primitive type: ${item} (${typeof item})`);
             content.push(loadInputContext('value', String(item), depth + 1, typeof item));
           }
           
@@ -290,7 +290,7 @@ export function useGrasshopperTaskEditorModel() {
     array: any[],
     depth: number = 0,
   ): ObjectArrayContext {
-    console.log(`=== loadObjectArrayContext 시작 ===`);
+    console.log(`=== loadObjectArrayContext start ===`);
     console.log(`key: ${key}, depth: ${depth}, array:`, array);
     
     const depthPrefix = `[d-sub-${depth}-objectArray] `;
@@ -300,12 +300,12 @@ export function useGrasshopperTaskEditorModel() {
       context: {
         subject: `${depthPrefix}${key}`,
         values: array.map((item, index) => {
-          console.log(`ObjectArrayContext 처리 중 - index: ${index}, item:`, item);
+          console.log(`processing ObjectArrayContext - index: ${index}, item:`, item);
           
           const content: Array<InputContext> = [];
           
           if (typeof item === 'object' && item !== null) {
-            // 객체의 각 속성을 InputContext로 변환
+            // Convert each object property into an InputContext
             Object.entries(item).forEach(([subKey, subValue]) => {
               console.log(`  - ${subKey}: ${subValue} (${typeof subValue})`);
               content.push(loadInputContext(subKey, String(subValue), depth + 1, typeof subValue));
@@ -351,16 +351,16 @@ export function useGrasshopperTaskEditorModel() {
     const depthPrefix = `[d-sub-${depth}-server] `;
     
     Object.entries(server).forEach(([subKey, subValue]) => {
-      console.log(`서버[${index}] 처리 중: ${subKey}`, subValue);
+      console.log(`processing server[${index}]: ${subKey}`, subValue);
       
       if (typeof subValue === 'string' || typeof subValue === 'number' || typeof subValue === 'boolean') {
         values.push(loadInputContext(subKey, String(subValue), depth + 1, typeof subValue));
       } else if (Array.isArray(subValue)) {
-        // errors 배열이나 다른 배열들 처리
+        // Handle the errors array and other arrays
         // @ts-ignore
         values.push(loadArrayContext(subKey, subValue, depth + 1));
       } else if (typeof subValue === 'object' && subValue !== null) {
-        // migration_list 같은 중첩 객체 처리
+        // Handle nested objects like migration_list
         values.push(loadNestedObjectContext(subKey, subValue, depth + 1));
       }
     });
@@ -379,23 +379,23 @@ export function useGrasshopperTaskEditorModel() {
   }
 
   function setParamsContext(fixedModel: fixedModel) {
-    console.log('=== setParamsContext 시작 ===');
-    console.log('입력받은 fixedModel:', fixedModel);
+    console.log('=== setParamsContext start ===');
+    console.log('received fixedModel:', fixedModel);
     
-    // path_params에서 nsId가 있으면 DEFAULT_NAMESPACE 값으로 설정
+    // If nsId exists in path_params, set it to DEFAULT_NAMESPACE
     const processedPathParams = { ...fixedModel.path_params };
-    console.log('원본 path_params:', fixedModel.path_params);
+    console.log('original path_params:', fixedModel.path_params);
     if ('nsId' in processedPathParams) {
       processedPathParams.nsId = DEFAULT_NAMESPACE;
-      console.log('nsId를 DEFAULT_NAMESPACE로 변경:', processedPathParams);
+      console.log('changed nsId to DEFAULT_NAMESPACE:', processedPathParams);
     }
 
-    // query_params에서 nsId가 있으면 DEFAULT_NAMESPACE 값으로 설정
+    // If nsId exists in query_params, set it to DEFAULT_NAMESPACE
     const processedQueryParams = { ...fixedModel.query_params };
-    console.log('원본 query_params:', fixedModel.query_params);
+    console.log('original query_params:', fixedModel.query_params);
     if ('nsId' in processedQueryParams) {
       processedQueryParams.nsId = DEFAULT_NAMESPACE;
-      console.log('nsId를 DEFAULT_NAMESPACE로 변경:', processedQueryParams);
+      console.log('changed nsId to DEFAULT_NAMESPACE:', processedQueryParams);
     }
 
     console.log('processedPathParams entries:', Object.entries(processedPathParams));
@@ -422,48 +422,48 @@ export function useGrasshopperTaskEditorModel() {
       },
     };
     
-    console.log('최종 생성된 paramsContext:', paramsContext.value);
-    console.log('=== setParamsContext 완료 ===');
+    console.log('final paramsContext:', paramsContext.value);
+    console.log('=== setParamsContext complete ===');
   }
 
   function setFormContext(object: object | '') {
-    console.log('=== setFormContext 시작 ===');
-    console.log('입력받은 object:', object);
-    console.log('object 타입:', typeof object);
+    console.log('=== setFormContext start ===');
+    console.log('received object:', object);
+    console.log('object type:', typeof object);
     
-    // originalObject 저장 (새로운 모델 구조인 경우 전체 객체 저장)
+    // Store originalObject (for the new model structure, store the whole object)
     if (typeof object === 'object' && object !== null && 'targetSoftwareModel' in object) {
-      console.log('targetSoftwareModel이 있는 객체입니다.');
+      console.log('object has targetSoftwareModel.');
       originalObject = object;
-      // targetSoftwareModel만 추출하여 처리
+      // Extract and process only targetSoftwareModel
       object = (object as any).targetSoftwareModel || '';
-      console.log('추출된 targetSoftwareModel:', object);
+      console.log('extracted targetSoftwareModel:', object);
     } else {
-      console.log('일반 객체 또는 빈 문자열입니다.');
+      console.log('plain object or empty string.');
       originalObject = null;
     }
     
     const context: ConvertedData[] = [];
     
-    // Software Model 추가 (originalObject에서 추출)
+    // Add Software Model (extracted from originalObject)
     if (originalObject && (originalObject as any).softwareModel) {
-      console.log('Software Model 추가:', (originalObject as any).softwareModel);
+      console.log('adding Software Model:', (originalObject as any).softwareModel);
       context.push(loadSoftwareModelContext((originalObject as any).softwareModel));
     }
     
     if (typeof object === 'object' && object !== null) {
-      console.log('객체 처리 시작, Object.entries:', Object.entries(object));
+      console.log('start processing object, Object.entries:', Object.entries(object));
       Object.entries(object).forEach(
         ([key, value]: [key: string, value: any], index) => {
-          console.log(`처리 중: key=${key}, value=`, value, `type=${typeof value}`);
+          console.log(`processing: key=${key}, value=`, value, `type=${typeof value}`);
           
-          // servers부터 매핑 시작
+          // Start mapping from servers
           if (key === 'servers' && Array.isArray(value)) {
-            console.log('servers 배열 처리:', key, value);
+            console.log('processing servers array:', key, value);
             context.push(loadArrayContext(key, value, 0));
           } else if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-            console.log('기본 타입 처리:', key, value);
-            // 기본 타입은 Entity에 추가
+            console.log('processing primitive type:', key, value);
+            // Primitive types are added to the Entity
             if (context.length === 0 || context[0].type !== 'entity') {
               context.unshift({
                 type: 'entity',
@@ -477,24 +477,24 @@ export function useGrasshopperTaskEditorModel() {
               context[0].context.values.push(loadInputContext(key, String(value), 0, typeof value));
             }
           } else if (Array.isArray(value)) {
-            console.log('배열 처리:', key, value);
+            console.log('processing array:', key, value);
             context.push(loadArrayContext(key, value, 0));
           } else if (typeof value === 'object' && value !== null) {
-            console.log('중첩 객체 처리:', key, value);
+            console.log('processing nested object:', key, value);
             context.push(loadNestedObjectContext(key, value, 0));
           }
         },
       );
     }
     
-    console.log('최종 생성된 context:', context);
+    console.log('final context:', context);
     // @ts-ignore
     formContext.value = context;
-    console.log('=== setFormContext 완료 ===');
+    console.log('=== setFormContext complete ===');
   }
 
   function convertFormModelToStepProperties(): object {
-    // 새로운 모델 구조만 지원: originalObject에 targetSoftwareModel 값만 업데이트
+    // Only the new model structure is supported: update only the targetSoftwareModel value on originalObject
     const updatedTargetSoftwareModel: any = {};
     const updatedSoftwareModel: any = {};
     
@@ -518,7 +518,7 @@ export function useGrasshopperTaskEditorModel() {
 
         Object.assign(updatedTargetSoftwareModel, ...convertedObject);
       } else if (data.type === 'softwareModel') {
-        // Software Model 처리
+        // Handle Software Model
         data.context.values.forEach(value => {
           if (value.type === 'input') {
             //@ts-ignore
@@ -526,17 +526,17 @@ export function useGrasshopperTaskEditorModel() {
           }
         });
       } else if (data.type === 'array') {
-        // 배열 처리
+        // Handle array
         // @ts-ignore
         updatedTargetSoftwareModel[data.context.subject] = convertArrayContextToData(data);
       } else if (data.type === 'objectArray') {
-        // 객체 배열 처리
-        console.log(`ObjectArrayContext 처리 중:`, data);
+        // Handle object array
+        console.log(`processing ObjectArrayContext:`, data);
         const subjectKey = data.context.subject.replace(/^\[d-sub-\d+-objectArray\] /, '');
         // @ts-ignore
         updatedTargetSoftwareModel[subjectKey] = convertObjectArrayContextToData(data);
       } else if (data.type === 'nestedObject') {
-        // 중첩 객체 처리
+        // Handle nested object
         // @ts-ignore
         updatedTargetSoftwareModel[data.context.subject] = convertNestedObjectContextToData(data);
       } else if (data.type === 'accordion') {
@@ -546,9 +546,9 @@ export function useGrasshopperTaskEditorModel() {
             getAccordionSlotData(value),
           );
         } else {
-          // depth 5 배열 처리 (문자열 배열 등)
+          // Handle depth-5 arrays (string arrays, etc.)
           const subjectKey = data.context.subject.replace(/^\[d-sub-\d+-array\] /, '');
-          console.log(`AccordionContext 배열 처리 중 - subjectKey: ${subjectKey}`, data);
+          console.log(`processing AccordionContext array - subjectKey: ${subjectKey}`, data);
           updatedTargetSoftwareModel[subjectKey] = data.context.values.map(value =>
             // @ts-ignore
             getAccordionSlotData(value),
@@ -557,7 +557,7 @@ export function useGrasshopperTaskEditorModel() {
       }
     });
     
-    // originalObject의 targetSoftwareModel과 softwareModel 업데이트하고 전체 객체 반환
+    // Update targetSoftwareModel and softwareModel on originalObject and return the whole object
     return {
       ...originalObject,
       targetSoftwareModel: updatedTargetSoftwareModel,
@@ -590,24 +590,24 @@ export function useGrasshopperTaskEditorModel() {
   }
 
   function getAccordionSlotData(accordionSlotContext: AccordionSlotContext) {
-    // 문자열 배열의 경우 (value 필드만 있는 경우)
+    // For string arrays (when only the value field exists)
     if (accordionSlotContext.content.length === 1 && 
         accordionSlotContext.content[0].context.title === 'value') {
       const inputData = getInputData(accordionSlotContext.content[0].context);
       return inputData.value || '';
     }
     
-    // 객체의 경우
+    // For objects
     const object = {};
     accordionSlotContext.content.forEach(data => {
       const inputData = getInputData(data.context);
       Object.entries(inputData).forEach(([key, value]) => {
-        // JSON 문자열인 경우 파싱하여 객체로 변환
+        // If it is a JSON string, parse it into an object
         if (typeof value === 'string' && ((value as string).startsWith('{') || (value as string).startsWith('['))) {
           try {
             object[key] = JSON.parse(value);
           } catch (e) {
-            // JSON 파싱 실패 시 원본 문자열 유지
+            // If JSON parsing fails, keep the original string
             object[key] = value;
           }
         } else {
@@ -632,7 +632,7 @@ export function useGrasshopperTaskEditorModel() {
     };
   }
 
-  // 새로운 Context 타입들을 데이터로 변환하는 함수들
+  // Functions that convert the Context types into data
   function convertArrayContextToData(arrayContext: ArrayContext): any[] {
     return arrayContext.context.values.map(value => {
       if (value.type === 'input') {
@@ -647,15 +647,15 @@ export function useGrasshopperTaskEditorModel() {
   }
 
   function convertObjectArrayContextToData(objectArrayContext: ObjectArrayContext): any[] {
-    console.log(`=== convertObjectArrayContextToData 시작 ===`);
+    console.log(`=== convertObjectArrayContextToData start ===`);
     console.log(`objectArrayContext:`, objectArrayContext);
     
     const result = objectArrayContext.context.values.map(slot => {
-      console.log(`슬롯 처리 중:`, slot);
+      console.log(`processing slot:`, slot);
       return getAccordionSlotData(slot);
     });
     
-    console.log(`변환 결과:`, result);
+    console.log(`conversion result:`, result);
     return result;
   }
 
@@ -691,7 +691,7 @@ export function useGrasshopperTaskEditorModel() {
     }
   }
 
-  //return 같은게 있으면 true 없으면 false
+  // Returns true if something like a return exists, false otherwise
   function entityKeyValidation(
     model: UnwrapRef<ReturnType<typeof useInputModel<string>>>,
   ): boolean {

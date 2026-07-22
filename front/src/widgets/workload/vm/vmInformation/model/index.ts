@@ -91,7 +91,7 @@ export function useVmInformationModel() {
     }
   }
 
-  // 부하테스트 실행 상태(cm-ant)를 사용자 친화적 라벨로. 진행 중/수집 중/완료/실패를 한눈에.
+  // Map the load-test run status (cm-ant) to user-friendly labels — running/collecting/done/failed at a glance.
   const LOADTEST_STATUS_LABEL: Record<string, string> = {
     on_processing: 'Running',
     on_fetching: 'Collecting results',

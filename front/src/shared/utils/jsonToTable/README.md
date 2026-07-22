@@ -1,19 +1,19 @@
 # JSON Data Utilities
 
-JSON 데이터를 표와 트리 형태로 변환하는 유틸리티 함수와 Vue 컴포넌트입니다.
+Utility functions and Vue components for converting JSON data into tables and trees.
 
-## 주요 기능
+## Key features
 
-- JSON 데이터를 깔끔한 표 형태로 변환
-- JSON 데이터를 트리 구조로 변환
-- 마이그레이션 데이터 구조에 최적화된 표 생성
-- 통합 뷰어 (표 + 트리 + JSON)
-- Vue 컴포넌트로 쉽게 사용 가능
-- TypeScript 지원
+- Convert JSON data into clean tables
+- Convert JSON data into tree structures
+- Generate tables optimized for the migration data structure
+- Unified viewer (table + tree + JSON)
+- Easy to use as Vue components
+- TypeScript support
 
-## 사용법
+## Usage
 
-### 1. 기본 사용법
+### 1. Basic usage
 
 ```typescript
 import { 
@@ -24,31 +24,31 @@ import {
   toggleTreeNode
 } from '@/shared/utils/jsonToTable';
 
-// 일반 JSON 데이터를 표로 변환
+// Convert plain JSON data into tables
 const tables = jsonToTable(jsonData);
 
-// 마이그레이션 데이터를 표로 변환
+// Convert migration data into tables
 const migrationTables = createMigrationDataTables(migrationData);
 
-// JSON 데이터를 트리로 변환
+// Convert JSON data into a tree
 const treeNodes = jsonToTree(jsonData);
 
-// 트리 노드 필터링
+// Filter tree nodes
 const filteredNodes = filterTreeNodes(treeNodes, 'search term');
 
-// 트리 노드 토글
+// Toggle a tree node
 const toggledNodes = toggleTreeNode(treeNodes, 'node-id');
 ```
 
-### 2. Vue 컴포넌트 사용
+### 2. Using the Vue components
 
-#### 표 컴포넌트
+#### Table component
 ```vue
 <template>
   <JsonDataTable 
     :json-data="jsonData" 
     :use-migration-format="true"
-    :table-titles="['서버 정보', '바이너리', '컨테이너']"
+    :table-titles="['Server Info', 'Binaries', 'Containers']"
   />
 </template>
 
@@ -61,14 +61,14 @@ export default {
   },
   data() {
     return {
-      jsonData: { /* JSON 데이터 */ }
+      jsonData: { /* JSON data */ }
     };
   }
 };
 </script>
 ```
 
-#### 트리 컴포넌트
+#### Tree component
 ```vue
 <template>
   <JsonDataTree
@@ -89,21 +89,21 @@ export default {
   },
   methods: {
     handleNodeClick(node) {
-      console.log('클릭된 노드:', node);
+      console.log('Clicked node:', node);
     }
   }
 };
 </script>
 ```
 
-#### 통합 뷰어 컴포넌트
+#### Unified viewer component
 ```vue
 <template>
   <JsonDataViewer
     :json-data="jsonData"
     :use-migration-format="true"
     :available-views="['table', 'tree', 'raw']"
-    :table-titles="['서버 정보', '바이너리', '컨테이너']"
+    :table-titles="['Server Info', 'Binaries', 'Containers']"
   />
 </template>
 
@@ -120,89 +120,89 @@ export default {
 
 ## API
 
-### Table 관련 함수
+### Table-related functions
 
 #### `jsonToTable(jsonData, options?)`
-일반적인 JSON 데이터를 표로 변환합니다.
+Converts plain JSON data into tables.
 
 **Parameters:**
-- `jsonData`: 변환할 JSON 데이터
-- `options`: 변환 옵션
-  - `maxDepth`: 최대 깊이 (기본값: 3)
-  - `showNestedObjects`: 중첩 객체 표시 여부 (기본값: true)
-  - `arrayItemLimit`: 배열 항목 제한 (기본값: 10)
+- `jsonData`: the JSON data to convert
+- `options`: conversion options
+  - `maxDepth`: maximum depth (default: 3)
+  - `showNestedObjects`: whether to show nested objects (default: true)
+  - `arrayItemLimit`: array item limit (default: 10)
 
 #### `createMigrationDataTables(jsonData)`
-마이그레이션 데이터 구조에 최적화된 표를 생성합니다.
+Generates tables optimized for the migration data structure.
 
 **Parameters:**
-- `jsonData`: 마이그레이션 JSON 데이터 (문자열 또는 객체)
+- `jsonData`: the migration JSON data (string or object)
 
-### Tree 관련 함수
+### Tree-related functions
 
 #### `jsonToTree(jsonData, options?)`
-JSON 데이터를 트리 구조로 변환합니다.
+Converts JSON data into a tree structure.
 
 **Parameters:**
-- `jsonData`: 변환할 JSON 데이터
-- `options`: 변환 옵션
-  - `maxDepth`: 최대 깊이 (기본값: 10)
-  - `showArrayIndices`: 배열 인덱스 표시 여부 (기본값: true)
-  - `showPrimitiveValues`: 원시 값 표시 여부 (기본값: true)
-  - `rootLabel`: 루트 라벨 (기본값: 'Root')
+- `jsonData`: the JSON data to convert
+- `options`: conversion options
+  - `maxDepth`: maximum depth (default: 10)
+  - `showArrayIndices`: whether to show array indices (default: true)
+  - `showPrimitiveValues`: whether to show primitive values (default: true)
+  - `rootLabel`: root label (default: 'Root')
 
 #### `flattenTreeNodes(treeNodes)`
-트리 노드를 평면화하여 배열로 변환합니다.
+Flattens tree nodes into an array.
 
 **Parameters:**
-- `treeNodes`: 트리 노드 배열
+- `treeNodes`: the array of tree nodes
 
 #### `findTreeNodeByPath(treeNodes, path)`
-특정 경로의 노드를 찾습니다.
+Finds the node at a specific path.
 
 **Parameters:**
-- `treeNodes`: 트리 노드 배열
-- `path`: 찾을 경로
+- `treeNodes`: the array of tree nodes
+- `path`: the path to find
 
 #### `toggleTreeNode(treeNodes, nodeId)`
-트리 노드의 확장 상태를 토글합니다.
+Toggles the expanded state of a tree node.
 
 **Parameters:**
-- `treeNodes`: 트리 노드 배열
-- `nodeId`: 토글할 노드 ID
+- `treeNodes`: the array of tree nodes
+- `nodeId`: the ID of the node to toggle
 
 #### `filterTreeNodes(treeNodes, searchTerm)`
-트리 노드를 필터링합니다.
+Filters tree nodes.
 
 **Parameters:**
-- `treeNodes`: 트리 노드 배열
-- `searchTerm`: 검색어
+- `treeNodes`: the array of tree nodes
+- `searchTerm`: the search term
 
-## 컴포넌트 Props
+## Component Props
 
 ### `JsonDataTable`
-- `jsonData` (required): 표시할 JSON 데이터
-- `useMigrationFormat` (optional): 마이그레이션 형식 사용 여부 (기본값: false)
-- `tableTitles` (optional): 표 제목 배열
+- `jsonData` (required): the JSON data to display
+- `useMigrationFormat` (optional): whether to use the migration format (default: false)
+- `tableTitles` (optional): array of table titles
 
 ### `JsonDataTree`
-- `jsonData` (required): 표시할 JSON 데이터 또는 TreeNode 배열
-- `showSearch` (optional): 검색 기능 표시 여부 (기본값: true)
-- `showValues` (optional): 값 표시 여부 (기본값: true)
-- `maxDepth` (optional): 최대 깊이 (기본값: 10)
-- `currentDepth` (optional): 현재 깊이 (기본값: 0)
-- `searchTerm` (optional): 검색어
+- `jsonData` (required): the JSON data or TreeNode array to display
+- `showSearch` (optional): whether to show the search feature (default: true)
+- `showValues` (optional): whether to show values (default: true)
+- `maxDepth` (optional): maximum depth (default: 10)
+- `currentDepth` (optional): current depth (default: 0)
+- `searchTerm` (optional): the search term
 
 ### `JsonDataViewer`
-- `jsonData` (required): 표시할 JSON 데이터
-- `useMigrationFormat` (optional): 마이그레이션 형식 사용 여부 (기본값: false)
-- `tableTitles` (optional): 표 제목 배열
-- `maxDepth` (optional): 최대 깊이 (기본값: 10)
-- `availableViews` (optional): 사용 가능한 뷰 배열 (기본값: ['table', 'tree', 'raw'])
+- `jsonData` (required): the JSON data to display
+- `useMigrationFormat` (optional): whether to use the migration format (default: false)
+- `tableTitles` (optional): array of table titles
+- `maxDepth` (optional): maximum depth (default: 10)
+- `availableViews` (optional): array of available views (default: ['table', 'tree', 'raw'])
 
-## 예시 데이터 구조
+## Example data structure
 
-### 마이그레이션 데이터
+### Migration data
 ```json
 {
   "targetSoftwareModel": {
@@ -226,11 +226,11 @@ JSON 데이터를 트리 구조로 변환합니다.
 }
 ```
 
-## 스타일링
+## Styling
 
-컴포넌트는 Tailwind CSS를 사용하여 스타일링되어 있습니다. 필요에 따라 CSS 클래스를 수정하여 스타일을 변경할 수 있습니다.
+The components are styled using Tailwind CSS. You can change the styling by modifying the CSS classes as needed.
 
-## 타입 정의
+## Type definitions
 
 ```typescript
 interface TableColumn {

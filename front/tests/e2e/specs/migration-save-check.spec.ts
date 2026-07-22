@@ -5,15 +5,15 @@ import { ModelsPage } from '../pages/models.page';
 import { WorkflowPage } from '../pages/workflow.page';
 
 /**
- * A-1 검증 — 타깃 모델에서 워크플로우를 만들어 *저장까지만* 한다(실행 없음).
+ * A-1 verification — create a workflow from the target model and *only save it* (no run).
  *
- * 목적: 저장된 워크플로우의 beetle 마이그레이션 task 본문이
- *   (1) 단일 리터럴 task 이고 (참조/스켈레톤이 아니라)
- *   (2) targetInfra.nodeGroups[].specId/imageId 가 타깃 모델의 실제 값으로 채워졌는지
- * 를 cicada API 로 확인하기 위한 최소 UI 흐름이다. body 는 편집하지 않는다
- * (타깃 모델에서 채워진 리터럴을 그대로 저장해야 하므로).
+ * Purpose: a minimal UI flow to verify via the cicada API that the saved workflow's beetle
+ *   migration task body is
+ *   (1) a single literal task (not a reference/skeleton), and
+ *   (2) targetInfra.nodeGroups[].specId/imageId are filled with the target model's actual values.
+ * The body is not edited (since the literal filled from the target model must be saved as-is).
  *
- * 실행:
+ * Run:
  *   BASE_URL=http://cmig.dev.cscmzc.com TARGET_MODEL_NAME=e2e-lowcost-target-974924 \
  *   npx playwright test tests/e2e/specs/migration-save-check.spec.ts \
  *     --config=tests/e2e/playwright.runviewer.config.ts
@@ -39,13 +39,13 @@ test.describe('타깃 모델 → 워크플로우 저장 (A-1 단일 리터럴 ta
     await models.openWorkflowEditorFromTarget(TARGET);
     await workflow.expectDesignerOpen();
     await workflow.fillWorkflowName(name);
-    // ★ body 미편집 — 타깃 모델에서 채워진 리터럴을 그대로 저장한다.
+    // ★ body not edited — save the literal filled from the target model as-is.
     await workflow.saveWorkflow();
 
     await workflow.gotoWorkflows();
     await workflow.expectWorkflowVisible(name);
 
-    // 저장된 워크플로우 이름을 로그로 남겨(뒤이어 cicada API 로 본문을 검사).
+    // log the saved workflow name (the body is then inspected via the cicada API).
     console.log(`[a1-check] SAVED_WORKFLOW_NAME=${name}`);
   });
 });

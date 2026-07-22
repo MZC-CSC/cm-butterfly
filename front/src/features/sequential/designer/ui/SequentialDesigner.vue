@@ -12,7 +12,7 @@ interface IProps {
   sequence: Step[];
   trigger: any;
   taskComponentList: Array<ITaskComponentInfoResponse> | undefined;
-  /** 보여주기만 한다 — 끌어다 놓기·삭제·값 입력이 모두 잠긴다 */
+  /** Display only — drag-and-drop, deletion, and value entry are all locked */
   readonly?: boolean;
 }
 
@@ -32,8 +32,8 @@ onMounted(function () {
     ...taskComponents,
   ]);
   sequentialDesignerModel.value.setDefaultSequence(props.sequence);
-  // initDesigner 가 configuration 을 만들기 *전에* 정해야 한다 — 라이브러리는
-  // 만들 때 읽은 값으로 굳는다.
+  // Must be set *before* initDesigner builds the configuration — the library
+  // freezes the value it reads at build time.
   sequentialDesignerModel.value.setReadonly(props.readonly === true);
   sequentialDesignerModel.value.initDesigner();
   sequentialDesignerModel.value.draw();
@@ -44,7 +44,7 @@ watch(
   () => {
     const designer: Designer | null =
       sequentialDesignerModel.value?.getDesigner();
-    // 디자이너가 아직 생성되지 않았으면(초기 마운트 전) 건너뜀
+    // Skip if the designer hasn't been created yet (before initial mount)
     if (!designer) return;
     const definition: Definition = {
       properties: designer.getDefinition().properties,
@@ -80,36 +80,38 @@ watch(
 @import 'sequential-workflow-designer/css/designer-dark.css';
 
 /*
-  병렬 상자의 점선 — 갈래가 둘 이상이면 감춘다.
+  The dashed border of a parallel box — hide it when there are two or more branches.
 
-  점선은 "여기가 병렬 상자다"를 알려주는 유일한 단서다. 라이브러리가 병렬 상자에는
-  이름표를 그리지 않아서(TaskGroup 에만 그린다) 달리 표시할 방법이 없다. 그런데
-  갈래가 둘 이상이면 **갈라졌다 모이는 모양 자체가** 그 말을 대신하므로, 점선은
-  중복이고 상자마다 겹쳐 보여 시끄럽다. 그래서 그때만 감춘다.
+  The dashed border is the only cue that says "this is a parallel box." The library draws no
+  label on parallel boxes (it only labels TaskGroups), so there's no other way to mark them.
+  But when there are two or more branches, **the split-then-merge shape itself** conveys that,
+  so the dashed border is redundant and, overlapping each box, just adds noise. So we hide it
+  only in that case.
 
-  갈래가 없거나 하나면 모양으로는 직선과 구분되지 않으므로 점선을 남긴다.
+  With no branches or a single branch, the shape is indistinguishable from a straight line,
+  so we keep the dashed border.
 
-  갈래는 병렬 상자 <g> 의 **직계 자식**으로 들어간다(placeholder·badge 는 다른
-  클래스라 걸리지 않는다). 그래서 자식 step 이 둘 이상인지로 판별한다.
+  Branches sit as **direct children** of the parallel box's <g> (placeholder and badge are
+  other classes and don't match). So we detect it by whether there are two or more child steps.
 */
 .sqd-step-launch-pad:has(> g[class^='sqd-step-'] ~ g[class^='sqd-step-'])
   > line.sqd-region {
   /*
-    감추되 **없애지는 않는다.** 색만 지우고 요소는 남긴다.
+    Hide it but **don't remove it.** Clear only the color and keep the element.
 
-    병렬 상자를 고르는 판정은 *선을 맞췄는지*가 아니라 **네 선이 이루는 사각형
-    안을 눌렀는지**다(라이브러리 `DefaultRegionView.resolveClick` 이 좌표로 따진다).
-    갈라지는 곳·갈래 사이 빈 곳·모이는 곳 어디를 눌러도 잡힌다. 다만 그 판정이
-    선의 위치에서 나오므로 `display: none` 으로 지우면 사각형 자체가 사라진다.
-    그래서 지우지 않고 투명하게만 둔다.
+    Selecting a parallel box isn't decided by *hitting a line* but by **clicking inside the
+    rectangle those four lines form** (the library's `DefaultRegionView.resolveClick` judges
+    it by coordinates). Clicking the split, the gap between branches, or the merge all hit it.
+    But since that judgment comes from the line positions, removing them with `display: none`
+    makes the rectangle itself disappear. So we don't remove them, just make them transparent.
   */
   stroke: transparent;
 }
 
 /*
-  다만 마우스가 올라가 있는 동안은 옅게 비춰 준다 — 감춰 두면 어디까지가 그
-  상자인지 알 수 없기 때문이다. 고를 수 있는 범위와 정확히 같은 범위가 켜진다.
-  (클래스는 `sequentialDesignerModel` 이 좌표로 붙인다)
+  While the mouse is hovering, though, show it faintly — with it hidden you can't tell where
+  the box ends. The range that lights up is exactly the same as the selectable range.
+  (The class is applied by `sequentialDesignerModel` based on coordinates.)
 */
 .sqd-step-launch-pad:has(> g[class^='sqd-step-'] ~ g[class^='sqd-step-'])
   > line.sqd-region {
@@ -123,13 +125,13 @@ watch(
   stroke: #cbd5e1;
 }
 
-/* 골라 놓은 동안은 계속 보인다 — 라이브러리가 붙이는 표시를 살린다 */
+/* Stays visible while selected — preserve the marker the library applies */
 .sqd-step-launch-pad:has(> g[class^='sqd-step-'] ~ g[class^='sqd-step-'])
   > line.sqd-region.sqd-selected {
   stroke: #6366f1;
 }
 
-/* 전체 설정 패널(톱니바퀴)의 취향 설정 한 줄 */
+/* A preference row in the global settings panel (gear icon) */
 .sqd-designer-setting {
   display: flex;
   align-items: center;

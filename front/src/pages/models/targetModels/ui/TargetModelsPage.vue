@@ -14,15 +14,16 @@ import { WORKFLOW_MANAGEMENT_ROUTE } from '@/app/providers/router/routes/constan
 const router = useRouter();
 
 /**
- * 여기서 만든 워크플로우도 저장하면 **실행 상태로 보낸다.**
+ * A workflow created here is also **sent to the execution-state view** once saved.
  *
- * 워크플로우 화면에서 저장했을 때와 같은 자리에 도착해야 한다 — 저장 다음에 하는 일은
- * 대개 *실행*이고, 실행할지 더 고칠지는 실행 상태 화면에서 갈린다. 예전엔 여기서
- * 저장하면 편집기만 닫히고 목표 모델 화면에 그대로 남아, **방금 만든 워크플로우를
- * 찾아가려면 사용자가 직접 워크플로우 목록으로 이동해 다시 골라야 했다.**
+ * It should land in the same place as saving from the workflow view — what you
+ * usually do after saving is *run* it, and whether to run or keep editing is
+ * decided on the execution-state screen. Previously, saving here only closed the
+ * editor and left you on the target-models screen, so **to get to the workflow
+ * you just created you had to navigate to the workflow list and pick it again.**
  *
- * 화면이 다르므로(목표 모델 ↔ 워크플로우) 탭 전환이 아니라 라우팅이고, 어느
- * 워크플로우인지는 쿼리로 넘긴다.
+ * Since the screens differ (target models vs. workflow) this is routing, not a
+ * tab switch, and which workflow is passed along as a query parameter.
  */
 function handleSavedWorkflow(workflowId: string) {
   modalStates.workflowEditorModal.open = false;
@@ -47,8 +48,8 @@ const targetModelForWorkflow = computed(() => {
     selectedTargetModelId.value,
   );
   if (model) {
-    // modelType을 기반으로 migrationType 설정
-    let migrationType = 'infra'; // 기본값
+    // Set migrationType based on modelType
+    let migrationType = 'infra'; // default
 
     if (model.modelType === 'SoftwareModel') {
       migrationType = 'software';
@@ -143,7 +144,7 @@ function handleUpdateTargetModel(e) {
     .then(res => {
       showSuccessMessage('success', 'Successfully updated target model');
       modalStates.editModelModal.trigger = true;
-      // 여기에 targetmodellist update trigger
+      // targetmodellist update trigger goes here
     })
     .catch(e => {
       showErrorMessage('error', e.errorMsg);

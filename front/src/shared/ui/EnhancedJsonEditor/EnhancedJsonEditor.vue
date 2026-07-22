@@ -90,7 +90,7 @@ function contentToString(content: Content): string {
   if ('text' in content && content.text !== undefined) {
     const trimmed = content.text.trim();
     console.log('[EnhancedJsonEditor] contentToString (Text mode), trimmed:', JSON.stringify(trimmed).substring(0, 50));
-    // 빈 문자열이면 빈 객체 JSON으로 반환
+    // For an empty string, return the JSON of an empty object
     if (!trimmed || trimmed === '') {
       console.log('[EnhancedJsonEditor] Empty text detected, returning "{}"');
       return '{}';
@@ -98,12 +98,12 @@ function contentToString(content: Content): string {
     return content.text;
   }
   console.log('[EnhancedJsonEditor] contentToString fallback, returning "{}"');
-  return '{}';  // 기본값을 빈 문자열 대신 '{}'로
+  return '{}';  // default to '{}' instead of an empty string
 }
 
 /* ── Import / Export ───────────────────────────────────────── */
 
-// Import은 편집 가능한 에디터에서만 (readOnly면 버튼 자체를 노출하지 않는다)
+// Import only in an editable editor (when readOnly, the button is not shown at all)
 const showImport = computed(() => props.allowImport && !props.readOnly);
 const showExport = computed(() => props.allowExport);
 const showToolbar = computed(() => showImport.value || showExport.value);
@@ -114,8 +114,8 @@ function setError(message: string) {
   emit('error', new Error(message));
 }
 
-// 현재 에디터에 표시 중인 내용을 JSON으로 얻는다 (편집 중 미저장분 포함)
-// text 모드에서는 JSON이 깨져 있을 수 있어 파싱에 실패하면 null을 돌려준다.
+// Get the content currently shown in the editor as JSON (including unsaved edits in progress).
+// In text mode the JSON may be broken, so return null if parsing fails.
 function getCurrentJson(): unknown | null {
   const content: Content = editorInstance
     ? editorInstance.get()
@@ -174,7 +174,7 @@ function triggerImport() {
   fileInputRef.value?.click();
 }
 
-// 파일 내용을 에디터에 반영한다. 파싱에 실패하면 기존 내용을 그대로 둔다.
+// Apply the file content to the editor. If parsing fails, leave the existing content as-is.
 function applyImportedText(text: string, sourceName: string) {
   let json: unknown;
   try {
@@ -209,7 +209,7 @@ function handleFileSelected(event: Event) {
   const reader = new FileReader();
   reader.onload = () => {
     applyImportedText(String(reader.result ?? ''), file.name);
-    input.value = ''; // 같은 파일을 다시 선택할 수 있도록 비운다
+    input.value = ''; // clear it so the same file can be selected again
   };
   reader.onerror = () => {
     setError('Import failed: cannot read file');
@@ -369,7 +369,7 @@ defineExpose({
   setMode: (mode: 'tree' | 'text' | 'table') => {
     if (!editorInstance) return;
     try {
-      // Property Grid는 우리 커스텀 모드
+      // Property Grid is our custom mode
       if (mode === 'table' || mode === Mode.table) {
         showPropertyGrid.value = true;
         editorInstance.updateProps({ mode: Mode.tree });
@@ -387,19 +387,19 @@ defineExpose({
     if (!editorInstance) return;
 
     try {
-      // Property Grid 모드에서는 skip
+      // Skip in Property Grid mode
       if (showPropertyGrid.value) {
         console.log('expandAll: Skipping - Property Grid mode');
         return;
       }
 
-      // tree 모드에서만 expand 가능
+      // Expand is only possible in tree mode
       if (currentMode.value !== Mode.tree) {
         console.log('expandAll: Skipping - not in tree mode, current mode:', currentMode.value);
         return;
       }
 
-      // tree 모드에서만 expand 실행
+      // Only run expand in tree mode
       editorInstance.expand(() => true);
     } catch (e) {
       console.warn('expandAll failed:', e.message);

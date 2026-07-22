@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue';
 import SampleEditor from './SampleEditor.vue';
 import { Step } from '@/features/workflow/workflowEditor/model/types';
 
-// 예시: grasshopper_task_software_migration 스키마
+// Example: grasshopper_task_software_migration schema
 const exampleSchema = {
   type: 'object',
   properties: {
@@ -88,7 +88,7 @@ const exampleSchema = {
   required: ['targetSoftwareModel']
 };
 
-// 예시: 기존 데이터
+// Example: existing data
 const exampleData = {
   targetSoftwareModel: {
     servers: [

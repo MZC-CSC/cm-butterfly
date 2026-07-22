@@ -11,7 +11,7 @@ interface IProps {
   step: Step;
 }
 
-// SAMPLE SW-MIGRATE WORKFLOW 데이터 구조에 맞는 Context 타입들
+// Context types matching the SAMPLE SW-MIGRATE WORKFLOW data structure
 type ServerContext = {
   type: 'server';
   context: {
@@ -207,7 +207,7 @@ const shortCutModel = ref({
 });
 const editorFormElement = ref(null);
 
-// targetSoftwareModel인 경우 SoftwareModelEditor를 사용할지 결정하는 computed
+// computed that decides whether to use SoftwareModelEditor when it is a targetSoftwareModel
 const shouldUseSoftwareModelEditor = computed(() => {
   if (!taskEditorModel.formContext.value || !Array.isArray(taskEditorModel.formContext.value)) {
     return false;
@@ -216,9 +216,9 @@ const shouldUseSoftwareModelEditor = computed(() => {
 });
 
 onBeforeMount(() => {
-  // targetSoftwareModel 데이터 설정 - setGrasshopperBodyParamsContext 사용
+  // Set targetSoftwareModel data - uses setGrasshopperBodyParamsContext
   if (props.step.properties.model) {
-    console.log('GrassHopperSWMigrationTaskEditor - Body Params 설정:', props.step.properties.model);
+    console.log('GrassHopperSWMigrationTaskEditor - setting Body Params:', props.step.properties.model);
     taskEditorModel.setGrasshopperBodyParamsContext(props.step.properties.model);
   }
   
@@ -307,7 +307,7 @@ function handleClickOutside(event: MouseEvent) {
   }
 }
 
-// Vue 2 호환 헬퍼 함수들 - try-catch로 오류 방지
+// Vue 2-compatible helper functions - guarded with try-catch to prevent errors
 function getServerErrors(server: any) {
   try {
     if (!server || !server.context || !server.context.values) return [];
@@ -395,7 +395,7 @@ function getSourceConnection(server: any) {
   }
 }
 
-// 복잡한 중첩 구조를 위한 추가 헬퍼 함수들 - try-catch로 오류 방지
+// Additional helper functions for complex nested structures - guarded with try-catch to prevent errors
 function getContainerImage(container: any) {
   try {
     if (!container || !container.context || !container.context.values) return null;
@@ -510,19 +510,19 @@ function getSimpleValue(field: any) {
   }
 }
 
-// BAccordion을 위한 헬퍼 함수
+// Helper function for BAccordion
 function getServers(context: any) {
   try {
     console.log('getServers - context:', context);
     
-    // 전달받은 context가 targetSoftwareModel인 경우
+    // When the passed-in context is a targetSoftwareModel
     if (context && context.context && context.context.subject === 'Target Software Model') {
       console.log('getServers - context.context.values:', context.context.values);
       console.log('getServers - context.context.values[0]:', context.context.values[0]);
       console.log('getServers - context.context.values[0].context:', context.context.values[0]?.context);
       console.log('getServers - context.context.values[0].context.subject:', context.context.values[0]?.context?.subject);
       
-      // context.values에서 servers를 찾기
+      // Find servers in context.values
       const serversField = context.context.values.find(
         (field: any) => field.context && field.context.subject === 'servers'
       );
@@ -535,7 +535,7 @@ function getServers(context: any) {
       }
     }
     
-    // formContext에서 찾는 경우
+    // When searching in formContext
     if (!taskEditorModel.formContext.value || taskEditorModel.formContext.value.length === 0) return [];
     
     const targetSoftwareModel = (taskEditorModel.formContext.value as any).find(
@@ -583,7 +583,7 @@ function getServersAccordionItems(context: any) {
       }
     "
   >
-    <!-- softwareModel인 경우 SoftwareModelEditor 사용 -->
+    <!-- Use SoftwareModelEditor when it is a softwareModel -->
     <SoftwareModelEditor
       v-if="shouldUseSoftwareModelEditor"
       :step="props.step"
@@ -592,7 +592,7 @@ function getServersAccordionItems(context: any) {
       @save-fixed-model="emit('saveFixedModel', $event)"
     />
     
-    <!-- softwareModel이 아닌 경우 기존 로직 사용 -->
+    <!-- Use the existing logic when it is not a softwareModel -->
     <div v-else>
     <!-- Component Name -->
     <div class="step-name-box w-full">
@@ -649,7 +649,7 @@ function getServersAccordionItems(context: any) {
       </div>
     </div>
 
-    <!-- Body Params 영역 - SAMPLE SW-MIGRATE WORKFLOW 구조 -->
+    <!-- Body Params area - SAMPLE SW-MIGRATE WORKFLOW structure -->
     <div
       v-for="(currentContext, index) of taskEditorModel.formContext.value"
       :key="index"
@@ -669,7 +669,7 @@ function getServersAccordionItems(context: any) {
           v-if="currentContext.context.values && currentContext.context.values.length > 0"
           class="servers-list w-full h-full"
         >
-          <!-- 디버깅 정보 -->
+          <!-- Debug info -->
           <div style="background: #f0f0f0; padding: 8px; margin: 4px 0; font-size: 12px;">
             <div>Current Context Subject: {{ currentContext.context.subject }}</div>
             <div>Current Context Values Count: {{ currentContext.context.values?.length || 0 }}</div>
@@ -678,7 +678,7 @@ function getServersAccordionItems(context: any) {
             <div>Servers Data: {{ JSON.stringify(getServers(currentContext), null, 2) }}</div>
           </div>
           
-          <!-- servers 배열을 직접 반복하여 표시 -->
+          <!-- Iterate over the servers array directly to display -->
           <div
             v-for="(server, serverIndex) of getServers(currentContext)" 
             :key="serverIndex"
@@ -714,7 +714,7 @@ function getServersAccordionItems(context: any) {
             <div v-if="getMigrationList(server)" class="migration-list-section">
               <div class="subject-title border-bottom">Migration List</div>
               
-              <!-- 디버깅 정보 -->
+              <!-- Debug info -->
               <div style="background: #f0f0f0; padding: 8px; margin: 4px 0; font-size: 12px;">
                 <div>Migration List Found: {{ !!getMigrationList(server) }}</div>
                 <div>Binaries Count: {{ getBinaries(server).length }}</div>
@@ -763,7 +763,7 @@ function getServersAccordionItems(context: any) {
                 >
                   <div class="subject-title border-bottom">Container {{ containerIndex + 1 }}</div>
                   
-                  <!-- Container 기본 필드들 -->
+                  <!-- Container base fields -->
                   <div
                     v-for="(element, elementIndex) in container.context.values"
                     :key="elementIndex"
@@ -879,7 +879,7 @@ function getServersAccordionItems(context: any) {
                 >
                   <div class="subject-title border-bottom">Kubernetes {{ k8sIndex + 1 }}</div>
                   
-                  <!-- K8s 기본 필드들 -->
+                  <!-- K8s base fields -->
                   <div
                     v-for="(element, elementIndex) in k8s.context.values"
                     :key="elementIndex"
@@ -1027,7 +1027,7 @@ function getServersAccordionItems(context: any) {
                 >
                   <div class="subject-title border-bottom">Package {{ pkgIndex + 1 }}</div>
                   
-                  <!-- Package 기본 필드들 -->
+                  <!-- Package base fields -->
                   <div
                     v-for="(element, elementIndex) in pkg.context.values"
                     :key="elementIndex"
@@ -1262,7 +1262,7 @@ function getServersAccordionItems(context: any) {
   }
 }
 
-/* SAMPLE SW-MIGRATE WORKFLOW 전용 스타일 */
+/* Styles specific to SAMPLE SW-MIGRATE WORKFLOW */
 .server-errors {
   margin: 8px 0;
   padding: 8px;
@@ -1312,7 +1312,7 @@ function getServersAccordionItems(context: any) {
   border-left: 3px solid #eab308;
 }
 
-/* 복잡한 중첩 구조를 위한 추가 스타일 */
+/* Additional styles for complex nested structures */
 .container-image-section {
   margin: 8px 0;
   padding: 8px;

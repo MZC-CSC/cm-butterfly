@@ -18,21 +18,21 @@ import {
 
 interface Props {
   workflowId: string | null;
-  /** 비우면 가장 최근 실행을 연다 */
+  /** If empty, open the most recent run */
   runId?: string | null;
 }
 
 const props = defineProps<Props>();
 
-// 에디터(워크플로우 툴/JSON)를 여는 것은 페이지의 일이다 (에디터 모달이 거기 있다).
-// - edit-original: 미실행 원본을 워크플로우 툴로
-// - edit-clone   : 실행된 워크플로우의 복제본을 워크플로우 툴로
-// - edit-json    : 툴이 그대로 옮길 수 없는 그래프를 JSON 에디터로 (원본 또는 복제본 id)
+// Opening an editor (workflow tool / JSON) is the page's job (the editor modal lives there).
+// - edit-original: open an un-run original in the workflow tool
+// - edit-clone   : open a clone of an already-run workflow in the workflow tool
+// - edit-json    : open a graph the tool cannot translate as is in the JSON editor (original or clone id)
 const emit = defineEmits<{
   (e: 'edit-original', workflowId: string): void;
   (e: 'edit-clone', clonedWorkflowId: string): void;
   (e: 'edit-json', workflowId: string): void;
-  // - view-json : 정의를 그대로 보여준다 (상세 화면에 있던 것을 이리로 모았다)
+  // - view-json : show the definition as is (gathered here from the detail screen)
   (e: 'view-json', workflowId: string): void;
 }>();
 
@@ -75,16 +75,18 @@ const {
 } = useWorkflowRunViewerModel();
 
 /**
- * 값을 바꿔 다시 돌리고 싶을 때 원본을 고치지 않는다.
- * 복제본을 만들어 그것을 편집한다 — 원본과 그 실행 이력은 그대로 남는다.
+ * When you want to change values and run again, do not edit the original.
+ * Make a clone and edit that — the original and its run history stay intact.
  *
- * 워크플로우 툴이 그대로 옮길 수 없는 그래프면 복제본을 JSON 에디터로 연다. 툴로 열면
- * 그림이 실제 실행과 달라지고, 그 상태로 저장하면 실행 순서가 조용히 바뀌기 때문이다.
+ * If the workflow tool cannot translate the graph as is, open the clone in the JSON
+ * editor. Opening it in the tool makes the diagram differ from the actual run, and
+ * saving in that state silently changes the execution order.
  *
- * 만든 직후 바로 열어도 된다. 엔진이 그 복제본을 Airflow 에서 읽지 못하는 구간이
- * 잠시(측정 약 5초) 있지만, **편집기는 그 읽기에 기대지 않는다** — 복제 응답을 그대로
- * 캐시에 넣어 두고 거기서 그린다. 저장도 그 구간에 이미 동작한다(측정: 복제 +0.1초에
- * 수정 API 200). 그래서 기다리게 하지 않는다.
+ * You can open it immediately after creating it. There is a brief window (measured
+ * ~5s) where the engine cannot read the clone from Airflow, but **the editor does not
+ * rely on that read** — it caches the clone response and draws from there. Saving also
+ * already works during that window (measured: clone +0.1s, update API 200). So we do
+ * not make the user wait.
  */
 async function cloneAndEdit() {
   const clonedId = await cloneForEdit();
@@ -94,15 +96,16 @@ async function cloneAndEdit() {
 }
 
 /**
- * 미실행 원본 편집. 실행 이력이 없으니 복제 없이 원본을 직접 연다.
- * 툴이 못 옮기는 그래프면 이유를 보이고 JSON 에디터로 갈지 물어본다.
+ * Edit an un-run original. With no run history, open the original directly without cloning.
+ * If the tool cannot translate the graph, show the reason and ask whether to go to the JSON editor.
  */
 /**
- * 기다리는 중이라는 표시를 **눈에 보이는 자리로 데려온다.**
+ * Bring the "waiting" indicator **to a visible spot.**
  *
- * 이 화면은 워크플로우 목록 아래에 있어서, 저장 직후 도착하면 그래프 자리가 화면
- * 아래로 잘려 나간다. 거기에만 표시를 두면 위쪽 저장 완료 알림만 보이고 *데이터를
- * 준비하는 중*이라는 사실은 스크롤해야 알 수 있다 — 화면이 멈춘 것처럼 보인다.
+ * This screen sits below the workflow list, so arriving right after a save, the graph
+ * area is cut off below the fold. If the indicator lives only there, the user sees only
+ * the save-complete notice at the top and has to scroll to learn that the *data is being
+ * prepared* — it looks as if the screen has frozen.
  */
 const waitingRef = ref<HTMLElement | null>(null);
 watch(workflowReadyState, async state => {
@@ -125,9 +128,10 @@ function confirmEditJson() {
 }
 
 /**
- * 태스크가 만든 결과. 오늘은 SW 마이그레이션만 — 엔진이 태스크에 실어 준 실행 ID가
- * 있을 때만 조회한다. 컴포넌트 이름이 아니라 그 ID의 유무로 판정하므로, 엔진이 다른
- * 컴포넌트의 반환값을 실어 주기 시작하면 같은 자리에 붙는다.
+ * The result a task produced. For now only SW migration — query it only when the engine
+ * attached an execution ID to the task. We decide by the presence of that ID, not the
+ * component name, so if the engine starts attaching other components' return values,
+ * they attach in the same place.
  */
 const showSwResult = ref(false);
 const swExecutionIds = computed(() =>
@@ -137,11 +141,12 @@ const swExecutionIds = computed(() =>
 );
 
 /**
- * 재실행 범위. 기준이 무엇인지 이름에 담는다.
+ * Re-run scope. The name captures what the reference point is.
  *
- * 'upstream'(이 태스크와 그 앞)은 뺐다. 이미 성공한 선행 태스크를 다시 돌리는 것은
- * 자원을 다시 만들 뿐이고, 정말 필요하면 *그 선행 태스크를 선택해* 'after'로 돌리면
- * 된다 — 같은 일을 두 갈래로 표현할 이유가 없다. (엔진은 여전히 지원한다.)
+ * 'upstream' (this task and everything before it) was dropped. Re-running already-
+ * succeeded predecessor tasks only recreates resources, and if you really need it you
+ * can *select that predecessor task* and re-run with 'after' — there is no reason to
+ * express the same thing two ways. (The engine still supports it.)
  */
 const RERUN_SCOPES = [
   {
@@ -156,10 +161,10 @@ const RERUN_SCOPES = [
   },
 ] as const;
 
-// 워크플로우 전체를 실행하는 것이므로 확인 없이 시작하지 않는다
+// This runs the entire workflow, so do not start without confirmation
 const showRunConfirm = ref(false);
 
-// 복제는 워크플로우를 하나 더 만든다. 누를 때마다 늘어나므로 확인을 받는다.
+// Cloning creates one more workflow. It grows with every click, so ask for confirmation.
 const showCloneConfirm = ref(false);
 
 async function confirmClone() {
@@ -181,7 +186,7 @@ function downloadLog() {
   URL.revokeObjectURL(link.href);
 }
 
-/** 태스크 단위 재실행 — 선택한 태스크가 기준이다 */
+/** Per-task re-run — the selected task is the reference point */
 function requestRerun(scope: (typeof RERUN_SCOPES)[number]['key']) {
   const taskId = selectedTaskId.value;
   if (!taskId) return;
@@ -197,14 +202,16 @@ function requestRerun(scope: (typeof RERUN_SCOPES)[number]['key']) {
 }
 
 /**
- * 실행 단위 재실행 — 선택한 태스크와 무관하게 *이 실행 전체*의 실패분이 대상이다.
- * 태스크를 골라야 나오는 상세 패널이 아니라 실행 단위 동작들과 같은 자리에 둔다.
+ * Per-run re-run — regardless of the selected task, the target is the failures of *this
+ * entire run*. It sits alongside the run-level actions, not in the detail panel that
+ * only appears once a task is selected.
  *
- * 엔진은 대상 목록을 비워 보내면 거부하므로, 이 실행의 모든 태스크를 넘기고 실패한
- * 것만 고르게 한다. 그러면 실패한 태스크와 그것 때문에 막혀 있던 태스크가 잡힌다.
+ * The engine rejects an empty target list, so we pass all tasks of this run and let it
+ * pick only the failed ones. That catches the failed tasks and the tasks that were
+ * blocked because of them.
  */
 function requestRerunFailed() {
-  // 상태를 아직 못 받았으면 대상 목록이 비어 엔진이 거부한다. 그 전에는 누를 수 없다.
+  // If the status hasn't arrived yet, the target list is empty and the engine rejects it. It can't be clicked before then.
   if (!instances.value.length) return;
 
   previewRerun({
@@ -217,7 +224,7 @@ function requestRerunFailed() {
   });
 }
 
-/** 지금 돌고 있는가 — 진행 표시와 버튼 잠금이 같은 근거를 쓴다 */
+/** Is it running now — the progress indicator and the button lock use the same basis */
 const runInProgress = computed(() =>
   ['running', 'queued'].includes(
     (selectedRun.value?.state ?? '').toLowerCase(),
@@ -231,10 +238,11 @@ const hasFailedTask = computed(() =>
 );
 
 /*
-  회색 버튼은 고장 난 기능처럼 읽힌다. 실제로는 다시 돌릴 것이 없을 뿐인데 화면이 그
-  사실을 어디에도 말하지 않았다. 실패한 태스크가 있는지 없는지 — 그 하나로만 문구를
-  가른다. 실행이 도는 중에도 버튼은 잠기지만, 그때까지 문구를 따로 두면 상태가 바뀔
-  때마다 맞춰야 할 경로가 늘고 로직이 바뀌면 어긋난다. 시작과 끝만 본다.
+  A grayed-out button reads like a broken feature. In fact there is simply nothing to
+  re-run, but the screen never said so anywhere. Whether there is a failed task or not —
+  that one thing alone splits the wording. The button is also locked while a run is in
+  progress, but keeping separate wording for that case adds a path to keep in sync on
+  every state change and drifts when the logic changes. Look only at the start and the end.
 */
 const rerunFailedHint = computed(() =>
   hasFailedTask.value
@@ -243,14 +251,14 @@ const rerunFailedHint = computed(() =>
 );
 
 /**
- * 확인 모달이 떠 있는 동안, 다시 돌 태스크를 그래프에서도 보여준다.
- * 목록만으로는 "어디가 다시 도는지"가 그림으로 안 들어온다.
+ * While the confirm modal is up, also show the tasks that will re-run on the graph.
+ * A list alone doesn't convey "where it re-runs" visually.
  */
 const rerunPreviewIds = computed(() =>
   rerunTargets.value ? rerunTargets.value.map(t => t.task_id) : null,
 );
 
-/** 재실행 대상 태스크가 어떤 컴포넌트를 쓰는지 함께 보여준다 — 무엇이 다시 도는지 판단 근거 */
+/** Also show which component each re-run target task uses — a basis for judging what re-runs */
 function componentOf(taskId: string): string {
   return graph.value.nodes.find(n => n.id === taskId)?.taskComponent ?? '-';
 }
@@ -264,8 +272,8 @@ const tryNumbers = computed(() => {
   return Array.from({ length: total }, (_, i) => i + 1);
 });
 
-/* 2026-07-14T07:35:52.138528Z → 2026-07-14 07:35:52. 마이크로초까지 붙은 원문은
-   드롭다운 폭을 넘겨 상태 글자가 다음 줄로 밀렸다. */
+/* 2026-07-14T07:35:52.138528Z → 2026-07-14 07:35:52. The raw string with microseconds
+   overflowed the dropdown width and pushed the status text onto the next line. */
 function formatRunTime(value?: string): string {
   if (!value) return '-';
   const m = value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})/);
@@ -282,18 +290,20 @@ const runOptions = computed(() =>
 );
 
 /*
-  그래프에 내주는 폭을 병렬 갈래 수로 정한다. 인프라·SW 마이그레이션처럼 태스크가
-  한 줄로만 이어지는 워크플로우는 좁게 잡히므로 남는 폭이 상세 패널로 가고, 병렬이
-  많으면 그래프가 넓게 자리를 잡는다. 폭이 모자라면 패널이 아래로 내려간다.
+  The width given to the graph is decided by the number of parallel branches. A workflow
+  whose tasks run in a single line, like infra or SW migration, is laid out narrow, so the
+  leftover width goes to the detail panel; with many parallel branches the graph takes a
+  wide spot. When width runs short, the panel drops below.
 */
 const graphFlexBasis = computed(
-  // graphPixelWidth는 SVG 자체 폭이다. 그래프 박스는 그 위에 RunGraph의 안쪽 여백
-  // (0.5rem 좌우)과 박스 테두리(1px 좌우)를 더 차지하므로, 그만큼을 flex-basis에
-  // 얹지 않으면 넉넉한 화면에서도 SVG가 상시 잘려 가로 스크롤이 생긴다.
+  // graphPixelWidth is the SVG's own width. The graph box takes RunGraph's inner padding
+  // (0.5rem left/right) and the box border (1px left/right) on top of that, so unless we
+  // add that much to flex-basis the SVG is always clipped even on a roomy screen and a
+  // horizontal scrollbar appears.
   () => `calc(${graphPixelWidth(graph.value)}px + 1rem + 2px)`,
 );
 
-/** 값이 JSON 문자열이면 읽기 좋게 펼친다 (cicada는 request_body를 문자열로 담는다) */
+/** If the value is a JSON string, expand it for readability (cicada stores request_body as a string) */
 function formatParamValue(value: any): string {
   if (value === null || value === undefined) return '-';
   if (typeof value === 'string') {
@@ -337,9 +347,10 @@ async function onRunChange(runId: string) {
   <div class="run-viewer" data-testid="workflow-run-viewer">
     <div class="run-viewer__header">
       <!--
-        왼쪽은 *지나간 실행을 고르는* 이력 선택이고, 오른쪽은 *새 실행을 시작하는*
-        버튼이다. 성격이 정반대라 붙여 두면 "고른 실행을 다시 돌린다"로 읽힌다.
-        (고른 실행을 다시 돌리는 것은 태스크 상세의 Re-run이다.)
+        The left side is a history picker for *choosing a past run*, and the right side is
+        a button for *starting a new run*. They are opposite in nature, so placing them
+        together reads as "re-run the chosen run". (Re-running the chosen run is the
+        Re-run in the task detail.)
       -->
       <div class="run-viewer__header-row">
         <div class="run-viewer__run-select">
@@ -364,16 +375,18 @@ async function onRunChange(runId: string) {
         </div>
 
         <!--
-          **아직 읽지 못했으면 아무 버튼도 내놓지 않는다.**
-          실행 이력을 모르는 시점인데 버튼은 이력 유무로 갈린다. 그대로 두면 이력이
-          있는 워크플로우에도 잠시 Edit 이 떠서, 원본 직접 수정을 막으려던 것이 그
-          순간 뚫린다. 판정에 필요한 것을 손에 넣은 뒤에 보여준다.
+          **If we haven't read it yet, offer no buttons at all.**
+          At this point we don't know the run history, yet the buttons split on whether
+          history exists. Leaving them shown makes Edit appear briefly even on a workflow
+          that has history, and at that moment the guard against directly editing the
+          original is breached. Show them only after we have what we need to decide.
         -->
         <div v-if="workflowReadyState === 'ready'" class="run-viewer__actions">
           <!--
-            실행 이력이 없는 워크플로우에는 "다시 돌린다"가 없다 — 실행할지, 내용을
-            고칠지 둘뿐이다. 이력이 있으면 지금까지의 버튼(실패분 다시 → 새로 → 복제)을
-            그대로 둔다. 실행된 워크플로우는 원본 직접 수정을 막으므로 여기엔 Edit이 없다.
+            A workflow with no run history has no "re-run" — only run it, or edit its
+            content. Once it has history, keep the usual buttons (re-run failed → new run →
+            clone). A run workflow blocks directly editing the original, so there is no
+            Edit here.
           -->
           <template v-if="!hasRuns">
             <p-tooltip
@@ -410,8 +423,8 @@ async function onRunChange(runId: string) {
 
           <template v-else>
             <!--
-              순서: 이 실행의 실패분을 다시 → 이 워크플로우를 새로 → 값을 바꿔 쓰려면 복제.
-              왼쪽일수록 지금 보고 있는 실행에 가깝고, 오른쪽으로 갈수록 새 것을 만든다.
+              Order: re-run this run's failures → run this workflow anew → clone to change values.
+              The further left, the closer to the run you are viewing; the further right, the more it creates something new.
             -->
             <p-tooltip
               :contents="rerunFailedHint"
@@ -463,9 +476,10 @@ async function onRunChange(runId: string) {
           </template>
 
           <!--
-            정의를 그대로 보는 길. 상세 화면에 있던 것을 이리로 옮겼다 — 이 워크플로우로
-            할 수 있는 일을 한자리에 모아 두면 어디서 무엇을 할 수 있는지 찾아다니지
-            않아도 된다. 실행 이력과 무관하게 늘 있다(보기만 하는 동작이므로).
+            A way to view the definition as is. Moved here from the detail screen —
+            gathering everything you can do with this workflow in one place means you don't
+            have to hunt around for where to do what. Always present regardless of run
+            history (since it is a view-only action).
           -->
           <p-tooltip
             contents="Shows the workflow definition as JSON."
@@ -486,8 +500,8 @@ async function onRunChange(runId: string) {
       </div>
 
       <!--
-        고른 실행이 어떤 실행인지 화면에 남긴다. 드롭다운은 고르고 나면 접히므로,
-        지금 보고 있는 것이 언제 돌린 어느 실행인지 알 수 없게 된다.
+        Keep on screen which run was chosen. The dropdown collapses once you pick, so
+        otherwise you can't tell which run, from when, you are currently viewing.
       -->
       <dl
         v-if="selectedRun"
@@ -523,7 +537,7 @@ async function onRunChange(runId: string) {
       Failed to load run status: {{ loadError }}
     </div>
 
-    <!-- 재실행 요청이 실패하면 모달이 열리지 않는다. 그 실패를 여기서 드러낸다 -->
+    <!-- If the re-run request fails, the modal does not open. Surface that failure here -->
     <div
       v-if="rerunError && !rerunTargets"
       class="run-viewer__error"
@@ -545,10 +559,11 @@ async function onRunChange(runId: string) {
         :style="{ flexBasis: graphFlexBasis }"
       >
         <!--
-          진행 상황은 *도는 동안에만* 그래프 위쪽 줄에 나온다.
-          끝난 실행에까지 막대를 남기면 100%로 채워진 막대가 계속 붙어 있어 "지금도
-          뭔가 돌고 있나"로 읽힌다. 끝난 실행의 결과는 헤더의 상태 배지와 그래프 색이
-          이미 말해 준다. (그래프 *위에 겹치지* 않는 이유는 태스크를 가리기 때문이다.)
+          Progress appears in the row above the graph *only while it is running*.
+          Leaving the bar on a finished run keeps a 100%-filled bar stuck there, which
+          reads as "is something still running now?". A finished run's result is already
+          told by the status badge in the header and the graph colors. (The reason it does
+          not *overlap on top of* the graph is that it would hide tasks.)
         -->
         <div
           v-if="runInProgress && graph.nodes.length"
@@ -578,10 +593,11 @@ async function onRunChange(runId: string) {
         </div>
 
         <!--
-          방금 만든 워크플로우는 엔진이 DAG 를 등록하기 전이라 잠시 읽히지 않는다.
-          그때 "표시할 태스크가 없습니다"를 띄우면 **사실과 다르다** — 태스크가 없는 게
-          아니라 아직 못 읽은 것이고, 사용자는 워크플로우가 비어 있다고 오해한다.
-          그래서 읽힐 때까지 기다리는 중임을 밝힌다.
+          A just-created workflow briefly can't be read, because the engine hasn't
+          registered the DAG yet. Showing "no tasks to display" at that moment is **not
+          true** — it's not that there are no tasks, it's that we couldn't read them yet,
+          and the user misreads the workflow as empty. So we state that we are waiting
+          until it can be read.
         -->
         <div
           v-if="workflowReadyState === 'waiting'"
@@ -644,9 +660,10 @@ async function onRunChange(runId: string) {
           </dl>
 
           <!--
-            이 태스크가 무엇을 만들었는지. 오늘은 SW 마이그레이션 결과만 — 엔진이 태스크에
-            실어 준 실행 ID가 있을 때만 조회한다. 없으면 조용히 빈 화면을 두지 않고 그렇게
-            말한다(빈 화면은 "설치된 소프트웨어가 없다"로 읽힌다).
+            What this task produced. For now only SW migration results — query it only
+            when the engine attached an execution ID to the task. If there is none, don't
+            silently leave an empty screen; say so (an empty screen reads as "no software
+            is installed").
           -->
           <div class="run-viewer__result" data-testid="workflow-run-result">
             <h5>Result</h5>
@@ -668,7 +685,7 @@ async function onRunChange(runId: string) {
             </p>
           </div>
 
-          <!-- 실패했으면 왜 실패했는지를 그 자리에서 -->
+          <!-- If it failed, show why right there -->
           <div
             v-if="canShowLog"
             class="run-viewer__logs"
@@ -703,7 +720,7 @@ async function onRunChange(runId: string) {
                   >{{ failureSummary }}</pre
                 >
               </div>
-              <!-- 원인을 못 찾았으면 지어내지 않고 그렇게 말한다 -->
+              <!-- If no cause was found, don't make one up; say so -->
               <p
                 v-else-if="selectedInstance?.state === 'failed'"
                 class="run-viewer__hint"
@@ -771,8 +788,9 @@ async function onRunChange(runId: string) {
           <div class="run-viewer__params" data-testid="workflow-run-params">
             <h5>Parameters</h5>
             <!--
-              엔진은 그 실행에 쓰인 값을 돌려주지 않는다. 아래는 언제나
-              *현재 정의*의 값이므로, 실행 후 정의가 바뀌었으면 다를 수 있다.
+              The engine does not return the values used in that run. The values below are
+              always those of the *current definition*, so if the definition changed after
+              the run they may differ.
             -->
             <p
               v-if="definitionChangedAfterRun"
@@ -798,7 +816,7 @@ async function onRunChange(runId: string) {
         </template>
         <p v-else class="run-viewer__hint">Select a task to see its details.</p>
 
-        <!-- 정의에서 지워졌지만 이 실행에는 남아 있는 태스크 -->
+        <!-- Tasks removed from the definition but still present in this run -->
         <div
           v-if="deletedTaskInstances.length"
           class="run-viewer__deleted"
@@ -821,9 +839,9 @@ async function onRunChange(runId: string) {
     </div>
 
     <!--
-      재실행 사전 확인. 어떤 태스크가 다시 도는지는 화면의 그림이 아니라 엔진이
-      실제 실행 그래프를 보고 정한다. 그래서 엔진이 돌려준 대상 목록을 보여주고
-      확인을 받는다.
+      Re-run pre-confirmation. Which tasks re-run is decided by the engine looking at the
+      actual execution graph, not by the diagram on screen. So we show the target list the
+      engine returned and ask for confirmation.
     -->
     <div
       v-if="rerunTargets"
@@ -874,17 +892,18 @@ async function onRunChange(runId: string) {
       </div>
     </div>
 
-    <!-- 전체 실행은 되돌릴 수 없으므로 확인 없이 시작하지 않는다 -->
+    <!-- A full run cannot be undone, so do not start without confirmation -->
     <div
       v-if="showRunConfirm"
       class="run-viewer__modal"
       data-testid="workflow-run-confirm"
     >
       <!--
-        같은 모달을 최초 실행(Run)과 이후 실행(Start new run)이 함께 쓴다. 두 경우는
-        사용자가 아는 것이 다르다 — 최초 실행에는 "고를 실행"도 "다시 돌릴 것"도 없으므로
-        새 실행 기준으로 설명하면 틀린 말이 된다. 대신 이 시점에만 할 수 있는 것,
-        즉 *수정은 지금까지만 가능하다*를 알려 준다.
+        The first run (Run) and later runs (Start new run) share the same modal. The two
+        cases differ in what the user knows — the first run has no "run to choose" and
+        nothing "to re-run", so explaining it in new-run terms would be wrong. Instead we
+        tell them what is only possible at this moment, namely that *editing is possible
+        only up to now*.
       -->
       <div v-if="!hasRuns" class="run-viewer__modal-box">
         <h4>Run this workflow?</h4>
@@ -943,7 +962,7 @@ async function onRunChange(runId: string) {
       </div>
     </div>
 
-    <!-- 복제는 워크플로우를 하나 더 만든다. 누를 때마다 쌓이므로 확인을 받는다. -->
+    <!-- Cloning creates one more workflow. It piles up with every click, so ask for confirmation. -->
     <div
       v-if="showCloneConfirm"
       class="run-viewer__modal"
@@ -960,7 +979,7 @@ async function onRunChange(runId: string) {
           intend to change values — not to look around.
         </p>
         <!--
-          툴이 그대로 옮길 수 없는 그래프는 복제본을 JSON 에디터로 연다.
+          For a graph the tool cannot translate as is, open the clone in the JSON editor.
         -->
         <p
           v-if="!canEditInDesigner"
@@ -992,8 +1011,8 @@ async function onRunChange(runId: string) {
     </div>
 
     <!--
-      미실행 원본을 편집하려는데 워크플로우 툴이 그대로 옮길 수 없는 경우.
-      이유를 보이고 JSON 에디터로 갈지 물어본다.
+      When you try to edit an un-run original but the workflow tool cannot translate it as is.
+      Show the reason and ask whether to go to the JSON editor.
     -->
     <div
       v-if="showEditJsonConfirm"
@@ -1036,7 +1055,7 @@ async function onRunChange(runId: string) {
       </div>
     </div>
 
-    <!-- 태스크가 만든 결과(SW 마이그레이션 설치 목록) — 기존 결과 화면을 재사용한다 -->
+    <!-- The result a task produced (SW migration install list) — reuses the existing result screen -->
     <software-migration-overlay
       :is-visible="showSwResult"
       :selected-run="selectedRun"
@@ -1051,7 +1070,7 @@ async function onRunChange(runId: string) {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  /* 다른 탭 내용과 같은 좌우 여백 — 없으면 Run history·그래프가 왼쪽에 바싹 붙는다 */
+  /* Same left/right padding as the other tab contents — without it Run history and the graph hug the left edge */
   padding: 0 1rem 1rem;
 }
 
@@ -1062,8 +1081,8 @@ async function onRunChange(runId: string) {
 }
 
 /*
-  버튼을 오른쪽 끝으로 밀면 실행 선택과 버튼 사이에 빈 공간이 크게 남는다.
-  왼쪽으로 붙여 두고, 폭이 모자라면 버튼 묶음이 아래 줄로 내려가게 한다.
+  Pushing the buttons to the far right leaves a large gap between the run picker and the
+  buttons. Keep them to the left, and when width runs short let the button group drop to the next line.
 */
 .run-viewer__header-row {
   display: flex;
@@ -1075,7 +1094,7 @@ async function onRunChange(runId: string) {
 .run-viewer__label {
   font-size: 0.75rem;
   color: #6b6e78;
-  white-space: nowrap; /* "Run history"가 두 줄로 접히지 않게 */
+  white-space: nowrap; /* keep "Run history" from wrapping to two lines */
 }
 
 .run-viewer__actions {
@@ -1092,13 +1111,13 @@ async function onRunChange(runId: string) {
   gap: 0.5rem;
 }
 
-/* 드롭다운이 폭을 다 먹으면 좁은 화면에서 버튼이 아래로 밀린다 */
+/* If the dropdown eats all the width, the buttons drop below on a narrow screen */
 .run-viewer__dropdown {
   flex: 0 1 18rem;
   min-width: 14rem;
 }
 
-/* 선택된 실행 라벨은 한 줄로. 넘치면 줄바꿈이 아니라 말줄임으로 처리한다 */
+/* Keep the selected run label on one line. If it overflows, ellipsize rather than wrap */
 .run-viewer__dropdown :deep(.p-select-dropdown) {
   white-space: nowrap;
 }
@@ -1137,16 +1156,18 @@ async function onRunChange(runId: string) {
 }
 
 /*
-  폭이 모자라면 상세 패널이 그래프 아래로 내려간다. 좌측 메뉴가 펼쳐져 있거나
-  병렬 갈래가 늘어 그래프가 넓어져도 그래프가 짓눌리지 않게 하기 위함이다.
-  뷰포트가 아니라 실제 남은 폭에 반응하도록 미디어 쿼리 대신 wrap을 쓴다.
+  When width runs short, the detail panel drops below the graph. This keeps the graph from
+  being squashed even when the left menu is expanded or parallel branches grow and widen the
+  graph. To react to the actual remaining width rather than the viewport, we use wrap instead
+  of a media query.
 */
 .run-viewer__graph {
   /*
-    flex-basis는 병렬 갈래 수에 따라 스크립트에서 정한다. 여기서 grow까지 켜 두면
-    그 계산이 무의미해진다 — 태스크가 하나뿐인 직렬 워크플로우에서도 그래프가 남는
-    폭을 상세 패널과 반씩 나눠 먹어, 2560px 화면에서 노드 한 개를 그리는 데 1094px을
-    썼다. 그래프는 제 폭만 쓰고, 남는 가로 공간은 상세 패널로 보낸다.
+    flex-basis is decided by the script based on the number of parallel branches. Turning
+    grow on here would make that calculation meaningless — even a serial workflow with a
+    single task would split the leftover width evenly with the detail panel, using 1094px to
+    draw a single node on a 2560px screen. The graph uses only its own width and sends the
+    leftover horizontal space to the detail panel.
   */
   flex-grow: 0;
   flex-shrink: 1;
@@ -1203,7 +1224,7 @@ async function onRunChange(runId: string) {
 
 .run-viewer__dl {
   display: grid;
-  /* 고정 4.5rem에서는 "Component"가 안 들어가 't'가 다음 줄로 넘어갔다 */
+  /* At a fixed 4.5rem, "Component" didn't fit and the 't' spilled onto the next line */
   grid-template-columns: max-content 1fr;
   column-gap: 0.75rem;
   row-gap: 0.375rem;
@@ -1220,7 +1241,7 @@ async function onRunChange(runId: string) {
   color: #6b6e78;
 }
 
-/* 되돌릴 수 없는 것을 알리는 줄 — 나머지 설명과 같은 회색이면 그냥 지나친다 */
+/* The line that warns of something irreversible — in the same gray as the rest, it gets skipped over */
 .run-viewer__hint--caution {
   padding: 0.5rem 0.75rem;
   border-radius: 0.25rem;
@@ -1331,7 +1352,7 @@ async function onRunChange(runId: string) {
   z-index: 1000;
 }
 
-/* 재실행 확인 중에는 그래프의 미리보기가 보여야 하므로 모달을 아래쪽에 둔다 */
+/* During re-run confirmation the graph preview must stay visible, so place the modal toward the bottom */
 .run-viewer__modal--rerun {
   align-items: flex-end;
   padding-bottom: 2rem;
@@ -1384,8 +1405,8 @@ async function onRunChange(runId: string) {
 </style>
 
 <!--
-  툴팁은 이 컴포넌트 바깥(body)에 그려지므로 scoped 스타일이 닿지 않는다.
-  기본값은 한 줄로만 나와 설명이 길면 잘린다 — 줄바꿈을 허용하고 폭을 준다.
+  The tooltip is rendered outside this component (on body), so scoped styles don't reach it.
+  By default it comes out on one line and long text gets clipped — allow wrapping and give it width.
 -->
 <style scoped lang="postcss">
 .run-viewer__meta {
@@ -1410,7 +1431,7 @@ async function onRunChange(runId: string) {
   color: #374151;
 }
 
-/* 진행 상태 줄 — 그래프 박스 위 */
+/* Progress row — above the graph box */
 .run-viewer__progress {
   display: flex;
   align-items: center;
@@ -1453,7 +1474,7 @@ async function onRunChange(runId: string) {
   transition: width 0.4s ease;
 }
 
-/* 끝난 실행은 결과 색으로 — 도는 중에는 결과를 단정하지 않는다 */
+/* A finished run takes the result color — while running, don't presume the result */
 .run-viewer__progress[data-state='success'] .run-viewer__progress-fill {
   background: #16a34a;
 }
@@ -1482,7 +1503,7 @@ async function onRunChange(runId: string) {
   max-width: 22rem;
 }
 
-/* 설명이 한 줄로만 나와 잘리던 자리 — 줄바꿈을 허용해 전문이 보이게 한다 */
+/* Where the description came out on one line and got clipped — allow wrapping so the full text shows */
 .run-viewer-tooltip .tooltip-inner {
   max-width: 22rem;
   white-space: normal;

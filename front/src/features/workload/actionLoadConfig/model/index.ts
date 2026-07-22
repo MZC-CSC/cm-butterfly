@@ -5,8 +5,8 @@ import {
   validateNumberFunc,
 } from '@/features/workload/actionLoadConfig/model/validate';
 
-// Re-run 시 마지막 실행 파라미터로 Load Config 폼을 pre-fill 하기 위한 초기값.
-// 값이 있으면 모달을 열 때 폼에 채워 "현재 설정 기준 새 실행"을 만든다.
+// Initial values used to pre-fill the Load Config form with the last run's parameters on re-run.
+// When present, they populate the form when the modal opens, creating a "new run based on the current settings".
 export interface ILoadConfigInitialValues {
   scenarioName?: string;
   virtualUsers?: string;

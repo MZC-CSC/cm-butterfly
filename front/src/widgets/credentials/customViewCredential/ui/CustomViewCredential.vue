@@ -54,7 +54,7 @@ watch(
   () => props.data,
   () => {
     targetModel.value = configStore.getConfigByName(props.data);
-    // 옛 스타일 단언(<string>expr)은 SFC 파서가 JSX 태그로 읽어 깨진다.
+    // Old-style assertions (<string>expr) break because the SFC parser reads them as JSX tags.
     serverCode.value =
       (targetModel.value?.onpremiseInfraModel?.nodes as string) || '';
   },
@@ -112,10 +112,11 @@ const handleConfirm = async () => {
       emit('update:isModalOpened', false);
     }
   } catch (error) {
-    // 이 경로는 크리덴셜 등록이다. 소스 그룹 이름 중복 오류를 잡던 분기가
-    // 복사돼 있었으나 여기서는 발생할 수 없었고, 조건문 뒤 안내가 무조건
-    // 실행돼 안내가 두 번 떴다. 값을 꺼내는 부분에도 방어가 없어 다른 종류의
-    // 오류가 오면 예외 처리 안에서 다시 터졌다.
+    // This path is credential registration. A branch that caught duplicate source
+    // group name errors had been copied here, but it could never occur here, and the
+    // notice after the conditional ran unconditionally, so the notice showed twice.
+    // The value extraction had no guard either, so if a different kind of error came
+    // in, it blew up again inside the error handling.
     showErrorMessage(
       'failed',
       toErrorMessage(error, 'Credential Registering Failed'),

@@ -1,9 +1,9 @@
-# Node 버전은 front/.nvmrc 가 단일 출처다. 아래 기본값은 .nvmrc 와 **같아야 하며**,
-# 다르면 이미지 빌드가 차단된다(cm-butterfly 의 Front E2E Gate, onecloud-ci 의 빌드 전 검사).
-# .nvmrc 를 올리면 이 기본값도 함께 올린다.
+# front/.nvmrc is the single source of truth for the Node version. The default below
+# **must match** .nvmrc; if it differs, the image build is blocked (cm-butterfly's Front
+# E2E Gate and onecloud-ci's pre-build check). When you bump .nvmrc, bump this default too.
 #
-# 기본값을 두는 이유: 업스트림(cloud-barista) CD 와 일반 `docker build` 는 build-arg 를
-# 넘기지 않으므로, 기본값이 없으면 그쪽 빌드가 깨진다.
+# Why keep a default: upstream (cloud-barista) CD and a plain `docker build` do not pass
+# a build-arg, so without a default those builds break.
 ARG NODE_VERSION=20
 FROM node:${NODE_VERSION}-alpine AS build
 
@@ -11,9 +11,10 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 
-# lock 이 고정한 트리를 그대로 설치한다. npm install 은 lock 을 재해석·갱신할 수 있어
-# 이미지가 개발·CI 와 다른 패키지로 빌드될 수 있다 — lock 을 복사해 놓고 무시하는 셈이 된다.
-# devDependencies 도 함께 깔린다(아래 npm run build 의 vite 가 devDependency 다).
+# Install exactly the tree that lock pins. npm install can reinterpret and update the lock,
+# so the image could be built with packages that differ from dev and CI — that amounts to
+# copying the lock and then ignoring it. devDependencies are installed too (vite, used by
+# npm run build below, is a devDependency).
 RUN npm ci
 
 COPY . .
@@ -38,12 +39,12 @@ RUN rm /etc/nginx/conf.d/default.conf
 
 RUN chmod +x /app/entrypoint.sh
 
-# root 로 돌지 않는다. 포트는 그대로 80 을 듣는다 — 도커가 컨테이너 안에서
-# net.ipv4.ip_unprivileged_port_start=0 을 기본으로 두므로 비특권 사용자도 80 을 바인드할 수 있고,
-# 그래서 compose 의 포트 매핑이나 실행 방법은 바뀌지 않는다.
+# Do not run as root. It still listens on port 80 — Docker defaults
+# net.ipv4.ip_unprivileged_port_start=0 inside the container, so an unprivileged user can
+# bind 80, and thus compose's port mapping and the way it runs do not change.
 #
-# 필요한 것은 nginx 가 쓰는 경로의 소유권뿐이다. pid 는 /var/run 이 /run 심링크라
-# 소유권 변경이 먹지 않으므로 쓰기 가능한 /tmp 로 옮긴다.
+# All that's needed is ownership of the paths nginx uses. For the pid, /var/run is a symlink
+# to /run so changing ownership doesn't stick, so move it to the writable /tmp.
 RUN mkdir -p /var/cache/nginx \
  && chown -R nginx:nginx /var/cache/nginx /etc/nginx/conf.d /usr/share/nginx/html /app \
  && sed -i 's|^pid .*|pid /tmp/nginx.pid;|' /etc/nginx/nginx.conf \

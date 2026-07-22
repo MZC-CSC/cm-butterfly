@@ -4,14 +4,14 @@ import { execFileSync } from 'node:child_process';
 import type { Page } from '@playwright/test';
 
 /**
- * 강제 삭제(force) 후처리 — 고아 CSP 리소스 기록.
+ * Post-processing after a force delete — recording orphaned CSP resources.
  *
- * 강제 삭제는 Tumblebug 의 *내부 기록만* 지우고 CSP 자원(EC2 인스턴스·보안그룹·키페어)은 그대로 남긴다.
- * 기록이 지워지고 나면 무엇이 남았는지 알 방법이 사라지므로 **삭제 직전에 스냅샷**을 떠 두고, 삭제 후
- * "수작업 삭제 필요" 목록으로 결과서에 싣는다. 남은 인스턴스는 계속 과금되므로 이 기록이 없으면
- * 조용히 비용이 샌다.
+ * A force delete removes *only Tumblebug's internal records* and leaves the CSP resources (EC2 instances,
+ * security groups, key pairs) in place. Once the records are gone there is no way to tell what remains, so we
+ * take a **snapshot right before the delete** and, after the delete, include a "manual deletion required" list
+ * in the result report. The leftover instances keep incurring charges, so without this record the cost leaks silently.
  *
- * 조회는 *앱의 인증된 세션*으로 프록시 API 를 그대로 부른다(연계 프레임워크에 직접 접근하지 않는다).
+ * The lookup calls the proxy API through the *app's authenticated session* (it does not access the linked frameworks directly).
  */
 
 const OUT_DIR =
@@ -37,7 +37,7 @@ function snapshotPath(infraId: string): string {
   return path.join(OUT_DIR, `${infraId}.snapshot.json`);
 }
 
-/** 삭제 직전 호출 — 인프라가 쓰는 CSP 자원 ID 를 파일로 남긴다. */
+/** Called right before deletion — writes the CSP resource IDs used by the infra to a file. */
 export async function snapshotCspResources(
   page: Page,
   nsId: string,
@@ -52,7 +52,7 @@ export async function snapshotCspResources(
 
   const nodes = ((m.node ?? m.vm ?? []) as any[]).map(n => ({
     nodeId: n.id,
-    cspInstanceId: n.cspResourceId ?? null, // 실제 EC2 인스턴스 ID — 과금 대상
+    cspInstanceId: n.cspResourceId ?? null, // the actual EC2 instance ID — the billable resource
     specId: n.specId ?? null,
     sshKeyId: n.sshKeyId ?? null,
     vNetId: n.vNetId ?? null,
@@ -73,8 +73,8 @@ export async function snapshotCspResources(
 }
 
 /**
- * 강제 삭제 후 호출 — 스냅샷에 있던 인스턴스가 CSP 에 아직 살아 있는지 확인해 markdown 리포트를 만든다.
- * AWS CLI 를 쓸 수 없는 환경이면 생존 확인은 건너뛰고 스냅샷 내용만 "확인 필요"로 싣는다.
+ * Called after a force delete — checks whether the instances from the snapshot are still alive on the CSP and builds a markdown report.
+ * In an environment where the AWS CLI is unavailable, the liveness check is skipped and the snapshot contents are reported as "needs verification".
  */
 export function orphanReport(infraId: string, reason: string): string {
   const p = snapshotPath(infraId);
@@ -107,7 +107,7 @@ export function orphanReport(infraId: string, reason: string): string {
         i => !['terminated', 'shutting-down'].includes(i.State),
       );
     } catch {
-      alive = null; // AWS 조회 불가 — 아래에서 "확인 필요"로 싣는다.
+      alive = null; // AWS lookup unavailable — reported as "needs verification" below.
     }
   }
 

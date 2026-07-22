@@ -14,11 +14,10 @@ const { setConnectionId, defineTableModel, initTable } =
 
 /**
  * Truncate text with ellipsis
- * 텍스트를 지정된 길이로 자르고 ... 을 추가합니다.
- * 
- * @param {string} text - Text to truncate / 자를 텍스트
- * @param {number} maxLength - Maximum length (default: 10) / 최대 길이 (기본값: 10)
- * @returns {string} Truncated text / 잘린 텍스트
+ *
+ * @param {string} text - Text to truncate
+ * @param {number} maxLength - Maximum length (default: 10)
+ * @returns {string} Truncated text
  */
 const truncateText = (text: string, maxLength: number = 10): string => {
   if (!text) return '-';
@@ -28,7 +27,6 @@ const truncateText = (text: string, maxLength: number = 10): string => {
 
 /**
  * Copy text to clipboard
- * 텍스트를 클립보드에 복사합니다.
  */
 const copyToClipboard = async (text: string) => {
   try {

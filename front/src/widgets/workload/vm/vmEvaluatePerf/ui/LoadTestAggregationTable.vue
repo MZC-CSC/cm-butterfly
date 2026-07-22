@@ -97,7 +97,7 @@ watch(
         }
       })
       .catch(() => {
-        // 부하측정 결과가 아직 없으면 조회가 실패할 수 있다. 에러 토스트 대신 빈 상태로 둔다.
+        // The query can fail when there are no load test results yet. Leave it empty instead of showing an error toast.
         detailTableModel.tableState.data = [];
       })
       .finally(() => {

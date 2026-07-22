@@ -1,4 +1,4 @@
-//기본라우터는 dashboard이고 하위폴더에 속한 폴더 경로를 여기서 정의
+//the default router is the dashboard; folder paths belonging to subfolders are defined here
 import { RouteConfig } from 'vue-router';
 import LoginPage from '@/pages/auth/login/ui/LoginPage.vue';
 import SignupPage from '@/pages/auth/signup/SignupPage.vue';

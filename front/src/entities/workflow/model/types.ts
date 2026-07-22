@@ -113,7 +113,7 @@ export interface ITaskInstance {
   software_migration_execution_id?: string;
 }
 
-/** 재실행 대상으로 잡힌 태스크 (dryRun 응답) */
+/** Task marked for re-run (dryRun response) */
 export interface ITaskInstanceReference {
   task_id: string;
   task_name: string;
@@ -142,7 +142,7 @@ export interface ITargetMapping {
   source_connection_info_id: string;
   target: {
     namespace_id: string;
-    // cb-tumblebug 의 MCI→Infra 명명 변경이 cm-grasshopper 응답에도 반영됐다.
+    // cb-tumblebug's MCI→Infra rename is reflected in cm-grasshopper responses as well.
     infra_id: string;
     node_id: string;
   };

@@ -53,7 +53,7 @@ export default defineComponent({
     TaskComponentEditor
   },
   setup() {
-    // 데모용 Step 데이터
+    // Demo Step data
     const step = ref<Step>({
       id: 'demo-task-1',
       name: 'Demo Task',
@@ -94,12 +94,12 @@ export default defineComponent({
       }
     });
 
-    // 저장된 데이터
+    // Saved data
     const savedComponentName = ref('');
     const savedContext = ref({});
     const savedFixedModel = ref({});
 
-    // 이벤트 핸들러들
+    // Event handlers
     const handleSaveComponentName = (name: string) => {
       savedComponentName.value = name;
       console.log('Component name saved:', name);

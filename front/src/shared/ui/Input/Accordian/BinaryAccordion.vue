@@ -88,7 +88,7 @@ export default {
       }
     };
 
-    // Binary 필드의 제목을 안전하게 가져오는 함수
+    // function to safely get a Binary field's title
     const getFieldTitle = (field: any): string => {
       try {
         if (!field || !field.context) return 'Field';
@@ -99,7 +99,7 @@ export default {
       }
     };
 
-    // Binary 필드에 모델이 있는지 확인하는 함수
+    // function to check whether a Binary field has a model
     const hasFieldModel = (field: any): boolean => {
       try {
         return !!(field && field.context && field.context.model);
@@ -109,7 +109,7 @@ export default {
       }
     };
 
-    // Binary 필드의 모델을 안전하게 가져오는 함수
+    // function to safely get a Binary field's model
     const getFieldModel = (field: any) => {
       try {
         if (hasFieldModel(field)) {
@@ -188,7 +188,7 @@ export default {
             :binaryIndex="index"
             :deleteBinarySubItem="(subItemIndex) => handleDeleteBinarySubItem(index, subItemIndex)"
           >
-            <!-- Binary의 기본 필드들을 표시 -->
+            <!-- display the Binary's basic fields -->
             <div
               v-for="(field, fieldIndex) of item.content" 
               :key="fieldIndex"
@@ -212,7 +212,7 @@ export default {
               </div>
             </div>
 
-            <!-- Binary의 하위 배열들을 표시 -->
+            <!-- display the Binary's sub-arrays -->
             <div
               v-for="(subItem, subIndex) of item.subItems" 
               :key="subIndex"

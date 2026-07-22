@@ -1,6 +1,6 @@
 <template>
   <div class="json-data-tree">
-    <!-- 검색 입력 -->
+    <!-- Search input -->
     <div v-if="showSearch" class="search-container mb-4">
       <input
         v-model="searchTerm"
@@ -11,7 +11,7 @@
       />
     </div>
 
-    <!-- Tree 구조 -->
+    <!-- Tree structure -->
     <div class="tree-container">
       <div
         v-for="node in flattenedNodes"
@@ -21,7 +21,7 @@
         v-show="isNodeVisible(node)"
       >
         <div class="node-content" @click="toggleNode(node)">
-          <!-- 확장/축소 아이콘 -->
+          <!-- Expand/collapse icon -->
           <span
             v-if="node.children && node.children.length > 0"
             class="expand-icon"
@@ -31,17 +31,17 @@
           </span>
           <span v-else class="expand-icon-placeholder"></span>
 
-          <!-- 노드 타입 아이콘 -->
+          <!-- Node type icon -->
           <span class="node-type-icon" :class="getNodeTypeClass(node.type)">
             {{ getNodeTypeIcon(node.type) }}
           </span>
 
-          <!-- 노드 라벨 -->
+          <!-- Node label -->
           <span class="node-label" :class="getNodeLabelClass(node)">
             {{ node.label }}
           </span>
 
-          <!-- 노드 값 (primitive 타입인 경우) -->
+          <!-- Node value (for primitive types) -->
           <span v-if="node.type === 'primitive' && showValues" class="node-value">
             {{ formatValue(node.value) }}
           </span>
@@ -89,16 +89,16 @@ export default defineComponent({
     const searchTerm = ref(props.searchTerm);
     const treeNodes = ref<TreeNode[]>([]);
 
-    // JSON 데이터를 Tree로 변환
+    // Convert JSON data into a tree
     const initializeTree = () => {
       if (Array.isArray(props.jsonData) && props.jsonData.length > 0 && 'id' in props.jsonData[0]) {
-        // 이미 TreeNode 배열인 경우
+        // Already a TreeNode array
         treeNodes.value = props.jsonData as TreeNode[];
       } else {
-        // JSON 데이터를 Tree로 변환
+        // Convert JSON data into a tree
         const data = typeof props.jsonData === 'string' ? JSON.parse(props.jsonData) : props.jsonData;
         treeNodes.value = jsonToTree(data, {
-          maxDepth: props.maxDepth + 1, // JsonDataTree의 currentDepth와 맞추기 위해 +1
+          maxDepth: props.maxDepth + 1, // +1 to align with JsonDataTree's currentDepth
           showArrayIndices: true,
           showPrimitiveValues: props.showValues,
           rootLabel: 'Root'
@@ -106,7 +106,7 @@ export default defineComponent({
       }
     };
 
-    // 모든 노드를 평면화
+    // Flatten all nodes
     const flattenedNodes = computed(() => {
       if (searchTerm.value.trim()) {
         const filteredNodes = filterTreeNodes(treeNodes.value, searchTerm.value);
@@ -115,12 +115,12 @@ export default defineComponent({
       return flattenTreeNodes(treeNodes.value);
     });
 
-    // 노드가 표시되어야 하는지 확인 (부모가 확장되어 있는지)
+    // Determine whether a node should be shown (i.e. whether its parents are expanded)
     const isNodeVisible = (node: TreeNode): boolean => {
-      // 루트 노드는 항상 표시
+      // The root node is always shown
       if (node.level === 0) return true;
-      
-      // 부모 노드들을 찾아서 모두 확장되어 있는지 확인
+
+      // Walk up the parent nodes and check that all of them are expanded
       const pathParts = node.path.split('.');
       let currentPath = '';
       
@@ -135,7 +135,7 @@ export default defineComponent({
       return true;
     };
 
-    // 경로로 노드 찾기
+    // Find a node by its path
     const findNodeByPath = (nodes: TreeNode[], path: string): TreeNode | null => {
       for (const node of nodes) {
         if (node.path === path) return node;
@@ -147,27 +147,27 @@ export default defineComponent({
       return null;
     };
 
-    // 노드 토글
+    // Toggle a node
     const toggleNode = (node: TreeNode) => {
       treeNodes.value = toggleTreeNode(treeNodes.value, node.id);
     };
 
-    // 검색 처리
+    // Handle search
     const handleSearch = () => {
-      // 검색은 computed에서 자동으로 처리됨
+      // Search is handled automatically in the computed
     };
 
-    // 노드 클릭 처리
+    // Handle node click
     const handleNodeClick = (node: TreeNode) => {
       emit('node-click', node);
     };
 
-    // 노드 타입별 CSS 클래스
+    // CSS class per node type
     const getNodeTypeClass = (type: string) => {
       return `node-type-${type}`;
     };
 
-    // 노드 타입별 아이콘
+    // Icon per node type
     const getNodeTypeIcon = (type: string) => {
       switch (type) {
         case 'object': return '📁';
@@ -177,7 +177,7 @@ export default defineComponent({
       }
     };
 
-    // 노드 라벨 CSS 클래스
+    // Node label CSS class
     const getNodeLabelClass = (node: TreeNode) => {
       return {
         'node-label-object': node.type === 'object',
@@ -186,7 +186,7 @@ export default defineComponent({
       };
     };
 
-    // 값 포맷팅
+    // Format a value
     const formatValue = (value: any) => {
       if (value === null) return 'null';
       if (value === undefined) return 'undefined';
@@ -196,16 +196,16 @@ export default defineComponent({
       return JSON.stringify(value);
     };
 
-    // 검색어 하이라이트 확인
+    // Check whether the search term should be highlighted
     const isHighlighted = (label: string): boolean => {
       if (!searchTerm.value.trim()) return false;
       return label.toLowerCase().includes(searchTerm.value.toLowerCase());
     };
 
-    // 초기화
+    // Initialize
     initializeTree();
 
-    // props 변경 감지
+    // Watch for prop changes
     watch(() => props.jsonData, initializeTree, { deep: true });
 
     return {
@@ -247,7 +247,7 @@ export default defineComponent({
   scrollbar-color: #cbd5e1 #f1f5f9;
 }
 
-/* Webkit 브라우저용 스크롤바 스타일 */
+/* Scrollbar style for Webkit browsers */
 .tree-container::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -330,18 +330,18 @@ export default defineComponent({
   @apply ml-4;
 }
 
-/* 호버 효과 */
+/* Hover effect */
 .node-content:hover {
   background-color: #eff6ff;
 }
 
-/* 선택된 노드 */
+/* Selected node */
 .node-content.selected {
   @apply border-l-4 border-blue-500;
   background-color: #dbeafe;
 }
 
-/* 검색 하이라이트 */
+/* Search highlight */
 .node-label.highlighted {
   background-color: #fef08a;
 }

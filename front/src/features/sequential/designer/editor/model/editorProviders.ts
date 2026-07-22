@@ -21,17 +21,18 @@ const TASK_TYPE_EDITOR: Record<string, any> = {
 };
 
 /**
- * 값 입력칸을 잠근다 — 보여주기만 하는 모드에서 쓴다.
+ * Lock the value inputs — used in view-only mode.
  *
- * `<fieldset disabled>` 는 그 안의 input·select·textarea·button 을 **브라우저가**
- * 비활성화하는 표준 동작이다. 컴포넌트마다 readonly prop 을 뚫는 것보다 짧고
- * 빠뜨릴 자리가 없다.
+ * `<fieldset disabled>` is the standard behavior where the **browser** disables
+ * the input, select, textarea and button elements inside it. It's shorter than
+ * threading a readonly prop through every component, and leaves nothing to miss.
  *
- * `pointer-events: none` 같은 CSS 로 가리지 않는다 — 키보드 조작에 뚫리고, 무엇보다
- * *에러 없이 조용히* 통과해 잠긴 줄 알았던 값이 저장된다.
+ * We don't block it with CSS like `pointer-events: none` — that can be bypassed
+ * by keyboard, and worse, it passes *silently without error*, so a value you
+ * thought was locked still gets saved.
  *
- * 다만 native 요소가 아닌 컴포넌트에는 듣지 않으므로, 이 모드는 화면에서 실제로
- * 잠기는지 확인한 뒤 믿는다.
+ * It doesn't apply to non-native components, though, so trust this mode only
+ * after confirming on screen that things are actually locked.
  */
 function lockInputs(content: HTMLElement): HTMLElement {
   const locked = document.createElement('fieldset');
@@ -52,8 +53,8 @@ export function editorProviders() {
 
   return {
     defaultRootEditorProvider: function (definition, rootContext, isReadonly) {
-      // 취향 설정. 워크플로우가 아니라 *보는 사람*에 딸린 값이라 워크플로우와 함께
-      // 저장하지 않고 브라우저에 남긴다.
+      // Preference setting. This value belongs to the *viewer*, not the
+      // workflow, so it's kept in the browser rather than saved with the workflow.
       const settings = document.createElement('label');
       settings.className = 'sqd-designer-setting';
       const checkbox = document.createElement('input');
@@ -83,7 +84,7 @@ export function editorProviders() {
       definition,
       isReadonly,
     ) {
-      //각각에 만들어야할 Vue component 정의
+      // Define the Vue component to build for each case
       if (step.componentType === 'switch' && step.type == 'if') {
         const ifEditor = document.createElement('div');
         ifEditor.className = 'sqd-editor-wrapper';
@@ -125,7 +126,7 @@ export function editorProviders() {
         );
       }
       if (step.componentType === 'task') {
-        // cm-cicada task type에 따라 전용 에디터 선택 (없으면 범용 TaskComponentEditor)
+        // Pick a dedicated editor per cm-cicada task type (fall back to the generic TaskComponentEditor)
         const taskType = step.properties?.taskType;
         const TaskEditorComponent: any =
           (taskType && TASK_TYPE_EDITOR[taskType]) || TaskComponentEditor;
@@ -139,7 +140,7 @@ export function editorProviders() {
         );
         console.log('=============================');
 
-        //toolboxModel에서 가공하는곳 참고
+        // See where toolboxModel does the processing
         insertDynamicComponent(
           TaskEditorComponent,
           { step },

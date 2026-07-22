@@ -22,31 +22,35 @@ interface IExtendRecommendModelResponse extends IRecommendModelResponse {
   estimateResponse?: IEsimateCostSpecResponse;
 }
 
-// 값 검증(value validation): 스펙·이미지 필드에 "실제 입력값이 아닌 이상값"이
-// 들어갔는지 판정한다. 입력 안내용 placeholder를 잡는 것이 아니라, cm-beetle이
-// 값을 채우지 못해 남긴 잘못된 값/타입(`string`·`npt`·`undefined` 등)이나 빈 값을
-// 탐지하는 것이 목적이다. 이런 후보를 타깃 모델로 저장하면 저장 자체는 되지만
-// 이후 인프라(MCI) 생성 시 beetle이 이미지를 못 풀어 실패한다.
+// Value validation: decides whether a spec/image field holds "an abnormal value
+// that is not a real input value". The goal is not to catch input-guidance
+// placeholders, but to detect bad values/types that cm-beetle left because it
+// could not fill them in (`string`, `npt`, `undefined`, etc.) or empty values.
+// Saving such a candidate as a target model does succeed, but later, when the
+// infrastructure (MCI) is created, beetle fails to resolve the image and errors out.
 //
-// 이상값으로 보는 집합(잠정): '' / 공백 / null / undefined(값) / 문자열 'string' /
-// 'npt' / 'undefined' / (앞단에서 빈 값을 치환한) 'empty'.
-// 주의: 'default'는 이상값이 아니다 — cb-spider에서 `string`은 에러지만 `default`는
-// "기본값으로 동작"하도록 구현된 정당한 허용값이므로 완전한 값으로 간주한다.
+// Set treated as abnormal (provisional): '' / whitespace / null / undefined (value) /
+// the string 'string' / 'npt' / 'undefined' / 'empty' (an earlier stage substitutes
+// this for empty values).
+// Note: 'default' is not abnormal — in cb-spider `string` is an error, but `default`
+// is a legitimately allowed value implemented to "behave as the default", so it counts
+// as a complete value.
 //
-// TODO(cb-spider): 어떤 값이 컬럼별로 "정당한 default"이고 어떤 게 "에러"인지는
-// 컬럼마다 다를 수 있다. 정확한 집합은 cb-spider 소스 조사로 확정해야 하며,
-// 아래 INVALID_FIELD_VALUES 는 현재 알려진 범위만 담은 잠정(provisional) 정의다.
+// TODO(cb-spider): which values are a "legitimate default" versus an "error" can differ
+// per column. The exact set must be confirmed by inspecting the cb-spider source, and
+// INVALID_FIELD_VALUES below is a provisional definition covering only what is currently known.
 const INVALID_FIELD_VALUES = new Set(['', 'string', 'npt', 'undefined', 'empty']);
 
 function isInvalidFieldValue(value?: string | null): boolean {
   if (value === undefined || value === null) return true;
   const normalized = String(value).trim().toLowerCase();
-  // 'default' 등 정당한 허용값은 여기서 걸리지 않는다(집합에 미포함).
+  // Legitimately allowed values such as 'default' are not caught here (not in the set).
   return INVALID_FIELD_VALUES.has(normalized);
 }
 
-// 후보(추천 인프라)의 nodeGroups 중 하나라도 스펙(specId) 또는 이미지(imageId)에
-// 이상값이 들어 있으면 true. 저장을 막지는 않고 화면 경고(`!`)·마커·툴팁에만 쓴다.
+// True if any of the candidate's (recommended infra) nodeGroups holds an abnormal value
+// in its spec (specId) or image (imageId). It does not block saving; it is only used for
+// the on-screen warning (`!`), markers, and tooltips.
 function hasMissingRequiredFields(
   model?: IExtendRecommendModelResponse | null,
 ): boolean {
@@ -58,8 +62,9 @@ function hasMissingRequiredFields(
   );
 }
 
-// 이상값이 든 필수 컬럼의 화면 라벨(Spec/Image)을 돌려준다 — 툴팁 문구에 실제
-// 빈 컬럼명을 넣기 위함. hasMissingRequiredFields 와 동일한 isInvalidFieldValue 기준 공유.
+// Returns the on-screen labels (Spec/Image) of the required columns holding an abnormal
+// value — so the tooltip text can name the actual empty column. Shares the same
+// isInvalidFieldValue criterion as hasMissingRequiredFields.
 function getMissingRequiredFieldLabels(
   model?: IExtendRecommendModelResponse | null,
 ): string[] {
@@ -136,7 +141,7 @@ export function useRecommendedInfraModel() {
   function organizeRecommendedModelTableItem(
     recommendedModel: IExtendRecommendModelResponse,
   ) {
-    // 입력 데이터 유효성 검사
+    // Validate the input data
     if (!recommendedModel || !recommendedModel.targetInfra || !recommendedModel.targetInfra.nodeGroups) {
       console.warn('Invalid recommendedModel data:', recommendedModel);
       return {
@@ -268,15 +273,15 @@ export function useRecommendedInfraModel() {
       spec:
         recommendedModel.targetInfra.nodeGroups
           ?.reduce((acc, cur) => {
-            // specId가 "empty"인 경우도 포함
+            // Also covers the case where specId is "empty"
             if (!cur.specId || cur.specId.trim() === '') {
               return acc;
             }
-            // specId가 "empty"면 그대로 사용
+            // If specId is "empty", use it as-is
             if (cur.specId === 'empty') {
               return `${acc}empty / `;
             }
-            // specId에 +가 있으면 마지막 부분을, 없으면 전체를 사용
+            // If specId contains a '+', use the last part; otherwise use the whole value
             const specValue = cur.specId.includes('+') ? cur.specId.split('+').at(-1) : cur.specId;
             return `${acc}${specValue} / `;
           }, '')
@@ -287,15 +292,15 @@ export function useRecommendedInfraModel() {
       image:
         recommendedModel.targetInfra.nodeGroups
           ?.reduce((acc, cur) => {
-            // imageId가 "empty"인 경우도 포함
+            // Also covers the case where imageId is "empty"
             if (!cur.imageId || cur.imageId.trim() === '') {
               return acc;
             }
-            // imageId가 "empty"면 그대로 사용
+            // If imageId is "empty", use it as-is
             if (cur.imageId === 'empty') {
               return `${acc}empty / `;
             }
-            // imageId에 +가 있으면 마지막 부분을, 없으면 전체를 사용
+            // If imageId contains a '+', use the last part; otherwise use the whole value
             const imageValue = cur.imageId.includes('+') ? cur.imageId.split('+').at(-1) : cur.imageId;
             return `${acc}${imageValue} / `;
           }, '')

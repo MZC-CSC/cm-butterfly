@@ -2,16 +2,16 @@ import { defineConfig, devices } from '@playwright/test';
 import { config } from './fixtures/test-data';
 
 /**
- * 실행 상태 뷰어 전용 설정.
+ * Config dedicated to the run-status viewer.
  *
- * 기본 설정은 한국어 .feature → 스텝 생성(BDD) 경로라, 직접 쓴 spec은 잡히지 않는다.
- * 배포된 화면을 그대로 확인하기 위한 용도이므로 testDir만 specs/로 돌린다.
+ * The default config follows the Korean .feature -> step-generation (BDD) path, so hand-written specs are not picked up.
+ * This is meant to check the deployed screen directly, so it points testDir at specs/ only.
  */
 export default defineConfig({
   testDir: './specs',
   /*
-    같은 계정으로 동시에 로그인하면 서버가 앞 세션을 무효화한다(사용자당 세션 1개).
-    병렬로 돌리면 워커들이 서로의 세션을 밀어내 로그인 화면으로 튕긴다.
+    Logging in concurrently with the same account makes the server invalidate the earlier session (one session per user).
+    Running in parallel would have the workers push each other's sessions out and bounce back to the login screen.
   */
   workers: 1,
   fullyParallel: false,

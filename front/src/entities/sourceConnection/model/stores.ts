@@ -14,8 +14,9 @@ const NAMESPACE = 'SOURCECONNECTION';
 export const useSourceConnectionStore = defineStore(NAMESPACE, () => {
   //key : sourceConnection Id , value : sourceConnection Info
   const connections = ref<Record<string, ISourceConnection>>({});
-  // ref 여야 한다. 평범한 배열이면 이 값을 읽는 watchEffect 가 갱신에 반응하지
-  // 않아, 임포트 결과가 바뀌어도 화면이 이전 내용을 그대로 보여준다.
+  // Must be a ref. With a plain array, the watchEffect reading this value would
+  // not react to updates, so the view would keep showing the old content even
+  // after the import result changes.
   const editConnections = ref<any[]>([]);
   const withSourceConnection = ref(false);
 

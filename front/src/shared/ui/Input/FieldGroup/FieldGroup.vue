@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { PTextInput } from '@cloudforet-test/mirinae';
 
-// 컴포넌트 등록
+// Register components
 const components = {
   PTextInput
 };
@@ -26,7 +26,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: string];
 }>();
 
-// computed를 사용한 양방향 바인딩
+// Two-way binding using computed
 const inputValue = computed({
   get: () => props.modelValue,
   set: (value: string) => {
@@ -56,11 +56,11 @@ const handleBlur = () => {
       {{ title }}
     </div>
     <div class="field-content-box">
-      <!-- 디버깅: 전달받은 값 확인 -->
+      <!-- Debug: inspect the passed-in values -->
       <div style="font-size: 10px; color: red; margin-bottom: 4px;">
         DEBUG: modelValue = "{{ modelValue }}", size = {{ size }}, invalid = {{ invalid }}
       </div>
-      <!-- p-text-input 대신 일반 input 사용 -->
+      <!-- Use a plain input instead of p-text-input -->
       <input
         v-model="inputValue"
         :class="['text-input', { 'invalid': invalid }]"

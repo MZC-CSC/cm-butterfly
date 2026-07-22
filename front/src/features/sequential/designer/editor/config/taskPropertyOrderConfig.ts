@@ -1,19 +1,19 @@
 /**
  * Task Property Order Configuration
- * Task Editor의 body params 영역에서 property들의 표시 순서를 제어
+ * Controls the display order of properties in the Task Editor's body params area.
  */
 
 export interface PropertyOrderRule {
-  path: string;  // 적용할 경로 (예: 'body_params', 'body_params.servers[]')
-  order: string[];  // 순서대로 나열할 property 이름들
+  path: string;  // path to apply to (e.g. 'body_params', 'body_params.servers[]')
+  order: string[];  // property names listed in the order to show them
 }
 
 /**
- * Task별 Property 순서 설정
- * - step.type (task component type)을 key로 하여 각 task의 순서 규칙을 정의
- * - step.name이 아닌 step.type을 사용 (step.name은 사용자가 수정 가능하므로)
- * - path 기반으로 특정 경로의 property 순서를 제어
- * - 설정이 없는 task는 기본 순서 유지
+ * Per-task property order settings
+ * - Keyed by step.type (task component type) to define each task's ordering rule
+ * - Uses step.type, not step.name (step.name is user-editable)
+ * - Controls the property order of a specific path, based on the path
+ * - Tasks without a setting keep the default order
  */
 export const TASK_PROPERTY_ORDER_CONFIG: Record<string, PropertyOrderRule[]> = {
   // Beetle Infra Migration Task
@@ -72,11 +72,11 @@ export const TASK_PROPERTY_ORDER_CONFIG: Record<string, PropertyOrderRule[]> = {
 };
 
 /**
- * 현재 path에 해당하는 순서 규칙 찾기
- * 
+ * Find the ordering rule for the current path.
+ *
  * @param taskName - Task component type (step.type, not step.name)
- * @param currentPath - 현재 필드의 경로 (예: 'body_params.servers[]')
- * @returns 순서 배열 또는 null (설정이 없는 경우)
+ * @param currentPath - path of the current field (e.g. 'body_params.servers[]')
+ * @returns the order array, or null if there's no setting
  */
 export function getPropertyOrder(
   taskName: string,
@@ -90,22 +90,22 @@ export function getPropertyOrder(
 }
 
 /**
- * Property 키 배열을 순서에 맞게 정렬
- * - order에 있는 property들을 먼저 순서대로 배치
- * - 나머지 property들은 원래 순서대로 뒤에 배치
- * 
- * @param properties - 정렬할 property 키 배열
- * @param order - 우선 순서 배열
- * @returns 정렬된 property 키 배열
+ * Sort a property key array according to a given order.
+ * - Properties listed in `order` come first, in that order
+ * - The rest follow in their original order
+ *
+ * @param properties - property key array to sort
+ * @param order - preferred order array
+ * @returns the sorted property key array
  */
 export function sortPropertiesByOrder(
   properties: string[],
   order: string[]
 ): string[] {
-  // order에 있는 property들 중 실제로 존재하는 것만 먼저 배치
+  // Place first only those in `order` that actually exist
   const ordered = order.filter(key => properties.includes(key));
-  
-  // order에 없는 나머지 property들 (원래 순서 유지)
+
+  // The remaining properties not in `order` (keep original order)
   const remaining = properties.filter(key => !order.includes(key));
   
   return [...ordered, ...remaining];
