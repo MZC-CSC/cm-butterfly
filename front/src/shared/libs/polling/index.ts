@@ -1,4 +1,4 @@
-// One place that knows about every background poll (BAR-1576).
+// One place that knows about every background poll.
 //
 // The app polls in several places — job tracking, notifications, the session-activity watch, the
 // load-test status on the workload screen. When a session ends, all of them have to stop, or a

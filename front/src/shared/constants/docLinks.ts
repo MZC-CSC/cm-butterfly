@@ -6,7 +6,7 @@
  * change rather than a hunt through components.
  */
 const DOCS_BASE =
-  'https://github.com/MZC-CSC/cm-butterfly/blob/develop/docs/guide';
+  'https://github.com/cloud-barista/cm-butterfly/blob/main/docs/guide';
 
 export const DOC_LINKS = {
   sourceConnectionBulkImport: `${DOCS_BASE}/source-connection-bulk-import.md`,

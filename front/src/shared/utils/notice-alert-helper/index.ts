@@ -122,7 +122,7 @@ export const showInfoMessage = (infoTitle: string, infoText: string) => {
 };
 
 /**
- * A short toast for an arriving notification (BAR-1579).
+ * A short toast for an arriving notification.
  *
  * A notification is kept in the inbox regardless; this only *also* flashes it on screen for a
  * couple of seconds so someone on another screen sees it happen. Errors use the alert style;

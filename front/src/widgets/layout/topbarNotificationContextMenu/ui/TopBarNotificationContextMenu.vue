@@ -12,7 +12,7 @@ import {
 } from '@/entities/notification';
 
 /**
- * 알림 목록 (BAR-1536)
+ * 알림 목록
  *
  * 한 레이어 안에서 **아코디언으로 펼친다.** 팝업 위에 또 팝업을 띄우면 닫는 동선이 꼬이고 뒤 목록이
  * 가려진다. 클릭한 항목 바로 아래에 펼쳐지면 어느 메시지의 상세인지 헷갈릴 일이 없다.
@@ -71,7 +71,7 @@ const shortMessage = (message: string): string =>
     ? `${message.slice(0, MESSAGE_MAX)}...`
     : message;
 
-// 설정: 새 알림을 화면 팝업으로도 보여줄지. 기어를 누르면 목록 위에 한 줄로 펼친다(BAR-1579).
+// 설정: 새 알림을 화면 팝업으로도 보여줄지. 기어를 누르면 목록 위에 한 줄로 펼친다.
 const showSettings = ref(false);
 const toggleSettings = () => {
   showSettings.value = !showSettings.value;

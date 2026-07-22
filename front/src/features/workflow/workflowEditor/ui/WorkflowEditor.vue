@@ -153,7 +153,7 @@ onBeforeMount(function () {
       });
 
       // ── 타깃 모델 흐름: 템플릿을 로드하되, 마이그레이션 task 본문을 타깃 모델의 리터럴 값으로
-      //    채우고 앞 조회 task 에는 선택한 타깃 모델 id 를 넣는다 (BAR-1493 P0) ──
+ // 채우고 앞 조회 task 에는 선택한 타깃 모델 id 를 넣는다 (P0) ──
       //
       // cm-cicada v0.5.1 마이그레이션 템플릿은 두 개의 마이그레이션 task 로 나뉜다:
       //   ① damselfly 조회 task(path_params.id 로 타깃 모델을 실행 시점에 조회)
@@ -451,7 +451,7 @@ function mapTargetModelToTaskComponent(
   // Set path_params and query_params from task component with nsId default value.
   // ★ 스키마 properties의 description은 *설명(placeholder)*이지 값이 아니다. 값은 비워 두어
   //   자동 생성 task가 백엔드 기본값을 쓰거나(선택 파라미터) 사용자가 채우게 한다.
-  //   (과거 description을 값으로 넣어 예: cm-beetle 마이그레이션 nameSeed=<설명문>이 되어 400 — BAR-1393)
+ // (과거 description을 값으로 넣어 예: cm-beetle 마이그레이션 nameSeed=<설명문>이 되어 400 발생)
   const pathParamsKeyValue = taskComponent?.data.path_params?.properties
     ? Object.entries(taskComponent.data.path_params.properties).reduce(
         (acc, [key]) => {
@@ -673,7 +673,7 @@ function createTaskForModel(
   // Set path_params and query_params from task component with nsId default value.
   // ★ 스키마 properties의 description은 *설명(placeholder)*이지 값이 아니다. 값은 비워 두어
   //   자동 생성 task가 백엔드 기본값을 쓰거나(선택 파라미터) 사용자가 채우게 한다.
-  //   (과거 description을 값으로 넣어 예: cm-beetle 마이그레이션 nameSeed=<설명문>이 되어 400 — BAR-1393)
+ // (과거 description을 값으로 넣어 예: cm-beetle 마이그레이션 nameSeed=<설명문>이 되어 400 발생)
   const pathParamsKeyValue = taskComponent?.data.path_params?.properties
     ? Object.entries(taskComponent.data.path_params.properties).reduce(
         (acc, [key]) => {
