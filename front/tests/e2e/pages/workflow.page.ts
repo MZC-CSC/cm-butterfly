@@ -602,18 +602,54 @@ export class WorkflowPage {
     return this.page.getByTestId('sw-migration-error');
   }
 
-  /** Whether the "View SW" button is shown in the run history (= whether the console recognized an SW migration task) */
-  async hasSoftwareMigrationResult(): Promise<boolean> {
-    return this.viewSwButton.isVisible({ timeout: 30_000 }).catch(() => false);
+  /**
+   * Whether the "View SW" button is shown in the run history (= whether the console recognized an SW migration task).
+   * A single, non-throwing visibility check — no reload loop. Callers that want a best-effort, time-bounded probe
+   * pass a short timeout; the button being absent within that window is a valid answer (returns false).
+   */
+  async hasSoftwareMigrationResult(timeoutMs = 30_000): Promise<boolean> {
+    return this.viewSwButton
+      .isVisible({ timeout: timeoutMs })
+      .catch(() => false);
   }
 
-  /** Open the software migration result screen from the run history */
-  async openSoftwareMigrationResult(): Promise<void> {
+  /**
+   * Poll the run history until the "View SW" button appears, reloading between tries.
+   *
+   * ★ Why not a single wait: the front (WorkflowHistory.vue) detects SW-migration runs *client-side* — after the run
+   *   table loads it fetches each run's task instances sequentially (Get-Task-Instances, with a 100ms gap per run) and
+   *   only then flips runHasSwTask[runId], which is what gates the button (`v-if="runHasSwTask[...]"`). A plain 30s wait
+   *   can elapse before that per-run fetch finishes, so we reload the History tab periodically to restart the detection
+   *   and give it more chances. Non-throwing — returns whether the button ultimately showed.
+   */
+  async waitSoftwareMigrationButton(timeoutMs = 120_000): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      if (
+        await this.viewSwButton.isVisible({ timeout: 8_000 }).catch(() => false)
+      ) {
+        return true;
+      }
+      if (Date.now() > deadline) return false;
+      await this.page.waitForTimeout(3_000);
+      await this.page.reload().catch(() => {});
+      await this.openHistoryTab().catch(() => {});
+    }
+  }
+
+  /**
+   * Open the software migration result screen from the run history.
+   * Timeouts are parametrized so a best-effort (report-only) caller can keep the whole observation short.
+   */
+  async openSoftwareMigrationResult(
+    overlayTimeoutMs = 20_000,
+    contentTimeoutMs = 60_000,
+  ): Promise<void> {
     await this.viewSwButton.click();
-    await expect(this.swOverlay).toBeVisible({ timeout: 20_000 });
+    await expect(this.swOverlay).toBeVisible({ timeout: overlayTimeoutMs });
     // Either the table is drawn, or if it could not be fetched an error appears — one of the two must show.
     await expect(this.swTable.or(this.swError).first()).toBeVisible({
-      timeout: 60_000,
+      timeout: contentTimeoutMs,
     });
   }
 

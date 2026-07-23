@@ -21,14 +21,38 @@ const { Given, When, Then } = createBdd(test);
 /**
  * Performance verification (load test) preparation and execution steps.
  *
- * ★ Background: an EC2 instance created by cm-butterfly has nothing installed on it.
- *   A load test requires a web server (nginx) running on the target, so
- *   (unless the flow installs it via SW migration) we install nginx via a cb-tumblebug remote command (PostCmdInfra),
- *   confirm external access, then run the cm-ant load test (web Load Config UI = POST /load/tests/run).
+ * ★ Background: an EC2 instance created by cm-butterfly has nothing installed on it, and the load test
+ *   does *not* depend on software migration — it only needs the migrated *infra* to exist. So the load-test
+ *   prep installs its own nginx **on the target (migrated) infra** at test time via a cb-tumblebug remote
+ *   command (PostCmdInfra), configures it to listen on the load-test port, opens that port on the target's
+ *   security group, confirms external access, runs the cm-ant load test (web Load Config UI = POST /load/tests/run),
+ *   then tears the nginx down again (test-scoped, nothing left running).
  *
- * nginx install and access check have no matching screen in the butterfly UI, so they are done via API as *test preconditions* (remote command API).
+ *   This is a deliberate change from an earlier design that relied on nginx being present on the *source*
+ *   (sshtest) server and migrated over: nginx was removed from the source servers for security, and the
+ *   load test must not hinge on whether software migration brought nginx up. If the migration happens to
+ *   have installed nginx too, that is fine — but the authoritative load-test target is the nginx we install
+ *   here on the configured port.
+ *
+ * nginx install/config, port open, access check and teardown have no matching screen in the butterfly UI,
+ * so they are done via API as *test preconditions* (cb-tumblebug remote command + firewall-rule API).
  * The load test itself proceeds through the UI (Load Config), following the user flow.
+ *
+ * ── cb-tumblebug remote command (confirmed from api/conf/api.yaml operationId map) ──────────────────
+ *   PostCmdInfra      → POST /tumblebug/ns/{nsId}/cmd/infra/{infraId}
+ *                       body: { command: string[], userName?: string }   (userName = node account, cb-user)
+ *   PostFirewallRules → POST /tumblebug/ns/{nsId}/resources/securityGroup/{securityGroupId}/rules
+ *                       body: { firewallRules: [{ protocol, ports, direction, cidr }] }
+ *   Both are reached through the portal proxy `${BASE_URL}/api/cb-tumblebug/{OperationId}` with a
+ *   logged-in session token (see loginToken).
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────
  */
+
+/** Port the load-test nginx listens on / the target security group opens (default 5555 via TEST_LOADTEST_PORT). */
+function loadTestPort(): number {
+  const p = Number(workload.loadTest.port);
+  return Number.isFinite(p) && p > 0 ? p : 5555;
+}
 
 async function loginToken(request: APIRequestContext): Promise<string> {
   const u = getUser('cmiguser');
@@ -74,17 +98,18 @@ async function fetchNodePublicIp(
 }
 
 /**
- * Open port 80 on the workload's security group.
+ * Open the load-test port on the workload's security group.
  *
- * The security group of the migration-created infrastructure follows *what was collected from the source server*. If the
- * source has no web server, 80 isn't open, and then even after bringing up nginx you can't reach it externally to load test.
- * If it's already open, tumblebug rejects it, but that's not an error — it means "already done", so it's ignored.
+ * The security group of the migration-created infrastructure follows *what was collected from the source server*, so the
+ * load-test port is almost never open by default. We open it here (test-scoped) so the target nginx we install can be
+ * reached externally to load test. If it's already open, tumblebug rejects it, but that's not an error — it means
+ * "already done", so it's ignored.
  */
-async function openHttpPort(
+async function openLoadTestPort(
   request: APIRequestContext,
   token: string,
   nsId: string,
-  infraId: string,
+  port: number,
 ): Promise<void> {
   const sgIds: string[] = scenarioState.securityGroupIds ?? [];
 
@@ -100,7 +125,7 @@ async function openHttpPort(
             firewallRules: [
               {
                 protocol: 'TCP',
-                ports: '80',
+                ports: String(port),
                 direction: 'inbound',
                 cidr: '0.0.0.0/0',
               },
@@ -110,26 +135,26 @@ async function openHttpPort(
       },
     );
     console.log(
-      `[perf] opened port 80 on security group ${sgId} → ${r.status()}`,
+      `[perf] opened port ${port} on security group ${sgId} → ${r.status()}`,
     );
   }
   if (sgIds.length === 0) {
     console.warn(
-      "[perf] couldn't find the node's security group id — proceeding on the hope that 80 is already open.",
+      `[perf] couldn't find the node's security group id — proceeding on the hope that ${port} is already open.`,
     );
   }
 }
 
 /**
- * "And open port 80 of the created workload"
+ * "And open the load-test port of the created workload"
  *
- * The migration-created security group follows *what was collected from the source server*. If the source's inbound
- * has no 80, the target doesn't either, and then even with the software (nginx) up you can't reach it externally to load test.
+ * The migration-created security group follows *what was collected from the source server*, so the load-test port
+ * is not open. We open it (test-scoped) so the target nginx can be reached externally to load test.
  *
  * The console has no screen for editing security group rules, so this step alone is done via API (a test precondition).
  * The node's public IP is also obtained here for later steps (external access check, load target) to use.
  */
-Given('생성된 워크로드의 80 포트를 개방한다', async ({ request }) => {
+Given('생성된 워크로드의 부하테스트 포트를 개방한다', async ({ request }) => {
   const token = await loginToken(request);
   const { nodeId, ip } = await fetchNodePublicIp(request, token);
   scenarioState.nodeId = nodeId;
@@ -140,12 +165,7 @@ Given('생성된 워크로드의 80 포트를 개방한다', async ({ request })
     '노드 공인 IP를 확인하지 못했다 — 인프라 생성이 끝나지 않았을 수 있다',
   ).toBeTruthy();
 
-  await openHttpPort(
-    request,
-    token,
-    testNamespace.id,
-    scenarioState.infraId ?? workload.infraName,
-  );
+  await openLoadTestPort(request, token, testNamespace.id, loadTestPort());
 });
 
 /** Run a command on the target node and return *stdout only* (the response also carries the command text, so don't match on that) */
@@ -175,65 +195,82 @@ async function nodeStdout(
     .join('\n');
 }
 
+/** Marker path so the teardown knows exactly what this test dropped on the target. */
+const E2E_NGINX_CONF = '/etc/nginx/conf.d/e2e-loadtest.conf';
+
 /**
  * "And prepare the web server for the load test"
  *
- * A load test only holds up with a web server present. The original intent is to use **the nginx brought up by the
- * software migration** directly as the target, and if that worked, do nothing.
+ * The load test targets the migrated *infra* — it does not depend on software migration. So we install nginx **on the
+ * target node** here (test-scoped) and configure it to listen on the load-test port, regardless of whether the software
+ * migration brought its own nginx up on port 80. We still record whether nginx was already running (i.e. the migration
+ * likely brought it up) for the report — but that verdict was already made separately in the earlier SW-result step and
+ * this prep does not override it; here we only guarantee a load-test target on the configured port.
  *
- * If it didn't, bring up nginx here to continue the load test. But **don't hide what happened** —
- * whether the migration brought it up or we prepared it is recorded as-is in the log and report. The migration's
- * success or failure was already judged separately by the earlier result-check step, so this preparation step doesn't override that verdict.
+ * Install + listener config go out as a single cb-tumblebug remote command (PostCmdInfra). The server block returns a
+ * fixed 200 for any path, so the load test does not depend on a document root being populated.
  */
 Given('부하테스트 대상 웹서버를 준비한다', async ({ request, $testInfo }) => {
-  test.setTimeout(15 * 60_000);
+  test.setTimeout(60 * 60_000); // inherit generous scenario budget (was test.setTimeout(15 * 60_000);, capped the whole test)
   const token = await loginToken(request);
+  const port = loadTestPort();
 
-  const running = (out: string) => /^\s*active\s*$/m.test(out);
-  let out = await nodeStdout(request, token, [
+  // Record whether nginx was already up before we touched it (migration likely brought it up on :80).
+  const preState = await nodeStdout(request, token, [
     'systemctl is-active nginx || true',
   ]);
+  scenarioState.nginxFromMigration = /^\s*active\s*$/m.test(preState);
 
-  if (running(out)) {
-    scenarioState.nginxFromMigration = true;
-    console.log(
-      '[perf] nginx is already running — use what the software migration brought up as-is.',
-    );
-  } else {
-    scenarioState.nginxFromMigration = false;
-    console.warn(
-      `[perf] ★ the software migration failed to bring up nginx (systemctl is-active → ${out.trim() || 'none'}). ` +
-        'The test installs it directly to continue the load test. The migration success/failure was already judged in an earlier step.',
-    );
-    await nodeStdout(request, token, [
-      'sudo apt-get update -y',
-      'sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --reinstall nginx',
-      'sudo systemctl enable --now nginx',
-    ]);
-    out = await nodeStdout(request, token, [
-      'systemctl is-active nginx || true',
-    ]);
-  }
+  // Install nginx and drop a dedicated server block that listens on the load-test port and returns 200 for any path.
+  // (Single-quoted heredoc → the config is written literally; no shell/`$` expansion, so no escaping traps.)
+  const nginxConf = [
+    `server {`,
+    `    listen ${port};`,
+    `    location / { return 200 'cm-butterfly-e2e-loadtest'; }`,
+    `}`,
+  ].join('\n');
+
+  await nodeStdout(request, token, [
+    'sudo apt-get update -y',
+    'sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nginx',
+    `sudo tee ${E2E_NGINX_CONF} > /dev/null <<'NGINXCONF'\n${nginxConf}\nNGINXCONF`,
+    'sudo nginx -t',
+    'sudo systemctl enable --now nginx',
+    'sudo systemctl restart nginx',
+  ]);
+
+  // Verify locally on the node that the port answers (avoids blaming the security group for an nginx problem).
+  const active = await nodeStdout(request, token, [
+    'systemctl is-active nginx || true',
+  ]);
+  const localCode = await nodeStdout(request, token, [
+    `curl -s -o /dev/null -w '%{http_code}' http://localhost:${port}/ || true`,
+  ]);
+  const localOk = /2\d\d|3\d\d/.test(localCode);
 
   await $testInfo.attach('부하테스트-대상-웹서버', {
     body:
-      `# 부하테스트 대상 웹서버\n\n` +
-      `- nginx 출처: **${scenarioState.nginxFromMigration ? '소프트웨어 마이그레이션' : '테스트가 직접 설치(마이그레이션 실패)'}**\n` +
-      `- systemctl is-active nginx → \`${out.trim() || '없음'}\`\n`,
+      `# 부하테스트 대상 웹서버 (타깃 인프라)\n\n` +
+      `- 대상 포트: **${port}**\n` +
+      `- nginx 이미 실행 중이었나(마이그레이션 설치 추정): **${scenarioState.nginxFromMigration ? '예' : '아니오'}**\n` +
+      `- systemctl is-active nginx → \`${active.trim() || '없음'}\`\n` +
+      `- http://localhost:${port}/ → \`${localCode.trim() || '없음'}\`\n` +
+      `- nginx 출처: 테스트가 타깃 인프라에 직접 설치(부하테스트 전용, 테스트 후 정리)\n`,
     contentType: 'text/markdown',
   });
 
   expect(
-    running(out),
-    `부하테스트 대상 nginx를 띄우지 못했다: ${out.trim() || '응답 없음'}`,
+    /^\s*active\s*$/m.test(active) && localOk,
+    `부하테스트 대상 nginx를 포트 ${port}로 띄우지 못했다: is-active=${active.trim() || '응답 없음'}, http=${localCode.trim() || '응답 없음'}`,
   ).toBeTruthy();
 });
 
 /**
- * "Then nginx is accessible from outside" — check access to the node's public IP:80
+ * "Then nginx is accessible from outside" — check access to the node's public IP on the load-test port.
  */
 Then('nginx가 외부에서 접근 가능하다', async ({ request }) => {
   const ip = scenarioState.nodePublicIp;
+  const port = loadTestPort();
   expect(
     ip,
     '노드 공인 IP를 확인하지 못함(인프라 생성/조회 확인 필요)',
@@ -242,14 +279,42 @@ Then('nginx가 외부에서 접근 가능하다', async ({ request }) => {
   let ok = false;
   for (let i = 0; i < 12 && !ok; i++) {
     try {
-      const r = await request.get(`http://${ip}:80/`, { timeout: 8000 });
+      const r = await request.get(`http://${ip}:${port}/`, { timeout: 8000 });
       ok = r.status() < 500;
     } catch {
       /* retry */
     }
     if (!ok) await new Promise(r => setTimeout(r, 10_000));
   }
-  expect(ok, `nginx 외부 접근 실패: http://${ip}:80`).toBeTruthy();
+  expect(ok, `nginx 외부 접근 실패: http://${ip}:${port}`).toBeTruthy();
+});
+
+/**
+ * "And clean up the load-test target web server"
+ *
+ * The nginx we installed on the target is test-scoped — remove it after the load test so nothing is left running.
+ * (The whole target infra is deleted later by "생성된 리소스를 정리한다"; this is an extra, principled teardown for the
+ * case the infra is kept for inspection.) Best-effort: never fail the scenario on teardown.
+ *
+ * Note: the security-group rule opened above is *not* removed here — the firewall API only adds rules, and the SG is
+ * destroyed with the infra at final cleanup. If you keep the infra, the opened port stays open until the infra is deleted.
+ */
+Given('부하테스트 대상 웹서버를 정리한다', async ({ request }) => {
+  test.setTimeout(60 * 60_000); // inherit generous scenario budget (was test.setTimeout(5 * 60_000);, capped the whole test)
+  try {
+    const token = await loginToken(request);
+    await nodeStdout(request, token, [
+      `sudo rm -f ${E2E_NGINX_CONF}`,
+      'sudo systemctl stop nginx || true',
+      'sudo systemctl disable nginx || true',
+    ]);
+    console.log('[perf] load-test nginx removed from the target node.');
+  } catch (e) {
+    console.warn(
+      '[perf] ★ failed to tear down the load-test nginx (target infra is deleted at final cleanup anyway):',
+      (e as Error).message,
+    );
+  }
 });
 
 /**
@@ -296,7 +361,7 @@ let loadTiming: LoadTestTiming | undefined;
  * The elapsed time is attached to the report — it occasionally takes very long, so we keep the number.
  */
 Then('부하 테스트 결과가 조회된다', async ({ page, request, $testInfo }) => {
-  test.setTimeout(20 * 60_000);
+  test.setTimeout(60 * 60_000); // inherit generous scenario budget (was test.setTimeout(20 * 60_000);, capped the whole test)
   const { WorkloadPage } = await import('../pages/workload.page');
   const wl = new WorkloadPage(page);
 
