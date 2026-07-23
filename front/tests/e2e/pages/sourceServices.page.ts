@@ -1,5 +1,6 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
+import { humanClick, humanFill } from '../support/humanize';
 
 /**
  * SourceServicesPage — 소스 서비스(소스 컴퓨팅, cm-honeybee) 화면의 "어디서/어떻게".
@@ -265,12 +266,13 @@ export class SourceServicesPage {
 
   /** 연결정보 폼 채우기(현재 열린 폼 기준) */
   async fillConnection(conn: Connection): Promise<void> {
-    await this.connNameInput.fill(conn.name);
-    await this.connIpInput.fill(conn.ip);
-    await this.connPortInput.fill(String(conn.sshPort ?? '22'));
-    await this.connUserInput.fill(conn.user);
-    if (conn.password) await this.connPasswordInput.fill(conn.password);
-    if (conn.privateKey) await this.connPrivateKeyInput.fill(conn.privateKey);
+    await humanFill(this.connNameInput, conn.name);
+    await humanFill(this.connIpInput, conn.ip);
+    await humanFill(this.connPortInput, String(conn.sshPort ?? '22'));
+    await humanFill(this.connUserInput, conn.user);
+    if (conn.password) await humanFill(this.connPasswordInput, conn.password);
+    if (conn.privateKey)
+      await humanFill(this.connPrivateKeyInput, conn.privateKey);
   }
 
   /**
@@ -282,13 +284,13 @@ export class SourceServicesPage {
     name: string,
     conn: Connection,
   ): Promise<void> {
-    await this.addGroupButton.click();
-    await this.serviceNameInput.fill(name);
-    await this.withConnectionToggle.click();
-    await this.goAddConnectionButton.click();
+    await humanClick(this.addGroupButton);
+    await humanFill(this.serviceNameInput, name);
+    await humanClick(this.withConnectionToggle);
+    await humanClick(this.goAddConnectionButton);
     await this.fillConnection(conn);
-    await this.connApplyButton.click();
-    await this.groupConfirmButton.click();
+    await humanClick(this.connApplyButton);
+    await humanClick(this.groupConfirmButton);
     await this.expectGroupListed(name);
   }
 
@@ -314,13 +316,13 @@ export class SourceServicesPage {
   /** 인프라 수집 실행 (그룹단위 import-infra) — 선택된 그룹 상세에서 Refresh 후 Collect Infra */
   async collectInfra(): Promise<void> {
     await this.refreshGroupStatus();
-    await this.collectInfraButton.click();
+    await humanClick(this.collectInfraButton);
   }
 
   /** 소프트웨어 수집 실행 (그룹단위 import-software) — Refresh 후 Collect SW */
   async collectSoftware(): Promise<void> {
     await this.refreshGroupStatus();
-    await this.collectSwButton.click();
+    await humanClick(this.collectSwButton);
   }
 
   /**
@@ -329,24 +331,24 @@ export class SourceServicesPage {
    *   따라서 팝업이 열린 상태에서 Convert(좌 수집→우 정제) → Save(활성화) → 모델명 입력 → 확인.
    */
   async saveCollectedInfraAsSourceModel(name: string): Promise<void> {
-    await this.refineConvertButton.click();
-    await this.refineSaveButton.click(); // Convert 후 활성화(자동 대기)
-    await this.refineModelNameInput.fill(name);
-    await this.refineModelNameConfirm.click();
+    await humanClick(this.refineConvertButton);
+    await humanClick(this.refineSaveButton); // Convert 후 활성화(자동 대기)
+    await humanFill(this.refineModelNameInput, name);
+    await humanClick(this.refineModelNameConfirm);
   }
 
   /** 수집된 소프트웨어를 damselfly 소스모델(SoftwareModel, "Basic")로 저장(인프라와 동일 팝업 흐름). */
   async saveCollectedSwAsSourceModel(name: string): Promise<void> {
-    await this.refineConvertButton.click();
-    await this.refineSaveButton.click();
-    await this.refineModelNameInput.fill(name);
-    await this.refineModelNameConfirm.click();
+    await humanClick(this.refineConvertButton);
+    await humanClick(this.refineSaveButton);
+    await humanFill(this.refineModelNameInput, name);
+    await humanClick(this.refineModelNameConfirm);
   }
 
   /** 선택된 소스그룹 삭제 (delete-source-group) */
   async deleteSelectedGroup(): Promise<void> {
-    await this.deleteGroupIcon.click();
-    await this.deleteConfirmButton.click();
+    await humanClick(this.deleteGroupIcon);
+    await humanClick(this.deleteConfirmButton);
   }
 
   // ───────────────────────── 검증 ─────────────────────────

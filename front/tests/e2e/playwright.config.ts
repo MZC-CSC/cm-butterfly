@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 import { defineBddConfig } from 'playwright-bdd';
 import { config } from './fixtures/test-data';
+import { humanSlowMoMs } from './support/humanize';
 
 /**
  * Generates Playwright tests by mapping Korean .feature files (features/) to steps (steps/).
@@ -61,6 +62,10 @@ export default defineConfig({
     baseURL: config.baseURL,
     actionTimeout: 15_000,
     navigationTimeout: 30_000,
+    // ★ Human pacing (demo visibility) — a slowMo baseline on every low-level action, on ONLY when
+    //   E2E_HUMAN_PACE=1 (0 otherwise, so CI is unaffected). The per-step hover/hold beats are added
+    //   on top of this by support/humanize.ts at the scenario page-object interaction points.
+    launchOptions: { slowMo: humanSlowMoMs() },
     screenshot: evidence ? 'on' : 'only-on-failure',
     trace: evidence ? 'on' : 'retain-on-failure',
     video: evidence ? 'on' : 'retain-on-failure',

@@ -1,6 +1,7 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 import { workflowData } from '../fixtures/test-data';
+import { humanClick, humanFill } from '../support/humanize';
 
 /**
  * WorkflowPage — the "where/how" layer of the workflow management (cm-cicada) domain.
@@ -71,13 +72,62 @@ export class WorkflowPage {
   }
 
   /**
+   * The workflow list's search input (mirinae PQuerySearch, scoped to this table).
+   *
+   * mirinae renders the search box inside PToolboxTable, so a data-testid cannot be attached to the
+   * actual <input> without modifying mirinae. We scope to the table's testid and target mirinae's own
+   * structural class (.p-query-search input) — the same "target the framework's stable class, not
+   * screen text" approach the rest of these page objects use (e.g. `.p-context-menu-item`).
+   */
+  private get workflowSearchInput(): Locator {
+    return this.workflowTable
+      .locator('.p-query-search input, .p-search input')
+      .first();
+  }
+
+  /** Remove any existing query-tag chips so a new search is not AND-ed with a stale one. */
+  private async clearWorkflowSearch(): Promise<void> {
+    const deleteAll = this.workflowTable
+      .locator('.p-query-search-tags .delete-btn')
+      .first();
+    if (await deleteAll.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      await deleteAll.click().catch(() => {});
+    }
+  }
+
+  /**
+   * Reveal a workflow row via the list's SEARCH box (the scenario path).
+   *
+   * ★ Why — the workflow list is never pruned, so linear-paging it to find a just-created row grew
+   *   into a ~10-minute hang as runs accumulated. The scenario always knows the exact workflow name,
+   *   so we filter to the single row instead of paging. The list loads the full set into the store and
+   *   filters client-side on the query tag (useToolboxTableModel.applyQueryTags), so a match is found
+   *   regardless of which page the row would otherwise land on.
+   *
+   * @returns 1 (the filtered result is a single-page view). Throws if the row never appears after
+   *   filtering, which the paging fallback in revealWorkflow() then handles.
+   */
+  private async revealWorkflowBySearch(query: string): Promise<number> {
+    await expect(this.workflowTable).toBeVisible({ timeout: 15_000 });
+    await this.clearWorkflowSearch();
+    await this.workflowSearchInput.click();
+    await this.workflowSearchInput.fill(query);
+    await this.workflowSearchInput.press('Enter');
+    await expect(this.rowByText(query)).toBeVisible({ timeout: 15_000 });
+    return 1;
+  }
+
+  /**
    * Actually bring the workflow row into view in the list.
    *
-   * The workflow list is also paged 15 rows at a time. A workflow the seed just created may not be on
-   * page 1, so the Run button could not be found and it died on a click timeout. Page through to find it
-   * and record which page it was on.
+   * Prefer the search box (scenario path — the created workflow's name is known). If search somehow
+   * does not narrow (kept as a safety net, and for functional tests that assert on pre-seeded data),
+   * fall back to paging the whole list.
    */
   private async revealWorkflow(name: string): Promise<number> {
+    const viaSearch = await this.revealWorkflowBySearch(name).catch(() => null);
+    if (viaSearch !== null) return viaSearch;
+    // Fallback: page through 15 rows at a time (the old behavior).
     const pager = new TablePagination(this.page, this.workflowTable);
     return pager.expectRowSomewhere(this.rowByText(name), name);
   }
@@ -263,13 +313,21 @@ export class WorkflowPage {
     await expect(this.rowByText(name)).toBeVisible({ timeout: 15_000 });
   }
 
-  /** Select a row → show the detail (Details/History tabs) */
+  /** Select a row → show the detail panel */
   async selectWorkflow(name: string): Promise<void> {
     await this.revealWorkflow(name);
     await this.rowByText(name).click();
+    // ★ Tab-independent anchor. The detail panel now defaults to the Run Status tab
+    //   (WorkflowsPage.vue mainTabState.activeTab='runViewer', commits 3d38731/29ba0f5), so waiting
+    //   for "Workflow Information" (the Details tab body) no longer fires. Wait for the run viewer
+    //   body — present when the default tab is active — or, failing that, the PTab tab strip, either
+    //   of which proves the row's detail actually opened.
     await expect(
-      this.page.getByText('Workflow Information', { exact: false }).first(),
-    ).toBeVisible({ timeout: 10_000 });
+      this.page
+        .getByTestId('workflow-run-viewer')
+        .or(this.page.getByRole('tab', { name: 'Run Status' }))
+        .first(),
+    ).toBeVisible({ timeout: 15_000 });
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -317,7 +375,7 @@ export class WorkflowPage {
 
   /** Enter a name + select a template, then save */
   async fillWorkflowName(name: string): Promise<void> {
-    await this.designerNameInput.fill(name);
+    await humanFill(this.designerNameInput, name);
   }
 
   async selectTemplate(templateName: string): Promise<void> {
@@ -329,7 +387,7 @@ export class WorkflowPage {
   }
 
   async saveWorkflow(): Promise<void> {
-    await this.designerSaveButton.click();
+    await humanClick(this.designerSaveButton);
     // Confirm via the save-success toast (Success) or the modal closing
     await expect(this.designer).toBeHidden({ timeout: 15_000 });
   }
@@ -413,7 +471,7 @@ export class WorkflowPage {
           ? this.queryParam(key)
           : this.bodyField(key);
     await expect(field).toBeVisible({ timeout: 15_000 });
-    await field.fill(value);
+    await humanFill(field, value);
     // Give the input time to reflect into the model (input event → parent state update).
     await this.page.waitForTimeout(500);
   }
@@ -428,12 +486,12 @@ export class WorkflowPage {
    */
   async runWorkflow(name?: string): Promise<void> {
     if (!name) {
-      await this.page.getByTestId('workflow-run-btn').click();
+      await humanClick(this.page.getByTestId('workflow-run-btn'));
       return;
     }
     await this.revealWorkflow(name);
     // Grab the Run button inside the row by testid (so it does not break when the text changes).
-    await this.rowByText(name).getByTestId('workflow-run-btn').click();
+    await humanClick(this.rowByText(name).getByTestId('workflow-run-btn'));
   }
 
   /**

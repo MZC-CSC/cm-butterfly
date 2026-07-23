@@ -14,6 +14,7 @@ import {
   workload,
   getUser,
 } from '../fixtures/test-data';
+import { waitLoadTestTerminal } from '../support/apiWait';
 
 const { Given, When, Then } = createBdd(test);
 
@@ -108,7 +109,9 @@ async function openHttpPort(
         },
       },
     );
-    console.log(`[perf] opened port 80 on security group ${sgId} → ${r.status()}`);
+    console.log(
+      `[perf] opened port 80 on security group ${sgId} → ${r.status()}`,
+    );
   }
   if (sgIds.length === 0) {
     console.warn(
@@ -304,6 +307,30 @@ Then('부하 테스트 결과가 조회된다', async ({ page, request, $testInf
   const watching = watchLoadTest(request, token, timing).catch(() => {});
 
   try {
+    // ★ Settle on cm-ant's result API first, then verify the screen — the screen is not the thing
+    //   being polled for completion. Poll Getlastloadtestexecutionstate (the same endpoint the VM
+    //   screen uses) for this node until successed/test_failed, so expectLoadTestResult below is
+    //   confirming an already-finished run. Best-effort: if the nodeId is unknown, skip and let the
+    //   screen wait stand.
+    const nodeId = scenarioState.nodeId;
+    if (nodeId) {
+      const settle = await waitLoadTestTerminal({
+        request,
+        token,
+        nsId: testNamespace.id,
+        infraId: scenarioState.infraId ?? workload.infraName,
+        nodeId,
+        timeoutMs: 15 * 60_000,
+      });
+      console.log(
+        `[apiWait] load test on node ${nodeId} → status=${settle.status || 'unknown'} terminal=${settle.terminal}`,
+      );
+    } else {
+      console.warn(
+        '[apiWait] no nodeId for load-test status poll; relying on the screen wait.',
+      );
+    }
+
     await wl.expectLoadTestResult(
       scenarioState.infraName ?? workload.infraName,
       workload.nodeName,

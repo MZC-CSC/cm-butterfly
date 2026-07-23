@@ -6,8 +6,59 @@ import { ModelsPage } from '../pages/models.page';
 import { workflowData, testNamespace } from '../fixtures/test-data';
 import { uniqueName } from '../support/naming';
 import { scenarioState } from '../support/world';
+import {
+  getSessionToken,
+  resolveWorkflowIdByName,
+  waitWorkflowRunTerminal,
+} from '../support/apiWait';
 
 const { Given, When, Then } = createBdd(test);
+
+/**
+ * Wait for a just-run workflow to settle, by polling cm-cicada's result API instead of the screen.
+ *
+ * The list-based reveal already proved the workflow exists; here we resolve its id and poll
+ * get-workflow-runs (mirroring the console's own workflowTracker) until the run kicked off at/after
+ * `since` reaches a terminal state. That way the on-screen history / EC2 checks that follow verify an
+ * already-settled run rather than racing it. Best-effort: if the id cannot be resolved or it does not
+ * settle within the timeout, we just log and fall through to the existing screen waits.
+ */
+async function awaitWorkflowRunViaApi(
+  page: import('@playwright/test').Page,
+  name: string,
+  since: number,
+  timeoutMs: number,
+): Promise<void> {
+  try {
+    const token = await getSessionToken(page);
+    const wfId = await resolveWorkflowIdByName({
+      request: page.request,
+      token,
+      name,
+    });
+    if (!wfId) {
+      console.warn(
+        `[apiWait] could not resolve workflow id for "${name}"; falling back to screen waits.`,
+      );
+      return;
+    }
+    const res = await waitWorkflowRunTerminal({
+      request: page.request,
+      token,
+      wfId,
+      since,
+      timeoutMs,
+    });
+    console.log(
+      `[apiWait] workflow run "${name}" (${wfId}) → state=${res.state || 'unknown'} terminal=${res.terminal}`,
+    );
+  } catch (e) {
+    console.warn(
+      '[apiWait] workflow-run poll failed; falling back to screen waits:',
+      (e as Error).message,
+    );
+  }
+}
 
 /**
  * Workflow management (cm-cicada) steps.
@@ -196,9 +247,14 @@ async function createAndRunMigrationWorkflow(
   await new Promise(r => setTimeout(r, 120_000));
 
   // 2) Run the created workflow from the list
+  const runSince = Date.now();
   await wf.runWorkflow(name);
 
-  // 3) Wait until a run history entry is created (completion is verified in a later EC2-check step)
+  // 2b) Confirm the run through cm-cicada's result API (not the screen). Infra provisioning happens
+  //     inside this workflow run, so waiting for it to settle here makes the EC2 check that follows fast.
+  await awaitWorkflowRunViaApi(page, name, runSince, 20 * 60_000);
+
+  // 3) On-screen verification that the run history entry exists (now already settled)
   await wf.selectWorkflow(name);
   await wf.openHistoryTab();
   await wf.expectRunHistoryPresent();
@@ -267,6 +323,16 @@ async function createAndRunSoftwareMigrationWorkflow(
   //   record is indistinguishable from what a previous run left (a past run's record was actually picked up as this one).
   scenarioState.swRunStartedAt = Date.now();
   await wf.runWorkflow(name);
+
+  // Confirm the run through cm-cicada's result API rather than watching the run-viewer screen. The
+  // per-software outcome is judged later against cm-grasshopper (software.steps); this just settles
+  // the cicada run. Best-effort — the grasshopper step owns the long wait if this does not settle.
+  await awaitWorkflowRunViaApi(
+    page,
+    name,
+    scenarioState.swRunStartedAt,
+    20 * 60_000,
+  );
 
   await wf.selectWorkflow(name);
   await wf.openHistoryTab();
