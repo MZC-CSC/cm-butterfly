@@ -31,7 +31,7 @@
       />
     </div>
 
-    <!-- 노드 클릭 정보 -->
+    <!-- Node click info -->
     <div v-if="clickedNode" class="node-info">
       <h4 class="text-md font-semibold mb-2">Clicked Node Info:</h4>
       <div class="p-4" style="background-color: #f3f4f6; border-radius: 4px;">

@@ -59,7 +59,7 @@ watch(
       <slot name="sidebar" :width="prop.width" />
     </template>
     <template #default>
-      <!-- TODO: 동적 style height 추가하기. -->
+      <!-- TODO: add dynamic style height. -->
       <div
         ref="containerRef"
         class="right-container"

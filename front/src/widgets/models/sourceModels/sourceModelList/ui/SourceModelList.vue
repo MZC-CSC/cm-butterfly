@@ -32,7 +32,7 @@ const { dynamicHeight, minHeight, maxHeight } = useDynamicTableHeight(
   computed(() => tableModel.tableState.displayItems?.length ?? 0),
   computed(() => tableModel.tableOptions.pageSize),
   {
-    minTableHeight: 193,  // 기본 최소 높이 (1개 row 기준)
+    minTableHeight: 193,  // Default minimum height (based on 1 row)
   },
 );
 
@@ -47,7 +47,7 @@ const modals = reactive({
 
 const resSourceList = useGetSourceModelList();
 const isDataLoaded = ref(false);
-const tableKey = ref(0); // 컴포넌트 재렌더링을 위한 key
+const tableKey = ref(0); // key used to force the component to re-render
 
 onBeforeMount(() => {
   initToolBoxTableModel();
@@ -86,7 +86,7 @@ function getTableList() {
       );
       nextTick(() => {
         isDataLoaded.value = true;
-        // 데이터 로드 후 컴포넌트 재렌더링
+        // Re-render the component after data loads
         tableKey.value++;
       });
     })
@@ -106,15 +106,15 @@ function addDeleteIconAtTable() {
     },
     {
       click: () => {
-        console.log('🔘 [SourceModelList] 삭제 버튼 클릭');
-        console.log('📊 [SourceModelList] 선택된 항목 수:', tableModel.tableState.selectIndex.length);
-        console.log('📋 [SourceModelList] 선택된 인덱스:', tableModel.tableState.selectIndex);
-        
+        console.log('🔘 [SourceModelList] Delete button clicked');
+        console.log('📊 [SourceModelList] Number of selected items:', tableModel.tableState.selectIndex.length);
+        console.log('📋 [SourceModelList] Selected indices:', tableModel.tableState.selectIndex);
+
         if (tableModel.tableState.selectIndex.length > 0) {
-          console.log('✅ [SourceModelList] 삭제 확인 모달 열기');
+          console.log('✅ [SourceModelList] Opening delete confirmation modal');
           modals.alertModalState.open = true;
         } else {
-          console.log('⚠️ [SourceModelList] 선택된 항목이 없어서 모달을 열지 않음');
+          console.log('⚠️ [SourceModelList] No items selected, not opening the modal');
         }
       },
     },
@@ -126,24 +126,23 @@ function addDeleteIconAtTable() {
 
 /**
  * Delete selected source models
- * 선택된 소스 모델들을 삭제합니다.
  */
 function multiDelete() {
-  console.log('🗑️ [SourceModelList] multiDelete 시작');
-  
+  console.log('🗑️ [SourceModelList] multiDelete started');
+
   const selectedData = tableModel.tableState.selectIndex.map(index => {
     return tableModel.tableState.displayItems[index].id;
   });
-  console.log('📋 [SourceModelList] 선택된 데이터 ID 목록:', selectedData);
+  console.log('📋 [SourceModelList] Selected data ID list:', selectedData);
 
   // Check if any selected models are software models
-  // Detail tab의 View Recommended List와 동일한 방법으로 구분
+  // Categorized the same way as View Recommended List on the Detail tab
   const selectedModels = tableModel.tableState.selectIndex.map(index => {
     return tableModel.tableState.displayItems[index];
   });
-  console.log('🔍 [SourceModelList] 선택된 모델 상세 정보:', selectedModels);
+  console.log('🔍 [SourceModelList] Selected model details:', selectedModels);
 
-  // 각 모델을 하나의 카테고리에만 분류하도록 수정
+  // Classify each model into exactly one category
   const softwareModelIds: string[] = [];
   const cloudModelIds: string[] = [];
   const onPremModelIds: string[] = [];
@@ -151,18 +150,18 @@ function multiDelete() {
   selectedModels.forEach(model => {
     const modelType = model?.modelType;
     
-    // modelType 기반으로 분류
+    // Classify based on modelType
     if (modelType === 'SoftwareModel') {
       softwareModelIds.push(model.id);
-      console.log(`🔧 [SourceModelList] 모델 ${model?.id} (${model?.name}) - Software 분류 (modelType)`);
+      console.log(`🔧 [SourceModelList] Model ${model?.id} (${model?.name}) - classified as Software (modelType)`);
     } else if (modelType === 'CloudModel') {
       cloudModelIds.push(model.id);
-      console.log(`☁️ [SourceModelList] 모델 ${model?.id} (${model?.name}) - Cloud 분류 (modelType)`);
+      console.log(`☁️ [SourceModelList] Model ${model?.id} (${model?.name}) - classified as Cloud (modelType)`);
     } else if (modelType === 'OnPremiseModel') {
       onPremModelIds.push(model.id);
-      console.log(`🏢 [SourceModelList] 모델 ${model?.id} (${model?.name}) - OnPrem 분류 (modelType)`);
+      console.log(`🏢 [SourceModelList] Model ${model?.id} (${model?.name}) - classified as OnPrem (modelType)`);
     } else {
-      // modelType이 없는 경우 기존 속성으로 fallback
+      // Fall back to existing properties when modelType is missing
       const isSoftwareByMigrationType = model?.migrationType === 'Software';
       const isSoftwareByIsSoftwareModel = model?.isSoftwareModel;
       const isSoftwareByName = model?.name?.toLowerCase().includes('sw') || false;
@@ -171,15 +170,15 @@ function multiDelete() {
       
       if (isSoftware) {
         softwareModelIds.push(model.id);
-        console.log(`🔧 [SourceModelList] 모델 ${model?.id} (${model?.name}) - Software 분류 (fallback)`, {
+        console.log(`🔧 [SourceModelList] Model ${model?.id} (${model?.name}) - classified as Software (fallback)`, {
           migrationType: model?.migrationType,
           isSoftwareModel: model?.isSoftwareModel,
           nameContainsSw: isSoftwareByName
         });
       } else {
-        // Software가 아닌 경우 OnPrem으로 분류 (기본값)
+        // If not Software, classify as OnPrem (default)
         onPremModelIds.push(model.id);
-        console.log(`🏢 [SourceModelList] 모델 ${model?.id} (${model?.name}) - OnPrem 분류 (fallback)`, {
+        console.log(`🏢 [SourceModelList] Model ${model?.id} (${model?.name}) - classified as OnPrem (fallback)`, {
           migrationType: model?.migrationType,
           isSoftwareModel: model?.isSoftwareModel,
           nameContainsSw: isSoftwareByName
@@ -188,7 +187,7 @@ function multiDelete() {
     }
   });
 
-  console.log('📊 [SourceModelList] 분류 결과:', {
+  console.log('📊 [SourceModelList] Classification result:', {
     softwareModelIds,
     cloudModelIds,
     onPremModelIds,
@@ -200,15 +199,15 @@ function multiDelete() {
   const deletePromises = [];
 
   if (softwareModelIds.length > 0) {
-    console.log('🚀 [SourceModelList] Software 모델 삭제 API 호출:', softwareModelIds);
+    console.log('🚀 [SourceModelList] Calling Software model delete API:', softwareModelIds);
     const softwareDeletePromise = useBulkDeleteSourceSoftwareModel(softwareModelIds);
-    console.log('📡 [SourceModelList] Software 삭제 Promise 객체:', softwareDeletePromise);
-    
-    // Promise 실행 전에 네트워크 요청 정보 로깅
+    console.log('📡 [SourceModelList] Software delete Promise object:', softwareDeletePromise);
+
+    // Log network request info before the Promise resolves
     softwareDeletePromise.then(responses => {
-      console.log('🌐 [SourceModelList] Software 삭제 네트워크 응답:', responses);
+      console.log('🌐 [SourceModelList] Software delete network response:', responses);
       responses.forEach((response, index) => {
-        console.log(`📊 [SourceModelList] Software 삭제 응답 ${index + 1}:`, {
+        console.log(`📊 [SourceModelList] Software delete response ${index + 1}:`, {
           status: response.status,
           statusText: response.statusText,
           method: response.config?.method?.toUpperCase(),
@@ -219,9 +218,9 @@ function multiDelete() {
         });
       });
     }).catch(error => {
-      console.error('❌ [SourceModelList] Software 삭제 네트워크 오류:', error);
+      console.error('❌ [SourceModelList] Software delete network error:', error);
       if (error.config) {
-        console.log('🔍 [SourceModelList] Software 삭제 요청 정보:', {
+        console.log('🔍 [SourceModelList] Software delete request info:', {
           method: error.config.method?.toUpperCase(),
           url: error.config.url,
           baseURL: error.config.baseURL,
@@ -235,15 +234,15 @@ function multiDelete() {
   }
 
   if (cloudModelIds.length > 0) {
-    console.log('🚀 [SourceModelList] Cloud 모델 삭제 API 호출 (DeleteCloudModel):', cloudModelIds);
+    console.log('🚀 [SourceModelList] Calling Cloud model delete API (DeleteCloudModel):', cloudModelIds);
     const cloudDeletePromise = useBulkDeleteSourceCloudModel(cloudModelIds);
-    console.log('📡 [SourceModelList] Cloud 삭제 Promise 객체:', cloudDeletePromise);
-    
-    // Promise 실행 전에 네트워크 요청 정보 로깅
+    console.log('📡 [SourceModelList] Cloud delete Promise object:', cloudDeletePromise);
+
+    // Log network request info before the Promise resolves
     cloudDeletePromise.then(responses => {
-      console.log('🌐 [SourceModelList] Cloud 삭제 네트워크 응답:', responses);
+      console.log('🌐 [SourceModelList] Cloud delete network response:', responses);
       responses.forEach((response, index) => {
-        console.log(`📊 [SourceModelList] Cloud 삭제 응답 ${index + 1}:`, {
+        console.log(`📊 [SourceModelList] Cloud delete response ${index + 1}:`, {
           status: response.status,
           statusText: response.statusText,
           method: response.config?.method?.toUpperCase(),
@@ -254,9 +253,9 @@ function multiDelete() {
         });
       });
     }).catch(error => {
-      console.error('❌ [SourceModelList] Cloud 삭제 네트워크 오류:', error);
+      console.error('❌ [SourceModelList] Cloud delete network error:', error);
       if (error.config) {
-        console.log('🔍 [SourceModelList] Cloud 삭제 요청 정보:', {
+        console.log('🔍 [SourceModelList] Cloud delete request info:', {
           method: error.config.method?.toUpperCase(),
           url: error.config.url,
           baseURL: error.config.baseURL,
@@ -270,15 +269,15 @@ function multiDelete() {
   }
 
   if (onPremModelIds.length > 0) {
-    console.log('🚀 [SourceModelList] OnPrem 모델 삭제 API 호출 (DeleteOnPremModel):', onPremModelIds);
+    console.log('🚀 [SourceModelList] Calling OnPrem model delete API (DeleteOnPremModel):', onPremModelIds);
     const onPremDeletePromise = useBulkDeleteSourceInfraModel(onPremModelIds);
-    console.log('📡 [SourceModelList] OnPrem 삭제 Promise 객체:', onPremDeletePromise);
-    
-    // Promise 실행 전에 네트워크 요청 정보 로깅
+    console.log('📡 [SourceModelList] OnPrem delete Promise object:', onPremDeletePromise);
+
+    // Log network request info before the Promise resolves
     onPremDeletePromise.then(responses => {
-      console.log('🌐 [SourceModelList] OnPrem 삭제 네트워크 응답:', responses);
+      console.log('🌐 [SourceModelList] OnPrem delete network response:', responses);
       responses.forEach((response, index) => {
-        console.log(`📊 [SourceModelList] OnPrem 삭제 응답 ${index + 1}:`, {
+        console.log(`📊 [SourceModelList] OnPrem delete response ${index + 1}:`, {
           status: response.status,
           statusText: response.statusText,
           method: response.config?.method?.toUpperCase(),
@@ -289,9 +288,9 @@ function multiDelete() {
         });
       });
     }).catch(error => {
-      console.error('❌ [SourceModelList] OnPrem 삭제 네트워크 오류:', error);
+      console.error('❌ [SourceModelList] OnPrem delete network error:', error);
       if (error.config) {
-        console.log('🔍 [SourceModelList] OnPrem 삭제 요청 정보:', {
+        console.log('🔍 [SourceModelList] OnPrem delete request info:', {
           method: error.config.method?.toUpperCase(),
           url: error.config.url,
           baseURL: error.config.baseURL,
@@ -304,16 +303,16 @@ function multiDelete() {
     deletePromises.push(onPremDeletePromise);
   }
 
-  console.log('⏳ [SourceModelList] 삭제 API Promise 실행 중...');
+  console.log('⏳ [SourceModelList] Running delete API Promises...');
   Promise.all(deletePromises)
     .then(res => {
-      console.log('✅ [SourceModelList] 삭제 성공:', res);
+      console.log('✅ [SourceModelList] Delete succeeded:', res);
       handleRefreshTable();
       tableModel.tableState.selectIndex = [];
       showSuccessMessage('success', 'Delete Success');
     })
     .catch(err => {
-      console.error('❌ [SourceModelList] 삭제 실패:', err);
+      console.error('❌ [SourceModelList] Delete failed:', err);
       showErrorMessage('Error', err);
     });
 }
@@ -332,10 +331,10 @@ function handleSelectedIndex(selectedIndex: number) {
 }
 
 function handleDeleteConfirm() {
-  console.log('✅ [SourceModelList] 삭제 확인 버튼 클릭 - 삭제 실행');
+  console.log('✅ [SourceModelList] Delete confirm button clicked - running delete');
   multiDelete();
   modals.alertModalState.open = false;
-  console.log('🔒 [SourceModelList] 삭제 확인 모달 닫기');
+  console.log('🔒 [SourceModelList] Closing delete confirmation modal');
 }
 </script>
 
@@ -343,14 +342,14 @@ function handleDeleteConfirm() {
   <div>
     <p-horizontal-layout :key="tableKey" :height="adjustedDynamicHeight">
       <template #container="{ height }">
-        <!-- 로딩 중일 때 스피너 표시 -->
+        <!-- Show a spinner while loading -->
         <table-loading-spinner
           :loading="resSourceList.isLoading.value"
           :height="height"
           message="Loading source models..."
         />
         
-        <!-- 로딩 완료 후 테이블 표시 -->
+        <!-- Show the table once loading is done -->
         <p-toolbox-table
           v-if="!resSourceList.isLoading.value"
           ref="toolboxTableRef"

@@ -9,18 +9,20 @@ import { scenarioState } from '../support/world';
 const { Given, Then } = createBdd(test);
 
 /**
- * 시드 스텝 — 기능(@unit) 테스트가 딛고 설 데이터를 만든다.
+ * Seed steps — create the data that functional (@unit) tests stand on.
  *
- * 소스 등록·인프라 수집·소스모델 저장은 source.steps의 스텝을 그대로 재사용하고,
- * 여기에는 시드에만 필요한 것(소프트웨어 수집·SW 소스모델·요금 안전 워크플로우)을 둔다.
+ * Source registration, infra collection, and source-model save reuse the steps from
+ * source.steps as is; only what the seed alone needs (software collection, SW source
+ * model, cost-safe workflow) lives here.
  */
 
 /**
- * "그리고 소스 소프트웨어를 수집한다" — 인프라 수집과 같은 절차(Collect Software)
+ * "그리고 소스 소프트웨어를 수집한다" — same procedure as infra collection (Collect Software)
  *
- * 대상 그룹은 *이번 시나리오가 등록한* 그룹이다. 시드는 e2e-nano-source를, 마이그레이션 시나리오는
- * e2e-scn-source를 등록하는데, 예전엔 여기서 fixtures의 이름을 그대로 박아 써서 시나리오가
- * 엉뚱한(시드가 만든) 그룹의 소프트웨어를 수집했다.
+ * The target group is the one *registered by this scenario*. The seed registers
+ * e2e-nano-source and the migration scenario registers e2e-scn-source, but previously the
+ * fixtures name was hardcoded here, so the scenario collected software from the wrong
+ * group (the one the seed created).
  */
 Given('소스 소프트웨어를 수집한다', async ({ page }) => {
   const source = new SourceServicesPage(page);
@@ -31,13 +33,13 @@ Given('소스 소프트웨어를 수집한다', async ({ page }) => {
   await source.collectSoftware();
 });
 
-/** "그리고 수집된 소프트웨어를 {string} 소스 모델로 저장한다" — 수집 결과 팝업에서 SW 소스모델 저장 */
+/** "그리고 수집된 소프트웨어를 {string} 소스 모델로 저장한다" — save the SW source model from the collection-result popup */
 Given(
   '수집된 소프트웨어를 {string} 소스 모델로 저장한다',
   async ({ page }, name: string) => {
     const modelName = uniqueName(name);
     await new SourceServicesPage(page).saveCollectedSwAsSourceModel(modelName);
-    // SW 추천 스텝이 이 모델을 집는다.
+    // The SW recommendation step picks up this model.
     scenarioState.softwareSourceModelName = modelName;
   },
 );
@@ -45,11 +47,13 @@ Given(
 /**
  * "그리고 요금 안전 예제 워크플로우 {string} 를 준비한다"
  *
- * ★ 요금 안전 — 실제 인프라를 만들지 않는 예제 템플릿으로만 만든다.
- *   마이그레이션 템플릿(migrate_infra_workflow 등)은 EC2를 프로비저닝하므로 @unit 실행 대상이 될 수 없다.
- *   여기서는 cm-cicada가 기본 제공하는 예제 템플릿(_v2_example_xcom_workflow)을 그대로 쓴다.
+ * ★ Cost-safe — built only from an example template that does not create real infra.
+ *   Migration templates (migrate_infra_workflow, etc.) provision EC2, so they cannot be a
+ *   @unit target. Here we use the example template cm-cicada ships by default
+ *   (_v2_example_xcom_workflow) as is.
  *
- * 콘솔이 쓰는 프록시(operationId)를 그대로 호출해 로그인 세션·경로를 실제 사용 흐름과 같게 태운다.
+ * We call the same proxy (operationId) the console uses, so the login session and path go
+ * through the same flow as real usage.
  */
 Given(
   '요금 안전 예제 워크플로우 {string} 를 준비한다',
@@ -69,7 +73,7 @@ Given(
       Authorization: `Bearer ${token}`,
     };
 
-    // 예제 템플릿을 찾아 그 정의(task_groups)를 그대로 워크플로우로 만든다.
+    // Find the example template and build a workflow from its definition (task_groups) as is.
     const templateName = workflowData.safeRunTemplateName;
     const listRes = await page.request.post(
       '/api/cm-cicada/list-workflow-template',
@@ -119,12 +123,14 @@ Given(
     const wfId = (await res.json())?.responseData?.id;
     expect(wfId, '생성된 워크플로우 id를 받지 못했다').toBeTruthy();
 
-    // ★ DAG가 등록될 때까지 기다린다.
+    // ★ Wait until the DAG is registered.
     //
-    //   cm-cicada는 워크플로우를 만들 때 DAG YAML을 디스크에 쓰기만 하고, airflow가 그걸 주기적으로 파싱해
-    //   등록한다(수십 초). 그 전에 실행하면 "provided dag_id is not exist"로 거부된다.
-    //   기능 테스트가 이 창에 걸려 실행이 안 되는 걸 "실행 실패"로 오해하지 않도록, 시드에서 *실제로 실행이
-    //   받아들여질 때까지* 확인하고 넘어간다. 여기서 한 번 돌려 두면 이력도 남아 뒤 테스트가 안정된다.
+    //   When creating a workflow, cm-cicada only writes the DAG YAML to disk, and airflow
+    //   parses and registers it periodically (tens of seconds). Running before that is
+    //   rejected with "provided dag_id is not exist".
+    //   So that a functional test caught in this window isn't mistaken for a "run failure",
+    //   the seed confirms *until a run is actually accepted* before moving on. Running it
+    //   once here also leaves a history so later tests are stable.
     const deadline = Date.now() + 5 * 60_000;
     let lastStatus = 0;
     let lastBody = '';
@@ -146,7 +152,7 @@ Given(
   },
 );
 
-/** "그리고 소스 모델 목록에 {string} 이 보인다" 의 시드용 별칭은 models.steps의 것을 그대로 쓴다. */
+/** The seed alias for "그리고 소스 모델 목록에 {string} 이 보인다" reuses the one from models.steps as is. */
 Then('시드 데이터가 준비되었다', async ({ page }) => {
   await new ModelsPage(page).expectModelListVisible();
 });

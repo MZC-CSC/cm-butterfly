@@ -1,6 +1,6 @@
 /**
- * Composite Pattern 기반 데이터 매핑 유틸리티
- * Schema와 데이터를 매핑하여 Composite Component 구조 생성
+ * Data mapping utility based on the Composite pattern
+ * Maps a schema and data into a Composite Component structure
  */
 
 import { SchemaAnalyzer } from './schemaAnalyzer';
@@ -8,7 +8,7 @@ import type { SchemaComponent, SchemaAnalysisResult } from '../types/schemaCompo
 
 export class DataMapper {
   /**
-   * Schema와 데이터를 매핑하여 SchemaComponent 생성
+   * Maps a schema and data into a SchemaComponent
    */
   static mapSchemaToComponent(
     schema: any,
@@ -39,7 +39,7 @@ export class DataMapper {
   }
 
   /**
-   * 기본 타입 컴포넌트 생성
+   * Create a basic-type component
    */
   private static createBasicTypeComponent(
     schema: any,
@@ -58,7 +58,7 @@ export class DataMapper {
   }
 
   /**
-   * Object 타입 컴포넌트 생성
+   * Create an object-type component
    */
   private static createObjectComponent(
     schema: any,
@@ -69,7 +69,7 @@ export class DataMapper {
   ): SchemaComponent {
     const properties: Record<string, SchemaComponent> = {};
     
-    // Schema properties 순회
+    // Iterate over the schema properties
     Object.entries(schema.properties || {}).forEach(([key, propSchema]: [string, any]) => {
       const propData = data && data[key] !== undefined ? data[key] : undefined;
       const propPath = path ? `${path}.${key}` : key;
@@ -89,7 +89,7 @@ export class DataMapper {
   }
 
   /**
-   * Array 타입 컴포넌트 생성
+   * Create an array-type component
    */
   private static createArrayComponent(
     schema: any,
@@ -101,7 +101,7 @@ export class DataMapper {
     const items: SchemaComponent[] = [];
     
     if (Array.isArray(data) && data.length > 0) {
-      // 실제 데이터가 있는 경우
+      // When actual data exists
       data.forEach((item, index) => {
         const itemName = `item_${index}`;
         const itemPath = path ? `${path}[${index}]` : `[${index}]`;
@@ -109,7 +109,7 @@ export class DataMapper {
         items.push(this.mapSchemaToComponent(schema.items, item, itemName, itemPath));
       });
     } else {
-      // 템플릿 아이템 생성
+      // Create a template item
       const templateItem = this.mapSchemaToComponent(schema.items, {}, 'template_item', path);
       items.push(templateItem);
     }
@@ -126,7 +126,7 @@ export class DataMapper {
   }
 
   /**
-   * 빈 Object 템플릿 생성
+   * Create an empty object template
    */
   static createEmptyObjectTemplate(
     schema: any,
@@ -150,7 +150,7 @@ export class DataMapper {
   }
 
   /**
-   * 빈 Array 템플릿 생성
+   * Create an empty array template
    */
   static createEmptyArrayTemplate(
     schema: any,
@@ -170,7 +170,7 @@ export class DataMapper {
   }
 
   /**
-   * 데이터 검증
+   * Validate data
    */
   static validateData(schema: any, data: any): { isValid: boolean; errors: string[] } {
     const errors: string[] = [];
@@ -179,7 +179,7 @@ export class DataMapper {
       return { isValid: true, errors: [] };
     }
 
-    // 필수 필드 검증
+    // Validate required fields
     if (schema.required && Array.isArray(schema.required)) {
       schema.required.forEach((field: string) => {
         if (data === undefined || data === null || data[field] === undefined) {
@@ -188,7 +188,7 @@ export class DataMapper {
       });
     }
 
-    // 타입 검증
+    // Validate types
     if (schema.type === 'string' && typeof data !== 'string') {
       errors.push(`Must be a string type.`);
     } else if (schema.type === 'integer' && typeof data !== 'number') {
@@ -208,7 +208,7 @@ export class DataMapper {
   }
 
   /**
-   * 데이터 변환 (문자열을 적절한 타입으로)
+   * Convert data (strings into their appropriate types)
    */
   static convertData(schema: any, data: any): any {
     if (!schema || data === undefined || data === null) {

@@ -72,32 +72,33 @@ const loading = ref<boolean>(true);
 
 const trigger = reactive({ value: false });
 /**
- * 이 워크플로우의 실행 그래프를 편집기가 그대로 그릴 수 없을 때 켜진다.
- * 그럴 때는 빈 화면을 보여주는 대신 이유를 적고 저장을 막는다 — 그리지 못한 것을
- * 저장하면 실행 순서가 바뀌기 때문이다.
+ * On when the editor cannot draw this workflow's execution graph as-is.
+ * In that case, instead of showing a blank screen, it records the reason and blocks saving —
+ * because saving something it could not draw would change the execution order.
  */
 const isUneditable = ref(false);
 const loadWarnings = ref<string[]>([]);
 
 /**
- * 이 워크플로우가 실행된 적이 있어 고칠 수 없을 때 켜진다.
+ * On when this workflow has been run before and therefore cannot be edited.
  *
- * 정상 경로에서는 여기까지 오지 않는다 — 상세 화면과 실행 뷰어가 실행 이력을 보고
- * 실행 상태로 보내기 때문이다. 이것은 **뒤에 다른 진입이 생겨도 뚫리지 않게 하는
- * 안전망**이고, 열렸을 때는 보여주되 고치지 못하게 한다.
+ * The normal path never reaches here — the detail screen and the run viewer look at the run
+ * history and send it to the run state. This is a **safety net that stays intact even if some
+ * other entry path is added later**, and when it does open, it shows the workflow but prevents edits.
  */
 const isRunLocked = ref(false);
 
 /**
- * 워크플로우를 아직 읽지 못한 상태.
+ * State where the workflow has not been read yet.
  *
- * 방금 만든 워크플로우는 엔진이 Airflow 에서 읽지 못하는 구간이 잠시 있다
- * (개발 서버 측정 약 5초, `get-workflow` 가 400). 그때 조회 결과가 비는데,
- * **그대로 두면 빈 캔버스가 아무 말 없이 뜬다** — 태스크가 하나도 없는 워크플로우처럼
- * 보이고, 그 상태로 저장하면 내용이 날아간다.
+ * A freshly created workflow has a brief window where the engine cannot read it from Airflow
+ * (about 5s measured on the dev server, `get-workflow` returns 400). During that window the query
+ * comes back empty, and **left as-is a blank canvas appears silently** — it looks like a workflow
+ * with no tasks, and saving in that state wipes the content.
  *
- * 그래서 읽힐 때까지 기다렸다가 그리고, 무엇을 기다리는지 화면에 적는다.
- * (복제 직후 편집기로 오는 경로는 복제 응답이 캐시에 있어 곧바로 그려진다.)
+ * So we wait until it can be read before drawing, and note on screen what we are waiting for.
+ * (The path that comes to the editor right after cloning draws immediately because the clone
+ * response is already in the cache.)
  */
 const workflowLoadState = ref<'ok' | 'waiting' | 'failed'>('ok');
 
@@ -126,8 +127,8 @@ onBeforeMount(function () {
     resWorkflowTemplateData.execute(),
     resTaskComponentList.execute(),
   ]).then(res => {
-    // cm-cicada Type/Spec 응답을 디자이너가 소비하는 legacy 형태로 정규화 (in place).
-    // 팔레트/캔버스/템플릿 로드가 모두 이 배열을 참조하므로 여기서 한 번 변환한다.
+    // Normalize the cm-cicada Type/Spec response into the legacy shape the designer consumes (in place).
+    // Palette/canvas/template loading all reference this array, so convert it once here.
     normalizeTaskComponentList(res[1].data.responseData);
 
     workflowToolModel.workflowStore.setWorkflowTemplates(
@@ -135,7 +136,6 @@ onBeforeMount(function () {
     );
 
     // cicada_task_run_script is now included in API response
-    // cicada_task_run_script는 이제 API 응답에 포함됨
     workflowToolModel.setTaskComponent(res[1].data.responseData);
     workflowToolModel.setDropDownData(
       workflowToolModel.workflowStore.workflowTemplates,
@@ -152,21 +152,24 @@ onBeforeMount(function () {
         zone: props.targetModel.zone,
       });
 
-      // ── 타깃 모델 흐름: 템플릿을 로드하되, 마이그레이션 task 본문을 타깃 모델의 리터럴 값으로
- // 채우고 앞 조회 task 에는 선택한 타깃 모델 id 를 넣는다 (P0) ──
+      // ── Target model flow: load the template, but fill the migration task body with the target
+      // model's literal value and put the selected target model id into the preceding lookup task (P0) ──
       //
-      // cm-cicada v0.5.1 마이그레이션 템플릿은 두 개의 마이그레이션 task 로 나뉜다:
-      //   ① damselfly 조회 task(path_params.id 로 타깃 모델을 실행 시점에 조회)
-      //   ② 마이그레이션 task(beetle/grasshopper) — 본문이 "①.결과" 참조로 돼 있음.
-      // 콘솔은 이미 완성된 타깃 모델을 손에 쥐고 있고, 사용자가 우측 테이블로 값을 편집해야 하므로,
-      // ②의 본문을 참조가 아니라 타깃 모델의 리터럴 값으로 직접 채운다(엔진의 리터럴 모드가 그대로
-      // 대상 API 로 보낸다 — docs/task-response-passing.md). ①에는 선택한 타깃 모델 id 를 넣어
-      // 그대로 성공하게 둔다(②가 리터럴이라 ①의 결과는 쓰이지 않지만 템플릿 구조상 실행은 성공해야
-      // 하므로). 실제 주입은 시퀀스를 세운 직후 loadSequence() 끝에서 한다.
+      // The cm-cicada v0.5.1 migration template splits into two migration tasks:
+      //   ① damselfly lookup task (looks up the target model at run time via path_params.id)
+      //   ② migration task (beetle/grasshopper) — whose body is a "①.result" reference.
+      // The console already holds a completed target model, and the user needs to edit values in the
+      // right-hand table, so we fill ②'s body directly with the target model's literal value rather
+      // than a reference (the engine's literal mode sends it straight to the target API —
+      // docs/task-response-passing.md). We put the selected target model id into ① so it succeeds as-is
+      // (since ② is literal, ①'s result is not used, but the template structure requires ① to succeed
+      // for the run to complete). The actual injection happens at the end of loadSequence() right after
+      // the sequence is built.
       //
-      // 이전에는 여기서 mapTargetModelToTaskComponent() 로 '단일 리터럴 task'를 만들면서
-      // 동시에 load() 로 템플릿을 비동기 로드해, load 가 나중에 그 단일 task 를 덮어썼다(race).
-      // 그 결과 저장물이 참조 본문 그대로인 다중-task 템플릿이 돼 콘솔이 {}/스켈레톤으로 소실시켰다.
+      // Previously this built a 'single literal task' via mapTargetModelToTaskComponent() while at the
+      // same time async-loading the template via load(), so load() later overwrote that single task (a race).
+      // The result was a saved multi-task template with the reference body intact, which the console
+      // collapsed to {}/a skeleton.
       const migrationType =
         props.targetModel.migrationType ||
         (props.targetModel.cloudInfraModel ? 'infra' : 'software');
@@ -183,7 +186,7 @@ onBeforeMount(function () {
       } else {
         console.warn(`${templateName} template not found`);
       }
-      // 템플릿 로드 → 시퀀스 구성 → (loadSequence 끝에서) 타깃 모델 주입.
+      // Load template → build sequence → (at the end of loadSequence) inject the target model.
       load();
     } else if (props.toolType === 'add') {
       // For add mode, use recommendedModel from props
@@ -244,7 +247,7 @@ onBeforeMount(function () {
     }
   });
 });
-// resTaskComponentList가 로드된 후 task schema 로드
+// Load task schemas after resTaskComponentList has loaded
 watch(
   () => resTaskComponentList.data,
   async newData => {
@@ -253,7 +256,7 @@ watch(
         console.log('Loading task schemas from resTaskComponentList data...');
         console.log('resTaskComponentList.data:', newData);
 
-        // API 응답 구조 확인
+        // Check the API response structure
         if ((newData as any).responseData) {
           console.log('Using resTaskComponentList.data.responseData');
           loadTaskSchemasFromResponse(newData as any);
@@ -275,7 +278,7 @@ watch(
 );
 
 onMounted(async () => {
-  // Task schema가 아직 로드되지 않았다면 API 호출
+  // If the task schema has not been loaded yet, call the API
   if (!isSchemaLoaded.value) {
     try {
       console.log('No existing data, calling API...');
@@ -299,7 +302,7 @@ async function load() {
   loading.value = false;
 }
 
-/** targetModel에서 진입시 targetModel의 특정 정보를 가지고 있어야한다는 요구사항에 의한 함수 */
+/** Function driven by the requirement that entering from a targetModel must carry specific targetModel information */
 function mapTargetModelToTaskComponent(
   targetModel: ITargetModelResponse,
   taskComponentList: Array<ITaskComponentInfoResponse>,
@@ -449,9 +452,10 @@ function mapTargetModelToTaskComponent(
   }
 
   // Set path_params and query_params from task component with nsId default value.
-  // ★ 스키마 properties의 description은 *설명(placeholder)*이지 값이 아니다. 값은 비워 두어
-  //   자동 생성 task가 백엔드 기본값을 쓰거나(선택 파라미터) 사용자가 채우게 한다.
- // (과거 description을 값으로 넣어 예: cm-beetle 마이그레이션 nameSeed=<설명문>이 되어 400 발생)
+  // ★ A schema property's description is *explanatory text (a placeholder)*, not a value. Leave the
+  //   value empty so the auto-generated task uses the backend default (for optional params) or the
+  //   user fills it in. (Previously the description was put in as the value, e.g. cm-beetle migration
+  //   ending up with nameSeed=<explanatory text>, which caused a 400.)
   const pathParamsKeyValue = taskComponent?.data.path_params?.properties
     ? Object.entries(taskComponent.data.path_params.properties).reduce(
         (acc, [key]) => {
@@ -521,7 +525,7 @@ function mapTargetModelToTaskComponent(
   });
 }
 
-/** Add 모드에서 GetModels API 결과를 사용하여 task를 생성하는 함수 */
+/** Function that creates a task using the GetModels API result in Add mode */
 function createTaskForModel(
   targetModel: ITargetModelResponse,
   taskComponentList: Array<ITaskComponentInfoResponse>,
@@ -671,9 +675,10 @@ function createTaskForModel(
   }
 
   // Set path_params and query_params from task component with nsId default value.
-  // ★ 스키마 properties의 description은 *설명(placeholder)*이지 값이 아니다. 값은 비워 두어
-  //   자동 생성 task가 백엔드 기본값을 쓰거나(선택 파라미터) 사용자가 채우게 한다.
- // (과거 description을 값으로 넣어 예: cm-beetle 마이그레이션 nameSeed=<설명문>이 되어 400 발생)
+  // ★ A schema property's description is *explanatory text (a placeholder)*, not a value. Leave the
+  //   value empty so the auto-generated task uses the backend default (for optional params) or the
+  //   user fills it in. (Previously the description was put in as the value, e.g. cm-beetle migration
+  //   ending up with nameSeed=<explanatory text>, which caused a 400.)
   const pathParamsKeyValue = taskComponent?.data.path_params?.properties
     ? Object.entries(taskComponent.data.path_params.properties).reduce(
         (acc, [key]) => {
@@ -744,29 +749,29 @@ function createTaskForModel(
 }
 
 /*
-  이 편집기로 들어오는 길과, 그때 **엔진에서 워크플로우를 읽어야 하는가**
+  The paths into this editor, and whether **the workflow must be read from the engine** at that point
 
-  | 들어온 길 | toolType | 무엇으로 그리나 | 기다림 |
+  | Entry path | toolType | Drawn from | Wait |
   |---|---|---|---|
-  | 실행 상태 → Edit (미실행 원본) | edit | 스토어(목록에서 이미 받음) → 없으면 엔진 | 필요 |
-  | 실행 상태 → Clone & Edit | edit | 스토어(복제 응답을 바로 넣어 둔다) | 사실상 즉시 |
-  | JSON 으로 만든 워크플로우를 나중에 열기 | edit | 스토어 → 없으면 엔진 | 필요 |
-  | 타깃 모델에서 진입 | add | 템플릿 | 불필요 |
-  | 목록의 새로 만들기(지금은 막혀 있다) | add | 템플릿 | 불필요 |
+  | Run state → Edit (unexecuted original) | edit | store (already received from the list) → engine if absent | needed |
+  | Run state → Clone & Edit | edit | store (the clone response is placed in immediately) | effectively instant |
+  | Open a JSON-created workflow later | edit | store → engine if absent | needed |
+  | Entering from a target model | add | template | not needed |
+  | Create new from the list (currently blocked) | add | template | not needed |
 
-  기다림이 필요한 것은 **`edit` 하나뿐**이다 — `add` 는 기존 워크플로우를 읽지 않고
-  템플릿으로 그리므로 엔진 상태와 무관하다. 그래서 대기도 이 분기 안에만 둔다.
+  The only one that needs to wait is **`edit`** — `add` does not read an existing workflow but draws
+  from a template, so it is independent of engine state. That is why the wait lives only in this branch.
 */
 async function loadWorkflow() {
   if (props.toolType === 'edit') {
-    // 캐시에 없으면 스토어가 받아서 채운다. 목록 화면을 거치지 않고 열린 워크플로우
-    // (예: 방금 만든 복제본)도 이 경로로 정상 로드된다.
+    // If not in the cache, the store fetches and fills it. A workflow opened without going through
+    // the list screen (e.g. a just-created clone) also loads correctly via this path.
     workflowData.value = await fetchWorkflowForEdit();
     workflowLoadState.value = workflowData.value ? 'ok' : 'failed';
     if (!workflowData.value) return;
-    // 실행 이력이 있으면 보여주기만 한다. 정상 경로(실행 상태 화면)는 이력이 있는
-    // 워크플로우를 아예 여기로 보내지 않으므로, 이것은 뒤에 다른 진입이 생겨도
-    // 뚫리지 않게 하는 안전망이다.
+    // If there is run history, only display it. The normal path (the run state screen) never sends a
+    // workflow with history here in the first place, so this is a safety net that stays intact even if
+    // some other entry path is added later.
     isRunLocked.value = await hasWorkflowRunHistory(props.wftId);
   } else if (props.toolType === 'add') {
     workflowData.value = workflowToolModel.getWorkflowTemplateData(
@@ -803,12 +808,13 @@ function loadSequence() {
       resTaskComponentList.data.value?.responseData!,
     );
     sequentialSequence.value = loaded.sequence;
-    // 그릴 수 없는 모양이면 빈 화면 대신 이유를 내놓는다. 억지로 펴서 보여주면
-    // 저장하는 순간 없던 의존 관계가 생겨 워크플로우가 조용히 바뀐다.
+    // If the shape cannot be drawn, surface the reason instead of a blank screen. Forcibly flattening
+    // it to display would, on save, create dependencies that did not exist and silently change the workflow.
     isUneditable.value = loaded.representable === false;
     loadWarnings.value = loaded.warnings ?? [];
-    // 타깃 모델에서 진입한 경우, 조회 task 에 타깃 모델 id 를, 마이그레이션 task 에 리터럴 본문을 주입한다.
-    // 시퀀스를 세운 직후(디자이너 렌더 전) 주입하므로 저장 시 그대로 반영된다.
+    // When entering from a target model, inject the target model id into the lookup task and the literal
+    // body into the migration task. Injected right after the sequence is built (before designer render),
+    // so it is reflected as-is on save.
     if (props.targetModel) {
       injectTargetModelIntoSequence();
     }
@@ -816,15 +822,16 @@ function loadSequence() {
 }
 
 /**
- * 타깃 모델 흐름 전용 주입 — 로드된 템플릿 시퀀스에서
- *  ① 조회 task(damselfly_task_get_cloud_infra_model / _get_target_software_model)의
- *     path_params.id 를 선택한 타깃 모델 id 로 채우고,
- *  ② 마이그레이션 task(beetle_task_infra_migration / grasshopper_task_software_migration)의
- *     본문(model)을 타깃 모델의 리터럴 값으로 덮어써, 참조가 아니라 실제 값이 저장되게 한다.
- * 나머지 task(sleep/install_docker/email 등)는 템플릿 그대로 둔다.
+ * Injection specific to the target model flow — in the loaded template sequence:
+ *  ① fill the lookup task (damselfly_task_get_cloud_infra_model / _get_target_software_model)'s
+ *     path_params.id with the selected target model id, and
+ *  ② overwrite the migration task (beetle_task_infra_migration / grasshopper_task_software_migration)'s
+ *     body (model) with the target model's literal value, so the actual value is saved rather than a reference.
+ * The remaining tasks (sleep/install_docker/email, etc.) are left as the template.
  *
- * ②가 리터럴이면 ①의 조회 결과는 실제로 쓰이지 않지만, 템플릿 구조상 ①도 성공해야 실행이 끝나므로
- * 유효한 타깃 모델 id 를 넣어 둔다(하드코딩된 예시 id 를 그대로 저장하던 문제도 함께 해소).
+ * Since ② is literal, ①'s lookup result is not actually used, but the template structure requires ① to
+ * succeed for the run to complete, so we put in a valid target model id (this also resolves the issue
+ * where a hardcoded example id was being saved as-is).
  */
 function injectTargetModelIntoSequence() {
   const tm = props.targetModel;
@@ -839,13 +846,13 @@ function injectTargetModelIntoSequence() {
     ? 'beetle_task_infra_migration'
     : 'grasshopper_task_software_migration';
   /*
-    두 마이그레이션의 본문 형태가 다르다 — 같은 모양으로 넣으면 안 된다.
-     - 인프라(beetle): cloudInfraModel 의 *내용*(targetInfra/targetVNet 등)이 곧 본문이다.
-     - 소프트웨어(grasshopper): 본문을 `targetSoftwareModel` 로 한 겹 *감싼* 형태로 받는다
+    The two migrations have different body shapes — they must not be filled in the same way.
+     - Infra (beetle): the *contents* of cloudInfraModel (targetInfra/targetVNet, etc.) are the body itself.
+     - Software (grasshopper): the body is received *wrapped* one level in `targetSoftwareModel`
        (smdl `TargetSoftwareModel{ TargetSoftwareModel ... json:"targetSoftwareModel" }`).
-    안쪽 객체({servers:[...]})만 넣으면 grasshopper 가 servers 를 빈 값으로 바인딩해
-    아무 소프트웨어도 처리하지 않은 채 200 + execution_id 를 돌려준다. 그러면 태스크는
-    성공으로 보이는데 결과(target_mappings)는 비어 원인을 찾기 어렵다.
+    Putting in only the inner object ({servers:[...]}) makes grasshopper bind servers to an empty value
+    and return 200 + execution_id without processing any software. The task then looks successful while
+    the result (target_mappings) is empty, making the cause hard to find.
   */
   const softwareModel = (tm as any).targetSoftwareModel;
   const literalBody = isInfra
@@ -867,7 +874,7 @@ function injectTargetModelIntoSequence() {
           id: tm.id,
         };
       } else if (component === migrationComponent && literalBody) {
-        // 참조 본문 대신 타깃 모델의 리터럴 값을 넣는다(우측 테이블도 이 값으로 채워진다).
+        // Put in the target model's literal value instead of a reference body (the right-hand table is filled with this value too).
         step.properties.model = { ...literalBody };
       }
       if (step?.sequence) visit(step.sequence);
@@ -984,9 +991,9 @@ function postWorkflow(workflow: IWorkflow) {
       .then(res => {
         showSuccessMessage('Success', 'Success');
         emit('update:trigger');
-        emit('update:close-modal', false); // 저장 성공 후 모달 닫기
-        // 저장 다음에 하는 일은 대개 실행이다. 어느 워크플로우를 저장했는지 알려
-        // 화면이 그 워크플로우의 실행 상태로 옮겨 가게 한다.
+        emit('update:close-modal', false); // close the modal after a successful save
+        // What usually happens after saving is running it. Tell it which workflow was saved so the
+        // screen can move to that workflow's run state.
         emit('update:saved', props.wftId);
       })
       .catch(err => {
@@ -1008,10 +1015,10 @@ function postWorkflow(workflow: IWorkflow) {
       .then(res => {
         showSuccessMessage('Success', 'Success');
         emit('update:trigger');
-        emit('update:close-modal', false); // 저장 성공 후 모달 닫기
-        // 새로 만든 워크플로우의 id 는 응답에서만 알 수 있다. 복제 API 와 같은 모양으로
-        // 워크플로우 전체를 돌려준다. **id 가 없으면 옮기지 않는다** — 엉뚱한
-        // 워크플로우의 실행 상태를 보여주느니 있던 화면에 머무는 편이 낫다.
+        emit('update:close-modal', false); // close the modal after a successful save
+        // The id of a newly created workflow can only be learned from the response. It returns the whole
+        // workflow in the same shape as the clone API. **If there is no id, do not move** — it is better to
+        // stay on the current screen than to show the run state of the wrong workflow.
         const createdId = res?.data?.responseData?.id;
         if (createdId) emit('update:saved', createdId);
       })
@@ -1036,8 +1043,8 @@ function handleSaveCallback(designer: Designer | null) {
       return;
     }
 
-    // 틀리지는 않지만 만들다 만 것으로 보이는 상태는 저장은 하되 짚어 준다.
-    // 화면을 닫으면 그림은 사라지고 저장된 선만 남기 때문이다.
+    // A state that is not wrong but looks half-finished is still saved, with a note. Because once the
+    // screen is closed the diagram is gone and only the saved connections remain.
     const notices = workflowToolModel.reviewDesignerSequence(
       (definition?.sequence ?? []) as Step[],
     );
@@ -1059,7 +1066,7 @@ function handleCancel() {
 
 function handleSave() {
   if (isUneditable.value || isRunLocked.value) return;
-  // 읽지 못한 상태로 저장하면 빈 정의를 덮어쓴다
+  // Saving while it has not been read would overwrite with an empty definition
   if (workflowLoadState.value !== 'ok') return;
   trigger.value = true;
 }
@@ -1093,9 +1100,9 @@ function handleSelectTemplate(e) {
               <p-text-input v-model="workflowDescription.value.value" block />
             </PFieldGroup>
             <!--
-              병렬은 팔레트에서 명시적으로 꺼내 써야 하고, 좌우 배치는 병렬 상자
-              안에서만 된다. 처음 쓰는 사람이 그 규칙을 알 길이 화면에 없어서
-              가이드로 연결한다.
+              Parallelism must be pulled explicitly from the palette, and side-by-side placement only
+              works inside a parallel box. A first-time user has no way to learn that rule from the
+              screen, so we link to the guide.
             -->
             <PFieldGroup class="flex-1" :label="'Workflow Template'" required>
               <p-select-dropdown
@@ -1133,8 +1140,8 @@ function handleSelectTemplate(e) {
             </ul>
           </div>
           <!--
-            실행된 적 있는 워크플로우가 어떤 경로로든 열렸을 때. 고칠 수 없다는 것과
-            어떻게 하면 되는지를 함께 알린다.
+            When a workflow that has been run is opened via any path. Tells the user both that it
+            cannot be edited and what to do instead.
           -->
           <div
             v-if="isRunLocked"
@@ -1156,9 +1163,9 @@ function handleSelectTemplate(e) {
             </ul>
           </div>
           <!--
-            아직 읽어 오지 못한 상태. **왜 늦는지는 적지 않는다** — 여기까지 오는 길이
-            여럿이라(복제본·타깃 모델·새로 만들기·JSON 으로 만든 것 열기) 화면이 원인을
-            단정할 수 없다. 기다리는 중이라는 사실만 알리고, 되면 그때 그린다.
+            State where it has not been read yet. **We do not state why it is slow** — there are many
+            paths to get here (clone, target model, create new, opening a JSON-created one), so the
+            screen cannot pin down the cause. It only says it is waiting, and draws once it is ready.
           -->
           <div
             v-if="workflowLoadState === 'waiting'"
@@ -1237,7 +1244,7 @@ function handleSelectTemplate(e) {
   padding: 12px 16px;
   border-radius: 4px;
 }
-/* 고칠 수 없다는 것은 경고가 아니라 상태다 — 노란 경고와 색을 달리한다 */
+/* Being uneditable is a state, not a warning — use a different color from the yellow warning */
 .workflow-tool-notice--locked {
   border-left-color: #6b7280;
   background: #f3f4f6;

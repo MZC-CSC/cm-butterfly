@@ -105,31 +105,34 @@ func InitAPISpec() error {
 	return nil
 }
 
-// AnyCaller — 서브시스템을 지정하지 않은 프록시 호출.
+// AnyCaller — proxy call without a specified subsystem.
 //
-// 더 이상 실제 호출을 중계하지 않는다. operationId 만으로는 어느 서브시스템의 API 인지
-// 확정할 수 없기 때문이다 — 같은 이름이 여러 서브시스템에 존재한다(예: getinfra 는
-// cb-tumblebug 과 cm-beetle 이 함께 정의한다). 예전에는 전체를 순회해 먼저 걸리는 것을
-// 썼는데, Go 의 map 순회는 순서가 무작위라 같은 호출이 실행할 때마다 다른 서비스로 갈 수 있었다.
+// This no longer relays actual calls. An operationId alone cannot pin down
+// which subsystem's API is meant — the same name exists in multiple subsystems
+// (e.g. getinfra is defined by both cb-tumblebug and cm-beetle). It used to scan
+// everything and use the first match, but Go's map iteration order is random, so
+// the same call could reach a different service on each run.
 //
-// 호출은 POST /api/{subsystem}/{operationId} 로 한다(SubsystemAnyCaller).
-// cm-butterfly 자체 API 는 별도의 네이티브 라우트로 등록돼 있어 이 경로를 타지 않는다.
+// Calls must go through POST /api/{subsystem}/{operationId} (SubsystemAnyCaller).
+// cm-butterfly's own APIs are registered as separate native routes and do not
+// take this path.
 func AnyCaller(c echo.Context, operationId string, commonRequest *CommonRequest, auth bool) (*response.CommonResponse, error) {
 	err := fmt.Errorf("operationId %q must be called as {subsystem}/%s", operationId, operationId)
 	log.Printf("ERROR: AnyCaller rejected a call without a subsystem: %v", err)
 	return response.CommonResponseStatusNotFound(err.Error()), err
 }
 
-// GetApiSpec — 더 이상 사용하지 않는다.
+// GetApiSpec — no longer used.
 //
-// operationId 는 서브시스템 안에서만 유일하다. 같은 이름이 여러 서브시스템에 존재하며
-// (예: get-infra-info 는 cm-honeybee 가, getinfra 는 cb-tumblebug 과 cm-beetle 이 함께 정의한다),
-// 전체를 놓고 보면 이름 중복을 피할 수 없다. 이 함수는 모든 서브시스템의 map 을 순회해
-// 먼저 걸리는 것을 반환했는데, Go 의 map 순회는 순서가 무작위라 같은 호출이 실행할 때마다
-// 다른 서비스로 갈 수 있었다.
+// An operationId is unique only within a subsystem. The same name exists in
+// multiple subsystems (e.g. get-infra-info is defined by cm-honeybee, while
+// getinfra is defined by both cb-tumblebug and cm-beetle), so name collisions
+// are unavoidable when looking across all of them. This function scanned every
+// subsystem's map and returned the first match, but Go's map iteration order is
+// random, so the same call could reach a different service on each run.
 //
-// 따라서 서브시스템을 명시해 호출한다 — POST /api/{subsystem}/{operationId}.
-// 프론트의 operationId 상수도 모두 그 형태로 지정돼 있다.
+// Therefore calls must specify the subsystem — POST /api/{subsystem}/{operationId}.
+// The front-end's operationId constants are all declared in that form too.
 //
 // func GetApiSpec(requestOpertinoId string) (string, Service, Spec, error) {
 // 	for framework, api := range ApiYamlSet.ServiceActions {
@@ -159,9 +162,11 @@ func SubsystemAnyCaller(c echo.Context, subsystemName, operationId string, commo
 		authString = ""
 	}
 
-	// 들어온 X-Request-Id 를 서브시스템까지 그대로 전달한다. cm-beetle 은 이 id 로 요청을
-	// 추적하므로(핸들러 실행 전 Handling, 끝나면 Success/Error), 프론트가 긴 삭제를 기다리다
-	// 끊겨도 GET /request/{id} 로 진행 상태를 조회할 수 있다. 없으면 빈 문자열이라 무시된다.
+	// Pass the incoming X-Request-Id straight through to the subsystem. cm-beetle
+	// tracks the request by this id (Handling before the handler runs, then
+	// Success/Error when it finishes), so even if the front-end times out waiting
+	// on a long delete, it can poll progress via GET /request/{id}. If absent it's
+	// an empty string and simply ignored.
 	reqID := c.Request().Header.Get(echo.HeaderXRequestID)
 
 	commonResponse, err := CommonCaller(strings.ToUpper(targetApiSpec.Method), targetFrameworkInfo.BaseURL, targetApiSpec.ResourcePath, commonRequest, authString, reqID)

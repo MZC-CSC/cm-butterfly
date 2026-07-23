@@ -1,19 +1,19 @@
 /**
- * 테스트 데이터·설정 — 계정·네임스페이스·스펙 등을 한곳에서 관리.
- * 민감정보/환경 의존값은 환경변수로 오버라이드.
+ * Test data and settings — accounts, namespaces, specs, etc. managed in one place.
+ * Sensitive/environment-dependent values are overridden via environment variables.
  */
 
 /**
- * 대상 서버 baseURL 을 환경변수에서 조립한다.
+ * Assemble the target server baseURL from environment variables.
  *
- * 우선순위:
- *  1) `BASE_URL` 이 있으면 그대로 사용(프로토콜·호스트·포트 전부 지정한 완전 오버라이드).
- *  2) 없으면 `E2E_PROTOCOL`(기본 http)·`E2E_HOST`(기본 localhost)·`E2E_PORT`(선택)로 조립.
- *     포트만 바꾸고 싶을 때 `E2E_PORT=8080` 처럼 지정하면 된다. 포트가 없으면 프로토콜
- *     기본 포트(80/443)를 쓴다.
+ * Priority:
+ *  1) If `BASE_URL` is set, use it as-is (a full override with protocol, host, and port).
+ *  2) Otherwise assemble from `E2E_PROTOCOL` (default http), `E2E_HOST` (default localhost),
+ *     and `E2E_PORT` (optional). To change just the port, set e.g. `E2E_PORT=8080`. Without a
+ *     port it uses the protocol's default port (80/443).
  *
- * 예:
- *   BASE_URL=https://cmig.dev.cscmzc.com   → 그대로 사용
+ * Examples:
+ *   BASE_URL=https://cmig.dev.cscmzc.com   → used as-is
  *   E2E_PORT=8080                          → http://localhost:8080
  *   E2E_HOST=10.0.0.5 E2E_PORT=80          → http://10.0.0.5:80
  */
@@ -31,13 +31,14 @@ function resolveBaseURL(): string {
 
 export const config = {
   /**
-   * 대상 서버. 기본은 로컬 nginx(http://localhost). 배포 검증은 `BASE_URL` 로 cm-mayfly 기동
-   * 인프라 서버 주소를 지정하거나, 포트만 바꿀 땐 `E2E_PORT`(+`E2E_HOST`/`E2E_PROTOCOL`) 사용.
+   * Target server. Defaults to local nginx (http://localhost). For deployment
+   * verification, point `BASE_URL` at the cm-mayfly-launched infra server address,
+   * or to change just the port use `E2E_PORT` (+`E2E_HOST`/`E2E_PROTOCOL`).
    */
   baseURL: resolveBaseURL(),
 };
 
-/** 로그인 계정 (id → 자격증명). 기본 cmiguser */
+/** Login accounts (id → credentials). Default cmiguser */
 export const users: Record<string, { id: string; password: string }> = {
   cmiguser: {
     id: process.env.TEST_USERNAME || 'cmiguser',
@@ -45,29 +46,32 @@ export const users: Record<string, { id: string; password: string }> = {
   },
 };
 
-/** 네임스페이스(워크스페이스) */
+/** Namespace (workspace) */
 /**
- * 네임스페이스 — 콘솔과 *같은* 값을 써야 한다.
+ * Namespace — must use the *same* value as the console.
  *
- * 마이그레이션으로 만들어진 인프라는 cb-tumblebug의 `mig01`("Default namespace for computing infra
- * migration") 안에 들어간다. 콘솔도 `shared/constants/namespace.ts`의 DEFAULT_NAMESPACE = 'mig01' 을 쓴다.
+ * Infra created by migration goes into cb-tumblebug's `mig01` ("Default namespace for computing
+ * infra migration"). The console also uses DEFAULT_NAMESPACE = 'mig01' from
+ * `shared/constants/namespace.ts`.
  *
- * 예전엔 여기만 'default'로 두고 있었다. 그래서 워크로드를 조회하면 늘 비어 보였고, 원격명령(PostCmdInfra)은
- * "그 ns에 그런 인프라 없음"으로 실패했다. 콘솔이 보는 것과 테스트가 보는 것이 달랐던 셈이다.
+ * This used to be left at 'default' here only. As a result, querying workloads always looked empty,
+ * and remote commands (PostCmdInfra) failed with "no such infra in that ns". What the console saw
+ * and what the test saw were different.
  */
 export const testNamespace = {
   id: process.env.TEST_NS || 'mig01',
 };
 
 /**
- * 소스 서버(온프렘 대체 small EC2) — @seed·@scenario가 수집 대상으로 쓴다.
+ * Source server (a small EC2 standing in for on-prem) — used by @seed·@scenario as a collection target.
  *
- * ★ 실제로 SSH 접속이 되는 서버여야 한다.
- *   cm-honeybee가 이 주소로 직접 SSH를 걸어 인프라·소프트웨어를 수집한다(에이전트리스). 더미 IP를 두면
- *   수집이 끝내 실패하고, 그 뒤의 소스모델·추천·워크플로우가 전부 데이터 없이 무너진다.
- *   추천 스펙이 소스 스펙을 따라가므로 작은 인스턴스(nano/micro/small)로 만든다.
+ * ★ It must be a server that SSH actually connects to.
+ *   cm-honeybee SSHes directly to this address to collect infra and software (agentless). With a
+ *   dummy IP, collection eventually fails and everything downstream (source model, recommendation,
+ *   workflow) collapses with no data.
+ *   The recommended spec follows the source spec, so create it as a small instance (nano/micro/small).
  *
- *   TEST_SOURCE_IP / TEST_SOURCE_PRIVATE_KEY 를 반드시 주입한다.
+ *   TEST_SOURCE_IP / TEST_SOURCE_PRIVATE_KEY must be injected.
  */
 export const sourceServer = {
   name: process.env.TEST_SOURCE_NAME || 'e2e-nano-source',
@@ -75,37 +79,41 @@ export const sourceServer = {
   privateIp: process.env.TEST_SOURCE_PRIVATE_IP || '',
   sshPort: process.env.TEST_SOURCE_SSH_PORT || '22',
   sshUser: process.env.TEST_SOURCE_SSH_USER || 'ubuntu',
-  // 연결정보 폼은 password 또는 privateKey가 있어야 등록 가능. @unit 기본은 더미 password.
+  // The connection-info form requires a password or privateKey to register. @unit defaults to a dummy password.
   password: process.env.TEST_SOURCE_PASSWORD || 'e2e-dummy-pass',
   privateKey: process.env.TEST_SOURCE_PRIVATE_KEY || '',
 };
 
-/** 타깃 추천 — 저비용(nano/small급) 강제 */
+/** Target recommendation — force low cost (nano/small class) */
 export const targetSpec = {
   csp: process.env.TEST_TARGET_CSP || 'aws',
   region: process.env.TEST_TARGET_REGION || 'ap-northeast-2',
   /**
-   * 추천 결과에서 이 급 이하로 강제(요금 보호). 그 *상한 안에서 가장 큰* 후보를 고른다.
+   * Force the recommendation result to this class or below (charge protection). Picks the
+   * *largest candidate within that upper bound*.
    *
-   * micro급으로 내려가면 소프트웨어 마이그레이션이 CPU 포화로 끝나지 않아(실측: 40분에 39개 중 11개),
-   * 정작 확인하려던 "마이그레이션이 되는가"를 볼 수가 없다. 상한은 유지하되 그 안에서는 여유를 준다.
+   * Going down to micro class makes software migration never finish due to CPU saturation
+   * (measured: 11 of 39 in 40 minutes), so you can't see the very thing you meant to check —
+   * "does migration work". Keep the upper bound, but give some room within it.
    */
   maxClass: process.env.TEST_TARGET_MAX_CLASS || 'medium',
 };
 
 /**
- * 워크로드(인프라/부하테스트) 데이터.
- * ★ 현행화: 식별자는 infraId/nodeId(구 mciId/vmId), 조회는 cm-beetle 경유(ListInfra),
- *   부하테스트는 cm-ant(Runloadtest). 마이그레이션 시나리오가 만든 인프라 이름과 맞춘다.
+ * Workload (infra / load test) data.
+ * ★ Updated: identifiers are infraId/nodeId (formerly mciId/vmId), lookups go via cm-beetle
+ *   (ListInfra), and load tests use cm-ant (Runloadtest). Matches the infra name the migration
+ *   scenario creates.
  */
 export const workload = {
-  /** 마이그레이션 시나리오가 생성하는 인프라(MCI) 이름 — 워크로드 목록에서 확인할 대상 */
-  // cm-beetle 마이그레이션이 생성하는 타깃 인프라(MCI) 이름. 추천 응답 targetInfra.name 기본값이
-  // 'infra101'이고 nameSeed(접두)는 비워두므로 생성 MCI 이름 = 'infra101'.
+  /** Name of the infra (MCI) the migration scenario creates — the target to check in the workload list */
+  // Name of the target infra (MCI) that cm-beetle migration creates. The recommendation response's
+  // targetInfra.name defaults to 'infra101' and nameSeed (prefix) is left empty, so the created MCI
+  // name = 'infra101'.
   infraName: process.env.TEST_INFRA_NAME || 'infra101',
-  /** 인프라 내 노드(VM) 이름 */
+  /** Node (VM) name within the infra */
   nodeName: process.env.TEST_NODE_NAME || 'e2e-target-node',
-  /** 부하테스트 기본 설정(비용 보호: 짧고 가볍게) */
+  /** Load test default settings (cost protection: short and light) */
   loadTest: {
     scenarioName: process.env.TEST_LOADTEST_NAME || 'e2e-smoke-load',
     targetHost: process.env.TEST_LOADTEST_HOST || '127.0.0.1',
@@ -116,73 +124,74 @@ export const workload = {
     rampUpTime: process.env.TEST_LOADTEST_RAMPUP_TIME || '1',
     rampUpSteps: process.env.TEST_LOADTEST_RAMPUP_STEPS || '1',
   },
-  /** 시나리오 템플릿(카탈로그) 이름 */
+  /** Scenario template (catalog) name */
   scenarioTemplateName: process.env.TEST_SCENARIO_TEMPLATE || 'e2e-template',
 };
 
 /**
- * 워크플로우(cm-cicada) 데이터.
- * cm-cicada는 TaskComponent를 type/spec 스키마로 정의한다.
- * 5개 task type: http · http_xcom · bash · ssh · trigger_workflow.
+ * Workflow (cm-cicada) data.
+ * cm-cicada defines a TaskComponent with a type/spec schema.
+ * 5 task types: http · http_xcom · bash · ssh · trigger_workflow.
  */
 export const workflowData = {
-  /** cm-cicada 신 스키마의 5개 task type (생성/팔레트 검증용) */
+  /** The 5 task types in cm-cicada's new schema (for create/palette verification) */
   taskTypes: ['http', 'http_xcom', 'bash', 'ssh', 'trigger_workflow'] as const,
 
   /**
-   * 실행(run) 유닛 테스트에 사용할 "요금 안전" 워크플로우 이름.
-   * 실제 클라우드 인프라를 프로비저닝하지 않는 예제(bash echo 등) 워크플로우여야 한다.
-   * 마이그레이션 워크플로우(beetle_task_infra_migration 등)는 EC2를 만들므로 @unit 실행 금지.
+   * Name of the "charge-safe" workflow used by the run unit test.
+   * It must be an example workflow (bash echo, etc.) that provisions no real cloud infra.
+   * Migration workflows (beetle_task_infra_migration, etc.) create EC2, so @unit must not run them.
    */
   safeRunWorkflowName:
     process.env.TEST_WF_SAFE_RUN || 'e2e-sample-bash-workflow',
 
   /**
-   * 요금 안전 예제 워크플로우를 만들 때 쓰는 *템플릿* 이름.
-   * cm-cicada가 기본 제공하는 예제 템플릿이라 실제 인프라를 만들지 않는다.
+   * Name of the *template* used to create the charge-safe example workflow.
+   * It's an example template cm-cicada ships by default, so it creates no real infra.
    */
   safeRunTemplateName:
     process.env.TEST_WF_SAFE_TEMPLATE || '_v2_example_xcom_workflow',
 
   /**
-   * 인프라 마이그레이션 워크플로우의 태스크 컴포넌트 이름.
-   * 디자이너 캔버스에서 이 이름으로 스텝을 지목해 편집 패널을 연다(라이브러리가 `sqd-type-{이름}` 클래스를 단다).
+   * Task component name of the infra migration workflow.
+   * On the designer canvas, this name is used to target the step and open the edit panel
+   * (the library attaches an `sqd-type-{name}` class).
    */
   infraMigrationTask:
     process.env.TEST_WF_INFRA_TASK || 'beetle_task_infra_migration',
 
-  /** 마이그레이션 워크플로우 생성 시 자동 선택되는 인프라 템플릿 이름 */
+  /** Name of the infra template auto-selected when creating the migration workflow */
   infraTemplateName:
     process.env.TEST_WF_INFRA_TEMPLATE || 'migrate_infra_workflow',
 
-  /** 소프트웨어 마이그레이션 워크플로우 템플릿 이름 */
+  /** Software migration workflow template name */
   softwareTemplateName:
     process.env.TEST_WF_SW_TEMPLATE || 'migrate_software_workflow',
 
   /**
-   * 소프트웨어 마이그레이션 워크플로우의 태스크 컴포넌트 이름.
+   * Task component name of the software migration workflow.
    *
-   * 이 태스크는 인프라 마이그레이션과 달리 **어느 인프라에 설치할지를 query 파라미터로 받는다**
-   * (`nsId`·`infraId`, 둘 다 필수). 즉 인프라 마이그레이션이 먼저 끝나 있어야 하고,
-   * 그렇게 만들어진 인프라의 id를 워크플로우 툴에서 채워 넣어야 실행된다.
+   * Unlike infra migration, this task **takes which infra to install onto as query parameters**
+   * (`nsId`·`infraId`, both required). That is, infra migration must have finished first, and the
+   * id of the resulting infra must be filled into the workflow tool for it to run.
    */
   softwareMigrationTask:
     process.env.TEST_WF_SW_TASK || 'grasshopper_task_software_migration',
 
-  /** 생성 유닛 테스트에서 만들 워크플로우 이름(접미사는 스텝에서 부여) */
+  /** Name of the workflow the create unit test will make (the suffix is assigned in the step) */
   createNamePrefix: process.env.TEST_WF_CREATE_PREFIX || 'e2e-wf',
 
-  /** run 상태 폴링 종료 상태(성공/실패) */
+  /** Terminal states for run-status polling (success/failure) */
   terminalStates: ['success', 'failed'] as const,
 
-  /** run 상태 폴링 최대 대기(ms). 예제 워크플로우 기준 넉넉히. */
+  /** Max wait for run-status polling (ms). Generous, based on the example workflow. */
   runPollTimeoutMs: Number(process.env.TEST_WF_RUN_TIMEOUT || 120_000),
 };
 
 /**
- * CSP 자격증명(Credential) — cb-spider Register-Credential 입력값.
- * 현재 등록 모달은 AWS 전용(access/secret key)이라 provider는 AWS 기준.
- * 실제 키는 env로만 주입(민감정보 코드 미포함).
+ * CSP Credential — input for cb-spider Register-Credential.
+ * The current registration modal is AWS-only (access/secret key), so provider is AWS-based.
+ * Real keys are injected via env only (no sensitive data in code).
  */
 export const credentials: Record<
   string,
@@ -197,8 +206,8 @@ export const credentials: Record<
 };
 
 /**
- * CSP 자격증명 헬퍼. 인자는 CSP 키("aws") 또는 자격증명 이름.
- * fixture에 없으면 인자를 그대로 이름으로 쓰고 키는 env에서 채운다.
+ * CSP credential helper. The argument is a CSP key ("aws") or a credential name.
+ * If not in the fixture, the argument is used as the name as-is and the keys are filled from env.
  */
 export function getCredential(key: string) {
   return (
@@ -211,12 +220,12 @@ export function getCredential(key: string) {
   );
 }
 
-/** VPC(vNet) — cb-tumblebug 등록/삭제 대상 */
+/** VPC (vNet) — cb-tumblebug register/delete target */
 export const vpc = {
   name: process.env.TEST_VPC_NAME || 'e2e-vpc',
 };
 
-/** 로그인 계정 헬퍼 */
+/** Login account helper */
 export function getUser(id: string) {
   return (
     users[id] ?? {

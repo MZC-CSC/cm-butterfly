@@ -16,7 +16,7 @@ interface iProps {
   collectData: any;
   sgId: string;
   dataType?: 'infra' | 'software';
-  dataSource?: 'sourceGroup' | 'connection'; // Software 데이터의 출처 구분
+  dataSource?: 'sourceGroup' | 'connection'; // distinguishes the origin of the Software data
 }
 
 const props = defineProps<iProps>();
@@ -28,9 +28,9 @@ const isSaveModal = ref<boolean>(false);
 
 const convertedData = ref<any>(null);
 
-// dataType prop을 우선적으로 사용하고, 없을 때만 collectData의 내용을 기반으로 판단
+// Prefer the dataType prop, and only fall back to inferring from collectData when it is absent
 const isSoftwareData = computed(() => {
-  // dataType prop이 명시적으로 전달된 경우 우선 사용
+  // Prefer the dataType prop when it is explicitly passed
   if (props.dataType === 'software') {
     console.log('Software detected by dataType prop');
     return true;
@@ -40,21 +40,21 @@ const isSoftwareData = computed(() => {
     return false;
   }
   
-  // dataType이 없는 경우 collectData의 내용을 기반으로 판단
+  // When dataType is absent, infer from the content of collectData
   console.log('collectData:', props.collectData);
   console.log('collectData type:', typeof props.collectData);
   
   if (!props.collectData) return false;
   
-  // Software 데이터인지 확인하는 다양한 방법
+  // Various ways to check whether this is Software data
   if (typeof props.collectData === 'object') {
-    // 1. software 관련 키가 있는지 확인
+    // 1. Check whether software-related keys exist
     if (props.collectData.software || props.collectData.installedPackages) {
       console.log('Software detected by software/installedPackages keys');
       return true;
     }
     
-    // 2. collectData가 문자열이고 JSON으로 파싱 가능한 경우
+    // 2. When collectData is a string and can be parsed as JSON
     if (typeof props.collectData === 'string') {
       try {
         const parsed = JSON.parse(props.collectData);
@@ -63,15 +63,15 @@ const isSoftwareData = computed(() => {
           return true;
         }
       } catch (e) {
-        // JSON 파싱 실패 시 무시
+        // Ignore on JSON parse failure
       }
     }
     
-    // 3. collectData의 키들을 확인하여 Software 관련 키가 있는지 검사
+    // 3. Inspect the keys of collectData for any software-related key
     const keys = Object.keys(props.collectData);
     console.log('collectData keys:', keys);
     
-    // Software 관련 키들을 더 포괄적으로 검사
+    // Check software-related keys more broadly
     const softwareKeywords = ['software', 'installedPackages', 'packages', 'applications', 'programs', 'sw'];
     const hasSoftwareKeywords = keys.some(key => 
       softwareKeywords.some(keyword => key.toLowerCase().includes(keyword))
@@ -87,26 +87,26 @@ const isSoftwareData = computed(() => {
   return false;
 });
 
-// 데이터 타입에 따라 적절한 변환 함수 선택
+// Pick the appropriate conversion function based on the data type
 const getConvertFunction = computed(() => {
   if (isSoftwareData.value) {
-    // Software 데이터의 출처에 따라 다른 API 호출
+    // Call a different API depending on the origin of the Software data
     if (props.dataSource === 'sourceGroup') {
       return handleConvertSoftwareSourceGroup();
     } else {
-      // connection 또는 기본값 (dataSource가 없을 때는 connection으로 간주)
+      // connection or default (treated as connection when dataSource is absent)
       return handleConvertSoftware();
     }
   }
-  // Infra 데이터의 출처에 따라 다른 API 호출
+  // Call a different API depending on the origin of the Infra data
   if (props.dataSource === 'sourceGroup') {
     return handleConvertInfraSourceGroup();
   }
-  // connection 또는 기본값 (dataSource가 없을 때는 connection으로 간주)
+  // connection or default (treated as connection when dataSource is absent)
   return handleConvertInfra();
 });
 
-// 데이터 타입에 따라 동적으로 title 생성
+// Build the title dynamically based on the data type
 const modalTitle = computed(() => {
   const baseTitle = 'Source Group Connection Viewer';
   if (isSoftwareData.value) {
@@ -131,10 +131,10 @@ const handleMetaViewer = e => {
   isSaveModal.value = false;
   console.log('isSoftwareData', isSoftwareData.value);
   if (isSoftwareData.value) {
-    // Software 타입인 경우 CreateSourceSoftwareModel 호출
+    // For the Software type, call CreateSourceSoftwareModel
     console.log('Creating Source Software Model with data:', convertedData.value);
     
-    // API 응답에서 sourceSoftwareModel 속성 추출
+    // Extract the sourceSoftwareModel property from the API response
     const sourceSoftwareModelData = convertedData.value?.sourceSoftwareModel || convertedData.value;
     console.log('Extracted sourceSoftwareModel data:', sourceSoftwareModelData);
     
@@ -156,7 +156,7 @@ const handleMetaViewer = e => {
         showErrorMessage('error', e.errorMsg);
       });
   } else {
-    // Infra 타입인 경우 기존 CreateOnpremmodel 호출
+    // For the Infra type, call the existing CreateOnpremmodel
     createOnpremmodel
       .execute({
         request: {

@@ -18,7 +18,7 @@ const emit = defineEmits<{
   (e: 'update:formData', value: string): void;
 }>();
 
-// formData를 적절한 형식으로 변환
+// Convert formData into the appropriate format
 const processedFormData = computed(() => {
   if (!props.formData) return '{}';
   if (typeof props.formData === 'string') return props.formData;

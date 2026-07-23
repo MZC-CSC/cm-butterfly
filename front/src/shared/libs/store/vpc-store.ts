@@ -19,11 +19,11 @@ export const useVpcStore = defineStore('vpc-store', {
     createVpcModalVisible: false,
     selectedProviderType: 'All',
     withSubnet: false,
-    // TODO: api연결 후 받아온 데이터 형식에 맞게 구현 예정
-    // 이미 있는 vpc의 원래의 subnetlist
+    // TODO: to be implemented to match the data shape returned once the API is wired up
+    // The original subnet list of an existing VPC
     addedSubnetList: [] as Subnet[],
 
-    // 새로 만드는 vpc의 새로운 subnetlist
+    // The new subnet list of a VPC being created
     addedVPCSubnetList: [] as Subnet[],
     allVPCsList: [] as VPC[],
     createdVpc: {

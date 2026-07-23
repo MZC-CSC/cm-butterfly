@@ -5,24 +5,24 @@ import {
 } from '@/entities/workflow/model/types';
 
 /**
- * 워크플로우 정의에서 실행 그래프를 만든다.
+ * Builds an execution graph from a workflow definition.
  *
- * 실행 순서는 각 task의 `dependencies`에서만 나온다. task_group은 엔진에서
- * 실행 단위가 아니라 묶음일 뿐이므로 그룹 순서로 의존성을 지어내지 않는다.
- * 따라서 병렬·다이아몬드·다중 시작점이 정의에 있으면 그대로 그래프에 나타난다.
+ * Execution order comes solely from each task's `dependencies`. A task_group is just a grouping
+ * in the engine, not an execution unit, so we do not fabricate dependencies from group order.
+ * As a result, parallel, diamond, and multi-start-point shapes in the definition appear as-is in the graph.
  */
 
 export interface IRunGraphNode {
-  /** cm-cicada task.id — 실행 상태(taskInstances)의 task_id와 같은 값 */
+  /** cm-cicada task.id — the same value as task_id in the execution state (taskInstances) */
   id: string;
   name: string;
   taskComponent: string;
   groupName: string;
-  /** 이 task에 저장돼 있는 값. 실행에 쓰인 값이 아니라 *현재 정의*의 값이다 */
+  /** The value stored on this task. Not the value used at execution time but the value in the *current definition* */
   spec: Record<string, any>;
-  /** 세로 위치. 자기보다 앞선 모든 task보다 뒤에 놓인다 */
+  /** Vertical position. Placed after every task that precedes it */
   level: number;
-  /** 같은 level 안에서의 가로 위치 */
+  /** Horizontal position within the same level */
   order: number;
 }
 
@@ -31,9 +31,9 @@ export interface IRunGraphEdge {
   to: string;
 }
 
-/** 그래프 렌더 치수 — 뷰어가 그래프에 얼마나 폭을 내줄지 계산할 때도 쓴다 */
-/* 190px에서는 beetle_task_infra_migration 같은 이름이 상자 밖으로 삐져나왔다.
-   SVG text는 상자에 맞춰 접히거나 잘리지 않으므로 상자를 이름에 맞춘다. */
+/** Graph render dimensions — also used when the viewer calculates how much width to give the graph */
+/* At 190px, names like beetle_task_infra_migration overflowed the box.
+   SVG text does not wrap or clip to the box, so we size the box to the name. */
 export const GRAPH_NODE_WIDTH = 240;
 export const GRAPH_NODE_HEIGHT = 52;
 export const GRAPH_GAP_X = 44;
@@ -44,11 +44,11 @@ export interface IRunGraph {
   nodes: IRunGraphNode[];
   edges: IRunGraphEdge[];
   levelCount: number;
-  /** 한 단계에 가장 많이 놓이는 노드 수 = 그래프가 필요로 하는 가로 칸 수 */
+  /** Maximum number of nodes placed in one level = the number of horizontal columns the graph needs */
   maxParallel: number;
-  /** 한 줄로 이어지는 단일 체인인가 (편집기가 표현할 수 있는 유일한 형태) */
+  /** Whether it is a single chain in one line (the only shape the editor can represent) */
   isLinear: boolean;
-  /** 정의가 온전하지 않을 때 남기는 메모. 감추지 말고 화면에 드러낸다 */
+  /** Notes left when the definition is not intact. Surface them on screen rather than hiding them */
   warnings: string[];
 }
 
@@ -60,7 +60,7 @@ function flattenTasks(
     (group.tasks ?? []).forEach(task => {
       out.push({ task, groupName: group.name });
     });
-    // 정의상 중첩 그룹이 올 수 있으므로 함께 펼친다
+    // Nested groups are allowed in the definition, so flatten them too
     flattenTasks(group.task_groups, out);
   });
   return out;
@@ -71,10 +71,10 @@ function taskIdOf(task: ITaskResponse): string {
 }
 
 /**
- * task에 저장된 값을 화면에 보여줄 형태로 모은다.
+ * Gathers the values stored on a task into a form suitable for display.
  *
- * cm-cicada의 새 형식은 `spec`에 값을 담고, 예전 형식은 request_body/path_params/
- * query_params를 따로 둔다. 둘 다 올 수 있으므로 있는 것만 모은다.
+ * cm-cicada's new format holds values in `spec`, while the old format keeps request_body/path_params/
+ * query_params separately. Both can appear, so we collect only what is present.
  */
 function taskSpecOf(task: ITaskResponse): Record<string, any> {
   const spec: Record<string, any> = { ...(task.spec ?? {}) };
@@ -106,7 +106,7 @@ export function buildRunGraph(workflow: IWorkflowResponse | null): IRunGraph {
 
   const idByName = new Map<string, string>();
   flat.forEach(({ task }) => {
-    // 엔진은 그룹을 가로질러 task 이름이 전역 유일할 것을 요구한다.
+    // The engine requires task names to be globally unique across groups.
     if (idByName.has(task.name)) {
       warnings.push(`Duplicate task name: ${task.name}`);
     }
@@ -151,8 +151,8 @@ export function buildRunGraph(workflow: IWorkflowResponse | null): IRunGraph {
 }
 
 /**
- * level = 가장 긴 선행 경로의 깊이. 같은 level의 노드는 서로 의존하지 않으므로
- * 가로로 나란히 놓아도 되고, 그래서 병렬이 병렬로 보인다.
+ * level = the depth of the longest predecessor path. Nodes at the same level do not depend on
+ * each other, so they can be placed side by side, which is why parallel work looks parallel.
  */
 function assignLevels(
   nodes: IRunGraphNode[],
@@ -169,8 +169,8 @@ function assignLevels(
     );
 
     if (!ready.length) {
-      // 엔진이 순환 의존을 거부하므로 정상 워크플로우에서는 도달하지 않는다.
-      // 그래도 화면이 멈추지 않도록 남은 노드를 마지막 level에 몰아 넣고 알린다.
+      // The engine rejects cyclic dependencies, so this is unreachable for a valid workflow.
+      // Still, to keep the view from stalling, pile the remaining nodes into the last level and warn.
       warnings.push(
         'Some tasks form a dependency cycle, so their execution order cannot be determined.',
       );
@@ -203,10 +203,10 @@ function maxNodesPerLevel(nodes: IRunGraphNode[]): number {
 }
 
 /**
- * 그래프를 다 그리는 데 필요한 가로 픽셀.
+ * Horizontal pixels needed to draw the entire graph.
  *
- * 병렬 갈래가 없는 워크플로우(인프라·SW 마이그레이션처럼 컴포넌트가 하나뿐인
- * 경우)는 좁게 잡히므로, 뷰어가 남는 폭을 상세 패널에 내줄 수 있다.
+ * A workflow with no parallel branches (a single-component case such as infra or SW migration)
+ * comes out narrow, so the viewer can give the leftover width to the detail panel.
  */
 export function graphPixelWidth(graph: IRunGraph): number {
   const columns = graph.maxParallel;
@@ -224,7 +224,7 @@ function assignOrders(nodes: IRunGraphNode[]): void {
   });
 }
 
-/** 노드가 한 줄로만 이어지는가 — level마다 노드가 정확히 하나면 단일 체인이다 */
+/** Whether the nodes form a single line — exactly one node per level means a single chain */
 function isSingleChain(
   nodes: IRunGraphNode[],
   edges: IRunGraphEdge[],
@@ -237,7 +237,7 @@ function isSingleChain(
   });
   if ([...perLevel.values()].some(count => count > 1)) return false;
 
-  // level마다 하나씩이라도, 엣지가 인접 level을 건너뛰면 체인이 아니다
+  // Even with one node per level, it is not a chain if an edge skips an adjacent level
   const levelById = new Map(nodes.map(n => [n.id, n.level]));
   return edges.every(
     edge => levelById.get(edge.to)! - levelById.get(edge.from)! === 1,

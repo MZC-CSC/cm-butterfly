@@ -1,10 +1,11 @@
 import { IAxiosResponse, useAxiosPost } from '@/shared/libs';
 
 /**
- * 알림 저장소 API (cm-butterfly 자체 도메인).
+ * Notification store API (cm-butterfly's own domain).
  *
- * 프록시가 아니라 우리 백엔드의 엔드포인트다. 알림을 브라우저에만 두면 다른 자리·다른 브라우저에서
- * 확인할 수 없어 "놓친 결과를 알린다" 는 목적 자체가 성립하지 않는다.
+ * These are our backend's endpoints, not proxied ones. If notifications lived
+ * only in the browser, they couldn't be seen from another machine or browser,
+ * which defeats the whole point of "surfacing results you missed".
  */
 
 export type NotificationLevel = 'Info' | 'Error';
@@ -21,7 +22,7 @@ export interface NotificationRecord {
   created_at: string;
 }
 
-/** 안 읽은 알림 전체(만료분은 서버가 조회 시점에 정리한다). */
+/** All unread notifications (the server prunes expired ones at query time). */
 export function useListNotifications() {
   return useAxiosPost<IAxiosResponse<NotificationRecord[]>, any>(
     'listnotifications',
@@ -30,11 +31,12 @@ export function useListNotifications() {
 }
 
 /**
- * 알림 등록 — 추적기가 쓰는 유일한 인터페이스.
+ * Register a notification — the only interface the tracker uses.
  *
- * `dedup_key` 는 작업 자신의 id(삭제 요청 id·부하 실행 id·워크플로우 실행 id)를 넣는다.
- * 탭이 여러 개 열려 있으면 같은 완료를 여러 탭이 동시에 잡아 중복 등록하는데, 이 키가 있으면
- * 서버가 두 번째부터는 무시한다.
+ * `dedup_key` takes the job's own id (delete-request id, load-run id, workflow-run
+ * id). When several tabs are open they may each catch the same completion and
+ * register it concurrently; with this key the server ignores every duplicate after
+ * the first.
  */
 export function useAddNotification(payload: {
   category: NotificationCategory;
@@ -49,12 +51,12 @@ export function useAddNotification(payload: {
   );
 }
 
-/** 확인 처리 — 읽으면 지운다. */
+/** Mark as read — reading it removes it. */
 export function useReadNotification(id: string) {
   return useAxiosPost<IAxiosResponse<string>, any>('readnotification', { id });
 }
 
-/** 모두 확인. */
+/** Mark all as read. */
 export function useReadAllNotifications() {
   return useAxiosPost<IAxiosResponse<string>, any>('readallnotifications', {});
 }

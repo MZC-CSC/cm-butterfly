@@ -1,57 +1,57 @@
 import type { Page, Route, Request } from '@playwright/test';
 
 /**
- * operationId 기반 API mock/계약 검증 레이어.
+ * operationId-based API mock / contract verification layer.
  *
- * 설계 의도(2026-07 현행화 기준):
- *  - cm-butterfly front는 REST를 직접 부르지 않고 `POST /api/{operationId}` (body: {pathParams,queryParams,request})
- *    형태로만 호출하고, 백엔드(api)가 api.yaml로 실제 서비스에 프록시한다(DESIGN-ARCH §3).
- *  - 따라서 e2e 유닛(@unit)은 브라우저 단에서 `**\/api/**` 를 가로채 (1) 연계 프레임워크 없이도 화면 흐름을
- *    완결시키고(hermetic), (2) 이번 릴리스가 바꾼 *계약*(opId·요청 키)을 기록해 검증한다.
- *  - @scenario(실 통합환경)에서는 mock을 설치하지 않아 실제 백엔드로 나간다.
+ * Design intent (as of the 2026-07 update):
+ *  - cm-butterfly front never calls REST directly; it only calls `POST /api/{operationId}` (body: {pathParams,queryParams,request}),
+ *    and the backend (api) proxies to the real service via api.yaml (DESIGN-ARCH §3).
+ *  - So e2e units (@unit) intercept `**\/api/**` in the browser to (1) complete the screen flow even without
+ *    the linked frameworks (hermetic), and (2) record and verify the *contract* (opId, request keys) this release changed.
+ *  - In @scenario (real integration environment), no mock is installed, so requests go to the real backend.
  *
- * operationId는 슬래시를 포함할 수 있다(예: `cm-honeybee/register-source-group`). URL의 `/api/` 뒤 전체를
- * operationId로 본다(쿼리스트링 제외).
+ * An operationId can contain slashes (e.g. `cm-honeybee/register-source-group`). Everything after `/api/` in the URL
+ * is treated as the operationId (excluding the query string).
  */
 
 export type MockContext = {
-  /** 요청 body(파싱). {pathParams, queryParams, request} 래퍼 형태가 일반적 */
+  /** parsed request body. Usually the {pathParams, queryParams, request} wrapper form */
   body: any;
-  /** 원본 요청 */
+  /** the original request */
   request: Request;
-  /** 매칭된 operationId */
+  /** the matched operationId */
   operationId: string;
 };
 
 /**
- * 응답 핸들러. **Promise 를 돌려줘도 된다** — 오래 걸리는 API 를 흉내내려면 필요하다.
- * (예: 삭제는 실제로 완료까지 응답을 붙들고 있어서, 즉시 응답하면 화면이 "진행 중" 상태를
- *  거치지 않고 곧장 완료로 넘어가 버린다.)
+ * Response handler. **It may return a Promise** — needed to mimic a slow API.
+ * (e.g. deletion actually holds the response until completion, so responding immediately makes the
+ *  screen jump straight to done without passing through the "in progress" state.)
  */
 export type MockHandler = (ctx: MockContext) => unknown | Promise<unknown>;
 
-/** 기록된 outbound 요청(계약 검증용) */
+/** a recorded outbound request (for contract verification) */
 export type RecordedCall = { operationId: string; url: string; body: any };
 
 export class ApiMock {
   private handlers = new Map<string, MockHandler>();
   readonly calls: RecordedCall[] = [];
 
-  /** operationId → 응답 핸들러 등록. 반환값이 그대로 JSON body가 된다(자동 래핑 없음). */
+  /** register operationId → response handler. The return value becomes the JSON body as-is (no auto wrapping). */
   on(operationId: string, handler: MockHandler): this {
     this.handlers.set(operationId, handler);
     return this;
   }
 
-  /** 여러 handler 일괄 등록 */
+  /** register multiple handlers at once */
   use(map: Record<string, MockHandler>): this {
     for (const [op, h] of Object.entries(map)) this.on(op, h);
     return this;
   }
 
-  /** page에 라우트 설치. 매칭되면 fulfill, 아니면 실제 백엔드로 통과(continue).
-   *  ★ 개발(vite) 모드는 소스 모듈을 `/src/.../api/index.ts`처럼 서빙하므로 경로가 `/api/`로
-   *    *시작*하는 실제 API 호출만 가로챈다(중간에 /api/ 를 포함하는 모듈 요청 제외). */
+  /** install the route on the page. On a match, fulfill; otherwise pass through to the real backend (continue).
+   *  ★ In dev (vite) mode, source modules are served like `/src/.../api/index.ts`, so only intercept real API calls
+   *    whose path *starts* with `/api/` (excluding module requests that merely contain /api/ in the middle). */
   async install(page: Page): Promise<void> {
     const isApiCall = (url: string) => {
       try {
@@ -72,7 +72,7 @@ export class ApiMock {
       }
       this.calls.push({ operationId, url: req.url(), body });
       if (!handler) {
-        // 매칭 안 된 opId는 실제 백엔드로 통과(로그인·메뉴 등 로컬 api가 처리)
+        // an unmatched opId passes through to the real backend (login, menu, etc. handled by the local api)
         return route.fallback();
       }
       const result = await handler({ body, request: req, operationId });
@@ -84,7 +84,7 @@ export class ApiMock {
     });
   }
 
-  /** 특정 operationId로 나간 마지막 요청 반환(계약 검증용) */
+  /** return the last request sent for a specific operationId (for contract verification) */
   lastCall(operationId: string): RecordedCall | undefined {
     for (let i = this.calls.length - 1; i >= 0; i--) {
       if (this.calls[i].operationId === operationId) return this.calls[i];
@@ -93,7 +93,7 @@ export class ApiMock {
   }
 }
 
-/** URL에서 operationId 추출: `.../api/<operationId>?...` → `<operationId>` (슬래시 포함 가능) */
+/** extract the operationId from a URL: `.../api/<operationId>?...` → `<operationId>` (slashes allowed) */
 export function extractOperationId(url: string): string {
   const u = new URL(url);
   const idx = u.pathname.indexOf('/api/');
@@ -101,7 +101,7 @@ export function extractOperationId(url: string): string {
   return u.pathname.slice(idx + '/api/'.length);
 }
 
-/** cm-butterfly 표준 성공 응답 래퍼 */
+/** cm-butterfly standard success response wrapper */
 export function ok(responseData: unknown, code = 200) {
   return { status: { code, message: 'success' }, responseData };
 }

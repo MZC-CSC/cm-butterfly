@@ -23,7 +23,7 @@ export function useAuth() {
 
     // const decodedToken = jwtTokenProvider.parseAccessToken();
     // props.role = decodedToken.realm_access.roles[0];
-    //TODO role 관리 로직
+    //TODO role management logic
     // role = decodedToken.realm_access.roles[0];
     const userData = {
       id: props.id,
@@ -32,9 +32,9 @@ export function useAuth() {
     };
     localStorageConnector.setItem(userData);
     authStore.onLogin(props);
-    // 세션 연장의 상한을 재려면 시작 시각이 필요하다.
+    // We need the start time to cap how long the session can be extended.
     markSessionStart();
-    // 만료를 화면에 머문 채로도 알아채도록 감시를 건다.
+    // Watch for expiry so we catch it even while the user stays on the page.
     startSessionExpiryWatch();
   }
 
@@ -54,7 +54,7 @@ export function useAuth() {
 
     // const decodedToken = jwtTokenProvider.parseAccessToken();
     // console.log(decodedToken);
-    //TODO role 관리 로직
+    //TODO role management logic
     // role = decodedToken.realm_access.roles[0];
     role = 'admin';
     const storeValue = localStorageConnector.getValue();

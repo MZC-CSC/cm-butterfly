@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { PTextInput } from '@cloudforet-test/mirinae';
 
-// FormContext 구조에 맞는 Field 타입 정의
+// Field type definition matching the FormContext structure
 interface Field {
   type: 'input' | 'array' | 'nestedObject' | 'nestedObjectArray' | 'nestedObjectArrayItem' | 'stringArray' | 'integerArray' | 'booleanArray' | 'basicArray' | 'basicObjectArray' | 'mixedArray' | 'emptyArray' | 'unknownArray' | 'unknownType';
   context: {
@@ -24,15 +24,15 @@ interface IProps {
 
 const props = defineProps<IProps>();
 
-// 빈 객체 입력 처리
+// Handle empty-object input
 const handleEmptyObjectInput = (value: string) => {
   console.log('Empty object input:', value);
-  // TODO: 부모 컴포넌트로 값 전달
+  // TODO: pass the value up to the parent component
 };
 
-// Raw 데이터 값 가져오기
+// Get the raw data value
 const getRawDataValue = () => {
-  // fields가 비어있고 rawData가 있는 경우
+  // When fields is empty and rawData is present
   if (props.fields.length === 0 && props.rawData) {
     if (typeof props.rawData === 'object') {
       return JSON.stringify(props.rawData, null, 2);
@@ -48,15 +48,15 @@ const getRawDataValue = () => {
     <div class="subject-title border-bottom">
       {{ subject }}
     </div>
-    <!-- 빈 객체인 경우 property 정의되지 않음 메시지와 입력 필드 제공 -->
+    <!-- For an empty object, show a 'property not defined' message and an input field -->
     <div v-if="fields.length === 0" class="field-group-vertical border-bottom">
-      <!-- Property 정의되지 않음 메시지 -->
+      <!-- 'Property not defined' message -->
       <div class="no-properties-message">
         <div class="message-icon">⚠️</div>
         <div class="message-text">Property not defined</div>
       </div>
       
-      <!-- 기본 입력 필드 -->
+      <!-- Default input field -->
       <div class="field-group flex">
         <div class="field-row">
           <div class="field-title-box">
@@ -78,7 +78,7 @@ const getRawDataValue = () => {
       :key="fieldIndex"
       class="field-group-vertical border-bottom"
     >
-      <!-- InputContext인 경우 -->
+      <!-- For an InputContext -->
       <div v-if="field.type === 'input'" class="field-group flex">
         <div class="field-row">
           <div class="field-title-box">
@@ -94,7 +94,7 @@ const getRawDataValue = () => {
         </div>
       </div>
       
-      <!-- ArrayContext인 경우 -->
+      <!-- For an ArrayContext -->
       <div v-else-if="field.type === 'array'" class="field-group-vertical">
         <div class="field-title-box">
           {{ field.context.subject }}
@@ -113,7 +113,7 @@ const getRawDataValue = () => {
               :key="subFieldIndex"
               class="field-group-vertical border-bottom"
             >
-              <!-- InputContext인 경우 -->
+              <!-- For an InputContext -->
               <div v-if="subField.type === 'input'" class="field-group flex">
                 <div class="field-row">
                   <div class="field-title-box">
@@ -133,7 +133,7 @@ const getRawDataValue = () => {
         </div>
       </div>
       
-      <!-- NestedObjectContext인 경우 -->
+      <!-- For a NestedObjectContext -->
       <div v-else-if="field.type === 'nestedObject'" class="field-group-vertical">
         <div class="field-title-box">
           {{ field.context.subject || field.context.title }}
@@ -152,7 +152,7 @@ const getRawDataValue = () => {
               :key="subNestedIndex"
               class="field-group-vertical border-bottom"
             >
-              <!-- InputContext인 경우 -->
+              <!-- For an InputContext -->
               <div v-if="subNestedField.type === 'input'" class="field-group flex">
                 <div class="field-row">
                   <div class="field-title-box">
@@ -168,7 +168,7 @@ const getRawDataValue = () => {
                 </div>
               </div>
               
-              <!-- NestedObjectContext인 경우 (재귀) -->
+              <!-- For a NestedObjectContext (recursive) -->
               <div v-else-if="subNestedField.type === 'nestedObject'" class="field-group-vertical">
                 <div class="field-title-box">
                   {{ subNestedField.context.subject || subNestedField.context.title }}
@@ -187,7 +187,7 @@ const getRawDataValue = () => {
                       :key="deepSubIndex"
                       class="field-group-vertical border-bottom"
                     >
-                      <!-- InputContext인 경우 -->
+                      <!-- For an InputContext -->
                       <div v-if="deepSubField.type === 'input'" class="field-group flex">
                         <div class="field-row">
                           <div class="field-title-box">
@@ -211,25 +211,25 @@ const getRawDataValue = () => {
         </div>
       </div>
       
-      <!-- NestedObjectArrayContext인 경우 -->
+      <!-- For a NestedObjectArrayContext -->
       <div v-else-if="field.type === 'nestedObjectArray'" class="field-group-vertical">
         <div class="field-title-box">
           {{ field.context.subject || field.context.title }}
         </div>
         <div class="field-content-box">
-          <!-- 빈 배열인 경우 템플릿 표시 -->
+          <!-- For an empty array, show the template -->
           <div v-if="!field.context.values || field.context.values.length === 0" class="empty-array-message">
             <div class="message-icon">📝</div>
             <div class="message-text">Array is empty - properties will be shown when items are added</div>
           </div>
           
-          <!-- 배열 아이템들 표시 - 간소화된 방식 -->
+          <!-- Show the array items - simplified approach -->
           <div 
             v-for="(arrayItem, arrayIndex) of field.context.values" 
             :key="arrayIndex"
             class="array-item"
           >
-            <!-- nestedObjectArrayItem 타입인 경우 간소화된 properties 표시 -->
+            <!-- For the nestedObjectArrayItem type, show simplified properties -->
             <div v-if="arrayItem.type === 'nestedObjectArrayItem'">
               <div class="subject-title border-bottom">
                 {{ arrayItem.context.subject }}
@@ -240,28 +240,28 @@ const getRawDataValue = () => {
                   :key="itemFieldIndex"
                   class="property-item"
                 >
-                  <!-- 단순한 타입 (string, number, boolean)인 경우 -->
+                  <!-- For a simple type (string, number, boolean) -->
                   <div v-if="itemField.type === 'input'" class="simple-property">
                     <span class="property-name">{{ itemField.context.title || itemField.context.subject }}:</span>
                     <span class="property-type">string</span>
                     <span class="property-value">({{ itemField.context.model?.value || 'empty' }})</span>
                   </div>
                   
-                  <!-- 복잡한 타입 (object, array)인 경우 - type과 subject만 표시 -->
+                  <!-- For a complex type (object, array) - show only type and subject -->
                   <div v-else-if="itemField.type === 'nestedObject'" class="complex-property">
                     <span class="property-name">{{ itemField.context.subject || itemField.context.title }}:</span>
                     <span class="property-type">object</span>
                     <span class="property-subject">({{ itemField.context.subject || itemField.context.title }})</span>
                   </div>
                   
-                  <!-- Array 타입인 경우 -->
+                  <!-- For an Array type -->
                   <div v-else-if="itemField.type === 'nestedObjectArray'" class="complex-property">
                     <span class="property-name">{{ itemField.context.subject || itemField.context.title }}:</span>
                     <span class="property-type">array</span>
                     <span class="property-subject">({{ itemField.context.subject || itemField.context.title }})</span>
                   </div>
                   
-                  <!-- 기타 타입인 경우 -->
+                  <!-- For any other type -->
                   <div v-else class="simple-property">
                     <span class="property-name">{{ itemField.context.title || itemField.context.subject }}:</span>
                     <span class="property-type">{{ itemField.type }}</span>
@@ -270,7 +270,7 @@ const getRawDataValue = () => {
               </div>
             </div>
             
-            <!-- 기존 nestedObject 타입인 경우 (하위 호환성) -->
+            <!-- For the legacy nestedObject type (backward compatibility) -->
             <div v-else>
               <div class="subject-title border-bottom">
                 Item {{ arrayIndex + 1 }}
@@ -280,7 +280,7 @@ const getRawDataValue = () => {
                 :key="itemFieldIndex"
                 class="field-group-vertical border-bottom"
               >
-              <!-- InputContext인 경우 -->
+              <!-- For an InputContext -->
               <div v-if="itemField.type === 'input'" class="field-group flex">
                 <div class="field-row">
                   <div class="field-title-box">
@@ -296,7 +296,7 @@ const getRawDataValue = () => {
                 </div>
               </div>
               
-              <!-- NestedObjectContext인 경우 -->
+              <!-- For a NestedObjectContext -->
               <div v-else-if="itemField.type === 'nestedObject'" class="field-group-vertical">
                 <div class="field-title-box">
                   {{ itemField.context.subject || itemField.context.title }}
@@ -315,7 +315,7 @@ const getRawDataValue = () => {
                       :key="subItemIndex"
                       class="field-group-vertical border-bottom"
                     >
-                      <!-- InputContext인 경우 -->
+                      <!-- For an InputContext -->
                       <div v-if="subItemField.type === 'input'" class="field-group flex">
                         <div class="field-row">
                           <div class="field-title-box">
@@ -397,7 +397,7 @@ const getRawDataValue = () => {
     width: 100%;
   }
   
-  /* field-group-vertical 내부의 field-group은 가로 배치 */
+  /* field-group inside field-group-vertical is laid out horizontally */
   .field-group {
     display: flex;
     flex-direction: row;
@@ -439,7 +439,7 @@ const getRawDataValue = () => {
   }
 }
 
-/* flex 클래스가 있는 field-group은 가로 배치 강제 */
+/* Force horizontal layout for field-group with the flex class */
 .field-group.flex {
   display: flex;
   flex-direction: row;
@@ -472,7 +472,7 @@ const getRawDataValue = () => {
   }
 }
 
-/* Property 정의되지 않음 메시지 스타일 */
+/* Style for the 'property not defined' message */
 .no-properties-message {
   display: flex;
   align-items: center;
@@ -494,7 +494,7 @@ const getRawDataValue = () => {
   }
 }
 
-/* 빈 배열 메시지 스타일 */
+/* Style for the empty-array message */
 .empty-array-message {
   display: flex;
   align-items: center;
@@ -516,7 +516,7 @@ const getRawDataValue = () => {
   }
 }
 
-/* 간소화된 properties 표시 스타일 */
+/* Style for the simplified properties display */
 .item-properties-summary {
   padding: 8px 0;
   

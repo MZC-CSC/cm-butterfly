@@ -1,19 +1,19 @@
 /**
- * Context 타입 정의 - Grasshopper Task Editor의 모든 가능한 Context 타입들
- * 
- * 이 파일은 GrasshopperTaskEditor에서 사용되는 모든 Context 타입들을 정의합니다.
- * 계층구조를 가진 데이터를 UI로 렌더링하기 위한 다양한 Context 타입들을 포함합니다.
+ * Context type definitions — every possible Context type for the Grasshopper Task Editor.
+ *
+ * This file defines all Context types used by GrasshopperTaskEditor. It includes
+ * the various Context types used to render hierarchical data into the UI.
  */
 
 import { Ref } from 'vue';
 
 // ============================================================================
-// 기본 모델 타입들
+// Base model types
 // ============================================================================
 
 /**
- * 기본 Input 모델 타입
- * useInputModel 훅에서 반환되는 모델의 타입
+ * Base Input model type.
+ * The type of the model returned by the useInputModel hook.
  */
 export interface InputModel {
   value: Ref<string>;
@@ -27,7 +27,7 @@ export interface InputModel {
 }
 
 /**
- * 고정 모델 타입 (Path Params, Query Params)
+ * Fixed model type (Path Params, Query Params).
  */
 export interface FixedModel {
   path_params: Record<string, string>;
@@ -35,12 +35,12 @@ export interface FixedModel {
 }
 
 // ============================================================================
-// 기본 Context 타입들 (가장 작은 단위)
+// Base Context types (smallest units)
 // ============================================================================
 
 /**
- * Input Context - 단일 입력 필드
- * 가장 기본적인 Context 타입
+ * Input Context — a single input field.
+ * The most basic Context type.
  */
 export interface InputContext {
   type: 'input';
@@ -51,8 +51,8 @@ export interface InputContext {
 }
 
 /**
- * Key-Value Input Context - 키-값 쌍 입력 필드
- * 동적으로 키와 값을 입력할 수 있는 필드
+ * Key-Value Input Context — a key/value pair input field.
+ * A field where the key and value can be entered dynamically.
  */
 export interface KeyValueInputContext {
   type: 'keyValueInput';
@@ -63,8 +63,8 @@ export interface KeyValueInputContext {
 }
 
 /**
- * Key-Value Context - 단순 키-값 쌍
- * ObjectArray에서 사용되는 기본 단위
+ * Key-Value Context — a simple key/value pair.
+ * The base unit used within an ObjectArray.
  */
 export interface KeyValueContext {
   type: 'keyValue';
@@ -73,11 +73,11 @@ export interface KeyValueContext {
 }
 
 // ============================================================================
-// Accordion 관련 Context 타입들
+// Accordion-related Context types
 // ============================================================================
 
 /**
- * Accordion Slot Context - 아코디언 내부의 각 슬롯
+ * Accordion Slot Context — each slot inside an accordion.
  */
 export interface AccordionSlotContext {
   header: {
@@ -88,8 +88,8 @@ export interface AccordionSlotContext {
 }
 
 /**
- * Accordion Context - 아코디언 형태의 Context
- * 배열 데이터를 아코디언으로 표시할 때 사용
+ * Accordion Context — a Context rendered as an accordion.
+ * Used to display array data as an accordion.
  */
 export interface AccordionContext {
   type: 'accordion';
@@ -102,11 +102,11 @@ export interface AccordionContext {
 }
 
 // ============================================================================
-// Params 관련 Context 타입들
+// Params-related Context types
 // ============================================================================
 
 /**
- * Query Params Model - 쿼리 파라미터
+ * Query Params Model — query parameters.
  */
 export interface QueryParamsModel {
   type: 'params';
@@ -117,7 +117,7 @@ export interface QueryParamsModel {
 }
 
 /**
- * Path Params Model - 경로 파라미터
+ * Path Params Model — path parameters.
  */
 export interface PathParamsModel {
   type: 'params';
@@ -128,7 +128,7 @@ export interface PathParamsModel {
 }
 
 /**
- * Params Context - 전체 파라미터 Context
+ * Params Context — the full parameter Context.
  */
 export interface ParamsContext {
   path_params: PathParamsModel;
@@ -136,12 +136,12 @@ export interface ParamsContext {
 }
 
 // ============================================================================
-// Entity 관련 Context 타입들
+// Entity-related Context types
 // ============================================================================
 
 /**
- * Entity Context - 엔티티 Context
- * 기본적인 키-값 쌍들을 그룹화
+ * Entity Context — an entity Context.
+ * Groups basic key/value pairs together.
  */
 export interface EntityContext {
   type: 'entity';
@@ -152,12 +152,12 @@ export interface EntityContext {
 }
 
 // ============================================================================
-// 중첩 구조 Context 타입들
+// Nested-structure Context types
 // ============================================================================
 
 /**
- * Nested Object Context - 중첩된 객체 Context
- * 객체 안에 다른 객체나 배열이 있는 경우
+ * Nested Object Context — a nested object Context.
+ * For when an object contains other objects or arrays.
  */
 export interface NestedObjectContext {
   type: 'nestedObject';
@@ -168,8 +168,8 @@ export interface NestedObjectContext {
 }
 
 /**
- * Array Context - 배열 Context
- * 배열 형태의 데이터를 처리
+ * Array Context — an array Context.
+ * Handles array-shaped data.
  */
 export interface ArrayContext {
   type: 'array';
@@ -181,8 +181,8 @@ export interface ArrayContext {
 }
 
 /**
- * Object Array Context - 객체 배열 Context
- * 객체들의 배열을 처리하는 Context
+ * Object Array Context — an object-array Context.
+ * A Context that handles an array of objects.
  */
 export interface ObjectArrayContext {
   type: 'objectArray';
@@ -191,11 +191,11 @@ export interface ObjectArrayContext {
 }
 
 // ============================================================================
-// Software Model 관련 Context 타입들
+// Software Model-related Context types
 // ============================================================================
 
 /**
- * Software Model Context - 소프트웨어 모델 Context
+ * Software Model Context — a software-model Context.
  */
 export interface SoftwareModelContext {
   type: 'softwareModel';
@@ -206,12 +206,12 @@ export interface SoftwareModelContext {
 }
 
 // ============================================================================
-// Object 관련 Context 타입들 (ObjectArray.vue에서 사용)
+// Object-related Context types (used in ObjectArray.vue)
 // ============================================================================
 
 /**
- * Object Context - 객체 Context
- * ObjectArray.vue에서 사용되는 객체 단위
+ * Object Context — an object Context.
+ * The object unit used in ObjectArray.vue.
  */
 export interface ObjectContext {
   type: 'object';
@@ -220,8 +220,8 @@ export interface ObjectContext {
 }
 
 /**
- * Complex Context - 복합 Context
- * 다양한 타입이 섞인 복합 구조
+ * Complex Context — a composite Context.
+ * A composite structure mixing various types.
  */
 export interface ComplexContext {
   type: 'complex';
@@ -230,11 +230,11 @@ export interface ComplexContext {
 }
 
 // ============================================================================
-// Form Context 타입들
+// Form Context types
 // ============================================================================
 
 /**
- * Form Context - 최상위 Form Context
+ * Form Context — the top-level Form Context.
  */
 export interface FormContext {
   type: 'form';
@@ -243,8 +243,8 @@ export interface FormContext {
 }
 
 /**
- * Converted Data - 변환된 데이터 타입
- * grasshopperTaskEditorModel에서 사용되는 변환된 데이터
+ * Converted Data — the converted-data type.
+ * The converted data used in grasshopperTaskEditorModel.
  */
 export type ConvertedData = 
   | EntityContext 
@@ -255,11 +255,11 @@ export type ConvertedData =
   | SoftwareModelContext;
 
 // ============================================================================
-// Union 타입들
+// Union types
 // ============================================================================
 
 /**
- * 모든 Context 타입의 Union
+ * Union of all Context types.
  */
 export type Context = 
   | KeyValueContext 
@@ -275,7 +275,7 @@ export type Context =
   | SoftwareModelContext;
 
 /**
- * 모든 Form Context 타입의 Union
+ * Union of all Form Context types.
  */
 export type FormContextType = 
   | EntityContext
@@ -286,11 +286,11 @@ export type FormContextType =
   | SoftwareModelContext;
 
 // ============================================================================
-// 유틸리티 타입들
+// Utility types
 // ============================================================================
 
 /**
- * Context 타입 가드 함수들의 타입
+ * Type for the Context type-guard functions.
  */
 export interface ContextTypeGuards {
   isInputContext(context: any): context is InputContext;
@@ -305,7 +305,7 @@ export interface ContextTypeGuards {
 }
 
 /**
- * Context 생성 함수들의 타입
+ * Type for the Context factory functions.
  */
 export interface ContextFactory {
   createInputContext(title: string, value: string, depth?: number, valueType?: string): InputContext;
@@ -322,7 +322,7 @@ export interface ContextFactory {
 }
 
 /**
- * Context 변환 함수들의 타입
+ * Type for the Context converter functions.
  */
 export interface ContextConverter {
   convertToFormContext(data: any): FormContext;
@@ -337,7 +337,7 @@ export interface ContextConverter {
 }
 
 /**
- * Context 편집 함수들의 타입
+ * Type for the Context editor functions.
  */
 export interface ContextEditor {
   addField(context: ObjectContext | ComplexContext | NestedObjectContext, field: Context): void;
@@ -352,11 +352,11 @@ export interface ContextEditor {
 }
 
 // ============================================================================
-// Depth 관련 타입들
+// Depth-related types
 // ============================================================================
 
 /**
- * Depth 정보를 포함한 Context
+ * A Context that carries depth information.
  */
 export interface DepthContext {
   depth: number;
@@ -365,7 +365,7 @@ export interface DepthContext {
 }
 
 /**
- * Depth별 렌더링 옵션
+ * Per-depth rendering options.
  */
 export interface DepthRenderOptions {
   maxDepth: number;
@@ -375,11 +375,11 @@ export interface DepthRenderOptions {
 }
 
 // ============================================================================
-// Validation 관련 타입들
+// Validation-related types
 // ============================================================================
 
 /**
- * Context 유효성 검사 결과
+ * Context validation result.
  */
 export interface ValidationResult {
   isValid: boolean;
@@ -396,7 +396,7 @@ export interface ValidationResult {
 }
 
 /**
- * Context 유효성 검사 규칙
+ * Context validation rule.
  */
 export interface ValidationRule {
   field: string;
@@ -409,11 +409,11 @@ export interface ValidationRule {
 }
 
 // ============================================================================
-// Event 관련 타입들
+// Event-related types
 // ============================================================================
 
 /**
- * Context 변경 이벤트
+ * Context change event.
  */
 export interface ContextChangeEvent {
   type: 'add' | 'remove' | 'update' | 'move';
@@ -424,7 +424,7 @@ export interface ContextChangeEvent {
 }
 
 /**
- * Context 이벤트 핸들러
+ * Context event handlers.
  */
 export interface ContextEventHandler {
   onChange: (event: ContextChangeEvent) => void;
@@ -433,11 +433,11 @@ export interface ContextEventHandler {
 }
 
 // ============================================================================
-// 설정 관련 타입들
+// Configuration-related types
 // ============================================================================
 
 /**
- * Context 렌더링 설정
+ * Context rendering configuration.
  */
 export interface ContextRenderConfig {
   readonly: boolean;
@@ -449,7 +449,7 @@ export interface ContextRenderConfig {
 }
 
 /**
- * Context 편집 설정
+ * Context editing configuration.
  */
 export interface ContextEditConfig {
   allowAdd: boolean;
@@ -460,11 +460,11 @@ export interface ContextEditConfig {
 }
 
 // ============================================================================
-// 상수 정의
+// Constant definitions
 // ============================================================================
 
 /**
- * Context 타입 상수
+ * Context type constants.
  */
 export const CONTEXT_TYPES = {
   INPUT: 'input',
@@ -483,7 +483,7 @@ export const CONTEXT_TYPES = {
 } as const;
 
 /**
- * 기본 설정값
+ * Default configuration values.
  */
 export const DEFAULT_CONFIG: ContextRenderConfig = {
   readonly: false,
@@ -495,7 +495,7 @@ export const DEFAULT_CONFIG: ContextRenderConfig = {
 };
 
 /**
- * 기본 편집 설정값
+ * Default editing configuration values.
  */
 export const DEFAULT_EDIT_CONFIG: ContextEditConfig = {
   allowAdd: true,

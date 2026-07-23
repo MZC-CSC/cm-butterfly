@@ -1,14 +1,18 @@
 /**
- * 런별 고유 이름 — 실 백엔드(@seed/@unit/@scenario)에서 동명 리소스 재등록 충돌을 피한다.
+ * Per-run unique names — avoid re-registration collisions for same-named resources
+ * against the real backend (@seed/@unit/@scenario).
  *
- * honeybee(소스그룹)·cicada(워크플로우) 등은 이름에 UNIQUE 제약이 있어, 같은 이름으로 다시 등록하면
- * 거부되고 에러 모달이 열린 채 남아 후속 조작을 가린다. 실행마다 고유 접미사를 붙여 항상 신규 등록되게 한다.
+ * honeybee (source group), cicada (workflow), etc. have a UNIQUE constraint on the
+ * name, so re-registering with the same name is rejected and leaves an error modal
+ * open, which obscures subsequent actions. We append a unique suffix per run so it's
+ * always a new registration.
  *
- * ★ RUN_ID는 *프로세스 사이에서도 같아야* 한다.
- *   seed·functional·scenario는 서로 다른 worker 프로세스에서 돈다. 모듈 로드 시점의 Date.now()를 쓰면
- *   프로젝트마다 값이 달라져서, seed가 만든 `e2e-nano-source-123456` 을 functional이
- *   `e2e-nano-source-789012` 로 찾다가 못 찾는다.
- *   그래서 globalSetup이 메인 프로세스에서 E2E_RUN_ID를 심어 두고(worker가 상속), 여기서 그 값을 읽는다.
+ * ★ RUN_ID must be *the same across processes*.
+ *   seed, functional, and scenario run in different worker processes. Using Date.now()
+ *   at module load time would give a different value per project, so functional would
+ *   look for the `e2e-nano-source-123456` that seed created under the name
+ *   `e2e-nano-source-789012` and fail to find it.
+ *   So globalSetup plants E2E_RUN_ID in the main process (inherited by workers), and we read that value here.
  */
 const RUN_ID = process.env.E2E_RUN_ID || String(Date.now()).slice(-6);
 

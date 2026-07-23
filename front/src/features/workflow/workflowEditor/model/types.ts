@@ -22,8 +22,8 @@ export interface Step extends _Step {
     taskType?: string;
     // Normalized task component (`data` + `type`/`spec`) for schema-driven UI.
     taskComponentData?: any;
-    // 원본 request_body 가 cm-cicada 런타임 참조였을 때, 저장 시 스켈레톤으로
-    // 덮어쓰지 않고 참조를 그대로 되돌려 놓기 위해 함께 보관하는 값.
+    // When the original request_body was a cm-cicada runtime reference, this value is kept
+    // alongside so that on save we restore the reference as-is instead of overwriting it with the skeleton.
     referenceRequestBody?: string;
     referenceSkeletonModel?: any;
   };
@@ -31,8 +31,8 @@ export interface Step extends _Step {
 
 export interface IWorkFlowDesignerFormData {
   sequence: Step[];
-  /** 정의의 흠·그릴 수 없는 이유. 감추지 말고 화면에 드러낸다 */
+  /** Flaws in the definition / reasons it can't be drawn. Surface them on screen, don't hide them */
   warnings?: string[];
-  /** 편집기가 이 워크플로우의 실행 그래프를 그대로 그릴 수 있나 */
+  /** Whether the editor can draw this workflow's execution graph as-is */
   representable?: boolean;
 }

@@ -72,22 +72,22 @@ export default defineComponent({
   setup(props, { emit }) {
     const localItems = ref<StringArrayItem[]>([...props.items]);
 
-    // props 변경 감지
+    // Detect prop changes
     watch(() => props.items, (newItems) => {
       localItems.value = [...newItems];
     }, { deep: true });
 
-    // 아이템 업데이트
+    // Update an item
     const updateItem = (index: number, event: Event) => {
       const target = event.target as HTMLInputElement;
       localItems.value[index].value = target.value;
       emit('update-items', localItems.value);
     };
 
-    // 아이템 삭제
+    // Delete an item
     const deleteItem = (index: number) => {
       localItems.value.splice(index, 1);
-      // 인덱스 재정렬
+      // Re-index
       localItems.value.forEach((item, idx) => {
         item.index = idx;
       });
@@ -95,7 +95,7 @@ export default defineComponent({
       emit('update-items', localItems.value);
     };
 
-    // 아이템 추가
+    // Add an item
     const addItem = () => {
       const newItem: StringArrayItem = {
         index: localItems.value.length,

@@ -34,7 +34,7 @@ export function toolboxSteps() {
           ...properties,
         },
         sequence: [
-          // 병렬 실행될 task들
+          // tasks to be executed in parallel
         ],
       };
     },
@@ -84,7 +84,7 @@ export function toolboxSteps() {
           ...properties,
         },
         sequence: [
-          // 없어야함.
+          // should not exist.
         ],
       };
     },

@@ -94,15 +94,17 @@ export const useToolboxTableModel = <T>() => {
 
   const applyQueryTags = (e: ChangeEvent) => {
     if (e?.queryTags?.length) {
-      // 검색어를 넣으면 필터 결과를 1페이지부터 보여준다. 이전 페이지 위치(startPage)를
-      // 그대로 두면 필터된 항목 수가 그 페이지보다 적을 때 빈 화면이 나온다.
+      // When a search term is entered, show filtered results from page 1. Leaving the previous
+      // page position (startPage) as-is produces an empty screen when the filtered item count is
+      // smaller than that page.
       tableState.currentPage = 1;
       tableState.startPage = 1;
 
-      // 부분 문자열(대소문자 무시) 매칭. 정규식을 쓰지 않는 이유: (1) 사용자가 입력한
-      // '.'·'(' 같은 문자가 정규식 메타문자로 해석돼 깨지고, (2) /g 플래그가 붙은 정규식의
-      // .test()는 lastIndex를 누적하는 stateful 동작이라 한 행의 값들을 순회하며 테스트하면
-      // 결과가 들쭉날쭉해진다. 실제로 검색이 필터에 걸리지 않던 원인이 이것이다.
+      // Case-insensitive substring matching. We avoid regex because: (1) characters the user
+      // types like '.' or '(' would be interpreted as regex metacharacters and break, and (2)
+      // .test() on a regex with the /g flag is stateful and accumulates lastIndex, so iterating
+      // over a row's values gives inconsistent results. This was the actual cause of search not
+      // filtering correctly.
       tableState.sortedItems = tableState.items.filter((row: any) =>
         e.queryTags!.every(queryTag => {
           const needle = queryTag.value.name;
@@ -138,9 +140,9 @@ export const useToolboxTableModel = <T>() => {
     applyQueryTags(e);
     applySorting(e);
 
-    // 현재 페이지 창을 그대로 잘라 낸다. 기존 endIdx 는 startPage(아이템 오프셋)에
-    // pageSize 를 더해 startIdx(페이지 번호 기반)와 의미가 섞여 페이지마다 한 건씩
-    // 모자라거나 검색 후 잘못된 구간을 잘랐다. startIdx 기준으로 일관되게 맞춘다.
+    // Slice out the current page window. The old endIdx added pageSize to startPage (an item
+    // offset), mixing meaning with startIdx (page-number based), which left each page one item
+    // short or sliced the wrong range after a search. Base everything consistently on startIdx.
     const startIdx = tableOptions.pageSize * (tableState.currentPage - 1);
     const endIdx = startIdx + tableOptions.pageSize;
 

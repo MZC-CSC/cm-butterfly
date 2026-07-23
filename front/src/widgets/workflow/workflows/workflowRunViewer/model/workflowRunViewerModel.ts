@@ -28,19 +28,18 @@ import {
 } from '@/entities/workflow/lib/taskLog';
 
 /**
- * 실행 상태를 주기적으로 조회한다.
+ * Poll the execution status periodically.
  *
- * 엔진에 상태 변경을 알려주는 채널이 없어 조회 말고는 방법이 없다. 그런데 그
- * 조회가 엔진 안에서 워크플로우 단위로 직렬화되므로, 주기를 짧게 잡으면 실행·
- * 재실행 같은 작업을 지연시킨다. 그래서 주기는 넉넉히 두고, 실행이 끝나면
- * 곧바로 멈춘다.
+ * The engine has no channel to push status changes, so polling is the only option. But that
+ * polling is serialized per workflow inside the engine, so a short interval delays operations
+ * like run and re-run. So we keep the interval generous and stop the moment a run finishes.
  */
 const POLL_INTERVAL_MS = 3000;
 const MIN_POLL_INTERVAL_MS = 2000;
 
 export function useWorkflowRunViewerModel() {
   const workflow = ref<IWorkflowResponse | null>(null);
-  /** 엔진이 이 워크플로우를 읽을 수 있는가 — 방금 만든 것은 잠시 못 읽는다 */
+  /** Whether the engine can read this workflow — a freshly created one is unreadable for a moment */
   const workflowReadyState = ref<'ready' | 'waiting' | 'timeout'>('ready');
   const runs = ref<IWorkflowRun[]>([]);
   const selectedRunId = ref<string | null>(null);
@@ -51,13 +50,13 @@ export function useWorkflowRunViewerModel() {
   const loadError = ref<string | null>(null);
   const isPolling = ref(false);
 
-  // 로그
+  // Log
   const logText = ref('');
   const logError = ref<string | null>(null);
   const logLoading = ref(false);
   const selectedTryNumber = ref<number | null>(null);
 
-  // 재실행
+  // Re-run
   const rerunTargets = ref<ITaskInstanceReference[] | null>(null);
   const rerunError = ref<string | null>(null);
   const rerunPending = ref(false);
@@ -66,8 +65,8 @@ export function useWorkflowRunViewerModel() {
   const failureSummary = computed(() => extractFailureSummary(logText.value));
 
   /**
-   * 진행 상황. 실행해야 할 태스크 수를 알고 있으므로 "몇 개 중 몇 개가 끝났는지"를
-   * 그대로 셀 수 있다. 도는 동안 화면이 아무 말도 하지 않으면 멈춘 것처럼 보인다.
+   * Progress. We know the total number of tasks to run, so we can count "how many of how many
+   * have finished" directly. If the UI says nothing while it runs, it looks stuck.
    */
   const TERMINAL_STATES = ['success', 'failed', 'skipped', 'upstream_failed'];
 
@@ -95,13 +94,13 @@ export function useWorkflowRunViewerModel() {
   const graph = computed<IRunGraph>(() => buildRunGraph(workflow.value));
 
   /**
-   * 워크플로우 툴로 열 수 있는 그래프인가. Edit·Clone&Edit 가 툴로 갈지 JSON 으로 갈지를
-   * 여기서 가른다.
+   * Whether the graph can be opened in the workflow tool. This decides whether Edit / Clone&Edit
+   * go to the tool or to JSON.
    *
-   * 판정은 **워크플로우 툴이 읽어 올릴 때와 똑같은 함수**로 한다([[designerSupport]]).
-   * 두 곳이 다르게 판단하면, 툴로 보냈는데 툴이 못 여는(또는 그 반대인) 상황이 생긴다.
-   * 예전에는 여기서 "병렬이면 무조건 JSON"으로 갈랐는데, 이제 툴이 병렬을 그리므로
-   * 기준이 "병렬이냐"가 아니라 **"우리가 그대로 옮길 수 있느냐"** 로 바뀌었다.
+   * The decision uses **the exact same function the workflow tool uses when loading** ([[designerSupport]]).
+   * If the two decide differently, you get a case where something is sent to the tool that the tool
+   * cannot open (or vice versa). It used to split on "if it has parallel, always JSON", but now the
+   * tool draws parallel, so the criterion changed from "is it parallel" to **"can we move it over as-is"**.
    */
   const designerSupport = computed(() =>
     checkDesignerSupport(workflow.value?.data?.task_groups),
@@ -109,10 +108,11 @@ export function useWorkflowRunViewerModel() {
   const canEditInDesigner = computed(() => designerSupport.value.canEdit);
 
   /**
-   * 이 워크플로우가 한 번이라도 실행됐는가. 뷰어의 버튼 구성이 여기서 갈린다 —
-   * 실행된 적 없으면 Run·Edit만, 있으면 Start new run·Clone&Edit·Re-run failed.
-   * `Start new run`은 매 실행마다 새 이력을 쌓는 동작이라 쌓을 이력이 있어야 의미가 있고,
-   * 실행된 워크플로우는 원본 직접 수정을 막으므로(엔진이 실행별 정의를 남기지 않는다) Edit도 없다.
+   * Whether this workflow has ever run. The viewer's button set branches on this —
+   * if never run, only Run / Edit; otherwise Start new run / Clone&Edit / Re-run failed.
+   * `Start new run` builds up new history each run, so it only makes sense when there is history to
+   * build on, and a workflow that has run blocks direct edits to the original (the engine keeps no
+   * per-run definition), so there is no Edit either.
    */
   const hasRuns = computed(() => runs.value.length > 0);
 
@@ -130,11 +130,11 @@ export function useWorkflowRunViewerModel() {
   );
 
   /**
-   * 이 실행이 끝난 뒤에 워크플로우가 수정됐는가.
+   * Whether the workflow was modified after this run finished.
    *
-   * 엔진은 "그 실행에 쓰인 정의"를 돌려주지 않는다. 화면이 보여주는 파라미터는
-   * 언제나 *현재 정의*의 값이므로, 실행 이후 정의가 바뀌었으면 화면 값과 실제
-   * 실행에 쓰인 값이 다를 수 있다. 그 사실을 감추지 않고 알린다.
+   * The engine does not return "the definition used for that run". The parameters the UI shows are
+   * always values from the *current definition*, so if the definition changed after the run, the
+   * displayed values may differ from what the run actually used. We surface that fact rather than hide it.
    */
   const definitionChangedAfterRun = computed(() => {
     const updatedAt = workflow.value?.updated_at;
@@ -144,8 +144,8 @@ export function useWorkflowRunViewerModel() {
   });
 
   /**
-   * 실행 이력에는 있는데 현재 정의에는 없는 태스크. 그래프에 그릴 자리가 없으므로
-   * 조용히 버리지 않고 따로 보여준다.
+   * Tasks that exist in the run history but not in the current definition. There is no place to draw
+   * them in the graph, so instead of dropping them silently we show them separately.
    */
   const deletedTaskInstances = computed(() => {
     const known = new Set(graph.value.nodes.map(n => n.id));
@@ -164,14 +164,14 @@ export function useWorkflowRunViewerModel() {
   }
 
   /**
-   * 엔진이 이 워크플로우를 읽을 수 있게 될 때까지 기다린다.
+   * Wait until the engine can read this workflow.
    *
-   * 방금 만든 워크플로우는 Airflow 가 DAG 를 등록하기 전이라 조회가 잠시 실패한다
-   * (개발 서버 실측 약 5초). 그때 그래프를 그리면 **"표시할 태스크가 없습니다"** 가 뜨는데,
-   * 이건 사실이 아니다 — 태스크가 없는 게 아니라 아직 못 읽은 것이다. 화면이 없는 것과
-   * 아직인 것을 구분하지 못하면 사용자는 워크플로우가 비어 있다고 오해한다.
+   * A freshly created workflow fails to load for a short while, before Airflow has registered the
+   * DAG (measured at about 5 seconds on the dev server). If we draw the graph then, it shows
+   * **"No tasks to display"**, which is not true — there are tasks, they just cannot be read yet. If
+   * the UI cannot tell "empty" from "not yet", the user assumes the workflow is empty.
    *
-   * 그래서 읽힐 때까지 기다리고, 기다리는 중임을 화면에 알린다.
+   * So we wait until it becomes readable and tell the UI that we are waiting.
    */
   const WORKFLOW_READY_INTERVAL_MS = 2000;
   const WORKFLOW_READY_TIMEOUT_MS = 60000;
@@ -200,9 +200,9 @@ export function useWorkflowRunViewerModel() {
       await execute();
       runs.value = data.value?.responseData ?? [];
     } catch {
-      // 아직 실행된 적 없는 워크플로우는 엔진에서 조회가 실패한다 — Airflow 가 새
-      // DAG 를 읽어들이기 전이라 없는 것으로 나온다. **실패가 아니라 "아직 없음"** 이므로
-      // 붉은 오류 대신 실행을 권하는 빈 상태를 보여준다.
+      // A workflow that has never run fails to load from the engine — before Airflow has read the
+      // new DAG, it appears not to exist. **This is not a failure but "not yet"**, so instead of a
+      // red error we show an empty state that invites the user to run it.
       runs.value = [];
     }
   }
@@ -210,18 +210,18 @@ export function useWorkflowRunViewerModel() {
   let inFlight = false;
 
   async function fetchInstances(wfId: string, runId: string) {
-    // 같은 워크플로우를 동시에 조회하면 엔진 쪽 직렬화와 경합한다
+    // Polling the same workflow concurrently contends with the engine-side serialization
     if (inFlight) return;
     inFlight = true;
     try {
-      // 이 컴포저블은 생성 시점에 파라미터를 묶으므로 호출마다 새로 만든다
+      // This composable binds its parameters at creation time, so create a fresh one per call
       const { data, execute } = useGetTaskInstances(wfId, runId);
       await execute();
       instances.value = data.value?.responseData ?? [];
       loadError.value = null;
     } catch (e: any) {
-      // 실행 직후에는 엔진이 아직 준비되지 않아 실패할 수 있다.
-      // 곧바로 에러로 단정하지 않고 다음 주기에 다시 시도한다.
+      // Right after a run the engine may not be ready yet and this can fail.
+      // Do not conclude it is an error immediately; retry on the next poll.
       loadError.value = e?.message ?? 'Failed to load run status.';
     } finally {
       inFlight = false;
@@ -229,7 +229,7 @@ export function useWorkflowRunViewerModel() {
   }
 
   async function refreshRunState(wfId: string) {
-    // 실행 하나만 조회하는 엔드포인트가 없어 목록을 다시 받는다
+    // There is no endpoint to fetch a single run, so re-fetch the list
     await loadRuns(wfId);
   }
 
@@ -243,7 +243,7 @@ export function useWorkflowRunViewerModel() {
       await refreshRunState(wfId);
 
       if (isRunFinished(selectedRun.value?.state)) {
-        // 종료를 확인한 주기에 마지막 상태까지 담았으므로 여기서 멈춘다
+        // The poll that confirmed completion already captured the final state, so stop here
         stopPolling();
       }
     },
@@ -276,9 +276,10 @@ export function useWorkflowRunViewerModel() {
 
   async function open(wfId: string, runId?: string | null) {
     loadError.value = null;
-    // **다른 워크플로우의 내용을 물려받지 않는다.** 비우지 않으면 조회가 실패했을 때
-    // 앞서 보던 워크플로우의 실행이 이 워크플로우의 것처럼 남는다 — 방금 만든
-    // 워크플로우에서 늘 그렇게 된다(엔진이 새 DAG 를 아직 못 읽어 404 로 답한다).
+    // **Do not inherit content from another workflow.** If we do not clear it, then when a load
+    // fails, the runs of the previously viewed workflow linger as if they belonged to this one —
+    // which always happens with a freshly created workflow (the engine cannot read the new DAG yet
+    // and answers 404).
     runs.value = [];
     instances.value = [];
     selectedRunId.value = null;
@@ -287,7 +288,7 @@ export function useWorkflowRunViewerModel() {
     logError.value = null;
     workflowReadyState.value = 'ready';
 
-    // 정의를 먼저 확보한다. 못 읽는 동안 실행 목록을 조회해 봐야 같은 이유로 실패한다.
+    // Secure the definition first. Fetching the run list while it is unreadable would fail for the same reason.
     const ready = await waitForWorkflow(wfId);
     if (!ready) return;
     await loadRuns(wfId);
@@ -308,7 +309,7 @@ export function useWorkflowRunViewerModel() {
     selectedTryNumber.value = null;
   }
 
-  /** 시도(try)별로 볼 수 있어야 한다 — 재실행 전후를 비교하려면 필요하다 */
+  /** Must be viewable per try — needed to compare before and after a re-run */
   async function loadLog(tryNumber?: number) {
     const wfId = workflow.value?.id;
     const runId = selectedRunId.value;
@@ -334,7 +335,7 @@ export function useWorkflowRunViewerModel() {
       await execute();
       const raw = data.value?.responseData;
       if (raw === undefined || raw === null) {
-        // 로그가 없는 것과 조회에 실패한 것은 다르다. 빈 화면으로 얼버무리지 않는다.
+        // "No log" and "failed to fetch" are different. Do not paper over it with a blank screen.
         logText.value = '';
         logError.value = 'Failed to load the log.';
         return;
@@ -349,10 +350,11 @@ export function useWorkflowRunViewerModel() {
   }
 
   /**
-   * 재실행 사전 확인.
+   * Pre-check before a re-run.
    *
-   * 어떤 태스크가 다시 도는지는 화면의 그림이 아니라 **엔진이 실제 실행 그래프를 보고**
-   * 정한다. 둘이 어긋날 수 있으므로 실행 전에 반드시 대상 목록을 받아 확인시킨다.
+   * Which tasks run again is decided by **the engine looking at the actual execution graph**, not by
+   * the picture on screen. The two can diverge, so before running we always fetch the target list and
+   * have the user confirm it.
    */
   async function previewRerun(option: IClearTaskOption) {
     const wfId = workflow.value?.id;
@@ -366,8 +368,8 @@ export function useWorkflowRunViewerModel() {
       const { data, execute } = useClearTaskInstances(wfId, runId, {
         ...option,
         dryRun: true,
-        // 엔진은 사전 확인에 실행 상태 리셋을 함께 보내면 거부한다
-        // ("dry_run이 true이면 reset_dag_runs는 의미가 없습니다").
+        // The engine rejects a pre-check that also sends a run-state reset
+        // ("if dry_run is true, reset_dag_runs is meaningless").
         resetDagRuns: false,
       });
       await execute();
@@ -421,11 +423,12 @@ export function useWorkflowRunViewerModel() {
   }
 
   /**
-   * 원본을 복제한다.
+   * Clone the original.
    *
-   * 파라미터를 바꿔 실행하고 싶을 때 *원본을 고치면 안 된다* — 엔진은 "그 실행에 쓰인
-   * 정의"를 돌려주지 않으므로, 원본을 고치는 순간 그 워크플로우의 과거 실행이 화면에서
-   * 엉뚱한 값으로 보이게 된다. 복제본을 고치면 원본과 그 이력은 그대로 남는다.
+   * When you want to run with different parameters, *you must not edit the original* — the engine
+   * does not return "the definition used for that run", so the moment you edit the original, that
+   * workflow's past runs start showing wrong values on screen. Editing the clone leaves the original
+   * and its history intact.
    */
   const cloning = ref(false);
 
@@ -445,16 +448,16 @@ export function useWorkflowRunViewerModel() {
       }
 
       /*
-        복제 응답이 워크플로우 전체(정의 포함)를 돌려주므로 그대로 캐시에 넣는다.
-        이렇게 하지 않으면 곧바로 편집기를 열 때 빈 화면이 뜬다 — 엔진은 워크플로우를
-        Airflow에서 읽어 오는데, 방금 만든 DAG를 Airflow가 아직 읽어들이지 않아
-        조회가 한동안 실패하기 때문이다("failed to get the workflow from the airflow
-        server"). 목록도 이 캐시를 보고 그리므로 복제본이 목록에도 함께 나타난다.
+        The clone response returns the whole workflow (including the definition), so put it straight
+        into the cache. Without this, opening the editor right away shows a blank screen — the engine
+        reads the workflow from Airflow, and since Airflow has not yet read the just-created DAG, the
+        fetch fails for a while ("failed to get the workflow from the airflow server"). The list is
+        drawn from this cache too, so the clone also appears in the list.
       */
       workflowStore.upsertWorkflow(cloned);
 
-      // 복제본은 이름으로 찾는다 — 목록은 만든 순서대로 쌓이므로 새 워크플로우가
-      // 첫 페이지에 있으리라는 보장이 없다. 무엇이 만들어졌는지 이름을 알려 준다.
+      // Identify the clone by name — the list accumulates in creation order, so there is no
+      // guarantee the new workflow is on the first page. Tell the user by name what was created.
       showSuccessMessage(
         'Workflow copied',
         `Created "${cloned.name}". Opening it in the editor.`,
@@ -468,7 +471,7 @@ export function useWorkflowRunViewerModel() {
     }
   }
 
-  /** 뷰어에서 바로 실행 — 목록 화면까지 가지 않아도 된다 */
+  /** Run directly from the viewer — no need to go to the list screen */
   async function runWorkflow() {
     const wfId = workflow.value?.id;
     if (!wfId) return;
@@ -481,12 +484,12 @@ export function useWorkflowRunViewerModel() {
       label: workflow.value?.name || wfId,
       action: 'run',
     });
-    // DAG 등록 직후에는 실행이 바로 보이지 않을 수 있으므로 잠시 뒤 다시 연다
+    // Right after DAG registration the run may not appear immediately, so reopen after a short delay
     await new Promise(resolve => setTimeout(resolve, 3000));
     await open(wfId);
   }
 
-  // 화면을 벗어나면 조회가 남지 않게 한다
+  // Ensure polling does not linger after leaving the screen
   onScopeDispose(stopPolling);
 
   return {

@@ -10,14 +10,14 @@ import { scenarioState } from '../support/world';
 const { Given, When, Then } = createBdd(test);
 
 /**
- * 워크플로우 관리(cm-cicada) 스텝.
- * - 단위(@unit): 목록 조회 / 템플릿 / Task Component / 생성(디자이너) / 실행·상태 폴링.
- * - 재사용(@scenario): "마이그레이션 워크플로우를 생성하고 실행하면" — 인프라 마이그레이션 시나리오가 조립.
+ * Workflow management (cm-cicada) steps.
+ * - Unit (@unit): list query / templates / Task Component / creation (designer) / run and state polling.
+ * - Reusable (@scenario): "create and run a migration workflow" — assembled by the infra migration scenario.
  *
- * 화면 위치·셀렉터는 모두 WorkflowPage(Page Object)에 있다.
+ * All screen locations and selectors live in WorkflowPage (the Page Object).
  */
 
-// ── 워크플로우 목록 ───────────────────────────────────────────────────────
+// ── Workflow list ─────────────────────────────────────────────────────────
 
 Given('워크플로우 목록 화면을 연다', async ({ page }) => {
   await new WorkflowPage(page).gotoWorkflows();
@@ -26,7 +26,7 @@ Given('워크플로우 목록 화면을 연다', async ({ page }) => {
 Then('워크플로우 목록이 조회된다', async ({ page }) => {
   const wf = new WorkflowPage(page);
   await wf.expectWorkflowsLoaded();
-  // 조회 자체가 성공(테이블 노출)했는지 확인. 건수는 환경에 따라 0 이상.
+  // Confirm the query itself succeeded (table shown). The count is 0 or more depending on the environment.
   expect(await wf.workflowCount()).toBeGreaterThanOrEqual(0);
 });
 
@@ -37,7 +37,7 @@ Then(
   },
 );
 
-// ── 워크플로우 템플릿 ─────────────────────────────────────────────────────
+// ── Workflow templates ─────────────────────────────────────────────────────
 
 Given('워크플로우 템플릿 화면을 연다', async ({ page }) => {
   await new WorkflowPage(page).gotoTemplates();
@@ -55,7 +55,7 @@ Then(
   },
 );
 
-// ── Task Component (type/spec 스키마) ─────────────────────────────────────
+// ── Task Component (type/spec schema) ─────────────────────────────────────
 
 Given('Task Component 화면을 연다', async ({ page }) => {
   await new WorkflowPage(page).gotoTaskComponents();
@@ -74,7 +74,7 @@ Then(
   },
 );
 
-// ── 워크플로우 생성 — 디자이너/에디터 (type/spec task) ─────────────────────
+// ── Workflow creation — designer/editor (type/spec task) ─────────────────────
 
 When('워크플로우 디자이너를 연다', async ({ page }) => {
   await new WorkflowPage(page).openDesigner();
@@ -85,8 +85,8 @@ Then('워크플로우 디자이너가 표시된다', async ({ page }) => {
 });
 
 /**
- * "{string} 템플릿으로 \"e2e-wf\" 워크플로우를 생성하면"
- * 디자이너에서 이름 입력 → 템플릿 선택 → 저장까지. (type/spec task는 템플릿에 포함)
+ * "when creating the \"e2e-wf\" workflow from the {string} template"
+ * From entering the name → selecting the template → saving, in the designer. (type/spec tasks are included in the template)
  */
 When(
   '{string} 템플릿으로 {string} 워크플로우를 생성하면',
@@ -103,16 +103,16 @@ Then('워크플로우 JSON 뷰어가 표시된다', async ({ page }) => {
   await new WorkflowPage(page).expectJsonViewerVisible();
 });
 
-// ── 워크플로우 실행(run) + 상태 폴링 ──────────────────────────────────────
-// ⚠️ @unit 실행은 반드시 요금 안전(예제 bash 등, 인프라 미프로비저닝) 워크플로우로만.
+// ── Workflow run + state polling ──────────────────────────────────────────
+// ⚠️ @unit runs must use only cost-safe workflows (example bash, etc., no infra provisioning).
 
 When('{string} 워크플로우를 실행하면', async ({ page }, name: string) => {
-  // 실행 → DAG run 트리거 → 상태 전이(queued→running→success)까지 기다린다. 기본 90초로는 모자라다.
+  // Wait through run → DAG run trigger → state transition (queued→running→success). The default 90s is not enough.
   test.setTimeout(10 * 60_000);
 
   const wf = new WorkflowPage(page);
   await wf.gotoWorkflows();
-  // 시드가 워크플로우를 만들고 *DAG 등록까지 확인*해 두므로, 여기서는 목록에서 한 번 실행하면 된다.
+  // The seed creates the workflow and *confirms DAG registration*, so here we only need to run it once from the list.
   await wf.runWorkflow(uniqueName(name));
 });
 
@@ -130,24 +130,25 @@ Then('워크플로우 실행이 정상 완료된다', async ({ page }) => {
   const wf = new WorkflowPage(page);
   await wf.openHistoryTab().catch(() => {});
   const state = await wf.pollLatestRunState();
-  // 종료 상태 도달 확인. 예제 워크플로우는 success 기대.
+  // Confirm a terminal state is reached. The example workflow is expected to succeed.
   expect(['success', 'failed']).toContain(state);
   expect(state, `워크플로우 실행 최종 상태=${state}`).toBe('success');
 });
 
-// ── 재사용(마이그레이션 시나리오) ────────────────────────────────────────
+// ── Reusable (migration scenario) ────────────────────────────────────────
 /**
- * "그리고 마이그레이션 워크플로우를 생성하고 실행하면"
- * 인프라마이그레이션.feature(@scenario)가 조립하는 재사용 스텝.
- * 앞선 타깃 모델 스텝이 저장한 추천 타깃 모델을 바탕으로 add-mode 디자이너가
- * migrate_infra_workflow 템플릿을 자동 선택 → beetle_task_infra_migration(type/spec) task 구성 →
- * 저장(생성) 후 목록에서 실행(run). 실제 EC2 프로비저닝이 트리거되므로 시나리오 종료 시 정리 필수.
+ * "and when creating and running a migration workflow"
+ * A reusable step assembled by the infra-migration .feature (@scenario).
+ * Based on the recommended target model saved by the preceding target-model step, the add-mode designer
+ * auto-selects the migrate_infra_workflow template → composes the beetle_task_infra_migration (type/spec) task →
+ * saves (creates), then runs from the list. Real EC2 provisioning is triggered, so cleanup at scenario end is required.
  */
 /**
- * 마이그레이션 워크플로우를 만들고 실행한다.
+ * Create and run a migration workflow.
  *
- * @param editInfraName 넘기면 워크플로우 툴에서 *생성될 인프라 이름*을 이 값으로 바꿔 저장한다.
- *                      넘기지 않으면 기본값(타깃 모델이 지정한 이름, 보통 `infra101`) 그대로 간다.
+ * @param editInfraName If passed, changes the *name of the infra to be created* to this value in the
+ *                      workflow tool and saves. If omitted, it stays at the default (the name the target
+ *                      model specifies, usually `infra101`).
  */
 async function createAndRunMigrationWorkflow(
   page: import('@playwright/test').Page,
@@ -157,22 +158,24 @@ async function createAndRunMigrationWorkflow(
   const wf = new WorkflowPage(page);
   const name = `${workflowData.createNamePrefix}-migrate-${Date.now()}`;
 
-  // 1) 타깃 모델 상세 "Make Workflow" → 워크플로우 에디터 → 이름/템플릿 → 저장(생성)
-  //    (Workflows 목록의 Add는 disabled — 생성은 타깃 모델에서 시작)
+  // 1) Target model detail "Make Workflow" → workflow editor → name/template → save (create)
+  //    (Add in the Workflows list is disabled — creation starts from the target model)
   await models.openWorkflowEditorFromTarget(
     uniqueName(process.env.TEST_TARGET_MODEL_NAME || 'e2e-lowcost-target'),
   );
   await wf.expectDesignerOpen();
   await wf.fillWorkflowName(name);
-  // add-mode 에디터는 타깃 모델의 migrationType으로 템플릿·task(beetle_task_infra_migration)를
-  // 자동 구성하므로 템플릿을 수동 선택하지 않는다(수동 선택은 자동 구성을 방해해 저장 실패).
+  // The add-mode editor auto-composes the template and task (beetle_task_infra_migration) from the target
+  // model's migrationType, so we do not select the template manually (a manual selection disrupts the
+  // auto-composition and fails the save).
 
   if (editInfraName) {
-    // ★ 워크플로우 툴에서 생성될 인프라 이름을 바꾼다.
+    // ★ Change the name of the infra to be created in the workflow tool.
     //
-    //   cm-beetle 은 타깃 인프라 이름을 타깃 모델에 적힌 값(기본 `infra101`)으로 만든다. 그래서 같은
-    //   과정을 반복하면 늘 같은 이름으로만 생성되고, 앞선 실행이 남긴 인프라와 구분되지 않는다.
-    //   워크플로우 툴은 그 값을 바꿀 수 있게 돼 있고, *그게 실제로 동작하는지* 확인하는 게 이 경로다.
+    //   cm-beetle names the target infra with the value written in the target model (default `infra101`).
+    //   So repeating the same process always creates the same name, indistinguishable from the infra left
+    //   by a previous run. The workflow tool lets you change that value, and this path checks that *it
+    //   actually works*.
     await wf.selectTaskInDesigner(workflowData.infraMigrationTask);
     await wf.setTaskParam('body', 'targetInfra.name', editInfraName);
     scenarioState.infraName = editInfraName;
@@ -180,34 +183,36 @@ async function createAndRunMigrationWorkflow(
 
   await wf.saveWorkflow();
 
-  // cm-cicada는 생성 시 DAG YAML을 디스크에 기록만 하고, airflow가 이를 파싱해 등록한다.
-  // 등록 전에 run을 쏘면 "provided dag_id is not exist"로 거부된다. DAG가 늘수록 파싱이 느려져
-  // 실측 1분 안팎까지 걸리므로(예전 20초 대기로는 모자랐다) 넉넉히 기다린 뒤 *한 번만* 실행한다.
+  // On creation cm-cicada only writes the DAG YAML to disk, and airflow parses and registers it.
+  // Firing a run before registration is rejected with "provided dag_id is not exist". Parsing slows as the
+  // number of DAGs grows, taking roughly a minute in practice (the old 20s wait was not enough), so we wait
+  // generously and then run *only once*.
   //
-  // ⚠️ 여기서는 재시도하지 않는다 — 마이그레이션 워크플로우는 실행할 때마다 EC2를 만든다.
-  //    거부되면 실행 자체가 안 된 것이라 자원 낭비는 없고, 아래 이력 확인에서 실패로 드러난다.
+  // ⚠️ We do not retry here — a migration workflow creates an EC2 instance every time it runs.
+  //    If rejected, the run never happened so there is no wasted resource, and it surfaces as a failure in
+  //    the history check below.
   await wf.gotoWorkflows();
   await wf.expectWorkflowVisible(name);
   await new Promise(r => setTimeout(r, 120_000));
 
-  // 2) 목록에서 생성된 워크플로우 실행(run)
+  // 2) Run the created workflow from the list
   await wf.runWorkflow(name);
 
-  // 3) 실행 이력이 생성될 때까지 대기 (완료 여부는 후속 EC2 확인 스텝에서 검증)
+  // 3) Wait until a run history entry is created (completion is verified in a later EC2-check step)
   await wf.selectWorkflow(name);
   await wf.openHistoryTab();
   await wf.expectRunHistoryPresent();
 }
 
-/** 기본값 그대로 — 타깃 모델이 지정한 인프라 이름으로 생성된다 */
+/** Defaults as-is — created with the infra name the target model specifies */
 When('마이그레이션 워크플로우를 생성하고 실행하면', async ({ page }) => {
   await createAndRunMigrationWorkflow(page);
 });
 
 /**
- * "만약 워크플로우 툴에서 인프라 이름을 {string} 로 바꿔 마이그레이션 워크플로우를 생성하고 실행하면"
+ * "when changing the infra name to {string} in the workflow tool and creating and running a migration workflow"
  *
- * 워크플로우 툴이 실제로 동작하는지 보는 경로다. 기본값으로만 돌리면 그 화면이 값을 반영하는지 알 수 없다.
+ * This path checks whether the workflow tool actually works. Running with only defaults tells us nothing about whether that screen reflects the value.
  */
 When(
   '워크플로우 툴에서 인프라 이름을 {string} 로 바꿔 마이그레이션 워크플로우를 생성하고 실행하면',
@@ -216,14 +221,14 @@ When(
   },
 );
 
-// ── 소프트웨어 마이그레이션 ──────────────────────────────────────────────
+// ── Software migration ──────────────────────────────────────────────────
 /**
- * 소프트웨어 마이그레이션 워크플로우를 만들고 실행한다.
+ * Create and run a software migration workflow.
  *
- * 인프라 마이그레이션과 결정적으로 다른 점 — **어느 인프라에 설치할지를 워크플로우 툴에서 지정해야 한다.**
- * grasshopper_task_software_migration 은 `nsId`·`infraId` 를 *필수 query 파라미터*로 받는데, 타깃 SW
- * 모델은 "무엇을 설치할지"만 알고 "어디에 설치할지"는 모른다. 그래서 앞선 인프라 마이그레이션이 만든
- * 인프라의 id 를 여기서 채워 넣는다. 비워 두면 grasshopper 가 대상을 못 찾는다.
+ * The decisive difference from infra migration — **which infra to install onto must be specified in the workflow tool.**
+ * grasshopper_task_software_migration takes `nsId` and `infraId` as *required query parameters*, but the target SW
+ * model only knows "what to install", not "where to install it". So we fill in the id of the infra created by the
+ * preceding infra migration here. Left empty, grasshopper cannot find the target.
  */
 async function createAndRunSoftwareMigrationWorkflow(
   page: import('@playwright/test').Page,
@@ -239,8 +244,8 @@ async function createAndRunSoftwareMigrationWorkflow(
     'SW 마이그레이션은 설치 대상 인프라가 있어야 한다 — 인프라 마이그레이션이 먼저 성공해야 한다',
   ).toBeTruthy();
 
-  // 타깃 SW 모델 상세의 "Make Workflow" → 디자이너가 migrate_software_workflow 템플릿과
-  // grasshopper_task_software_migration 태스크를 모델 타입(software)에 따라 자동 구성한다.
+  // Target SW model detail "Make Workflow" → the designer auto-composes the migrate_software_workflow template
+  // and the grasshopper_task_software_migration task according to the model type (software).
   await models.openWorkflowEditorFromTarget(targetModelName);
   await wf.expectDesignerOpen();
   await wf.fillWorkflowName(name);
@@ -252,14 +257,14 @@ async function createAndRunSoftwareMigrationWorkflow(
   await wf.saveWorkflow();
   scenarioState.softwareWorkflowName = name;
 
-  // 인프라 마이그레이션과 같은 이유로 DAG 등록을 기다린다(cm-cicada는 YAML만 쓰고 airflow가 파싱).
+  // Wait for DAG registration for the same reason as infra migration (cm-cicada only writes YAML and airflow parses it).
   await wf.gotoWorkflows();
   await wf.expectWorkflowVisible(name);
   await new Promise(r => setTimeout(r, 120_000));
 
-  // ★ 실행 직전 시각을 기록한다. grasshopper 실행 기록을 우리 것으로 가려낼 유일한 열쇠다 —
-  //   인프라 이름도 노드 id도 cb-tumblebug이 같은 값을 다시 쓰기 때문에, 앞선 실행이 남긴 기록과
-  //   구분되지 않는다(실제로 지난 실행의 기록이 이번 것으로 잡혔다).
+  // ★ Record the timestamp right before running. It is the only key to pick out the grasshopper run record
+  //   as ours — because cb-tumblebug reuses the same values for both the infra name and the node id, the
+  //   record is indistinguishable from what a previous run left (a past run's record was actually picked up as this one).
   scenarioState.swRunStartedAt = Date.now();
   await wf.runWorkflow(name);
 
@@ -269,9 +274,9 @@ async function createAndRunSoftwareMigrationWorkflow(
 }
 
 /**
- * "만약 {string} 타깃 SW 모델로 소프트웨어 마이그레이션 워크플로우를 생성하고 실행하면"
+ * "when creating and running a software migration workflow with the {string} target SW model"
  *
- * 설치 대상 인프라(infraId)는 앞선 인프라 마이그레이션이 만든 것을 쓴다 — 워크플로우 툴에서 채운다.
+ * The install-target infra (infraId) uses the one created by the preceding infra migration — filled in via the workflow tool.
  */
 When(
   '{string} 타깃 SW 모델로 소프트웨어 마이그레이션 워크플로우를 생성하고 실행하면',
@@ -283,7 +288,7 @@ When(
   },
 );
 
-/** "그러면 워크플로우 툴의 인프라 이름 기본값은 {string} 이다" — 기본값이 무엇인지 명시적으로 확인 */
+/** "then the workflow tool's default infra name is {string}" — explicitly confirm what the default is */
 Then(
   '워크플로우 툴의 인프라 이름 기본값은 {string} 이다',
   async ({ page }, expected: string) => {
@@ -296,15 +301,15 @@ Then(
   },
 );
 
-// ── cm-cicada type/spec 스키마 회귀 (BAR-1389) ────────────────────────────
+// ── cm-cicada type/spec schema regression (BAR-1389) ──────────────────────
 //
-// cm-cicada가 TaskComponent를 type/spec 스키마로 바꾸면서, 콘솔의 두 화면이
-// 업스트림 패치에서 빠져 우리가 직접 보완했다.
-//   - Task Components  : 저장 payload가 구 {data:{options}} 래핑이면 cicada가 거부한다
-//   - Workflow JSON 뷰어: run_script가 spec.request_body로 옮겨가 디코드가 안 되면 base64가 노출된다
-// 화면이 멀쩡해 보여도 나가는 요청이 구 스키마일 수 있어, 요청 기록까지 함께 본다.
+// As cm-cicada changed TaskComponent to the type/spec schema, two console screens were left out of the
+// upstream patch and we supplemented them ourselves.
+//   - Task Components  : if the save payload uses the old {data:{options}} wrapping, cicada rejects it
+//   - Workflow JSON viewer: if run_script moved to spec.request_body and cannot be decoded, base64 is exposed
+// Even when the screen looks fine, the outgoing request may use the old schema, so we also inspect the request log.
 
-/** 테스트용 스크립트 원문과 그 base64 — 디코드 여부 판정의 기준점 */
+/** Test script original and its base64 — the reference point for judging whether decoding happened */
 const RUN_SCRIPT_MARKER = 'e2e run_script decode check';
 const RUN_SCRIPT_PLAIN = `#!/bin/bash\necho "${RUN_SCRIPT_MARKER}"\nuptime`;
 const RUN_SCRIPT_B64 = Buffer.from(RUN_SCRIPT_PLAIN).toString('base64');
@@ -320,17 +325,17 @@ Then('콘솔이 구 스키마 요청을 보내지 않는다', async () => {
 });
 
 /**
- * run_script 스크립트가 담긴 워크플로우를 준비한다.
- * 콘솔이 쓰는 프록시(operationId `create-workflow`)를 그대로 호출해, 로그인 세션·경로를
- * 실제 사용 흐름과 동일하게 태운다.
+ * Prepare a workflow containing a run_script script.
+ * Call the same proxy the console uses (operationId `create-workflow`) directly, so the login session and
+ * path go through exactly as in real usage.
  */
 Given(
   'run_script 스크립트가 담긴 {string} 워크플로우가 있다',
   async ({ page }, name: string) => {
-    // cm-cicada는 워크플로우 이름에 UNIQUE 제약이 있다. 고정 이름으로 만들면 두 번째 실행부터
-    // "UNIQUE constraint failed: workflows.name"으로 준비 단계가 항상 깨진다.
-    // 런별 접미사를 붙여 매번 새로 만든다(같은 런 안에서는 uniqueName이 같은 값을 주므로
-    // 뒤따르는 뷰어 열기 스텝이 같은 이름으로 찾아간다).
+    // cm-cicada has a UNIQUE constraint on the workflow name. Using a fixed name makes the prepare step
+    // always break from the second run on with "UNIQUE constraint failed: workflows.name".
+    // Append a per-run suffix to create a fresh one each time (within the same run uniqueName returns the
+    // same value, so the following viewer-open step finds it by the same name).
     const body = {
       name: uniqueName(name),
       description: 'e2e — cm-cicada run_script decode check',
@@ -359,7 +364,7 @@ Given(
       },
     };
 
-    // 콘솔은 프록시 호출에 Bearer 토큰을 붙인다. 로그인 세션이 localStorage에 보관한 토큰을 그대로 쓴다.
+    // The console attaches a Bearer token to proxy calls. Use the token the login session keeps in localStorage as-is.
     const token = await page.evaluate(() => {
       for (const k of Object.keys(localStorage)) {
         const v = localStorage.getItem(k) ?? '';
@@ -389,7 +394,7 @@ When(
   async ({ page }, name: string) => {
     const wf = new WorkflowPage(page);
     await wf.gotoWorkflows();
-    // 준비 스텝이 uniqueName으로 만들었으니 같은 이름으로 찾는다.
+    // The prepare step created it with uniqueName, so find it by the same name.
     await wf.openJsonViewer(uniqueName(name));
   },
 );
@@ -406,10 +411,10 @@ Then('화면을 {string} 이름으로 캡처한다', async ({ page }, name: stri
 });
 
 /**
- * "만약 워크플로우 툴을 열고 마이그레이션 태스크를 선택하면"
+ * "when opening the workflow tool and selecting the migration task"
  *
- * 저장하지 않고 편집 패널만 연다. 워크플로우 툴이 *무엇을 기본값으로 보여주는지* 확인하기 위한 경로라,
- * 클라우드 자원을 만들지 않는다.
+ * Opens only the edit panel without saving. This path exists to check *what the workflow tool shows as
+ * defaults*, so it creates no cloud resources.
  */
 When(
   '워크플로우 툴을 열고 마이그레이션 태스크를 선택하면',

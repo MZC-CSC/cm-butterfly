@@ -1,55 +1,63 @@
 /**
- * 장시간 작업 추적 러너
+ * Long-running task tracking runner
  *
- * 오래 걸리는 작업은 사용자가 그 화면을 떠난 뒤에 끝난다. 결과를 잡으려면 화면과 무관하게 도는
- * 무언가가 필요한데, 그 "무언가" 를 작업마다 따로 만들면 주기·중첩 방지·로그인 시 시작 같은 코드가
- * 그만큼 복제된다.
+ * Long tasks finish after the user has left the screen. To catch the result you
+ * need something that runs independent of the screen, and if that "something" is
+ * built per task, the polling, overlap prevention, and start-on-login code gets
+ * duplicated each time.
  *
- * 그래서 **"언제 돌릴지" 만 공통으로 묶는다.** 무엇을 물어볼지는 작업마다 다르므로 체커가 각자 안다.
+ * So we factor out only **"when to run"**. What to ask about differs per task,
+ * so each checker knows that itself.
  *
  * ```
- * [러너]  주기 · 중첩 방지 · 로그인/로그아웃 생명주기
- *   ├─ 삭제 체커       check()
- *   ├─ 부하 체커       check()
- *   └─ 워크플로우 체커  check()
+ * [runner]  polling · overlap prevention · login/logout lifecycle
+ *   ├─ delete checker     check()
+ *   ├─ load checker       check()
+ *   └─ workflow checker   check()
  * ```
  *
- * 완료 판정을 러너에 몰지 않은 이유 — 삭제는 cm-beetle 요청 조회로, 부하는 실행 상태로, 워크플로우는
- * 실행 목록으로 각각 다르게 끝을 판정한다. 한곳에 모으면 공통이 아니라 **작업 종류별 분기 덩어리**가
- * 되고, 작업이 늘 때마다 그 안이 자란다.
+ * Why completion isn't decided in the runner — delete judges completion via a
+ * cm-beetle request lookup, load via execution state, and workflow via the run
+ * list, each differently. Putting them in one place makes it a **per-task-type
+ * branch pile** rather than something shared, and it grows every time a task type
+ * is added.
  *
- * 체커가 할 일은 두 가지다. *끝났는지 보고*, 끝났으면 *알릴지 정해서* `notify()` 를 부른다.
- * 알릴지 판단이 체커에 있는 이유는 그쪽이 맥락을 알기 때문이다 — 사용자가 지금 그 화면에서 결과를
- * 보고 있다면 굳이 배지를 올릴 필요가 없고, 그 판단은 알림 모듈이 할 수 없다.
+ * A checker does two things: *report whether it's done*, and if so *decide whether
+ * to notify* and call `notify()`. The notify decision lives in the checker because
+ * that's where the context is — if the user is currently looking at the result on
+ * that screen there's no need to raise a badge, and the notification module can't
+ * make that call.
  *
- * ★ **체커는 시작 시점에 이름·동작을 함께 남겨야 한다.** 끝난 뒤에는 id 밖에 없어서
- * "무엇이 끝났는지" 를 문장으로 만들 수 없다. "'주문서비스' 워크플로우 **재실행**이 끝났습니다" 처럼
- * 쓰려면 재실행이라는 동작과 이름을 시작할 때 기억해 둬야 한다.
+ * ★ **A checker must record the name and action at start time.** After it's done
+ * only the id is left, so you can't form a sentence about "what finished". To
+ * write something like "The **re-run** of the 'Order Service' workflow finished",
+ * you have to remember the action (re-run) and the name at start time.
  */
 
 export interface Tracker {
-  /** 로그·디버깅용 식별자. */
+  /** Identifier for logging/debugging. */
   id: string;
 
   /**
-   * 한 주기 분의 확인. 진행 중인 것이 없으면 아무것도 하지 않고 끝나야 한다.
+   * One poll's worth of checking. If nothing is in progress it should do nothing and return.
    *
-   * 던지면 러너가 삼킨다 — 체커 하나가 실패해도 나머지는 계속 돌아야 한다.
+   * If it throws, the runner swallows it — one checker failing shouldn't stop the rest.
    */
   check: () => Promise<void>;
 
   /**
-   * 아직 끝나지 않은 작업이 있는가.
+   * Whether there's still unfinished work.
    *
-   * 세션 유지 판단에 쓴다. 배경에서 도는 작업이 있는 동안에는 손을 떼고 있어도 세션을 이어 준다 —
-   * 결과를 보여 줄 상대가 사라지면 지켜본 의미가 없기 때문이다.
+   * Used to decide whether to keep the session alive. While there's work running in
+   * the background it keeps the session going even if you're idle — if the person
+   * meant to see the result is gone, there's no point in watching.
    */
   hasWork: () => boolean;
 
-  /** 로그인 시 서버에 남아 있던 것을 이어받는다(선택). */
+  /** On login, take over whatever was left on the server (optional). */
   resume?: () => Promise<void>;
 
-  /** 로그아웃 시 정리(선택). */
+  /** Clean up on logout (optional). */
   reset?: () => void;
 }
 
@@ -60,16 +68,17 @@ let pollTimer: ReturnType<typeof setTimeout> | null = null;
 let running = false;
 
 /**
- * 체커를 등록한다. 모듈 로드 시점에 부르면 된다.
+ * Register a checker. Call it at module load time.
  *
- * 같은 id 를 두 번 등록하면 나중 것을 무시한다 — 모듈이 두 번 평가돼도 중복해서 돌지 않게.
+ * Registering the same id twice ignores the later one — so a module evaluated
+ * twice doesn't run duplicated.
  */
 export function registerTracker(tracker: Tracker): void {
   if (trackers.some(t => t.id === tracker.id)) return;
   trackers.push(tracker);
 }
 
-/** 아직 끝나지 않은 작업이 하나라도 있는가(세션 유지 판단용). */
+/** Is there any unfinished work at all (for deciding whether to keep the session)? */
 export function hasBackgroundWork(): boolean {
   return trackers.some(t => {
     try {
@@ -85,7 +94,7 @@ async function runOnce(): Promise<void> {
     try {
       await tracker.check();
     } catch (e) {
-      // 하나가 실패해도 나머지는 돈다. 다음 주기에 다시 시도한다.
+      // If one fails the rest keep running. It retries on the next poll.
       console.warn(`tracker "${tracker.id}" check failed`, e);
     }
   }
@@ -93,7 +102,7 @@ async function runOnce(): Promise<void> {
 
 function scheduleNext(): void {
   if (!running) return;
-  // 응답이 온 뒤에 다음 회차를 잡는다. setInterval 이면 조회가 주기보다 길어질 때 겹친다.
+  // Schedule the next round after the response arrives. With setInterval, calls overlap when a poll takes longer than the interval.
   pollTimer = setTimeout(async () => {
     await runOnce();
     scheduleNext();
@@ -101,9 +110,10 @@ function scheduleNext(): void {
 }
 
 /**
- * 추적을 시작한다 — 로그인 시점이 트리거다.
+ * Start tracking — login is the trigger.
  *
- * 어느 브라우저로 접속하든 서버에 남아 있던 것을 이어받아, 해당 화면에 들어가기 *전에* 정리한다.
+ * Whatever browser you sign in from, it takes over what was left on the server and
+ * reconciles it *before* you enter that screen.
  */
 export async function startTracking(): Promise<void> {
   if (running) return;
@@ -117,12 +127,12 @@ export async function startTracking(): Promise<void> {
     }
   }
 
-  // 주기만 걸면 그 시간만큼 낡은 상태를 보여준다.
+  // If we only set the interval, we'd show a stale state for that whole interval.
   await runOnce();
   scheduleNext();
 }
 
-/** 로그아웃 시 정지. */
+/** Stop on logout. */
 export function stopTracking(): void {
   running = false;
   if (pollTimer) {
@@ -133,7 +143,7 @@ export function stopTracking(): void {
     try {
       t.reset?.();
     } catch {
-      /* 정리 실패가 로그아웃을 막을 이유는 없다 */
+      /* A cleanup failure shouldn't block logout */
     }
   });
 }

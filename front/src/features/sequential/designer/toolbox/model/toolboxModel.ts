@@ -18,7 +18,7 @@ export function useSequentialToolboxModel() {
     const convertedTackComponentList: Array<Step> = [];
     const taskComponentSteps: Step[] = [];
     taskComponentList.forEach((res: ITaskComponentInfoResponse) => {
-      // body_params는 스키마로 사용, options.request_body는 초기값으로 파싱
+      // use body_params as the schema, and parse options.request_body as the initial value
       console.log(`Processing ${res.name} - body_params check:`, {
         hasBodyParams: !!res.data.body_params,
         bodyParams: res.data.body_params,
@@ -26,14 +26,14 @@ export function useSequentialToolboxModel() {
         requestBody: res.data.options.request_body
       });
       
-      // body_params 존재 여부와 관계없이 항상 options.request_body를 파싱하여 초기값으로 사용
+      // always parse options.request_body as the initial value, regardless of whether body_params exists
       const modelData = parseRequestBody(
         res.data.options.request_body || '{}'
       );
       
       console.log(`Final modelData for ${res.name}:`, modelData);
 
-      // Task component를 toolbox에서 캔버스로 드래그할 때 모델 정보를 콘솔에 출력
+      // print model info to the console when a task component is dragged from the toolbox to the canvas
       console.log('=== Task Component Dragged from Toolbox ===');
       console.log(`Task Name: ${res.name}`);
       console.log(`Task ID: ${res.id}`);
@@ -46,7 +46,7 @@ export function useSequentialToolboxModel() {
         originalData: res
       });
       
-      // Body params 모델 정보 상세 출력
+      // print detailed body params model info
       if (res.data.body_params && res.data.body_params.properties) {
         console.log(`📋 ${res.name} Body Params Properties:`, res.data.body_params.properties);
         if (res.data.body_params.required) {
@@ -59,13 +59,13 @@ export function useSequentialToolboxModel() {
       taskComponentSteps.push(
         loadStepsFunc.defineBettleTaskStep(
           getRandomId(),
-          res.name ?? 'undefined',  // name: toolbox에서는 원본 이름 표시, canvas 드롭 시 자동으로 고유 이름 생성
-          toDesignerStepType(res.name), // type: swd 유효 형식으로 정규화(실제 이름은 name/originalData 보존)
+          res.name ?? 'undefined',  // name: show the original name in the toolbox; a unique name is generated automatically on canvas drop
+          toDesignerStepType(res.name), // type: normalize to a valid swd format (the real name is preserved in name/originalData)
           {
             model: modelData,
             originalData: mappingTaskInfoResponseITaskResponse(res),
             fixedModel: getFixedModel(res),
-            taskType: res.type ?? 'http', // cm-cicada task type (per-type editor 선택용)
+            taskType: res.type ?? 'http', // cm-cicada task type (for selecting the per-type editor)
             taskComponentData: { ...res.data, spec: res.spec, type: res.type },
           },
         ),
@@ -95,9 +95,9 @@ export function useSequentialToolboxModel() {
   }
 
   function getFixedModel(task: ITaskComponentInfoResponse): fixedModel {
-    // 스키마 properties의 description은 *설명(힌트)*이지 값이 아니다. 값은 빈 문자열로 두어
-    // 사용자가 채우거나(수동 task) 자동 생성 task는 빈 값→백엔드 기본값을 쓰게 한다.
- // (과거 description을 값으로 저장해 예: beetle 마이그레이션 useExisting=<설명문>이 되어 400 발생)
+    // The description in schema properties is a *hint*, not a value. Leave the value as an empty string so
+    // the user fills it in (manual task), or an auto-generated task uses the empty value → backend default.
+ // (previously the description was stored as the value, e.g. beetle migration useExisting=<description text>, causing a 400)
     const pathParamsKeyValue = task?.data.path_params?.properties
       ? Object.entries(task.data.path_params?.properties).reduce(
           (acc, [key]) => {

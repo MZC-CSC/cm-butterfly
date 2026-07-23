@@ -308,10 +308,10 @@ export function useGetTaskLogs(
 }
 
 /**
- * 태스크 재실행. 엔진은 이것을 "실행 이력 초기화(clear)"로 처리한다.
+ * Re-run tasks. The engine treats this as a "clear of the run history".
  *
- * dryRun을 켜면 **실제로 실행하지 않고 대상 목록만** 돌려준다. 어떤 태스크가 다시
- * 도는지는 화면의 그림이 아니라 엔진이 정하므로, 실행 전에 반드시 이것으로 확인한다.
+ * With dryRun enabled it returns **only the target list, without actually running**. The engine,
+ * not the diagram on screen, decides which tasks re-run, so always confirm with this before running.
  */
 export interface IClearTaskOption {
   dryRun: boolean;
@@ -340,14 +340,14 @@ export function useClearTaskInstances(
 }
 
 /**
- * 워크플로우 복제.
+ * Clone a workflow.
  *
- * 엔진이 복제본에 출처(원본 워크플로우)를 함께 기록하므로, 원본과의 연결이 끊기지
- * 않는다. 이름은 `{원본}_copy` 로 엔진이 알아서 붙인다.
+ * The engine records the origin (the source workflow) on the clone, so the link to the
+ * original is not lost. The engine names it `{original}_copy` on its own.
  *
- * 파라미터를 바꿔 실행하려면 원본을 고치지 말고 이것으로 복제한 뒤 복제본을 고친다 —
- * 원본을 고치면 그 워크플로우의 *과거 실행*이 화면에서 엉뚱한 값으로 보이게 된다
- * (엔진은 "그 실행에 쓰인 정의"를 돌려주지 않는다).
+ * To run with changed parameters, don't edit the original — clone it with this and edit the
+ * clone. Editing the original makes that workflow's *past runs* show wrong values on screen
+ * (the engine does not return "the definition used for that run").
  */
 export function useCloneWorkflow(wfId: string | null) {
   return useAxiosPost<IAxiosResponse<IWorkflowResponse>, any>(CLONE_WORKFLOW, {

@@ -20,21 +20,21 @@ interface Props {
 const props = defineProps<Props>();
 const emit = defineEmits(['close']);
 
-// 로그 데이터 관리
+// Log data management
 const taskLogs = ref<any>(null);
 const logsLoading = ref(false);
 
-// 로그를 화면에 뿌릴 수 있는 형태로 정리한다.
-// 엔진이 돌려주는 로그는 평문이 아니라 실행 엔진 응답을 통째로 문자열화한 것이라,
-// 그대로 뿌리면 한 줄로 뭉개지고 앞뒤에 군더더기가 붙는다.
+// Normalize the log into a form that can be rendered on screen.
+// The log the engine returns isn't plain text but the entire execution-engine response
+// stringified, so rendering it as-is collapses it into one line with extra clutter around it.
 const processedLogs = computed(() => normalizeTaskLog(taskLogs.value));
 
-// 모달 닫기
+// Close the modal
 const handleClose = () => {
   emit('close');
 };
 
-// 로그 데이터 로드
+// Load the log data
 const loadTaskLogs = async () => {
   if (!props.taskInstance || !props.workflowId || !props.workflowRunId) return;
 
@@ -60,7 +60,7 @@ const loadTaskLogs = async () => {
   }
 };
 
-// taskInstance 또는 모달이 열릴 때 로그 로드
+// Load logs when taskInstance changes or the modal opens
 watch(
   () => [props.taskInstance, props.isVisible] as const,
   ([taskInstance, isVisible]) => {
@@ -71,7 +71,7 @@ watch(
   { immediate: true },
 );
 
-// 로그 다운로드
+// Download the log
 const handleDownloadLog = () => {
   if (!props.taskInstance || !processedLogs.value) return;
 

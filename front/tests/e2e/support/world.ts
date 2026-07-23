@@ -1,44 +1,46 @@
 /**
- * 시나리오 전역 상태 — 스텝 간 공유(생성된 인프라·노드 식별, 추천 결과 등).
- * 마이그레이션 시나리오는 여러 화면·단계를 거치므로, 생성된 리소스 식별자를 여기에 모아
- * 후속 단계(nginx 설치·부하테스트·정리)가 참조한다.
+ * Scenario-wide state shared across steps (identifying created infra/nodes, recommendation
+ * results, etc.). A migration scenario spans several screens and stages, so the identifiers
+ * of created resources are collected here for later stages (nginx install, load test,
+ * cleanup) to reference.
  */
 export const scenarioState: {
-  /** 지금 다루는 소스그룹 이름(등록 스텝이 기록 → 수집·저장 스텝이 참조) */
+  /** Name of the source group currently in play (recorded by the register step → referenced by the collect/save steps) */
   sourceGroupName?: string;
-  /** 지금 다루는 소스 모델 이름(소스모델/커스텀모델 저장 스텝이 기록 → 추천 스텝이 참조).
-   *  스텝 파일이 달라도 같은 값을 봐야 해서 모듈 지역변수가 아니라 여기에 둔다. */
+  /** Name of the source model currently in play (recorded by the source-model/custom-model save steps → referenced by the recommend step).
+   *  Kept here rather than as a module-local variable because different step files need to see the same value. */
   sourceModelName?: string;
-  /** 생성된 타깃 인프라(MCI) 이름 */
+  /** Name of the created target infra (MCI) */
   infraName?: string;
-  /** 생성된 인프라 ID(nsId 내) */
+  /** ID of the created infra (within nsId) */
   infraId?: string;
-  /** 부하/명령 대상 노드 ID */
+  /** ID of the node targeted for load/commands */
   nodeId?: string;
-  /** 노드 공인 IP (nginx 외부 접근·부하 대상 호스트) */
+  /** Node's public IP (host for external nginx access / load target) */
   nodePublicIp?: string;
-  /** 노드의 SSH 계정 — tumblebug이 만든 노드는 cb-user다(소스 서버의 ubuntu와 다르다) */
+  /** Node's SSH account — nodes created by tumblebug use cb-user (different from the source server's ubuntu) */
   nodeUserName?: string;
-  /** 노드의 보안그룹 id 목록 — 80 포트를 열 대상 */
+  /** List of the node's security group ids — the targets to open port 80 on */
   securityGroupIds?: string[];
-  /** 마지막 추천 스펙(검증용) */
+  /** Last recommended spec (for verification) */
   lastRecommendedSpec?: string;
-  /** 소프트웨어 소스 모델 이름 (SW 수집 → SW 추천 스텝이 참조) */
+  /** Name of the software source model (SW collect → referenced by the SW recommend step) */
   softwareSourceModelName?: string;
-  /** 소프트웨어 마이그레이션 워크플로우 이름 (실행 → 상태 확인 스텝이 참조) */
+  /** Name of the software migration workflow (run → referenced by the status-check step) */
   softwareWorkflowName?: string;
   /**
-   * 소프트웨어 마이그레이션 워크플로우를 *실행한 시각*.
+   * The *time the software migration workflow was run*.
    *
-   * grasshopper 실행을 우리 것으로 가려내는 유일한 열쇠다. 인프라 이름(`infra101`)도, 노드 id도
-   * cb-tumblebug이 같은 값을 다시 쓰기 때문에, 앞선 실행이 남긴 기록과 구분되지 않는다.
+   * This is the only key for singling out grasshopper runs as ours. Neither the infra name
+   * (`infra101`) nor the node id distinguishes it from records left by a prior run, because
+   * cb-tumblebug reuses the same values.
    */
   swRunStartedAt?: number;
-  /** cm-grasshopper 실행 id (이번 실행으로 시작된 것만) */
+  /** cm-grasshopper execution ids (only those started by this run) */
   swExecutionIds?: string[];
-  /** API가 알려준 소프트웨어별 결과 — 결과 화면과 대조한다 */
+  /** Per-software results reported by the API — compared against the results screen */
   swMigrationRows?: any[];
-  /** 부하테스트 대상 nginx가 *소프트웨어 마이그레이션으로* 올라왔는지 */
+  /** Whether the nginx targeted by the load test came up *via software migration* */
   nginxFromMigration?: boolean;
 } = {};
 

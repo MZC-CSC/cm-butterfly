@@ -60,7 +60,7 @@ const handleLoginSuccess = (props: IUserLoginResponse & { id: string }) => {
   emit('handleLoginSuccess', props);
 };
 
-//FIXME role 처리
+//FIXME handle role
 watch(resLogin.data, () => {
   handleLoginSuccess({
     ...resLogin.data.value?.responseData,

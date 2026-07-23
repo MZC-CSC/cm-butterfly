@@ -5,7 +5,7 @@ import { getUser } from '../fixtures/test-data';
 
 const { Given, When, Then } = createBdd(test);
 
-/** "먼저 \"cmiguser\"로 로그인한다" — 로그인 화면으로 이동해 로그인하고 메인 진입까지 확인 */
+/** Step "log in as {string}" — go to the login screen, log in, and verify entry into main */
 Given('{string}로 로그인한다', async ({ page }, id: string) => {
   const login = new LoginPage(page);
   const u = getUser(id);
@@ -14,12 +14,12 @@ Given('{string}로 로그인한다', async ({ page }, id: string) => {
   await login.expectLoggedIn();
 });
 
-/** "로그인 화면을 연다" */
+/** Step "open the login screen" */
 Given('로그인 화면을 연다', async ({ page }) => {
   await new LoginPage(page).goto();
 });
 
-/** "\"cmiguser\"와 \"wrong-password\"로 로그인을 시도하면" */
+/** Step "when attempting to log in with {string} and {string}" */
 When(
   '{string}와 {string}로 로그인을 시도하면',
   async ({ page }, id: string, pw: string) => {
@@ -27,7 +27,7 @@ When(
   },
 );
 
-/** "로그인에 실패하고 로그인 화면에 머문다" */
+/** Step "login fails and stays on the login screen" */
 Then('로그인에 실패하고 로그인 화면에 머문다', async ({ page }) => {
   await new LoginPage(page).expectLoginFailed();
 });

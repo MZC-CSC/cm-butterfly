@@ -4,14 +4,16 @@ import { LoginPage } from '../pages/login.page';
 import { WorkflowPage } from '../pages/workflow.page';
 
 /**
- * 실행 상태 뷰어 — 실제 브라우저로 확인한다.
+ * Run status viewer — verified in a real browser.
  *
- * 확인하려는 것은 "화면이 뜬다"가 아니라 **실행 상태가 사실대로 보이는가**와
- * **재실행이 실제로 동작하는가**다. 그래서 색을 눈으로 보지 않고 노드가 내보내는
- * 상태 값을 단언하고, 재실행은 확인 모달에 *엔진이 정한 대상*이 뜨는지까지 본다.
+ * What we want to verify is not "the screen shows up" but **whether the run status is
+ * shown truthfully** and **whether re-run actually works**. So instead of eyeballing
+ * colors we assert the status values the nodes emit, and for re-run we go as far as
+ * checking that the confirm modal shows *the targets the engine decided*.
  *
- * 전제: 대상 서버에 "병렬 3갈래 중 하나가 실패하고 다시 합류하는" 워크플로우가 있어야 한다.
- *   실행: BASE_URL=http://<host>:<port> npx playwright test --config=playwright.runviewer.config.ts
+ * Precondition: the target server must have a workflow where "one of three parallel
+ * branches fails and then rejoins".
+ *   Run: BASE_URL=http://<host>:<port> npx playwright test --config=playwright.runviewer.config.ts
  */
 const WORKFLOW =
   process.env.E2E_RUN_VIEWER_WORKFLOW ?? 'demo-runviewer-parallel';
@@ -22,7 +24,7 @@ test.describe('워크플로우 실행 상태 뷰어', () => {
     const login = new LoginPage(page);
     await login.goto();
     await login.login(user.id, user.password);
-    // login()은 이동을 기다리지 않는다. 기다리지 않으면 다음 이동과 경합해 로그인 화면에 남는다.
+    // login() does not wait for navigation. Without waiting, it races the next navigation and stays on the login screen.
     await login.expectLoggedIn();
   });
 
@@ -38,7 +40,7 @@ test.describe('워크플로우 실행 상태 뷰어', () => {
     await workflow.expectTaskState('software-branch', 'success');
     await workflow.expectTaskState('data-branch-fails', 'failed');
 
-    // 앞이 실패해 돌지 못한 태스크는 "실패"가 아니다 — 고칠 곳은 앞이다
+    // A task that couldn't run because an upstream one failed is not "failed" — the place to fix is upstream
     await workflow.expectTaskState('verify', 'upstream_failed');
     await workflow.expectTaskState('report', 'upstream_failed');
   });
@@ -56,7 +58,7 @@ test.describe('워크플로우 실행 상태 뷰어', () => {
     );
 
     const log = await workflow.openTaskLog(1);
-    // 엔진이 주는 로그는 평문이 아니다. 껍데기가 벗겨져 있어야 한다
+    // The log the engine gives is not plain text. Its wrapper must be stripped off
     await expect(log).not.toContainText('[(');
     await expect(workflow.failureSummary).toContainText(
       /exit code|AirflowException/i,
@@ -71,7 +73,7 @@ test.describe('워크플로우 실행 상태 뷰어', () => {
     await workflow.openRunViewer(WORKFLOW);
     await workflow.selectTask('data-branch-fails');
 
-    // "이 태스크와 그 이후" — 병렬 갈래 하나만 골랐으므로 다른 갈래는 대상이 아니다
+    // "This task and everything after it" — we picked only one parallel branch, so the other branches are not targets
     const targets = await workflow.previewRerun('after');
     await expect(targets).toHaveCount(3);
     await expect(targets).toContainText([
@@ -80,7 +82,7 @@ test.describe('워크플로우 실행 상태 뷰어', () => {
       /report/,
     ]);
 
-    // 취소하면 아무것도 실행되지 않는다
+    // Canceling runs nothing
     await workflow.cancelRerun();
     await workflow.expectTaskState('data-branch-fails', 'failed');
   });
@@ -92,10 +94,10 @@ test.describe('워크플로우 실행 상태 뷰어', () => {
     await workflow.gotoWorkflows();
     await workflow.openRunViewer(WORKFLOW);
 
-    // 실행 상태가 들어온 뒤에 누른다 (대상은 이 실행의 태스크들에서 정해진다)
+    // Click after the run status has arrived (the targets are decided from this run's tasks)
     await workflow.expectTaskState('data-branch-fails', 'failed');
 
-    // 태스크를 선택하지 않은 상태에서도 눌러야 한다 — 실행 단위 동작이기 때문이다
+    // It must be clickable even with no task selected — because it is a run-level action
     const targets = await workflow.previewRerunFailed();
     await expect(targets).toContainText([
       /data-branch-fails/,
@@ -136,11 +138,11 @@ test.describe('워크플로우 실행 상태 뷰어', () => {
     await workflow.gotoWorkflows();
     await workflow.openRunViewer(WORKFLOW);
 
-    // 진행바는 *도는 동안에만* 나온다. 끝난 실행에 100% 막대가 남아 있으면
-    // "지금도 뭔가 돌고 있나"로 읽힌다 (이 워크플로우의 마지막 실행은 끝나 있다).
+    // The progress bar appears *only while running*. If a 100% bar remains on a finished run,
+    // it reads as "is something still running now?" (this workflow's last run is finished).
     await expect(workflow.runProgress).toBeHidden();
 
-    // 드롭다운은 고르고 나면 접힌다. 무엇을 보고 있는지는 화면에 남아야 한다
+    // The dropdown collapses once you pick. What you are viewing must remain on screen
     await expect(workflow.runMeta).toContainText('Run ID');
     await expect(page.getByTestId('workflow-run-meta-id')).not.toBeEmpty();
   });

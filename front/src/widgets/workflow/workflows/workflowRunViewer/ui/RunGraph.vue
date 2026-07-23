@@ -20,8 +20,8 @@ interface Props {
   instances: ITaskInstance[];
   selectedTaskId: string | null;
   /**
-   * 재실행 미리보기. 값이 있으면 *다시 돌 태스크만* 살리고 나머지는 흐리게 한다.
-   * 무엇이 다시 도는지는 엔진이 정하므로, 이 목록도 엔진이 돌려준 것이다.
+   * Re-run preview. When set, keep *only the tasks that will re-run* highlighted and dim the rest.
+   * The engine decides what re-runs, so this list also comes from the engine.
    */
   rerunPreviewIds?: string[] | null;
 }
@@ -30,12 +30,12 @@ const props = defineProps<Props>();
 const emit = defineEmits<{ (e: 'select', taskId: string): void }>();
 
 /*
-  SVG <text>는 상자에 맞춰 접히지도, 잘리지도 않는다 — 이름이 길면 그대로 상자 밖으로
-  삐져나온다. 상자 폭(GRAPH_NODE_WIDTH)은 흔한 태스크명을 담도록 잡아 두었고, 그보다
-  더 긴 이름은 여기서 말줄임한다. 전체 이름은 노드 툴팁과 우측 상세 패널에 그대로 있다.
+  SVG <text> neither wraps nor clips to fit its box — a long name simply spills outside the box.
+  The box width (GRAPH_NODE_WIDTH) is sized to hold common task names, and names longer than that
+  are truncated here. The full name remains intact in the node tooltip and the right-hand detail panel.
 */
 const NAME_PADDING_X = 14;
-const NAME_CHAR_WIDTH = 7.1; // 13px semibold 기준 평균 글자 폭
+const NAME_CHAR_WIDTH = 7.1; // average glyph width for 13px semibold
 
 function fitName(name: string): string {
   const max = Math.floor(
@@ -57,8 +57,8 @@ const instanceByTaskId = computed(
 const previewing = computed(() => !!props.rerunPreviewIds);
 const previewSet = computed(() => new Set(props.rerunPreviewIds ?? []));
 
-// 같은 level의 노드는 서로 의존하지 않으므로 가로로 나란히 둔다.
-// 그래서 병렬이 병렬로 보인다.
+// Nodes at the same level don't depend on each other, so lay them out side by side horizontally.
+// That way parallel work looks parallel.
 const nodesPerLevel = computed(() => {
   const counts = new Map<number, number>();
   props.graph.nodes.forEach(node => {
@@ -255,7 +255,7 @@ const edgePaths = computed(() =>
   fill: #6b6e78;
 }
 
-/* 재실행 미리보기 — 다시 돌 태스크만 살리고 나머지는 물러나게 한다 */
+/* re-run preview — keep only the tasks that will re-run highlighted and push the rest back */
 .run-graph__node--dimmed {
   opacity: 0.25;
 }
@@ -284,7 +284,7 @@ const edgePaths = computed(() =>
   stroke: #e14f4f;
 }
 
-/* 앞 태스크가 실패해 돌지 못한 것 — 이 태스크가 잘못된 게 아니므로 실패와 구분한다 */
+/* couldn't run because an upstream task failed — this task isn't at fault, so distinguish it from a failure */
 .run-graph__node--upstreamFailed .run-graph__box {
   fill: #fff8ef;
   stroke: #f4a63c;

@@ -57,7 +57,7 @@ const modal = reactive({
 });
 const isRunLoading = ref<boolean>(false);
 const isDataLoaded = ref(false);
-const tableKey = ref(0); // 컴포넌트 재렌더링을 위한 key
+const tableKey = ref(0); // key for forcing a component re-render
 
 onBeforeMount(() => {
   initToolBoxTableModel();
@@ -136,11 +136,12 @@ function handleSelectedIndex(selectedIndex: number) {
 }
 
 /**
- * 표에서 지금 보고 있는 워크플로우에 표시를 맞춘다.
+ * Align the table's highlight to the workflow currently being viewed.
  *
- * 목록을 다시 받으면 행 순서가 바뀔 수 있는데(새로 만든 워크플로우가 끼어든다)
- * 표는 *자리 번호*로 선택을 기억한다. 그래서 그대로 두면 **표는 A 를 짚고 있는데
- * 아래 상세·실행 상태는 B 를 보여주는** 상태가 된다 — 저장 직후가 늘 그렇다.
+ * When the list is re-fetched the row order can change (a newly created workflow
+ * slips in), but the table remembers the selection by *position index*. So if left
+ * as-is you get a state where **the table points at A while the detail/run status
+ * below shows B** — which is always the case right after a save.
  */
 function highlightSelectedRow() {
   if (!props.selectedWfId) return;
@@ -169,7 +170,7 @@ async function fetchWorkflowList() {
     }
     nextTick(() => {
       isDataLoaded.value = true;
-      // 데이터 로드 후 컴포넌트 재렌더링
+      // Re-render the component after data loads
       tableKey.value++;
       highlightSelectedRow();
     });
@@ -220,8 +221,8 @@ watch(
   () => props.trigger,
   nv => {
     if (nv) {
-      // WorkflowEditor에서 save 후 trigger가 발생하면 선택을 유지
-      // selectedWfId가 있으면 선택 유지, 없으면 선택 초기화
+      // When a trigger fires after saving in WorkflowEditor, keep the selection.
+      // Keep the selection if selectedWfId is present, otherwise reset it.
       const keepSelection = !!props.selectedWfId;
       handleRefreshTable(keepSelection);
       emit('update:trigger');
@@ -234,7 +235,7 @@ watch(
   <div>
     <p-horizontal-layout :key="tableKey" :height="adjustedDynamicHeight">
       <template #container="{ height }">
-        <!-- 로딩 중일 때 스피너 표시 -->
+        <!-- Show a spinner while loading -->
         <table-loading-spinner
           :loading="
             getWorkflowList.isLoading.value || tableModel.tableState.loading
@@ -243,7 +244,7 @@ watch(
           message="Loading workflows..."
         />
 
-        <!-- 로딩 완료 후 테이블 표시 -->
+        <!-- Show the table after loading completes -->
         <p-toolbox-table
           v-if="
             !getWorkflowList.isLoading.value && !tableModel.tableState.loading

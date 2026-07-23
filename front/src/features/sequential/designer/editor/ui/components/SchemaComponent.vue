@@ -1,6 +1,6 @@
 <template>
   <div class="schema-component" :class="componentClass">
-    <!-- 기본 타입들 (string, integer, boolean) -->
+    <!-- Basic types (string, integer, boolean) -->
     <div v-if="isBasicType" class="basic-type-component">
       <div class="field-header">
         <label class="field-label" :class="{ required: component.isRequired }">
@@ -33,7 +33,7 @@
       </div>
     </div>
 
-    <!-- Object 타입들 (basicObject, nestedObject) -->
+    <!-- Object types (basicObject, nestedObject) -->
     <div v-else-if="isObjectType" class="object-type-component">
       <div class="object-header">
         <div class="object-title">
@@ -55,7 +55,7 @@
       </div>
     </div>
 
-    <!-- Array 타입들 (basicArray, basicObjectArray, nestedObjectArray) -->
+    <!-- Array types (basicArray, basicObjectArray, nestedObjectArray) -->
     <div v-else-if="isArrayType" class="array-type-component">
       <div class="array-header">
         <div class="array-title">
@@ -87,7 +87,7 @@
           </div>
         </div>
         
-        <!-- 빈 배열인 경우 -->
+        <!-- When the array is empty -->
         <div v-if="arrayLength === 0" class="empty-array">
           <div class="empty-icon">📝</div>
           <div class="empty-message">Array is empty</div>
@@ -124,27 +124,27 @@ export default defineComponent({
     }
   },
   setup(props: Props) {
-    // 기본 타입인지 확인
+    // Check whether it's a basic type
     const isBasicType = computed(() => {
       return ['string', 'integer', 'boolean'].includes(props.component.type);
     });
 
-    // Object 타입인지 확인
+    // Check whether it's an object type
     const isObjectType = computed(() => {
       return ['basicObject', 'nestedObject'].includes(props.component.type);
     });
 
-    // Array 타입인지 확인
+    // Check whether it's an array type
     const isArrayType = computed(() => {
       return ['basicArray', 'basicObjectArray', 'nestedObjectArray'].includes(props.component.type);
     });
 
-    // Array 길이
+    // Array length
     const arrayLength = computed(() => {
       return Array.isArray(props.component.children) ? props.component.children.length : 0;
     });
 
-    // 컴포넌트 클래스
+    // Component class
     const componentClass = computed(() => {
       const classes = [`depth-${props.depth}`];
       
@@ -183,14 +183,14 @@ export default defineComponent({
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
-/* Depth별 들여쓰기 */
+/* Indentation by depth */
 .depth-0 { margin: 0; }
 .depth-1 { margin-left: 16px; }
 .depth-2 { margin-left: 32px; }
 .depth-3 { margin-left: 48px; }
 .depth-4 { margin-left: 64px; }
 
-/* 기본 타입 스타일 */
+/* Basic type styles */
 .basic-type-component {
   padding: 12px 16px;
 }
@@ -243,7 +243,7 @@ export default defineComponent({
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-/* Object 타입 스타일 */
+/* Object type styles */
 .object-type-component {
   border-left: 4px solid #7c3aed;
 }
@@ -299,7 +299,7 @@ export default defineComponent({
   gap: 12px;
 }
 
-/* Array 타입 스타일 */
+/* Array type styles */
 .array-type-component {
   border-left: 4px solid #059669;
 }
@@ -385,7 +385,7 @@ export default defineComponent({
   padding: 12px;
 }
 
-/* 빈 배열 스타일 */
+/* Empty array styles */
 .empty-array {
   display: flex;
   flex-direction: column;
@@ -404,7 +404,7 @@ export default defineComponent({
   font-weight: 500;
 }
 
-/* 타입별 색상 구분 */
+/* Color coding by type */
 .basicObject {
   border-left-color: #3b82f6;
 }

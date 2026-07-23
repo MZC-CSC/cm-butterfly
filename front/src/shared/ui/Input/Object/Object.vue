@@ -36,7 +36,7 @@ function removeField(fieldIndex: number) {
           :key="fieldIndex"
           class="field-group-vertical border-bottom"
         >
-      <!-- KeyValueContext인 경우 -->
+      <!-- when it is a KeyValueContext -->
       <KeyValue
         v-if="field.type === 'keyValue'"
         :context="field"
@@ -44,7 +44,7 @@ function removeField(fieldIndex: number) {
         @update:context="updateField(fieldIndex, $event)"
       />
       
-      <!-- ObjectContext인 경우 -->
+      <!-- when it is an ObjectContext -->
       <Object
         v-else-if="field.type === 'object'"
         :context="field"
@@ -52,7 +52,7 @@ function removeField(fieldIndex: number) {
         @update:context="updateField(fieldIndex, $event)"
       />
       
-      <!-- ArrayContext인 경우 -->
+      <!-- when it is an ArrayContext -->
       <Array
         v-else-if="field.type === 'array'"
         :context="field"
@@ -60,7 +60,7 @@ function removeField(fieldIndex: number) {
         @update:context="updateField(fieldIndex, $event)"
       />
       
-      <!-- ObjectArrayContext인 경우 -->
+      <!-- when it is an ObjectArrayContext -->
       <ObjectArray
         v-else-if="field.type === 'objectArray'"
         :context="field"
@@ -68,7 +68,7 @@ function removeField(fieldIndex: number) {
         @update:context="updateField(fieldIndex, $event)"
       />
       
-      <!-- ComplexContext인 경우 -->
+      <!-- when it is a ComplexContext -->
       <Complex
         v-else-if="field.type === 'complex'"
         :context="field"

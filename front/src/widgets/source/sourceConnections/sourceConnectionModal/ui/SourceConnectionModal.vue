@@ -17,7 +17,7 @@ const isDisabled = ref<boolean>(false);
 const validStates = ref<Map<number, boolean>>(new Map());
 let connectionIdCounter = 0;
 
-// 모달이 열릴 때 초기 connection이 없으면 하나 추가
+// Add one connection if there are none when the modal opens
 onBeforeMount(() => {
   if (sourceConnectionStore.editConnections.length === 0) {
     sourceConnectionStore.editConnections.push({
@@ -31,7 +31,7 @@ onBeforeMount(() => {
       password: '',
     });
   } else {
-    // 기존 connection들에 ID 부여
+    // Assign IDs to existing connections
     sourceConnectionStore.editConnections.forEach((conn: any) => {
       if (!conn._id) {
         conn._id = connectionIdCounter++;
@@ -46,7 +46,7 @@ const handleValidChange = (id: number, valid: boolean) => {
     valid,
   });
   validStates.value.set(id, valid);
-  // 모든 connection이 유효한지 확인
+  // Check whether every connection is valid
   const allValid = Array.from(validStates.value.values()).every(v => v);
   isDisabled.value =
     allValid &&
@@ -79,7 +79,7 @@ const deleteSourceConnection = (id: number) => {
   if (index !== -1) {
     sourceConnectionStore.editConnections.splice(index, 1);
     validStates.value.delete(id);
-    // 삭제 후 validation 상태 재계산
+    // Recompute validation state after deletion
     const allValid = Array.from(validStates.value.values()).every(v => v);
     isDisabled.value =
       allValid &&

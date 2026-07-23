@@ -1,29 +1,30 @@
 import { Locator, Page, expect } from '@playwright/test';
 
 /**
- * 목록 테이블 페이지네이션(mirinae PToolboxTable) 헬퍼.
+ * Helper for list-table pagination (mirinae PToolboxTable).
  *
- * ★ 왜 필요한가 — 방금 만든 데이터가 1페이지에 있으리라는 보장이 없다.
- *   목록은 15행씩 끊기고(text-pagination "1 / 2"), 상단 검색창은 query 태그 방식이라 이 테이블들에는
- *   필터가 붙어 있지 않다. 그래서 데이터가 쌓이면 새로 만든 행이 2페이지 뒤로 밀리고, 1페이지만 보던
- *   테스트는 "행이 없다"며 죽는다. 실제로 소스그룹 생성 테스트가 그렇게 실패했다.
+ * ★ Why it's needed — there's no guarantee the data you just created is on page 1.
+ *   The list is broken into 15 rows per page (text-pagination "1 / 2"), and the top search box uses
+ *   query tags, so these tables have no filter attached. As data accumulates, a newly created row gets
+ *   pushed back to page 2, and a test that only looks at page 1 dies with "no rows". The source-group
+ *   creation test actually failed this way.
  *
- *   그러니 *페이지를 넘겨 가며* 찾고, **몇 페이지에서 찾았는지도 돌려준다**. 페이지네이션 자체가
- *   동작하는지(넘어가는지·마지막 페이지에서 멈추는지)도 이 과정에서 함께 검증된다.
+ *   So find it by *paging through*, and **also return which page it was found on**. Whether pagination
+ *   itself works (advancing, stopping at the last page) is verified along the way too.
  */
 export class TablePagination {
   constructor(
     private readonly page: Page,
-    /** 대상 테이블의 루트(테이블마다 페이지네이션이 따로 있어 반드시 스코프를 준다) */
+    /** the target table's root (each table has its own pagination, so scope it) */
     private readonly root: Locator,
   ) {}
 
-  /** 페이지네이션 nav (없으면 단일 페이지) */
+  /** pagination nav (single page if absent) */
   private get nav(): Locator {
     return this.root.locator('nav.text-pagination').first();
   }
 
-  /** "1 / 2" → { current: 1, total: 2 }. nav가 없으면 1/1로 본다. */
+  /** "1 / 2" → { current: 1, total: 2 }. Treated as 1/1 if there's no nav. */
   async status(): Promise<{ current: number; total: number }> {
     if ((await this.nav.count()) === 0) return { current: 1, total: 1 };
     const text = (await this.nav.innerText().catch(() => '')) || '';
@@ -32,11 +33,11 @@ export class TablePagination {
     return { current: Number(m[1]), total: Number(m[2]) };
   }
 
-  /** 다음 페이지로. 더 갈 곳이 없으면 false. */
+  /** go to the next page. false if there's nowhere further to go. */
   async next(): Promise<boolean> {
     const { current, total } = await this.status();
     if (current >= total) return false;
-    // text-pagination의 오른쪽 화살표(마지막 버튼)
+    // the right arrow of text-pagination (the last button)
     await this.nav.locator('button').last().click();
     await expect
       .poll(async () => (await this.status()).current, { timeout: 10_000 })
@@ -45,11 +46,11 @@ export class TablePagination {
   }
 
   /**
-   * 목록이 실제로 채워질 때까지 기다린다.
+   * Wait until the list is actually populated.
    *
-   * 화면에 막 들어온 직후에는 테이블 껍데기만 있고 행이 아직 없다. 그 상태에서 바로 페이지를 넘기면
-   * "1페이지에도 없고 2페이지에도 없다"며 *데이터가 오기도 전에* 없다고 단정해 버린다.
-   * (실제로 소스 모델이 목록에 멀쩡히 있는데도 못 찾는 경우가 이 레이스였다.)
+   * Right after entering the screen, only the table shell exists and there are no rows yet. Paging
+   * immediately in that state concludes "not on page 1, not on page 2" *before the data even arrives*.
+   * (The case where a source model was plainly in the list yet couldn't be found was this race.)
    */
   private async waitForRows(): Promise<void> {
     await expect
@@ -61,13 +62,13 @@ export class TablePagination {
   }
 
   /**
-   * 행을 찾을 때까지 페이지를 넘긴다.
-   * @returns 찾은 페이지 번호(1-base). 끝까지 없으면 null.
+   * Page through until the row is found.
+   * @returns the page number where it was found (1-based). null if not found through the end.
    */
   async findRow(row: Locator): Promise<number | null> {
     await this.waitForRows();
     for (;;) {
-      // 이 페이지에 있나? (없으면 짧게 끊고 다음 페이지로 — 페이지마다 15초씩 기다리면 한없이 느려진다)
+      // is it on this page? (if not, cut it short and move to the next page — waiting 15s per page would be endlessly slow)
       if (
         await row
           .first()
@@ -81,19 +82,20 @@ export class TablePagination {
   }
 
   /**
-   * 행이 *어느 페이지에도* 없는지 확인한다.
+   * Check that the row is absent from *every page*.
    *
-   * ★ 삭제 확인처럼 "없어야 한다"를 볼 때 1페이지만 보면 안 된다. 목록은 15행씩 끊기므로 뒤 페이지에
-   *   멀쩡히 살아 있는데도 "사라졌다"고 통과해 버린다. 실제로 이 오판 때문에, 삭제됐다고 판정한
-   *   인프라(=살아 있는 EC2)가 요금을 계속 먹고 있었다. 없다는 판정은 *전 페이지를 훑고* 내린다.
+   * ★ When checking "it should be gone", like a delete confirmation, don't look at page 1 only. Since the
+   *   list breaks into 15 rows per page, a row alive on a later page would pass as "disappeared". This very
+   *   misjudgment let infrastructure judged deleted (a live EC2) keep racking up charges. The "absent"
+   *   verdict is made only after *scanning every page*.
    */
   async isRowAbsent(row: Locator): Promise<boolean> {
     return (await this.findRow(row)) === null;
   }
 
   /**
-   * 행이 *어느 페이지엔가* 있어야 한다. 찾으면 그 페이지 번호를 로그로 남긴다.
-   * 못 찾으면 전체 페이지 수와 함께 실패시킨다(1페이지만 보고 없다고 단정하지 않는다).
+   * The row must exist on *some page*. If found, log the page number.
+   * If not found, fail with the total page count (don't conclude it's absent from page 1 alone).
    */
   async expectRowSomewhere(row: Locator, label: string): Promise<number> {
     const found = await this.findRow(row);
@@ -102,7 +104,7 @@ export class TablePagination {
       found,
       `"${label}" 이(가) 목록 어디에도 없다 (전체 ${total}페이지를 모두 확인했다)`,
     ).not.toBeNull();
-    console.log(`[pagination] "${label}" → ${found}/${total} 페이지에서 확인`);
+    console.log(`[pagination] "${label}" → found on page ${found}/${total}`);
     return found as number;
   }
 }

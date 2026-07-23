@@ -22,7 +22,7 @@
         Items: {{ data.length }} objects
         <div v-if="data.length > 0" :style="getContentStyle()">
           <div v-for="(item, idx) in data.slice(0, 2)" :key="idx" :style="getObjectItemStyle()">
-            <!-- nestedObjectArrayItem 타입인 경우 -->
+            <!-- For the nestedObjectArrayItem type -->
             <div v-if="item.type === 'nestedObjectArrayItem'">
               <div :style="getObjectTitleStyle()">• {{ item.context.subject }}: {{ item.context.values?.length || 0 }} properties</div>
               <div :style="getObjectContentStyle()">
@@ -36,7 +36,7 @@
                 </div>
               </div>
             </div>
-            <!-- 일반 객체인 경우 (하위 호환성) -->
+            <!-- For a plain object (backward compatibility) -->
             <div v-else>
               <div :style="getObjectTitleStyle()">• Object {{ idx + 1 }}: {{ Object.keys(item).length }} properties</div>
               <div :style="getObjectContentStyle()">
@@ -62,7 +62,7 @@
         <div :style="getSchemaInfoStyle()">
           Schema defines nested object structure
         </div>
-        <!-- 스키마 기반 구조 표시 -->
+        <!-- Show the schema-based structure -->
         <div :style="getSchemaStructureStyle()">
           <div :style="getSchemaTitleStyle()">Expected object structure:</div>
           <div v-for="schemaProp in schemaProperties" :key="schemaProp.name" :style="getSchemaPropStyle()">
@@ -70,7 +70,7 @@
             <span :style="getSchemaPropTypeStyle()">{{ schemaProp.type }}</span>
             <span v-if="schemaProp.isArray" :style="getArrayTagStyle()">[Array: {{ schemaProp.arrayType || 'Unknown' }}]</span>
             <span v-if="schemaProp.isObject" :style="getObjectTagStyle()">[Object]</span>
-            <!-- 객체 타입인 경우 내부 properties 표시 -->
+            <!-- For an object type, show its inner properties -->
             <div v-if="schemaProp.isObject" :style="getNestedObjectStyle()">
               <div v-for="nestedProp in getNestedObjectProperties(schemaProp.name)" :key="nestedProp.name" :style="getNestedPropStyle()">
                 <span :style="getNestedPropNameStyle()">{{ nestedProp.name }}:</span>
@@ -292,7 +292,7 @@ export default defineComponent({
     },
     
     getNestedObjectProperties(objectName: string) {
-      // 하드코딩된 중첩 객체 properties
+      // Hardcoded nested-object properties
       const nestedObjectMap: Record<string, Array<{name: string, type: string}>> = {
         'resources': [
           { name: 'cpu', type: 'string' },

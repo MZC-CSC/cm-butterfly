@@ -53,9 +53,9 @@ axiosInstance.interceptors.response.use(
       const { refresh_token } = jwtTokenProvider.getTokens();
 
       if (!refresh_token) {
-        // 되살릴 토큰이 없다 — 로그인 전이거나 이미 세션이 없는 상태다. 폴링을 멈추고(clearSession)
-        // 로그인 화면으로 SPA 이동만 한다. 여기서 만료 팝업·전체 리로드를 하면 로그인 화면의 미인증
-        // 요청이 다시 401 → 리로드로 무한 반복된다. 만료 안내는 실제 만료(갱신 실패·403)에서만 한다.
+        // There's no token to restore — either before login or the session is already gone. Stop polling (clearSession)
+        // and just do an SPA navigation to the login screen. Showing an expiry popup or a full reload here would make the
+        // login screen's unauthenticated request 401 again → reload, looping forever. Show the expiry notice only on a real expiry (refresh failure/403).
         clearSession();
         McmpRouter.getRouter()
           .replace({ name: AUTH_ROUTE.LOGIN._NAME })

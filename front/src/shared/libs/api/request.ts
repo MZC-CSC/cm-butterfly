@@ -77,13 +77,13 @@ export function useAxiosWrapper<T, D = any>(
   };
 }
 
-// 서버 응답에서 에러 메시지를 처리하기 위한 함수
+// Function to handle the error message from the server response
 export function extractErrorMessage(error: any): string | null {
   if (error.response) {
     if (error.status === 401) {
       return null;
     }
-    // 서버가 반환한 에러 응답에서 메시지 추출
+    // Extract the message from the error response returned by the server
     const errorData = error.response.data;
 
     if (errorData.responseData?.message) {
@@ -106,10 +106,10 @@ export function extractErrorMessage(error: any): string | null {
     }
     return errorData.message || error.message || 'Unknown error occurred';
   } else if (error.request) {
-    // 요청은 되었으나 서버로부터 응답이 없음
+    // The request was made but no response was received from the server
     return 'No response received from server';
   } else {
-    // 요청 설정 중에 문제가 발생한 경우
+    // Something went wrong while setting up the request
     return error.message || 'Error in setting up request';
   }
 }

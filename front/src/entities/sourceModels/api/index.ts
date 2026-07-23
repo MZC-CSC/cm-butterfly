@@ -101,11 +101,10 @@ export function useCreateSourceSoftwareModel(data: ICreateSourceSoftwareModelPay
 }
 
 /**
- * Delete source software models in bulk
- * 소스 소프트웨어 모델들을 일괄 삭제합니다.
- * 
- * @param {string[]} modelIds - Array of model IDs to delete / 삭제할 모델 ID 배열
- * @returns {Promise<any[]>} Promise resolving to array of delete responses / 삭제 응답 배열을 반환하는 Promise
+ * Delete source software models in bulk.
+ *
+ * @param {string[]} modelIds - Array of model IDs to delete
+ * @returns {Promise<any[]>} Promise resolving to array of delete responses
  * 
  * @example
  * const result = await useBulkDeleteSourceSoftwareModel(['model1', 'model2']);
@@ -123,11 +122,10 @@ export function useBulkDeleteSourceSoftwareModel(modelIds: string[]) {
 }
 
 /**
- * Delete source infra models in bulk (legacy function)
- * 소스 인프라 모델들을 일괄 삭제합니다. (기존 함수)
- * 
- * @param {string[]} modelIds - Array of model IDs to delete / 삭제할 모델 ID 배열
- * @returns {Promise<any[]>} Promise resolving to array of delete responses / 삭제 응답 배열을 반환하는 Promise
+ * Delete source infra models in bulk (legacy function).
+ *
+ * @param {string[]} modelIds - Array of model IDs to delete
+ * @returns {Promise<any[]>} Promise resolving to array of delete responses
  * 
  * @example
  * const result = await useBulkDeleteSourceInfraModel(['model1', 'model2']);
@@ -145,11 +143,10 @@ export function useBulkDeleteSourceInfraModel(modelIds: string[]) {
 }
 
 /**
- * Delete source cloud models in bulk
- * 소스 클라우드 모델들을 일괄 삭제합니다.
- * 
- * @param {string[]} modelIds - Array of model IDs to delete / 삭제할 모델 ID 배열
- * @returns {Promise<any[]>} Promise resolving to array of delete responses / 삭제 응답 배열을 반환하는 Promise
+ * Delete source cloud models in bulk.
+ *
+ * @param {string[]} modelIds - Array of model IDs to delete
+ * @returns {Promise<any[]>} Promise resolving to array of delete responses
  * 
  * @example
  * const result = await useBulkDeleteSourceCloudModel(['model1', 'model2']);

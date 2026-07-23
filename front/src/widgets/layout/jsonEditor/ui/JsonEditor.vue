@@ -27,7 +27,7 @@ function handleUpdateFormData(value: any) {
   emit('update:form-data', value);
 }
 
-// TODO: validation 추가 (key부분 변경 못하게 할 수 있는지 확인해보기)
+// TODO: add validation (look into whether the key part can be made non-editable)
 const isValid = ref<boolean>(true);
 
 watchEffect(

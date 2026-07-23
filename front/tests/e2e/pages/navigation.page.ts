@@ -1,12 +1,14 @@
 import { Page, expect } from '@playwright/test';
 
 /**
- * NavigationPage — 상단 5개 메뉴 카테고리 라우팅 스모크의 "어디로/무엇을 확인" 계층.
+ * NavigationPage — the "where to go / what to verify" layer for the routing smoke test of the
+ * five top menu categories.
  *
- * 각 카테고리 부모 경로는 `<router-view/>`만 렌더하므로, 실제로 화면이 뜨는
- * *첫 랜딩 자식 경로*로 이동한다(router 정의 기준). 라우팅이 바뀌면 이 파일만 수정.
+ * Each category's parent route renders only `<router-view/>`, so we navigate to the *first
+ * landing child route* that actually shows a screen (per the router definition). If routing
+ * changes, only this file needs editing.
  *
- * 카테고리(부모 → 랜딩 자식):
+ * Categories (parent → landing child):
  *  - Source Computing     → /main/source-computing/source-services
  *  - Models               → /main/models/source-models
  *  - Workflow Management   → /main/workflow-management/workflows
@@ -14,9 +16,9 @@ import { Page, expect } from '@playwright/test';
  *  - Cloud Resources       → /main/cloud-resources/cloud-credentials
  */
 interface NavTarget {
-  /** 이동할 랜딩 URL */
+  /** Landing URL to navigate to */
   path: string;
-  /** 로드 성공 판정용 URL 정규식(부모 경로 기준) */
+  /** URL regex for judging a successful load (based on the parent route) */
   urlPattern: RegExp;
 }
 
@@ -89,20 +91,22 @@ export class NavigationPage {
     return t;
   }
 
-  /** 카테고리 랜딩 화면으로 이동 */
+  /** Navigate to the category's landing screen */
   async gotoCategory(name: string): Promise<void> {
     await this.page.goto(this.resolve(name).path);
   }
 
-  /** 해당 카테고리 화면이 정상 로드됐는지(URL 진입 + NotFound 아님) 확인 */
+  /** Verify the category screen loaded correctly (URL entered + not NotFound) */
   async expectCategoryLoaded(name: string): Promise<void> {
     const target = this.resolve(name);
     await expect(this.page).toHaveURL(target.urlPattern, { timeout: 15_000 });
-    // 404 라우트로 튕기지 않았는지 확인 — NotFound 컴포넌트 자체를 본다.
+    // Verify we weren't bounced to the 404 route — look at the NotFound component itself.
     //
-    // 예전엔 본문 전체 텍스트를 /not found|404/로 훑었는데, 목록에 찍힌 UUID가 그 패턴에 걸렸다
-    // (예: 1e7ff6d3-ea66-4044-... 의 "404", a8904046355e 의 "404"). 화면은 멀쩡한데 데이터가 있다는
-    // 이유만으로 실패하던 오탐이라, 라우팅 실패를 판정하는 유일한 근거인 NotFound 화면으로 좁힌다.
+    // We used to scan the whole body text for /not found|404/, but UUIDs printed in lists
+    // matched that pattern (e.g. the "404" in 1e7ff6d3-ea66-4044-..., or in a8904046355e).
+    // That was a false positive that failed just because data was present even though the
+    // screen was fine, so we narrow it to the NotFound screen, the only valid basis for
+    // judging a routing failure.
     await expect(this.page.getByTestId('not-found-page')).toHaveCount(0);
   }
 }

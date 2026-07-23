@@ -7,7 +7,7 @@ import {
   PI,
 } from '@cloudforet-test/mirinae';
 import { computed, reactive, watchEffect } from 'vue';
-// 임포트 경로와 같은 규칙을 쓰도록 공용 모듈에서 가져온다.
+// Import from the shared module so it follows the same rules as the import path.
 import {
   isFilled,
   isIpValid,
@@ -30,9 +30,10 @@ interface Props {
   sourceConnection?: ConnectionInfo;
   mode?: 'create' | 'edit';
   showDeleteButton?: boolean;
-  readonly?: string[]; // readonly로 만들 필드 목록
-  // 이미 등록된 연결을 수정할 때, 서버에 저장된 값. 입력란을 채우지 않고
-  // placeholder 로만 보여주기 위한 것이라 절대 payload 에 쓰지 않는다.
+  readonly?: string[]; // list of fields to make readonly
+  // When editing an already-registered connection, these are the values stored
+  // on the server. They're only shown as placeholders (the inputs aren't filled),
+  // so they're never used in the payload.
   existing?: Partial<ConnectionInfo> | null;
 }
 
@@ -54,8 +55,9 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits(['delete', 'update:valid']);
 
-// 이미 등록된 연결의 수정인지. 이 경우 입력란은 비어서 열리고, 사용자가 실제로
-// 입력한 항목만 검증·전송한다. 입력하지 않은 항목은 기존 값이 그대로 유지된다.
+// Whether this is editing an already-registered connection. In that case the
+// inputs open empty, and only the fields the user actually types are validated
+// and sent. Fields left blank keep their existing values.
 const isExistingEdit = computed(
   () => props.mode === 'edit' && !!props.existing,
 );
@@ -65,7 +67,7 @@ const KEEP_HINT = 'Leave blank to keep the current value';
 const placeholderFor = (field: keyof ConnectionInfo, fallback: string) => {
   if (!isExistingEdit.value) return fallback;
   const current = props.existing?.[field];
-  // 인증 항목은 서버가 암호화해 내려주므로 보여줄 평문이 없다.
+  // Credential fields come down encrypted from the server, so there's no plaintext to show.
   return current !== undefined && current !== null && current !== ''
     ? String(current)
     : KEEP_HINT;
@@ -89,13 +91,13 @@ watchEffect(() => {
   let isValid: boolean;
 
   if (isExistingEdit.value) {
-    // 사용자가 입력한 항목만 본다. 아무것도 입력하지 않았으면 바꿀 것이 없으므로
-    // 유효한 상태이고, 저장 시 이 행은 요청 자체를 보내지 않는다.
+    // Only look at the fields the user typed. If nothing was entered there's
+    // nothing to change, so it's valid, and on save this row sends no request at all.
     isValid =
       (!ipFilled || invalidState.isIpAddressValid) &&
       (!portFilled || invalidState.isPortValid);
   } else {
-    // 신규 등록은 기존 규칙 그대로 — 아이디 필수 + 비밀번호나 개인키 중 하나.
+    // New registration keeps the existing rules — username required + either a password or a private key.
     isValid = Boolean(
       isFilled(conn.name) &&
         invalidState.isIpAddressValid &&
@@ -108,7 +110,7 @@ watchEffect(() => {
   emit('update:valid', isValid);
 });
 
-// 입력하지 않은 항목까지 빨갛게 보이지 않도록, 값이 있을 때만 오류로 표시한다.
+// So untouched fields don't turn red, only show an error when a value is present.
 const showIpError = computed(
   () =>
     (isExistingEdit.value
@@ -131,8 +133,8 @@ const showUserError = computed(
   () => !isExistingEdit.value && !isFilled(props.sourceConnection?.user),
 );
 
-// 신규 등록에서 인증 조합이 성립하지 않는 경우. 아이디 없이 비밀번호만,
-// 또는 아이디 없이 개인키만은 서버가 거부한다.
+// Case where the credential combination isn't valid for a new registration.
+// The server rejects a password without a username, or a private key without a username.
 const showCredentialError = computed(
   () =>
     !isExistingEdit.value &&

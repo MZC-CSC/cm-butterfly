@@ -46,7 +46,7 @@ const { toolboxTableRef, adjustedDynamicHeight } = useToolboxTableHeight(
 );
 
 const isDataLoaded = ref(false);
-const tableKey = ref(0); // 컴포넌트 재렌더링을 위한 key
+const tableKey = ref(0); // key for re-rendering the component
 
 const modals = reactive({
   alertModalState: { open: false },
@@ -95,7 +95,7 @@ function getSourceConnectionList() {
 
       nextTick(() => {
         isDataLoaded.value = true;
-        // 데이터 로드 후 컴포넌트 재렌더링
+        // re-render the component after loading the data
         tableKey.value++;
       });
     })
@@ -193,14 +193,14 @@ function handleSourceConnectionList() {
     <section>
       <p-horizontal-layout :key="tableKey" :height="adjustedDynamicHeight">
         <template #container="{ height }">
-          <!-- 로딩 중일 때 스피너 표시 -->
+          <!-- Show a spinner while loading -->
           <table-loading-spinner
             :loading="resSourceConnectionList.isLoading.value || tableModel.tableState.loading"
             :height="height"
             message="Loading source connections..."
           />
           
-          <!-- 로딩 완료 후 테이블 표시 -->
+          <!-- Show the table after loading completes -->
           <p-toolbox-table
             v-if="!resSourceConnectionList.isLoading.value && !tableModel.tableState.loading"
             ref="toolboxTableRef"

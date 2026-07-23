@@ -54,7 +54,7 @@ export function useRunLoadTest(requestPayload: IRunLoadTestRequest | null) {
   >(RUN_LOAD_TEST, requestBodyWrapper);
 }
 
-// 진행 중인 부하테스트 중단(StopLoadTest). loadTestKey로 지정.
+// Stop a running load test (StopLoadTest). Identified by loadTestKey.
 export function useStopLoadTest(loadTestKey: string | null) {
   const requestBodyWrapper: Required<
     Pick<RequestBodyWrapper<{ loadTestKey: string } | null>, 'request'>
@@ -70,8 +70,8 @@ export function useStopLoadTest(loadTestKey: string | null) {
   >(STOP_LOAD_TEST, requestBodyWrapper);
 }
 
-// 부하테스트 실행 정보 조회(GetLoadTestExecutionInfo, infos/{loadTestKey}) —
-// Re-run 시 마지막 실행 파라미터로 Load Config를 pre-fill 하기 위해 사용.
+// Fetch load test execution info (GetLoadTestExecutionInfo, infos/{loadTestKey}) —
+// used to pre-fill the Load Config with the last run's parameters on Re-run.
 export interface ILoadTestExecutionHttpInfo {
   method?: string;
   protocol?: string;
@@ -204,7 +204,6 @@ export function useGetLoadTestResourceMetric(params: IMetricParams | null) {
 
 /**
  * Get all load test scenario catalogs
- * 모든 로드 테스트 시나리오 카탈로그를 조회합니다.
  */
 export function useGetAllLoadTestScenarioCatalogs() {
   return useAxiosPost<IAxiosResponse<ILoadTestScenarioCatalogsResponse>, null>(
@@ -215,7 +214,6 @@ export function useGetAllLoadTestScenarioCatalogs() {
 
 /**
  * Get a specific load test scenario catalog by ID
- * ID로 특정 로드 테스트 시나리오 카탈로그를 조회합니다.
  */
 export function useGetLoadTestScenarioCatalog(catalogId: number | null) {
   const requestBodyWrapper: Required<
@@ -234,7 +232,6 @@ export function useGetLoadTestScenarioCatalog(catalogId: number | null) {
 
 /**
  * Create a new load test scenario catalog
- * 새로운 로드 테스트 시나리오 카탈로그를 생성합니다.
  */
 export function useCreateLoadTestScenarioCatalog(
   data: ICreateLoadTestScenarioCatalogRequest | null,
@@ -261,7 +258,6 @@ export function useCreateLoadTestScenarioCatalog(
 
 /**
  * Update a load test scenario catalog
- * 로드 테스트 시나리오 카탈로그를 업데이트합니다.
  */
 export function useUpdateLoadTestScenarioCatalog(
   catalogId: number | null,
@@ -307,7 +303,6 @@ export function useUpdateLoadTestScenarioCatalog(
 
 /**
  * Delete a load test scenario catalog
- * 로드 테스트 시나리오 카탈로그를 삭제합니다.
  */
 export function useDeleteLoadTestScenarioCatalog(catalogId: number | null) {
   const requestBodyWrapper: Required<

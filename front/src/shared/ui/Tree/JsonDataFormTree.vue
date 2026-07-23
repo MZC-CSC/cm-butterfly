@@ -1,5 +1,5 @@
 <template>
-  <!-- Form Tree 구조 -->
+  <!-- Form Tree structure -->
   <div class="form-tree-container">
     <div
       v-for="node in flattenedNodes"
@@ -61,7 +61,7 @@
         @toggle="toggleNode(node)"
       />
 
-      <!-- Primitive 필드 -->
+      <!-- Primitive field -->
       <DataRow
         v-else-if="node.type === 'primitive'"
         row-type="properties"
@@ -111,13 +111,13 @@ export default defineComponent({
   setup(props, { emit }) {
     const treeNodes = ref<TreeNode[]>([]);
 
-    // JSON 데이터를 Tree로 변환
+    // Convert JSON data into a Tree
     const initializeTree = () => {
       if (Array.isArray(props.jsonData) && props.jsonData.length > 0 && 'id' in props.jsonData[0]) {
-        // 이미 TreeNode 배열인 경우
+        // Already a TreeNode array
         treeNodes.value = props.jsonData as TreeNode[];
       } else {
-        // JSON 데이터를 Tree로 변환
+        // Convert JSON data into a Tree
         const data = typeof props.jsonData === 'string' ? JSON.parse(props.jsonData) : props.jsonData;
         treeNodes.value = jsonToTree(data, {
           maxDepth: props.maxDepth + 1,
@@ -128,17 +128,17 @@ export default defineComponent({
       }
     };
 
-    // 모든 노드를 평면화
+    // Flatten all nodes
     const flattenedNodes = computed(() => {
       return flattenTreeNodes(treeNodes.value);
     });
 
-    // 노드가 표시되어야 하는지 확인 (부모가 확장되어 있는지)
+    // Check whether the node should be shown (whether its parents are expanded)
     const isNodeVisible = (node: TreeNode): boolean => {
-      // 루트 노드는 항상 표시
+      // The root node is always shown
       if (node.level === 0) return true;
       
-      // 부모 노드들을 찾아서 모두 확장되어 있는지 확인
+      // Find the parent nodes and check they are all expanded
       const pathParts = node.path.split('.');
       let currentPath = '';
       
@@ -153,7 +153,7 @@ export default defineComponent({
       return true;
     };
 
-    // 경로로 노드 찾기
+    // Find a node by path
     const findNodeByPath = (nodes: TreeNode[], path: string): TreeNode | null => {
       for (const node of nodes) {
         if (node.path === path) return node;
@@ -165,23 +165,23 @@ export default defineComponent({
       return null;
     };
 
-    // 노드 토글
+    // Toggle a node
     const toggleNode = (node: TreeNode) => {
       treeNodes.value = toggleTreeNode(treeNodes.value, node.id);
     };
 
-    // 노드 클릭 처리
+    // Handle a node click
     const handleNodeClick = (node: TreeNode) => {
       emit('node-click', node);
     };
 
-    // 필드 라벨 가져오기
+    // Get the field label
     const getFieldLabel = (node: TreeNode): string => {
       const pathParts = node.path.split('.');
       return pathParts[pathParts.length - 1];
     };
 
-    // 아이템 개수 가져오기
+    // Get the item count
     const getItemCount = (node: TreeNode): string => {
       if (node.type === 'array') {
         return `${node.children?.length || 0} items`;
@@ -191,12 +191,12 @@ export default defineComponent({
       return '';
     };
 
-    // 아이템 개수 숫자로 가져오기
+    // Get the item count as a number
     const getItemCountNumber = (node: TreeNode): number => {
       return node.children?.length || 0;
     };
 
-    // 값 포맷팅
+    // Format the value
     const formatValue = (value: any): string => {
       if (value === null) return '';
       if (value === undefined) return '';
@@ -206,12 +206,12 @@ export default defineComponent({
       return JSON.stringify(value);
     };
 
-    // 필드 값 업데이트
+    // Update the field value
     const updateFieldValue = (node: TreeNode, event: Event) => {
       emit('field-update', { node, event });
     };
 
-    // Input 필드 model.value 업데이트
+    // Update the Input field's model.value
     const updateInputField = (node: TreeNode, value: any) => {
       if (node.type === 'object' && node.children) {
         const contextNode = node.children.find(child => getFieldLabel(child) === 'context');
@@ -227,7 +227,7 @@ export default defineComponent({
       }
     };
 
-    // Input 필드 blur 처리
+    // Handle Input field blur
     const handleInputBlur = (node: TreeNode, event: Event) => {
       if (node.type === 'object' && node.children) {
         const contextNode = node.children.find(child => getFieldLabel(child) === 'context');
@@ -243,12 +243,12 @@ export default defineComponent({
       }
     };
 
-    // nestedObject string array 항목 업데이트
+    // Update a nestedObject string array item
     const updateNestedObjectStringArrayItem = (node: TreeNode, index: number, value: string) => {
       if (node.type === 'array' && node.children && node.children[index]) {
         const itemNode = node.children[index];
         
-        // nestedObject인 경우 values를 분리해서 업데이트
+        // For a nestedObject, split and update the values
         if (itemNode.type === 'object' && itemNode.children) {
           const typeNode = itemNode.children.find(c => getFieldLabel(c) === 'type');
           if (typeNode && formatValue(typeNode.value) === 'nestedObject') {
@@ -256,11 +256,11 @@ export default defineComponent({
             if (contextNode && contextNode.children) {
               const valuesNode = contextNode.children.find(c => getFieldLabel(c) === 'values');
               if (valuesNode && valuesNode.children) {
-                // 문자열을 각 문자로 분리해서 values 업데이트
+                // Split the string into individual characters and update the values
                 const characters = value.split('');
                 valuesNode.children.forEach((charNode, charIndex) => {
                   if (charIndex < characters.length) {
-                    // input 타입 객체인 경우 model.value 업데이트
+                    // For an input-type object, update model.value
                     if (charNode.type === 'object' && charNode.children) {
                       const inputTypeNode = charNode.children.find(c => getFieldLabel(c) === 'type');
                       if (inputTypeNode && formatValue(inputTypeNode.value) === 'input') {
@@ -276,7 +276,7 @@ export default defineComponent({
                         }
                       }
                     } else {
-                      // 일반적인 경우
+                      // General case
                       emit('field-update', { node: charNode, value: characters[charIndex] });
                     }
                   }
@@ -287,56 +287,56 @@ export default defineComponent({
           }
         }
         
-        // 일반적인 경우
+        // General case
         emit('field-update', { node: itemNode, value });
       }
     };
 
-    // nestedObject string array 입력 처리
+    // Handle nestedObject string array input
     const handleNestedObjectStringArrayInput = (node: TreeNode, index: number, event: Event) => {
       const target = event.target as HTMLInputElement;
       updateNestedObjectStringArrayItem(node, index, target.value);
     };
 
-    // StringArrayField 이벤트 핸들러들
+    // StringArrayField event handlers
     const handleStringArrayUpdate = (node: TreeNode, items: Array<{ index: number; value: string }>) => {
-      // 각 아이템을 업데이트
+      // Update each item
       items.forEach(item => {
         updateNestedObjectStringArrayItem(node, item.index, item.value);
       });
     };
 
     const handleStringArrayAddItem = (node: TreeNode, newItem: { index: number; value: string }) => {
-      // 새 아이템을 배열에 추가하는 로직
+      // Logic to add a new item to the array
       emit('array-item-add', node);
     };
 
     const handleStringArrayDeleteItem = (node: TreeNode, index: number) => {
-      // 아이템을 삭제하는 로직
+      // Logic to delete an item
       if (node.type === 'array' && node.children && node.children[index]) {
         const itemNode = node.children[index];
         emit('field-delete', itemNode);
       }
     };
 
-    // Array 아이템 추가
+    // Add an array item
     const addArrayItem = (node: TreeNode) => {
       emit('array-item-add', node);
     };
 
-    // 필드 삭제 가능 여부
+    // Whether the field can be deleted
     const isDeletable = (node: TreeNode): boolean => {
-      // 루트 레벨이 아니고, 배열 인덱스이거나 객체 프로퍼티인 경우
+      // Not root level, and either an array index or an object property
       return node.level > 0 && (node.path.includes('[') || node.path.includes('.'));
     };
 
-    // string[] 패턴을 찾는 함수 - 모든 배열에서 string[] 형태의 패턴을 찾아서 subject 목록 반환
+    // Function that finds string[] patterns - scans all arrays for string[]-shaped patterns and returns the list of subjects
     const findStringArrayPatterns = (node: TreeNode): string[] => {
       const patterns: string[] = [];
       
       function traverse(currentNode: TreeNode) {
         if (currentNode.type === 'array' && currentNode.children) {
-          // 배열의 첫 번째 아이템이 nestedObject인지 확인
+          // Check whether the array's first item is a nestedObject
           const firstItem = currentNode.children[0];
           if (firstItem && firstItem.type === 'object' && firstItem.children) {
             const typeNode = firstItem.children.find(c => getFieldLabel(c) === 'type');
@@ -347,12 +347,12 @@ export default defineComponent({
                 const valuesNode = contextNode.children.find(c => getFieldLabel(c) === 'values');
                 
                 if (subjectNode && valuesNode && valuesNode.type === 'array' && valuesNode.children) {
-                  // values의 첫 번째 항목이 input 타입인지 확인
+                  // Check whether the first entry in values is an input type
                   const firstValueItem = valuesNode.children[0];
                   if (firstValueItem && firstValueItem.type === 'object' && firstValueItem.children) {
                     const inputTypeNode = firstValueItem.children.find(c => getFieldLabel(c) === 'type');
                     if (inputTypeNode && formatValue(inputTypeNode.value) === 'input') {
-                      // string[] 패턴 발견
+                      // string[] pattern found
                       const subject = formatValue(subjectNode.value);
                       if (subject && !patterns.includes(subject)) {
                         patterns.push(subject);
@@ -365,7 +365,7 @@ export default defineComponent({
           }
         }
         
-        // 자식 노드들도 재귀적으로 탐색
+        // Recursively traverse child nodes as well
         if (currentNode.children) {
           currentNode.children.forEach(child => traverse(child));
         }
@@ -375,10 +375,10 @@ export default defineComponent({
       return patterns;
     };
 
-    // nestedObject string array 타입인지 확인 (array 내 item이 nestedObject이고 values가 input 타입 배열인 경우)
+    // Check whether it is a nestedObject string array type (an array whose item is a nestedObject and whose values are an array of input types)
     const isNestedObjectStringArrayType = (node: TreeNode): boolean => {
       if (node.type === 'array' && node.children) {
-        // 첫 번째 아이템이 nestedObject인지 확인
+        // Check whether the first item is a nestedObject
         const firstItem = node.children[0];
         if (firstItem && firstItem.type === 'object' && firstItem.children) {
           const typeNode = firstItem.children.find(c => getFieldLabel(c) === 'type');
@@ -387,7 +387,7 @@ export default defineComponent({
             if (contextNode && contextNode.children) {
               const valuesNode = contextNode.children.find(c => getFieldLabel(c) === 'values');
               if (valuesNode && valuesNode.type === 'array' && valuesNode.children) {
-                // values의 첫 번째 항목이 input 타입인지 확인
+                // Check whether the first entry in values is an input type
                 const firstValueItem = valuesNode.children[0];
                 if (firstValueItem && firstValueItem.type === 'object' && firstValueItem.children) {
                   const inputTypeNode = firstValueItem.children.find(c => getFieldLabel(c) === 'type');
@@ -403,12 +403,12 @@ export default defineComponent({
       return false;
     };
 
-    // Input 타입인지 확인 (context가 2개 properties를 가진 경우)
+    // Check whether it is an Input type (context has exactly 2 properties)
     const isInputType = (node: TreeNode): boolean => {
       if (node.type === 'object' && node.children) {
         const typeNode = node.children.find(child => getFieldLabel(child) === 'type');
         if (typeNode && formatValue(typeNode.value) === 'input') {
-          // context가 2개 properties (title, model)를 가진지 확인
+          // Check whether context has 2 properties (title, model)
           const contextNode = node.children.find(child => getFieldLabel(child) === 'context');
           if (contextNode && contextNode.children && contextNode.children.length === 2) {
             const hasTitle = contextNode.children.some(child => getFieldLabel(child) === 'title');
@@ -420,7 +420,7 @@ export default defineComponent({
       return false;
     };
 
-    // string array의 subject를 가져오는 함수
+    // Function to get a string array's subject
     const getStringArraySubject = (node: TreeNode): string => {
       if (node.type === 'array' && node.children && node.children.length > 0) {
         const firstItem = node.children[0];
@@ -440,11 +440,11 @@ export default defineComponent({
       return 'Array';
     };
 
-    // nestedObject string array의 각 항목을 처리하는 함수
+    // Function that processes each entry of a nestedObject string array
     const getNestedObjectStringArrayItems = (node: TreeNode): Array<{ index: number; value: string }> => {
       if (node.type === 'array' && node.children) {
         return node.children.map((child, index) => {
-          // nestedObject인 경우 values를 합쳐서 처리
+          // For a nestedObject, combine the values and process them
           if (child.type === 'object' && child.children) {
             const typeNode = child.children.find(c => getFieldLabel(c) === 'type');
             if (typeNode && formatValue(typeNode.value) === 'nestedObject') {
@@ -452,10 +452,10 @@ export default defineComponent({
               if (contextNode && contextNode.children) {
                 const valuesNode = contextNode.children.find(c => getFieldLabel(c) === 'values');
                 if (valuesNode && valuesNode.children) {
-                  // values의 각 항목에서 model.value를 추출해서 합치기
+                  // Extract model.value from each entry in values and join them
                   const combinedValue = valuesNode.children
                     .map(v => {
-                      // input 타입 객체인 경우 model.value 추출
+                      // For an input-type object, extract model.value
                       if (v.type === 'object' && v.children) {
                         const inputTypeNode = v.children.find(c => getFieldLabel(c) === 'type');
                         if (inputTypeNode && formatValue(inputTypeNode.value) === 'input') {
@@ -471,7 +471,7 @@ export default defineComponent({
                           }
                         }
                       }
-                      // 일반적인 경우
+                      // General case
                       return formatValue(v.value);
                     })
                     .join('');
@@ -480,7 +480,7 @@ export default defineComponent({
               }
             }
           }
-          // 일반적인 경우
+          // General case
           return {
             index,
             value: formatValue(child.value)
@@ -490,7 +490,7 @@ export default defineComponent({
       return [];
     };
 
-    // Input 필드의 title과 model.value 가져오기
+    // Get the Input field's title and model.value
     const getInputFieldData = (node: TreeNode): { title: string; modelValue: string; isValid: boolean } => {
       if (node.type === 'object' && node.children) {
         const contextNode = node.children.find(child => getFieldLabel(child) === 'context');
@@ -523,24 +523,24 @@ export default defineComponent({
       return { title: '', modelValue: '', isValid: true };
     };
 
-    // 필드 삭제
+    // Delete the field
     const deleteField = (node: TreeNode) => {
       emit('field-delete', node);
     };
 
-    // 노드 스타일 계산
+    // Compute the node style
     const getNodeStyle = (node: TreeNode) => {
-      // 모든 노드가 동일한 너비 사용 (들여쓰기 제거)
+      // All nodes use the same width (indentation removed)
       return {};
     };
 
-    // 초기화
+    // Initialize
     initializeTree();
 
-    // props 변경 감지
+    // Watch for props changes
     watch(() => props.jsonData, initializeTree, { deep: true });
 
-    // treeNodes가 변경될 때마다 패턴을 찾아서 부모에게 전달
+    // Whenever treeNodes changes, find patterns and pass them to the parent
     watch(treeNodes, (newTreeNodes) => {
       if (newTreeNodes && newTreeNodes.length > 0) {
         const patterns = findStringArrayPatterns(newTreeNodes[0]);

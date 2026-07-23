@@ -1,7 +1,7 @@
-// 로그아웃과 세션 만료를 한 곳에서 처리한다.
+// Handles logout and session expiry in one place.
 //
-// 원래는 화면 이동만 하고 토큰·세션을 그대로 두었다. 그래서 로그인 화면으로 간 뒤 뒤로 가기를
-// 하면 다시 들어가지고, 서버 세션도 살아 있었다.
+// Originally it only navigated away and left tokens and the session intact. As a result, after
+// landing on the login screen, pressing Back let you back in, and the server session was still alive.
 import { axiosPost } from '@/shared/libs/api';
 import {
   clearSession,
@@ -18,20 +18,21 @@ import JwtTokenProvider from '@/shared/libs/token';
 const LOGIN_PATH = '/auth/login';
 
 /**
- * 로그아웃한다.
+ * Logs out.
  *
- * 서버 세션을 지우고, 브라우저에 남은 흔적을 지운 뒤, **전체 페이지 이동**으로 로그인 화면에 간다.
- * 라우터 이동(`router.replace`)이 아니라 `location.replace` 를 쓰는 이유는 두 가지다.
+ * Clears the server session, wipes what is left in the browser, then goes to the login screen via a
+ * **full page navigation**. There are two reasons for using `location.replace` rather than a router
+ * navigation (`router.replace`).
  *
- * - SPA 라우터 이동은 메모리에 올라와 있는 store·조회 결과를 그대로 남긴다. 전체 이동은 앱을
- *   새로 띄우므로 남는 것이 없다.
- * - `replace` 라서 히스토리에 로그인 화면이 덮어써진다 — 뒤로 가기로 이전 화면에 돌아가더라도
- *   토큰이 없으니 라우터 가드가 다시 로그인으로 보낸다.
+ * - An SPA router navigation leaves in-memory stores and query results intact. A full navigation
+ *   reloads the app, so nothing remains.
+ * - Because it is `replace`, the login screen overwrites the history entry — even if the user goes
+ *   back to a previous screen, there is no token, so the router guard sends them to login again.
  */
 export async function logout(): Promise<void> {
   try {
-    // 서버 세션 정리는 최선을 다하되, 실패해도 브라우저 쪽 정리는 반드시 한다.
-    // 여기서 막히면 사용자는 로그아웃도 못 하는 상태에 갇힌다.
+    // Make a best effort to clean up the server session, but always clean up the browser side even
+    // if it fails. If we got stuck here, the user would be trapped unable to even log out.
     await axiosPost('auth/logout', null);
   } catch (e) {
     console.warn('logout request failed; clearing local session anyway', e);
@@ -41,21 +42,21 @@ export async function logout(): Promise<void> {
   window.location.replace(LOGIN_PATH);
 }
 
-/** 세션이 만료됐을 때의 처리 — 중앙 핸들러가 한 번만 알리고 로그인 화면으로 보낸다. */
+/** Handling when the session has expired — a central handler notifies once and sends to the login screen. */
 function expireSession(): void {
   handleSessionExpired();
 }
 
-const IDLE_LIMIT_MS = 60 * 60 * 1000; // 마지막 조작 후 이만큼 지나면 끊는다
-const HARD_LIMIT_MS = 3 * 60 * 60 * 1000; // 배경 작업이 있어도 여기서는 무조건 끊는다
-const CHECK_INTERVAL_MS = 30 * 1000; // 확인 주기
-const RENEW_MARGIN_MS = 5 * 60 * 1000; // 토큰이 이만큼 남으면 미리 갱신
+const IDLE_LIMIT_MS = 60 * 60 * 1000; // end the session this long after the last user action
+const HARD_LIMIT_MS = 3 * 60 * 60 * 1000; // end unconditionally at this point, even with background work
+const CHECK_INTERVAL_MS = 30 * 1000; // check interval
+const RENEW_MARGIN_MS = 5 * 60 * 1000; // renew ahead of time when the token has this much left
 
 /**
- * 사용자가 손을 뗐어도 세션을 이어 줘야 하는 배경 작업이 있는가.
+ * Whether there is background work that should keep the session alive even after the user stops interacting.
  *
- * 진행 중인 작업을 남겨 두고 세션을 끊으면 결과를 보여 줄 상대가 사라진다 — 지켜본 의미가 없어진다.
- * 무엇이 도는 중인지는 러너가 안다. 추적 대상이 늘어도 이 함수는 그대로다.
+ * Ending the session while work is in progress leaves no one to show the result to — watching it becomes pointless.
+ * The runner knows what is running. This function stays the same even as the set of tracked work grows.
  */
 function hasBackgroundWork(): boolean {
   return runnerHasWork();
@@ -64,23 +65,25 @@ function hasBackgroundWork(): boolean {
 let checkTimer: ReturnType<typeof setInterval> | null = null;
 
 /**
- * 세션 만료를 **화면에 머물러 있어도** 잡아낸다.
+ * Catches session expiry **even while the user stays on a screen**.
  *
- * 그동안 만료는 api 응답 인터셉터(401/403)로만 감지했다. 그래서 한 화면에 오래 머무르면
- * 만료된 줄 모르고 있다가, 뭔가를 눌러 요청이 나가는 순간에야 로그인 화면으로 튕겼다.
+ * Until now, expiry was only detected via the api response interceptor (401/403). So staying on one
+ * screen for a long time meant not knowing it had expired until a click sent a request, at which
+ * point the user was bounced to the login screen.
  *
- * 기준은 **마지막으로 사용자가 화면을 조작한 시각**이다. 서버 요청을 기준으로 삼지 않는 이유가
- * 있다 — 삭제 추적 폴링처럼 배경에서 도는 호출이 "쓰는 중" 으로 집계되면, 자리를 비워도 세션이
- * 끊기지 않는다. 조작으로 세면 폴링이 아무리 돌아도 유휴 판정을 흐리지 않는다.
+ * The basis is **the time the user last interacted with the screen**. There is a reason we do not use
+ * server requests as the basis — if background calls like delete-tracking polling counted as "in use",
+ * the session would not end even while the user is away. Counting interactions means no amount of
+ * polling clouds the idle judgment.
  *
- * 그 위에 규칙 세 가지가 얹힌다.
+ * Three rules sit on top of that.
  *
- * 1. 조작 중인데 토큰이 곧 만료되면 **미리 갱신**한다. 서버 토큰은 발급 후 60분 고정이라
- *    그냥 두면 열심히 쓰는 중에도 끊긴다.
- * 2. 손을 뗐어도 **배경 작업이 도는 중이면 이어 준다.** 진행 중인 삭제를 두고 끊으면 결과를
- *    보여 줄 상대가 사라진다.
- * 3. 그 연장에도 **상한**이 있다. 로그인 후 3시간이면 배경 작업이 있어도 끊는다 — 연장이
- *    무한정 이어지면 사실상 만료가 없는 것과 같다.
+ * 1. If the user is active and the token is about to expire, **renew ahead of time**. Server tokens are
+ *    fixed at 60 minutes from issue, so left alone they would cut off mid-use.
+ * 2. Even after the user stops, **keep the session alive while background work is running.** Ending it
+ *    with a delete in progress leaves no one to show the result to.
+ * 3. That extension also has a **cap**. Three hours after login, end even with background work — an
+ *    extension that continued indefinitely would effectively mean no expiry at all.
  */
 export function startSessionExpiryWatch(): void {
   stopSessionExpiryWatch();
@@ -102,16 +105,16 @@ export function stopSessionExpiryWatch(): void {
 
 async function checkOnce(): Promise<void> {
   const { access_token } = JwtTokenProvider.getProvider().getTokens();
-  if (!access_token) return; // 로그인 상태가 아니다 — 감시할 대상이 없다
+  if (!access_token) return; // not logged in — nothing to watch
 
-  // 배경 작업 유무와 무관한 상한이다. 연장이 무한정 이어지지 않게 막는다.
+  // A cap independent of whether background work exists. Prevents extensions from continuing indefinitely.
   if (msSinceSessionStart() >= HARD_LIMIT_MS) {
     expireSession();
     return;
   }
 
-  // 손을 뗀 지 오래됐다. 단, 배경 작업이 도는 중이면 끝나고 결과를 볼 때까지는 이어 준다
-  // (그래도 위의 상한은 넘지 못한다).
+  // The user has been idle for a while. However, if background work is running, keep the session
+  // alive until it finishes and the result can be seen (still without exceeding the cap above).
   if (msSinceActivity() >= IDLE_LIMIT_MS && !hasBackgroundWork()) {
     expireSession();
     return;
@@ -122,14 +125,14 @@ async function checkOnce(): Promise<void> {
     expireSession();
     return;
   }
-  // 만료 시각을 읽지 못하는 토큰이면 갱신 시점을 알 수 없다. 유휴 판정만 하고 둔다 —
-  // 이 경우 만료는 예전처럼 api 응답(401/403)으로 잡힌다.
+  // If the token's expiry time cannot be read, the renewal timing is unknown. Just do the idle
+  // check and leave it — in this case expiry is caught via the api response (401/403) as before.
   if (!Number.isFinite(remain)) return;
 
   if (remain <= RENEW_MARGIN_MS) await renewToken();
 }
 
-/** 아직 쓰는 중이므로 세션을 이어 간다. 실패하면 끊는다 — 어차피 곧 만료된다. */
+/** Still in use, so extend the session. If it fails, end it — it will expire soon anyway. */
 async function renewToken(): Promise<void> {
   try {
     const provider = JwtTokenProvider.getProvider();
@@ -139,12 +142,12 @@ async function renewToken(): Promise<void> {
       provider.setTokens({ access_token, refresh_token });
     }
   } catch (e) {
-    // refreshTokens 가 실패하면 스스로 토큰을 지우고 로그인 화면으로 보낸다. 여기선 더 할 일이 없다.
+    // If refreshTokens fails, it clears the tokens itself and sends the user to login. Nothing more to do here.
     console.warn('session renewal failed', e);
   }
 }
 
 function onVisible(): void {
-  // 절전에서 깨어난 직후다. 그동안 조작이 없었으므로 유휴가 한계를 넘었을 수 있다.
+  // Just woke from sleep. There was no interaction in the meantime, so idle time may have exceeded the limit.
   if (document.visibilityState === 'visible') void checkOnce();
 }

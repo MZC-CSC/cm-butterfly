@@ -5,7 +5,7 @@
       :key="nestedIndex"
       class="nested-object-item"
     >
-      <!-- Input 필드 -->
+      <!-- Input field -->
       <div v-if="nestedContext.type === 'input'" class="nested-field-group flex border-bottom">
         <div class="nested-field-title-box">
           {{ nestedContext.context.title }}{{ nestedContext.context.isRequired ? '*' : '' }}
@@ -20,7 +20,7 @@
         </div>
       </div>
       
-      <!-- Nested Object 필드 -->
+      <!-- Nested Object field -->
       <div v-else-if="nestedContext.type === 'nestedObject'" class="nested-object-property">
         <div class="nested-object-title">
           {{ nestedContext.context.title }}{{ nestedContext.context.isRequired ? '*' : '' }}
@@ -33,7 +33,7 @@
         </div>
       </div>
       
-      <!-- Accordion 필드 -->
+      <!-- Accordion field -->
       <div v-else-if="nestedContext.type === 'accordion'" class="nested-accordion-content">
         <div class="nested-accordion-header">
           <span class="nested-accordion-title">{{ nestedContext.context.title }}</span>
@@ -63,14 +63,14 @@
               </button>
             </div>
             <div class="nested-accordion-item-content">
-              <!-- Array item이 properties를 가진 경우 -->
+              <!-- Array item that has properties -->
               <div v-if="item._contexts && item._contexts.length > 0" class="array-item-with-properties">
                 <div
                   v-for="(itemContext, contextIndex) in item._contexts"
                   :key="contextIndex"
                   class="array-item-property"
                 >
-                  <!-- Input 필드 -->
+                  <!-- Input field -->
                   <div v-if="itemContext.type === 'input'" class="property-field">
                     <div class="property-label">
                       {{ itemContext.context.title }}{{ itemContext.context.isRequired ? '*' : '' }}
@@ -84,7 +84,7 @@
                       />
                     </div>
                   </div>
-                  <!-- Nested Object 필드 -->
+                  <!-- Nested Object field -->
                   <div v-else-if="itemContext.type === 'nestedObject'" class="nested-object-property">
                     <div class="nested-object-title">
                       {{ itemContext.context.title }}{{ itemContext.context.isRequired ? '*' : '' }}
@@ -98,7 +98,7 @@
                   </div>
                 </div>
               </div>
-              <!-- Array item이 단순 객체인 경우 -->
+              <!-- Array item that is a plain object -->
               <div v-else-if="typeof item === 'object' && item !== null && !item._contexts" class="object-item">
                 <div
                   v-for="(value, propKey) in item"
@@ -116,7 +116,7 @@
                   </div>
                 </div>
               </div>
-              <!-- Array item이 primitive 타입인 경우 -->
+              <!-- Array item that is a primitive type -->
               <div v-else class="simple-item">
                 <p-text-input
                   :value="formatValue(item)"

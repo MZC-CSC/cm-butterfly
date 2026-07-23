@@ -94,8 +94,8 @@ const handleImportSourceConnection = () => {
   fileInputRef.value?.click();
 };
 
-// 파싱은 서버가 한다. 따옴표 안 쉼표·값 안의 줄바꿈·BOM 을 규격대로 처리하고
-// Excel 도 같은 형태로 돌려주므로, 화면은 받은 행에 검증만 얹는다.
+// The server does the parsing. It handles quoted commas, newlines within values, and BOM per spec
+// and returns Excel in the same form, so the screen only layers validation on the received rows.
 const parseImport = useParseTabularImport();
 
 interface PreviewRow {
@@ -107,8 +107,8 @@ interface PreviewRow {
 const previewRows = ref<PreviewRow[]>([]);
 const previewFileErrors = ref<string[]>([]);
 const importedFileName = ref<string>('');
-// 파일 자체의 문제(데이터 없음·형식 미지원·손상 등). 사용자가 파일을 고쳐
-// 해결하는 내용이라 팝업이 아니라 임포트 영역 안에 표시한다.
+// Problems with the file itself (no data, unsupported format, corruption, etc.). Since the user
+// resolves these by fixing the file, show them inside the import area rather than a popup.
 const importFileProblem = ref<string>('');
 const isParsing = ref<boolean>(false);
 
@@ -136,7 +136,7 @@ const readFile = (file: File): Promise<{ text?: string; base64?: string }> =>
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('The file could not be read.'));
 
-    // Excel 은 바이너리라 base64 로 싣는다. CSV 는 텍스트 그대로 보낸다.
+    // Excel is binary, so send it as base64. CSV is sent as plain text.
     if (/\.(xlsx|xlsm|xls)$/i.test(file.name)) {
       reader.onload = e => {
         const result = String(e.target?.result ?? '');
@@ -149,7 +149,7 @@ const readFile = (file: File): Promise<{ text?: string; base64?: string }> =>
     reader.readAsText(file);
   });
 
-// 파일 하나가 그룹 상한을 넘기면 등록 자체가 거부되므로 미리 알린다.
+// If a single file exceeds the group limit, registration is rejected outright, so warn in advance.
 const buildPreview = (rows: ITabularImportRow[], fileErrors: string[]) => {
   const fields = rows.map(row => ({
     ...row.data,
@@ -172,14 +172,14 @@ const buildPreview = (rows: ITabularImportRow[], fileErrors: string[]) => {
     );
   }
 
-  // 문제가 남아 있으면 등록 대상으로 넘기지 않는다.
+  // If any problem remains, don't pass it on as a registration target.
   sourceConnectionStore.editConnections = isPreviewValid.value
     ? previewRows.value.map(row => ({ ...row.data }))
     : [];
 };
 
-// 임포트한 파일에 문제가 남아 있으면 등록을 막아야 한다. 막지 않으면 등록 대상이
-// 비워진 채로 진행돼 연결 없는 그룹이 조용히 만들어진다.
+// If the imported file still has problems, registration must be blocked. Otherwise it proceeds
+// with an empty registration target and a group with no connections is quietly created.
 const isImportBlocked = computed(
   () => hasPreview.value && !isPreviewValid.value,
 );
@@ -192,7 +192,7 @@ const invalidRows = computed(() =>
   previewRows.value.filter(row => row.errors.length > 0),
 );
 
-// 자격증명 값 자체는 화면에 내보내지 않는다. 어떤 방식인지만 알려 준다.
+// Never surface the credential value itself on screen. Only indicate which method is used.
 const describeAuth = (row: Record<string, string>) => {
   const methods: string[] = [];
   if (row.password) methods.push('Password');
@@ -216,8 +216,8 @@ const handleFileChange = async (event: Event) => {
       contentBase64: base64,
     });
 
-    // 파일 자체의 문제는 정상 응답에 실패 상태로 담겨 온다. 사용자가 고칠 수
-    // 있는 내용이므로 그대로 보여준다.
+    // Problems with the file itself arrive as a failure status inside a normal response. Since
+    // the user can fix them, show them as-is.
     if (data?.status?.code !== 200) {
       importedFileName.value = file.name;
       importFileProblem.value =
@@ -229,7 +229,7 @@ const handleFileChange = async (event: Event) => {
     importedFileName.value = file.name;
     buildPreview(result?.rows ?? [], result?.fileErrors ?? []);
   } catch (error) {
-    // 통신 실패처럼 파일을 고쳐 해결할 수 없는 문제만 팝업으로 알린다.
+    // Only problems that can't be fixed by editing the file, like a network failure, are shown in a popup.
     showErrorMessage(
       'Import Failed',
       toErrorMessage(error, 'The file could not be read.'),
@@ -418,8 +418,8 @@ watch(
               — {{ invalidRowCount }} row(s) need attention
             </span>
           </span>
-          <!-- 잘못된 파일을 올린 뒤 빠져나갈 길이 필요하다. 이것이 없으면
-               그룹만 등록하려 해도 등록 버튼이 계속 막힌다. -->
+          <!-- Need a way out after uploading a bad file. Without this, the register
+               button stays blocked even when registering just the group. -->
           <button
             type="button"
             class="preview-clear"

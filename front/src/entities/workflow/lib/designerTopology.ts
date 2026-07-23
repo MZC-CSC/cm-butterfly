@@ -5,15 +5,17 @@ import {
 import { serializeDesignerSequence } from '@/entities/workflow/lib/designerSerialize';
 
 /**
- * 저장된 워크플로우를 화면에 그릴 형태로 되돌린다.
+ * Reconstructs a saved workflow back into a form the canvas can draw.
  *
- * 저장돼 있는 것은 **선(`dependencies`)뿐**이다. TaskGroup 은 실행 단위가 아니라
- * 이름표라서, 상자를 어떻게 겹쳐 놨었는지는 남지 않는다. 그러니 되돌릴 때도 그룹을 보지
- * 않고 **선만 보고** 그림을 다시 세운다. 병렬이 있으면 병렬로 나오고, 갈래마다 길이가
- * 달라도 되고, 갈래 안에 또 병렬이 있어도 된다.
+ * All that is saved is the **edges (`dependencies`)**. A TaskGroup is a label, not
+ * an execution unit, so how the boxes were nested is not preserved. So when
+ * reconstructing we ignore the groups and rebuild the diagram from **the edges alone**.
+ * If there was parallelism it comes back as parallel, branches may differ in length,
+ * and a branch may itself contain more parallelism.
  *
- * 되돌린 그림이 원래 선과 정말 같은지는 마지막에 **직접 대조해서** 확인한다(§검증).
- * 규칙을 손으로 나열해 판정하지 않으므로, 내가 규칙을 잘못 세워서 조용히 틀릴 여지가 없다.
+ * At the end we verify the reconstructed diagram really matches the original edges by
+ * **comparing them directly** (see the verification section). Since we don't judge by
+ * hand-enumerating rules, there's no room for a wrong rule to make it silently incorrect.
  */
 
 export type ITopologyItem =
@@ -21,19 +23,19 @@ export type ITopologyItem =
   | {
       kind: 'parallel';
       groupName: string | null;
-      /** 갈래 하나하나가 다시 한 줄의 그림이다 (그 안에 또 병렬이 올 수 있다) */
+      /** Each branch is itself a linear diagram (which may contain more parallelism) */
       branches: ITopologyItem[][];
     };
 
 export interface ITopologyAnalysis {
   items: ITopologyItem[];
-  /** 화면이 이 그림을 그대로 그릴 수 있나 */
+  /** Whether the canvas can draw this diagram as-is */
   representable: boolean;
-  /** 그릴 수 없는 이유·정의의 흠. 감추지 말고 화면에 드러낸다 */
+  /** Reasons it can't be drawn / flaws in the definition. Surface them on screen, don't hide them */
   warnings: string[];
 }
 
-/** 저장할 때 상자 밖 task 하나를 감싸려고 만든 가상 그룹인가 */
+/** Whether this is a virtual group created on save to wrap a single ungrouped task */
 export function isVirtualRootGroup(groupName: string): boolean {
   return groupName.startsWith('__root_task_group_') && groupName.endsWith('__');
 }
@@ -92,7 +94,7 @@ export function analyzeTopology(
     return isVirtualRootGroup(only) ? null : only;
   };
 
-  /** 이 task 를 기다리는 task 들 */
+  /** Tasks that wait on this task */
   const successorsOf = (name: string): string[] =>
     flat
       .map(({ task }) => task.name)
@@ -101,11 +103,12 @@ export function analyzeTopology(
   let failed = false;
 
   /**
-   * 한 덩어리를 한 줄의 그림으로 푼다.
+   * Decomposes one region into a linear diagram.
    *
-   * `entryOutputs` 는 이 덩어리가 시작하기 전에 끝나 있어야 하는 task 들이다.
-   * 덩어리 안에서 동시에 시작할 수 있는 것이 둘 이상이면 그 지점이 병렬이고,
-   * 각 갈래를 다시 같은 방법으로 푼다(그래서 갈래 안의 병렬도 나온다).
+   * `entryOutputs` are the tasks that must have finished before this region can start.
+   * If more than one task in the region can start at the same time, that point is
+   * parallel, and each branch is decomposed the same way (which is how parallelism
+   * inside a branch comes out).
    */
   const decompose = (
     region: string[],
@@ -114,7 +117,7 @@ export function analyzeTopology(
   ): ITopologyItem[] => {
     if (failed) return [];
     if (depth > 50) {
-      // 서로 얽혀 더 쪼개지지 않는 그림. 여기까지 오면 그릴 수 없는 것이다.
+      // A diagram so tangled it won't decompose further. Reaching here means it can't be drawn.
       failed = true;
       return [];
     }
@@ -146,8 +149,8 @@ export function analyzeTopology(
         continue;
       }
 
-      // 여럿이 동시에 시작한다 = 병렬. 어디서 다시 합류하는지를 찾아 그 앞까지를
-      // 하나의 병렬 덩어리로 잡는다.
+      // Several tasks start at once = parallel. Find where they rejoin and take
+      // everything up to that point as one parallel region.
       const inRegion = new Set(starters);
       let tails = [...starters];
 
@@ -160,8 +163,8 @@ export function analyzeTopology(
             ),
         );
 
-        // 갈래의 끝을 **전부** 기다리는 것이 나오면 거기서 합류한다.
-        // 그 task 는 병렬 덩어리가 아니라 그 다음 항목이다.
+        // If a task waits on **all** of the branch tails, that's the join point.
+        // That task belongs to the next item, not to the parallel region.
         const joins = candidates.some(name =>
           sameSet(depsOf.get(name) ?? [], tails),
         );
@@ -173,7 +176,7 @@ export function analyzeTopology(
         );
       }
 
-      // 갈래 나누기 — 같은 task 에 닿는 갈래는 한 갈래다(그 안이 다시 병렬이다)
+      // Split into branches — branches that reach the same task are one branch (which is parallel within)
       const branchOf = new Map<string, number>();
       starters.forEach((name, index) => branchOf.set(name, index));
       const merge = (from: number, to: number) => {
@@ -211,7 +214,7 @@ export function analyzeTopology(
         const members = [...inRegion].filter(
           name => branchOf.get(name) === index,
         );
-        // 갈래가 통째로 원래 덩어리와 같으면 더 쪼개지지 않는다는 뜻이다
+        // If a branch is identical to the whole region, it means it won't decompose further
         if (members.length === inRegion.size && branchIndexes.length === 1) {
           failed = true;
           return [];
@@ -239,10 +242,10 @@ export function analyzeTopology(
     0,
   );
 
-  // ── 검증 ───────────────────────────────────────────────────────────────
-  // 규칙을 손으로 나열해 판정하지 않는다. 방금 세운 그림을 **다시 저장 형식으로
-  // 되돌려** 원래 선과 하나하나 대조한다. 하나라도 다르면 화면과 실제 실행이
-  // 달라진다는 뜻이므로 열지 않는다.
+  // ── Verification ──────────────────────────────────────────────────────
+  // We don't judge by hand-enumerating rules. We **serialize the diagram we just built
+  // back into the saved format** and compare it edge by edge with the original. If even
+  // one differs, the canvas and the actual execution would diverge, so we don't open it.
   let representable = !failed;
   if (representable) {
     const rebuilt = serializeDesignerSequence(
@@ -273,7 +276,7 @@ export function analyzeTopology(
   return { items, representable, warnings };
 }
 
-/** 대조용 최소 형태 — 이름과 상자 종류만 있으면 선을 뽑아낼 수 있다 */
+/** Minimal shape for comparison — the name and box kind are enough to derive the edges */
 function toShape(items: ITopologyItem[]): any[] {
   return items.map(item =>
     item.kind === 'task'

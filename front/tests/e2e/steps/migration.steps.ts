@@ -9,68 +9,69 @@ import { uniqueName } from '../support/naming';
 const { Given } = createBdd(test);
 
 /**
- * 마이그레이션 시나리오 전용 스텝 — 대부분의 단계는 각 도메인 스텝(auth/source/models/workflow/workload)을
- * 그대로 재사용하고, 여기에는 시나리오 종료 정리(teardown)만 둔다.
+ * Steps specific to the migration scenario — most steps reuse the per-domain steps
+ * (auth/source/models/workflow/workload) as-is, and this file holds only the scenario teardown.
  *
- * ★ 정리는 실제로 지워야 한다.
- *   예전 구현은 Page Object를 `as unknown as Record<...>` 로 캐스팅한 뒤 `goto?.()`·`selectInfra?.()`
- *   처럼 *존재하지 않는 메서드*를 옵셔널 호출해서, 아무것도 지우지 않고 조용히 통과했다(요금 누수).
- *   타입을 그대로 두고 실제 메서드를 부른다. 컴파일러가 오타를 잡게 하는 게 요점이다.
+ * ★ Cleanup must actually delete.
+ *   The old implementation cast the Page Object with `as unknown as Record<...>` and then optionally called
+ *   *non-existent methods* like `goto?.()` / `selectInfra?.()`, so it deleted nothing and quietly passed (cost leak).
+ *   Keep the type as-is and call the real methods. The point is to let the compiler catch typos.
  *
- *   각 삭제는 실패해도 테스트를 깨뜨리지 않지만(정리는 best-effort), 실패하면 반드시 로그로 남긴다 —
- *   조용히 넘어가면 리소스가 남은 걸 아무도 모른다.
+ *   A failed deletion does not break the test (cleanup is best-effort), but every failure must be logged —
+ *   if it slips by silently, no one knows a resource was left behind.
  */
 Given('생성된 리소스를 정리한다', async ({ page }) => {
   const infraName = scenarioState.infraName ?? workload.infraName;
 
-  // 1) 타깃 인프라(MCI) 삭제 — 요금 보호의 핵심
+  // 1) Delete the target infra (MCI) — the core of cost protection
   //
-  // ★ 두 가지를 *따로* 판정한다.
-  //    (a) 삭제 모달이 스스로 닫히는가 — 화면의 동작
-  //    (b) 인프라가 실제로 사라졌는가 — 자원의 결과
+  // ★ Judge two things *separately*.
+  //    (a) Does the delete modal close on its own — the screen behavior
+  //    (b) Did the infra actually disappear — the resource result
   //
-  //    (a)가 실패해도 (b)는 성공할 수 있다(자원은 지워졌는데 화면만 안 닫히는 경우). 실제로 그런 상태다.
-  //    그래서 (a)를 눈감아 주지 않는다 — 실패는 실패로 기록하고, 그래도 (b)는 끝까지 확인한다.
-  //    화면 결함을 테스트에서 우회해 통과시키면, 고쳐야 할 버그가 영영 안 보인다.
+  //    (a) can fail while (b) succeeds (the resource is deleted but the screen just does not close). That is the actual state.
+  //    So we do not turn a blind eye to (a) — record a failure as a failure, and still verify (b) all the way.
+  //    If a screen defect is worked around and passed in the test, the bug that needs fixing stays invisible forever.
   const wl = new WorkloadPage(page);
   await wl.gotoMci();
   await wl.expectMciListLoaded();
   await wl.selectMci(infraName);
   await wl.openDeleteModal();
-  // ★ Normal Delete 여야 한다(= cb-tumblebug `option=terminate`). 실제 VM을 종료하고 지운다.
+  // ★ It must be Normal Delete (= cb-tumblebug `option=terminate`). It actually terminates and removes the VM.
   //
-  //   Force Delete(`option=force`)는 **CSP 삭제 결과와 무관하게 메타데이터만 지운다** — 모달의 경고 배너가
-  //   그렇게 적혀 있다. 그걸로 정리하면 목록에서는 사라지는데 EC2는 계속 떠서 요금을 먹는다. 실제로 그렇게
-  //   버려진 인스턴스들이 며칠째 돌고 있었다. 정리는 *자원이 정말 없어지는* 것이어야 한다.
+  //   Force Delete (`option=force`) **removes only the metadata regardless of the CSP deletion result** — the modal's
+  //   warning banner says so. Cleaning up with that makes it disappear from the list while the EC2 keeps running and
+  //   accruing charges. Instances abandoned that way had actually been running for days. Cleanup must mean *the resource
+  //   truly goes away*.
   await wl.confirmDelete(infraName, 'normal');
 
   const modalClosed = await wl.deleteModalClosed();
 
-  // (b) 자원이 실제로 지워졌는지는 목록을 다시 방문해 확인한다. 이게 요금 보호의 실질이다.
+  // (b) Whether the resource was actually deleted is verified by revisiting the list. This is the substance of cost protection.
   await wl.expectInfraGone(infraName);
-  console.log(`[teardown] 타깃 인프라 삭제 확인: ${infraName}`);
+  console.log(`[teardown] target infra deletion confirmed: ${infraName}`);
 
-  // (a) 화면 결함은 여기서 드러낸다.
+  // (a) The screen defect is surfaced here.
   expect(
     modalClosed,
-    '삭제는 됐지만 삭제 모달이 스스로 닫히지 않았다 — 화면 결함이다.\n' +
-      'MciDeleteModal.handleConfirm 이 삭제 요청 하나를 동기로 붙들고 기다린다. 그런데 인프라 삭제는 클라우드\n' +
-      '자원을 실제로 거둬들이는 일이라 수 분이 걸리고, 게이트웨이가 60초에 끊는다(같은 요청을 API로 직접\n' +
-      '쏘면 504가 떨어지고, 그 뒤에 보면 자원은 지워져 있다). 그래서 화면은 응답을 영영 못 받고 모달이 닫히지\n' +
-      '않는다. 삭제를 비동기(접수 → 상태 폴링)로 바꿔야 한다.',
+    'The deletion happened but the delete modal did not close on its own — a screen defect.\n' +
+      'MciDeleteModal.handleConfirm holds one delete request synchronously and waits. But deleting an infra actually\n' +
+      'reclaims cloud resources, which takes several minutes, and the gateway cuts off at 60s (firing the same request\n' +
+      'directly via the API returns a 504, and checking afterward shows the resource is gone). So the screen never\n' +
+      'receives a response and the modal does not close. Deletion should be made async (accept → poll status).',
   ).toBeTruthy();
 
-  // 2) 소스그룹 삭제 — 소스 모델까지 만들었으면 커넥션 서버는 지운다(시나리오 7단계)
+  // 2) Delete the source group — if a source model was created, remove the connection servers too (scenario step 7)
   const groupName = uniqueName(sourceServer.name);
   try {
     const source = new SourceServicesPage(page);
     await source.goto();
     await source.selectGroup(groupName);
     await source.deleteSelectedGroup();
-    console.log(`[teardown] 소스그룹 삭제: ${groupName}`);
+    console.log(`[teardown] source group deleted: ${groupName}`);
   } catch (e) {
     console.warn(
-      `[teardown] ★ 소스그룹(${groupName}) 삭제 실패 — 수동 확인 필요:`,
+      `[teardown] ★ failed to delete source group (${groupName}) — manual check needed:`,
       (e as Error).message,
     );
   }
