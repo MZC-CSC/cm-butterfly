@@ -1,13 +1,13 @@
 /**
- * Composite Pattern 기반 Schema 분석기
- * 각 타입을 분석하여 적절한 Composite Component 타입을 결정
+ * Composite Pattern-based schema analyzer.
+ * Analyzes each type to determine the appropriate Composite Component type.
  */
 
 import type { SchemaAnalysisResult } from '../types/schemaComponent';
 
 export class SchemaAnalyzer {
   /**
-   * Schema를 분석하여 타입을 결정
+   * Analyzes a schema and determines its type.
    */
   static analyzeSchema(schema: any, data: any = {}): SchemaAnalysisResult {
     if (!schema) {
@@ -18,7 +18,7 @@ export class SchemaAnalyzer {
       };
     }
 
-    // 기본 타입 분석
+    // Analyze basic types
     if (this.isBasicType(schema)) {
       return {
         type: schema.type,
@@ -27,17 +27,17 @@ export class SchemaAnalyzer {
       };
     }
 
-    // Object 타입 분석
+    // Analyze object types
     if (schema.type === 'object' && schema.properties) {
       return this.analyzeObjectType(schema, data);
     }
 
-    // Array 타입 분석
+    // Analyze array types
     if (schema.type === 'array' && schema.items) {
       return this.analyzeArrayType(schema, data);
     }
 
-    // 기본값
+    // Default
     return {
       type: 'string',
       complexity: 'basic',
@@ -46,27 +46,27 @@ export class SchemaAnalyzer {
   }
 
   /**
-   * 기본 타입인지 확인
+   * Checks whether it is a basic type.
    */
   private static isBasicType(schema: any): boolean {
     return ['string', 'integer', 'boolean'].includes(schema.type);
   }
 
   /**
-   * Object 타입 분석
+   * Analyzes an object type.
    */
   private static analyzeObjectType(schema: any, data: any): SchemaAnalysisResult {
     const properties = Object.keys(schema.properties || {});
     let hasNestedStructures = false;
     let hasComplexTypes = false;
 
-    // 각 property 분석
+    // Analyze each property
     Object.values(schema.properties || {}).forEach((prop: any) => {
       if (prop.type === 'object' || prop.type === 'array') {
         hasNestedStructures = true;
       }
       
-      // 실제 데이터에서 복잡한 구조 확인
+      // Check the actual data for complex structures
       if (data && typeof data === 'object') {
         Object.values(data).forEach((value: any) => {
           if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
@@ -88,21 +88,21 @@ export class SchemaAnalyzer {
   }
 
   /**
-   * Array 타입 분석
+   * Analyzes an array type.
    */
   private static analyzeArrayType(schema: any, data: any): SchemaAnalysisResult {
     const items = Array.isArray(data) ? data : [];
     let hasNestedStructures = false;
     let hasComplexTypes = false;
 
-    // Array item schema 분석
+    // Analyze the array item schema
     if (schema.items) {
       const itemAnalysis = this.analyzeSchema(schema.items, {});
       hasNestedStructures = itemAnalysis.hasNestedStructures;
       hasComplexTypes = itemAnalysis.type === 'nestedObject' || itemAnalysis.type === 'nestedObjectArray';
     }
 
-    // 실제 데이터에서 복잡한 구조 확인
+    // Check the actual data for complex structures
     items.forEach((item: any) => {
       if (typeof item === 'object' && item !== null) {
         Object.values(item).forEach((value: any) => {
@@ -113,7 +113,7 @@ export class SchemaAnalyzer {
       }
     });
 
-    // Array 타입 결정
+    // Determine the array type
     let type: 'basicArray' | 'basicObjectArray' | 'nestedObjectArray' = 'basicArray';
     
     if (schema.items?.type === 'object') {
@@ -133,7 +133,7 @@ export class SchemaAnalyzer {
   }
 
   /**
-   * 타입별 색상 반환
+   * Returns the color for a given type.
    */
   static getTypeColor(type: string): string {
     const colorMap: Record<string, string> = {
@@ -151,7 +151,7 @@ export class SchemaAnalyzer {
   }
 
   /**
-   * 타입별 아이콘 반환
+   * Returns the icon for a given type.
    */
   static getTypeIcon(type: string): string {
     const iconMap: Record<string, string> = {
@@ -169,15 +169,15 @@ export class SchemaAnalyzer {
   }
 
   /**
-   * 복잡도별 설명 반환
+   * Returns the description for a given complexity level.
    */
   static getComplexityDescription(complexity: string): string {
     const descriptions: Record<string, string> = {
-      'basic': '기본 타입 - 단순한 값',
-      'composite': '복합 타입 - 기본 타입들의 조합',
-      'complex': '복잡한 타입 - 중첩된 구조 포함'
+      'basic': 'Basic type - a simple value',
+      'composite': 'Composite type - a combination of basic types',
+      'complex': 'Complex type - includes nested structure'
     };
     
-    return descriptions[complexity] || '알 수 없는 타입';
+    return descriptions[complexity] || 'Unknown type';
   }
 }

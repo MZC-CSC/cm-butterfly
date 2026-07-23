@@ -38,7 +38,7 @@ export default defineComponent({
     const editorFormElement = ref<HTMLElement>();
     const isInitialized = ref(false);
 
-    // Component Name 관련 메서드들
+    // Component Name related methods
     const getComponentNameTitle = () => {
       return (taskEditorModel.componentNameModel as any)?.context?.title || '';
     };
@@ -61,17 +61,17 @@ export default defineComponent({
       return (taskEditorModel.componentNameModel as any)?.context?.model?.onBlur;
     };
 
-    // Path Params 관련 메서드들
+    // Path Params related methods
     const getPathParamsContext = () => {
       return (taskEditorModel.paramsContext as any)?.pathParams || null;
     };
 
-    // Query Params 관련 메서드들
+    // Query Params related methods
     const getQueryParamsContext = () => {
       return (taskEditorModel.paramsContext as any)?.queryParams || null;
     };
 
-    // Shortcut 관련 함수들
+    // Shortcut related functions
     const openShortCut = (e: MouseEvent) => {
       shortCutModel.value.xPos = e.clientX;
       shortCutModel.value.yPos = e.clientY;
@@ -81,7 +81,7 @@ export default defineComponent({
     const deleteEntity = (e: MouseEvent, index: number) => {
       e.preventDefault();
       shortCutModel.value.delete.callback = () => {
-        // 첫 번째 엔티티의 values 배열에서 삭제
+        // Delete from the values array of the first entity
         const firstEntity = taskEditorModel.formContext.value[0];
         if (firstEntity && 'context' in firstEntity && 'values' in firstEntity.context) {
           taskEditorModel.deleteEntity((firstEntity.context as any).values, index);
@@ -97,12 +97,12 @@ export default defineComponent({
     ) => {
       e.preventDefault();
       shortCutModel.value.delete.callback = () => {
-        // 배열에서 해당 인덱스의 요소 삭제
+        // Delete the element at the given index from the array
         const arrayIndex = taskEditorModel.formContext.value.findIndex(item => 
           item.type === 'accordion' && item.context.values === targetArr
         );
         if (arrayIndex !== -1) {
-          // taskEditorModel에 deleteArrayElement 함수가 없을 수 있으므로 직접 처리
+          // taskEditorModel may not have a deleteArrayElement function, so handle it directly
           const accordionItem = taskEditorModel.formContext.value[arrayIndex];
           if (accordionItem.type === 'accordion' && 'values' in accordionItem.context) {
             (accordionItem.context as any).values.splice(targetIndex, 1);
@@ -124,7 +124,7 @@ export default defineComponent({
       }
     }
 
-    // 중첩 배열 요소 추가
+    // Add a nested array element
     const addNestedArrayElement = (nestedField: any) => {
       console.log('=== addNestedArrayElement START ===');
       console.log('addNestedArrayElement called with:', nestedField);
@@ -136,26 +136,26 @@ export default defineComponent({
       
       if (nestedField.context.values && nestedField.schema?.items) {
         console.log('Creating new element...');
-        // 스키마 기반의 새로운 요소를 생성
+        // Create a new element based on the schema
         const newElement = taskEditorModel.createAccordionSlot({}, nestedField.context.values.length, nestedField.schema.items);
         console.log('Created new element:', newElement);
         
         nestedField.context.values.push(newElement);
         
-        // 새로 추가된 항목의 인덱스를 저장하여 자동으로 열리도록 함
+        // Store the index of the newly added item so it opens automatically
         const newIndex = nestedField.context.values.length - 1;
         nestedField.context.lastAddedIndex = newIndex;
         
         console.log('Added new element with schema-based content, values length:', nestedField.context.values.length, 'newIndex:', newIndex);
         console.log('New element content:', newElement);
         
-        // 모든 중첩 배열 필드에 대한 디버깅
+        // Debug all nested array fields
         console.log('=== Nested Array Field Debug ===');
         console.log('Field subject:', nestedField.context?.subject);
         console.log('Field type:', nestedField.type);
         console.log('Field values after add:', nestedField.context.values);
         
-        // 모든 중첩 배열 필드에 대한 즉시 DOM 분석
+        // Immediate DOM analysis for all nested array fields
         console.log('=== Immediate DOM Analysis for', nestedField.context?.subject, '===');
         const allNestedElements = document.querySelectorAll('.nested-accordion-field');
         console.log('All nested-accordion-field elements:', allNestedElements.length);
@@ -170,7 +170,7 @@ export default defineComponent({
           });
         });
         
-        // 중첩 배열 필드 디버깅 (범용)
+        // Nested array field debugging (generic)
         if (nestedField.context?.subject) {
           console.log(`=== ${nestedField.context.subject} Add Item Debug ===`);
           console.log(`${nestedField.context.subject} field:`, nestedField);
@@ -178,7 +178,7 @@ export default defineComponent({
           console.log(`${nestedField.context.subject} schema:`, nestedField.schema);
           console.log(`${nestedField.context.subject} values after add:`, nestedField.context.values);
           
-          // 즉시 DOM 분석 실행
+          // Run immediate DOM analysis
           console.log(`=== Immediate ${nestedField.context.subject} DOM Analysis ===`);
           const allNestedElements = document.querySelectorAll('.nested-accordion-field');
           console.log('All nested-accordion-field elements (immediate):', allNestedElements.length);
@@ -194,12 +194,12 @@ export default defineComponent({
           });
         }
         
-        // 중첩 배열 필드 DOM 분석 (범용)
+        // Nested array field DOM analysis (generic)
         if (nestedField.context?.subject) {
           setTimeout(() => {
             console.log(`=== ${nestedField.context.subject} DOM Analysis ===`);
             
-            // 모든 가능한 중첩 레벨의 요소들을 찾기
+            // Find elements at every possible nesting level
             const allNestedElements = document.querySelectorAll('.nested-accordion-field');
             console.log('All nested-accordion-field elements:', allNestedElements.length);
             
@@ -213,11 +213,11 @@ export default defineComponent({
               });
             });
             
-            // level-2 또는 level-3 클래스를 사용할 수 있음
+            // May use the level-2 or level-3 class
             const targetElements = document.querySelectorAll('.nested-accordion-field.level-2, .nested-accordion-field.level-3');
             console.log(`Found ${nestedField.context.subject} elements (level-2/3):`, targetElements.length);
             
-            // 모든 level 클래스 확인
+            // Check all level classes
             const level2Elements = document.querySelectorAll('.nested-accordion-field.level-2');
             const level3Elements = document.querySelectorAll('.nested-accordion-field.level-3');
             console.log('Level-2 elements:', level2Elements.length);
@@ -231,7 +231,7 @@ export default defineComponent({
                 className: element.className
               });
               
-              // 내부 field-group 요소들도 확인
+              // Check the inner field-group elements too
               const fieldGroups = element.querySelectorAll('.field-group');
               console.log(`${nestedField.context.subject} element ${index} field-groups:`, fieldGroups.length);
               fieldGroups.forEach((fg, fgIndex) => {
@@ -242,7 +242,7 @@ export default defineComponent({
                   className: fg.className
                 });
                 
-                // field-title-box와 field-content-box 폭 확인
+                // Check the width of field-title-box and field-content-box
                 const titleBox = fg.querySelector('.field-title-box');
                 const contentBox = fg.querySelector('.field-content-box');
                 if (titleBox) {
@@ -264,7 +264,7 @@ export default defineComponent({
           }, 100);
         }
         
-        // routingTable DOM 요소의 실제 폭 측정
+        // Measure the actual width of the routingTable DOM element
         if (nestedField.context?.subject === 'routingTable') {
           setTimeout(() => {
             const routingTableElements = document.querySelectorAll('.nested-accordion-field.level-2');
@@ -277,7 +277,7 @@ export default defineComponent({
                 className: element.className
               });
               
-              // 내부 field-group 요소들도 확인
+              // Check the inner field-group elements too
               const fieldGroups = element.querySelectorAll('.field-group');
               console.log(`routingTable element ${index} field-groups:`, fieldGroups.length);
               fieldGroups.forEach((fg, fgIndex) => {
@@ -288,7 +288,7 @@ export default defineComponent({
                   className: fg.className
                 });
                 
-                // field-title-box와 field-content-box 폭 확인
+                // Check the width of field-title-box and field-content-box
                 const titleBox = fg.querySelector('.field-title-box');
                 const contentBox = fg.querySelector('.field-content-box');
                 if (titleBox) {
@@ -319,11 +319,11 @@ export default defineComponent({
       }
     };
 
-    // 중첩 배열 요소 삭제
+    // Delete a nested array element
     const deleteNestedArrayElement = (nestedField: any, index: number) => {
       if (nestedField.context.values && nestedField.context.values.length > index) {
         nestedField.context.values.splice(index, 1);
-        // 인덱스 재정렬
+        // Reindex
         nestedField.context.values.forEach((item: any, idx: number) => {
           if (item.header) {
             item.header.title = idx.toString();
@@ -332,28 +332,28 @@ export default defineComponent({
       }
     };
 
-    // 필수 필드 스타일 클래스 생성
+    // Generate the style class for required fields
     function getRequiredClass(isRequired: boolean): string {
       return isRequired ? 'required-field' : '';
     }
 
-    // 필드 설명 표시 (이제 hover tooltip으로 변경)
+    // Show the field description (now changed to a hover tooltip)
     function getFieldDescription(description?: string, example?: string): string {
       let desc = description || '';
       if (example) {
-        desc += desc ? ` (예: ${example})` : `예: ${example}`;
+        desc += desc ? ` (e.g. ${example})` : `e.g. ${example}`;
       }
       return desc;
     }
 
-    // 초기화 로직
+    // Initialization logic
     onBeforeMount(async () => {
       console.log('=== CommonTaskEditor Task Loaded ===');
       console.log('Task Name:', props.step.name);
       console.log('Task Type:', props.step.type);
       console.log('Component Type:', props.step.componentType);
       
-      // Model 정보 로깅
+      // Log model information
       const modelInfo = {
         schema: props.step.properties.model || {},
         existingData: props.step.properties.existingData || {},
@@ -364,7 +364,7 @@ export default defineComponent({
       console.log('Model Information:', modelInfo);
       console.log('===============================');
 
-      // Schema 체크
+      // Schema check
       const hasSchema = !!props.step.properties.model;
       const hasProperties = hasSchema && !!(props.step.properties.model as any).properties;
       const schemaKeys = hasSchema ? Object.keys(props.step.properties.model as any) : [];
@@ -383,12 +383,12 @@ export default defineComponent({
         console.log('Schema required fields:', (props.step.properties.model as any).required);
       }
 
-      // 1단계: Task Component Model 설정 (기본 스키마)
+      // Step 1: Set the Task Component Model (base schema)
       if (props.step.properties.model && Object.keys(props.step.properties.model as any).length > 0) {
         console.log('✅ Using step.properties.model as base schema');
         taskEditorModel.setTaskComponentModel(props.step.properties.model as JsonSchema);
       } else {
-        // workflowStore에서 task component 찾기
+        // Find the task component in the workflowStore
         const taskComponent = useWorkflowStore().taskComponents.find(
           (tc: any) => tc.name === props.step.name
         );
@@ -405,7 +405,7 @@ export default defineComponent({
         }
       }
 
-      // 2단계: 실제 Task Data와 매칭
+      // Step 2: Match against the actual Task Data
       const taskData = props.step.properties.originalData?.request_body || 
                       props.step.properties.existingData || 
                       {};
@@ -431,7 +431,7 @@ export default defineComponent({
       isInitialized.value = true;
     });
 
-    // FormContext 변화 감지
+    // Detect FormContext changes
     watch(
       () => taskEditorModel.formContext,
       (newFormContext) => {
@@ -2653,7 +2653,7 @@ select.invalid {
     }
   }
   
-  /* 중첩 배열 필드들에 대한 스타일 */
+  /* Styles for nested array fields */
   .field-group {
     display: flex;
     width: 100%;
@@ -2690,7 +2690,7 @@ select.invalid {
     }
   }
   
-  /* nested-accordion-field 내부의 accordion-actions 스타일 */
+  /* accordion-actions styles inside nested-accordion-field */
   .accordion-actions {
     display: flex;
     justify-content: flex-end;
@@ -2701,7 +2701,7 @@ select.invalid {
   }
 }
 
-/* nested-accordion-field level-2 스타일 (중첩 배열 필드들) */
+/* nested-accordion-field level-2 styles (nested array fields) */
 .nested-accordion-field.level-2 {
   margin: 8px 0;
   width: 100% !important;
@@ -2762,7 +2762,7 @@ select.invalid {
     margin-left: auto;
   }
   
-  /* field-group에 대한 직접적인 스타일 적용 */
+  /* Apply styles directly to field-group */
   .field-group {
     display: flex !important;
     width: 100% !important;
@@ -2829,7 +2829,7 @@ select.invalid {
   padding-left: 6px;
 }
 
-/* level-3 accordion-part 스타일 */
+/* level-3 accordion-part styles */
 .accordion-part.level-3 {
   margin: 8px 0;
   
@@ -2964,7 +2964,7 @@ select.invalid {
   }
 }
 
-/* 중첩 배열 내부의 모든 필드에 대한 강제 스타일 적용 */
+/* Force styles onto every field inside a nested array */
 .accordion-item-content .field-group {
   display: flex !important;
   width: 100% !important;
@@ -3001,7 +3001,7 @@ select.invalid {
   }
 }
 
-/* routingTable 등 더 깊은 중첩 레벨의 필드들에 대한 강제 스타일 적용 */
+/* Force styles onto fields at deeper nesting levels such as routingTable */
 .accordion-item-content .accordion-item-content .field-group {
   display: flex !important;
   width: 100% !important;
@@ -3038,7 +3038,7 @@ select.invalid {
   }
 }
 
-/* level-3 중첩 레벨의 필드들에 대한 강제 스타일 적용 */
+/* Force styles onto fields at the level-3 nesting level */
 .nested-accordion-field.level-3 .field-group {
   display: flex !important;
   width: 100% !important;
@@ -3075,7 +3075,7 @@ select.invalid {
   }
 }
 
-/* level-2 중첩 레벨의 필드들에 대한 강제 스타일 적용 */
+/* Force styles onto fields at the level-2 nesting level */
 .nested-accordion-field.level-2 .field-group {
   display: flex !important;
   width: 100% !important;
@@ -3164,12 +3164,12 @@ select.invalid {
   }
 }
 
-/* 체크박스 스타일 조정 */
+/* Checkbox style adjustments */
 :deep(.p-checkbox) {
   margin-top: 8px;
 }
 
-/* Key-Value Input 스타일 */
+/* Key-Value Input styles */
 .key-value-input-container {
   display: flex;
   flex-direction: column;

@@ -60,11 +60,25 @@ function handleSelectVmListTableRow(id: string) {
           <template #detail>
             <div class="tab-section-header">
               <p>Workload Information</p>
+              <!--
+                **These two are placeholders and stay disabled.** The working controls are
+                tabs of the same name (`Evaluate Perf`, `Estimate Cost`) inside Server.
+                Screen automation reaches for these first because the names match, and then
+                reports a button that will not respond, so name them for what they are.
+              -->
               <div class="flex gap-1.5">
-                <p-button style-type="tertiary" :disabled="true">
+                <p-button
+                  data-testid="workload-detail-evaluate-perf-placeholder"
+                  style-type="tertiary"
+                  :disabled="true"
+                >
                   Evaluate Perf
                 </p-button>
-                <p-button style-type="tertiary" :disabled="true">
+                <p-button
+                  data-testid="workload-detail-estimate-cost-placeholder"
+                  style-type="tertiary"
+                  :disabled="true"
+                >
                   Estimate Cost
                 </p-button>
               </div>

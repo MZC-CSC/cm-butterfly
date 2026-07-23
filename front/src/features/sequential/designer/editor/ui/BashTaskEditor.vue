@@ -24,7 +24,7 @@
         placeholder="e.g. echo 'hello world'"
         @input="onCommand"
       ></textarea>
-      <p class="hint">BashOperator로 실행될 셸 명령입니다.</p>
+      <p class="hint">Shell command to be run by BashOperator.</p>
     </div>
   </div>
 </template>

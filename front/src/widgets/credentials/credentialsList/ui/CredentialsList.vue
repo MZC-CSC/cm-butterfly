@@ -16,6 +16,7 @@ import {
   insertDynamicComponent,
   showErrorMessage,
   showSuccessMessage,
+  toErrorMessage,
 } from '@/shared/utils';
 import DynamicTableIconButton from '@/shared/ui/Button/dynamicIconButton/DynamicTableIconButton.vue';
 import { useDynamicTableHeight } from '@/shared/hooks/table/useDynamicTableHeight';
@@ -39,10 +40,10 @@ const emit = defineEmits([
 const { tableModel, credentials, initToolBoxTableModel, configStore } =
   useCredentialsListModel();
 
-// API 호출 인스턴스 생성 (loading 상태 활용)
+// create the API call instance (uses its loading state)
 const credentialListApi = useGetCredentialList();
 
-// tableOptions를 먼저 정의 (useDynamicTableHeight에서 참조하므로)
+// define tableOptions first (referenced by useDynamicTableHeight)
 const tableOptions = ref({
   sortable: true,
   sortBy: '',
@@ -51,7 +52,7 @@ const tableOptions = ref({
   pageSize: 10,
 });
 
-// displayItems를 사용 (items보다 반응성이 좋음)
+// use displayItems (more reactive than items)
 const itemCount = computed(() => {
   const count = tableModel.tableState.displayItems?.length ?? 0;
   return count;
@@ -61,7 +62,7 @@ const { dynamicHeight, minHeight, maxHeight, config } = useDynamicTableHeight(
   itemCount,
   computed(() => tableOptions.value.pageSize),
   {
-    minTableHeight: 193,  // 기본 최소 높이 (1개 row 기준)
+    minTableHeight: 193,  // default minimum height (based on 1 row)
   },
 );
 
@@ -70,7 +71,7 @@ const { toolboxTableRef, adjustedDynamicHeight } = useToolboxTableHeight(
 );
 
 const isDataLoaded = ref(false);
-const tableKey = ref(0); // 컴포넌트 재렌더링을 위한 key
+const tableKey = ref(0); // key to force component re-render
 
 onBeforeMount(() => {
   initToolBoxTableModel();
@@ -103,28 +104,27 @@ async function getCredentialList() {
   isDataLoaded.value = false;
   try {
     const res = await credentialListApi.execute();
-    
-    if (res.data.responseData) {
-      configStore.setConfig(res.data.responseData.credential);
 
-      // 테이블 데이터 초기화
-      tableModel.tableState.displayItems =
-        res.data.responseData.credential.map((item: any) => ({
-          configName: item.CredentialName, // 추가
-          CredentialName: item.CredentialName,
-          ProviderName: item.ProviderName,
-        }));
-    }
-    
+    // When nothing is registered the credential key is null or absent. That is not an error, so
+    // treat it as an empty list. Previously null.map() threw here and fell into the catch, which
+    // reported a load failure on a perfectly good response.
+    const credentials = res.data.responseData?.credential ?? [];
+    configStore.setConfig(credentials);
+    tableModel.tableState.displayItems = credentials.map((item: any) => ({
+      configName: item.CredentialName,
+      CredentialName: item.CredentialName,
+      ProviderName: item.ProviderName,
+    }));
+
     nextTick(() => {
       isDataLoaded.value = true;
-      // 데이터 로드 후 컴포넌트 재렌더링
+      // re-render the component after data loads
       tableKey.value++;
     });
   } catch (e: any) {
     showErrorMessage(
       'Error',
-      e.errorMsg || 'Credential 목록을 불러오는 데 실패했습니다.',
+      toErrorMessage(e, 'Failed to load the credential list.'),
     );
     isDataLoaded.value = true;
   }
@@ -168,7 +168,7 @@ function handleSelectedIndex(selectedIndex: number) {
     return;
   }
 
-  // Proxy 객체를 일반 객체로 변환
+  // convert the Proxy object to a plain object
   const plainData = { ...selectedData };
 
   console.log('handleSelectedIndex - plainData:', plainData);
@@ -177,7 +177,7 @@ function handleSelectedIndex(selectedIndex: number) {
 }
 
 function handleChange() {
-  // 필요 시 구현
+  // implement when needed
 }
 
 function handleAddCredential() {
@@ -215,7 +215,7 @@ async function handleDeleteCredentials() {
   );
 
   if (selectedCredentialIds.length === 0) {
-    showErrorMessage('Error', '삭제할 Credential을 선택하지 않았습니다.');
+    showErrorMessage('Error', 'No Credential selected to delete.');
     return;
   }
 
@@ -224,51 +224,51 @@ async function handleDeleteCredentials() {
       const { data } = await useDeleteCredentials(credentialName).execute();
 
       if (data.status?.code === 200 && data.responseData?.Result === 'true') {
-        // Store에서 해당 Credential 제거
+        // remove the Credential from the store
         configStore.removeCredentials([credentialName]);
 
         showSuccessMessage(
           'Success',
-          `Credential '${credentialName}'이(가) 성공적으로 삭제되었습니다.`,
+          `Credential '${credentialName}' deleted successfully.`,
         );
       } else {
         showErrorMessage(
           'Error',
           data.status?.message ||
-            `Credential '${credentialName}' 삭제에 실패했습니다.`,
+            `Failed to delete Credential '${credentialName}'.`,
         );
       }
     }
 
-    // 모든 작업이 완료되면 리스트 새로고침
+    // refresh the list once all operations are done
     await getCredentialList();
 
-    // 선택 상태 초기화
+    // reset the selection state
     selectIndex.value = [];
   } catch (error: any) {
     showErrorMessage(
       'Error',
-      error.message || '삭제 요청 중 오류가 발생했습니다.',
+      error.message || 'An error occurred during the delete request.',
     );
   } finally {
-    // 모달 닫기
+    // close the modal
     modals.alertModalState.open = false;
   }
 }
 </script>
 
 <template>
-  <div>
+  <div data-testid="credential-list">
     <p-horizontal-layout :key="tableKey" :height="adjustedDynamicHeight">
       <template #container="{ height }">
-        <!-- 로딩 중일 때 스피너 표시 -->
+        <!-- show a spinner while loading -->
         <table-loading-spinner
           :loading="credentialListApi.isLoading.value"
           :height="height"
           message="Loading credentials..."
         />
         
-        <!-- 로딩 완료 후 테이블 표시 -->
+        <!-- show the table after loading completes -->
         <p-toolbox-table
           v-if="!credentialListApi.isLoading.value"
           ref="toolboxTableRef"
@@ -293,6 +293,7 @@ async function handleDeleteCredentials() {
             <p-button
               style-type="primary"
               icon-left="ic_plus_bold"
+              data-testid="credential-add"
               @click="handleAddCredential"
             >
               Add
@@ -302,7 +303,7 @@ async function handleDeleteCredentials() {
       </template>
     </p-horizontal-layout>
 
-    <!-- 삭제 확인 모달 -->
+    <!-- delete confirmation modal -->
     <p-button-modal
       v-model="modals.alertModalState.open"
       :visible="modals.alertModalState.open"

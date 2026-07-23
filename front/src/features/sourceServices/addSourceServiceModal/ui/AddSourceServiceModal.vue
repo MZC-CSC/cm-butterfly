@@ -27,6 +27,8 @@ const emit = defineEmits([
 ]);
 
 const isDisabled = ref<boolean>(false);
+// Don't allow registration while the imported file still has unresolved issues.
+const isImportBlocked = ref<boolean>(false);
 
 const registerSourceGroup = useRegisterSourceGroup<{ request: any }, any>(null);
 
@@ -36,17 +38,42 @@ const state = reactive({
 });
 
 watchEffect(() => {
-  state.sourceServiceName && state.sourceServiceName.length > 0
-    ? (isDisabled.value = true)
-    : (isDisabled.value = false);
+  isDisabled.value =
+    !!state.sourceServiceName &&
+    state.sourceServiceName.length > 0 &&
+    !isImportBlocked.value;
 });
+
+const handleImportBlocked = (blocked: boolean) => {
+  isImportBlocked.value = blocked;
+};
 
 const handleSourceServiceInfo = (value: any) => {
   state.sourceServiceName = value.sourceServiceName;
   state.description = value.description;
 };
 
+// Only prompt again when the toggle is on to add connections but none were actually added.
+// If the toggle is off, the intent to register just the group is already clear.
+const isConfirmNoConnectionOpen = ref<boolean>(false);
+
 const handleConfirm = async () => {
+  if (
+    sourceConnectionStore.withSourceConnection &&
+    sourceConnectionStore.editConnections.length === 0
+  ) {
+    isConfirmNoConnectionOpen.value = true;
+    return;
+  }
+  await registerGroup();
+};
+
+const handleConfirmNoConnection = async () => {
+  isConfirmNoConnectionOpen.value = false;
+  await registerGroup();
+};
+
+const registerGroup = async () => {
   console.log(
     '[AddSourceServiceModal] handleConfirm - BEFORE map, editConnections:',
     JSON.stringify(sourceConnectionStore.editConnections, null, 2),
@@ -130,6 +157,7 @@ const handleConnectionModal = (value: boolean) => {
       <template #body>
         <update-source-service
           :is-edit="false"
+          @update:import-blocked="handleImportBlocked"
           :loading="registerSourceGroup.isLoading.value"
           @update:is-connection-modal-opened="handleConnectionModal"
           @update:source-servie-info="handleSourceServiceInfo"
@@ -139,9 +167,26 @@ const handleConnectionModal = (value: boolean) => {
         <span>{{ i18n.t('COMPONENT.BUTTON_MODAL.CANCEL') }}</span>
       </template>
       <template #confirm-button>
-        <span>{{ i18n.t('COMPONENT.BUTTON_MODAL.ADD') }}</span>
+        <span data-testid="source-service-confirm">{{
+          i18n.t('COMPONENT.BUTTON_MODAL.ADD')
+        }}</span>
       </template>
     </p-button-modal>
+
+    <!-- Only shown when the toggle is on to add connections but none were added. -->
+    <p-button-modal
+      v-if="isConfirmNoConnectionOpen"
+      :visible="isConfirmNoConnectionOpen"
+      size="sm"
+      backdrop
+      header-title="Register the source service without any connection?"
+      :hide-body="true"
+      :hide-header-close-button="true"
+      data-testid="source-service-no-connection-confirm"
+      @confirm="handleConfirmNoConnection"
+      @cancel="isConfirmNoConnectionOpen = false"
+      @close="isConfirmNoConnectionOpen = false"
+    />
   </div>
 </template>
 

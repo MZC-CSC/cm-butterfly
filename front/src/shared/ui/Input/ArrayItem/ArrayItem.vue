@@ -28,7 +28,7 @@ const props = withDefaults(defineProps<IProps>(), {
   defaultExpanded: true,
 });
 
-// 접기/펼치기 상태 관리
+// Manage collapse/expand state
 const isExpanded = ref(props.defaultExpanded);
 const expandedItems = ref<Set<number>>(new Set());
 
@@ -68,7 +68,7 @@ const isItemExpanded = (index: number) => {
         :key="fieldIndex"
         class="field-group-vertical border-bottom"
       >
-      <!-- InputContext인 경우 -->
+      <!-- InputContext case -->
       <div v-if="field.type === 'input'" class="field-group flex">
         <div class="field-row">
           <div class="field-title-box">
@@ -84,7 +84,7 @@ const isItemExpanded = (index: number) => {
         </div>
       </div>
       
-      <!-- ArrayContext인 경우 -->
+      <!-- ArrayContext case -->
       <div v-else-if="field.type === 'array'" class="field-group-vertical">
         <div class="field-title-box" @click="toggleItemExpanded(fieldIndex)" :class="{ clickable: true }">
           <span class="expand-icon" :class="{ expanded: isItemExpanded(fieldIndex) }">
@@ -112,7 +112,7 @@ const isItemExpanded = (index: number) => {
                 :key="subFieldIndex"
                 class="field-group-vertical border-bottom"
               >
-                <!-- InputContext인 경우 -->
+                <!-- InputContext case -->
                 <div v-if="subField.type === 'input'" class="field-group flex">
                   <div class="field-row">
                     <div class="field-title-box">
@@ -133,7 +133,7 @@ const isItemExpanded = (index: number) => {
         </div>
       </div>
       
-      <!-- NestedObjectContext인 경우 -->
+      <!-- NestedObjectContext case -->
       <div v-else-if="field.type === 'nestedObject'" class="field-group-vertical">
         <div class="field-title-box" @click="toggleItemExpanded(fieldIndex + 10000)" :class="{ clickable: true }">
           <span class="expand-icon" :class="{ expanded: isItemExpanded(fieldIndex + 10000) }">
@@ -161,7 +161,7 @@ const isItemExpanded = (index: number) => {
                 :key="subNestedIndex"
                 class="field-group-vertical border-bottom"
               >
-                <!-- InputContext인 경우 -->
+                <!-- InputContext case -->
                 <div v-if="subNestedField.type === 'input'" class="field-group flex">
                   <div class="field-row">
                     <div class="field-title-box">
@@ -295,7 +295,7 @@ const isItemExpanded = (index: number) => {
     width: 100%;
   }
   
-  /* field-group-vertical 내부의 field-group은 가로 배치 */
+  /* field-group inside field-group-vertical is laid out horizontally */
   .field-group {
     display: flex;
     flex-direction: row;
@@ -337,7 +337,7 @@ const isItemExpanded = (index: number) => {
   }
 }
 
-/* flex 클래스가 있는 field-group은 가로 배치 강제 */
+/* Force horizontal layout on a field-group that has the flex class */
 .field-group.flex {
   display: flex;
   flex-direction: row;

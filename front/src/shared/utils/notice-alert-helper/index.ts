@@ -20,6 +20,23 @@ export const showErrorMessage = (errorTitle: string, errorMsg: string) => {
   }
 };
 
+/**
+ * Reduce whatever lands in a catch block to one human-readable message.
+ *
+ * useAxiosWrapper rejects HTTP failures with `{error, errorMsg, status}` — not an Error instance —
+ * while a genuine exception thrown inside then() (a TypeError, say) arrives as a plain Error.
+ * Reading `e.errorMsg.value` straight out of a catch therefore throws *again* on the second kind,
+ * which leaves the screen stuck loading. Normalising here removes that secondary failure.
+ */
+export const toErrorMessage = (e: any, fallback: string): string => {
+  const msg = e?.errorMsg;
+  // Handles both the ref({value}) shape and a plain string.
+  const unwrapped = msg && typeof msg === 'object' && 'value' in msg ? msg.value : msg;
+  if (typeof unwrapped === 'string' && unwrapped) return unwrapped;
+  if (typeof e?.message === 'string' && e.message) return e.message;
+  return fallback;
+};
+
 /** * @function
  *   @name showSuccessMessage
  *   @param successTitle

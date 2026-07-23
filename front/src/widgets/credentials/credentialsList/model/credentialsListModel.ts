@@ -2,23 +2,23 @@ import { useToolboxTableModel } from '@/shared/hooks/table/toolboxTable/useToolb
 import { useConfigStore } from '@/entities/credentials/model/stores';
 import { watch } from 'vue';
 
-// Credential 테이블 필드 타입 정의
+// Credential table field type definition
 type CredentialTableType = 'checkbox' | 'CredentialName' | 'ProviderName';
 
 export function useCredentialsListModel() {
-  // Toolbox 테이블 모델 초기화
+  // Initialize the Toolbox table model
   const tableModel =
     useToolboxTableModel<
       Partial<Record<CredentialTableType | 'originalData', any>>
     >();
 
-  // Credentials 스토어 접근
+  // Access the credentials store
   const configStore = useConfigStore();
 
-  // 스토어에서 Credential 목록 가져오기
+  // Get the credential list from the store
   const credentials = configStore.getConfig();
 
-  // 테이블 필드 및 검색 설정 초기화
+  // Initialize the table fields and search settings
   function initToolBoxTableModel() {
     tableModel.tableState.fields = [
       { name: 'checkbox', label: 'Check' },
@@ -37,12 +37,12 @@ export function useCredentialsListModel() {
     ];
   }
 
-  // Credential 데이터를 테이블에 적합한 형식으로 조직
+  // Organize credential data into a table-friendly shape
   function organizeCredentialTableItem(credential: any) {
     const organizedDatum: Partial<
       Record<CredentialTableType | 'originalData', any>
     > = {
-      checkbox: '', // 체크박스 선택을 위한 플레이스홀더
+      checkbox: '', // placeholder for checkbox selection
       CredentialName: credential.CredentialName,
       ProviderName: credential.ProviderName,
       originalData: credential,
@@ -50,7 +50,7 @@ export function useCredentialsListModel() {
     return organizedDatum;
   }
 
-  // 스토어의 Credential 목록 변경을 감지하고 테이블 업데이트
+  // Watch for changes to the store's credential list and update the table
   watch(
     credentials,
     newCredentials => {

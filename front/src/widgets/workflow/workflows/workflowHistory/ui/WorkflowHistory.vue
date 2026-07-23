@@ -15,15 +15,15 @@ const props = defineProps<iProps>();
 
 const { initTable, tableModel, workflowId } = useWorkflowHistoryModel();
 
-// 오버레이 상태 관리
+// Overlay state
 const isOverlayVisible = ref(false);
 const selectedRun = ref<IWorkflowRun | null>(null);
 
-// SW Overlay 상태 관리
+// SW overlay state
 const isSwOverlayVisible = ref(false);
 const selectedSwRun = ref<IWorkflowRun | null>(null);
 
-// 각 run의 task instances와 SW migration task 존재 여부를 저장
+// Store each run's task instances and whether it has an SW migration task
 const runTaskInstances = ref<Map<string, any[]>>(new Map());
 const runHasSwTask = ref<Record<string, boolean>>({});
 const runExecutionIds = ref<Record<string, string[]>>({});
@@ -36,7 +36,7 @@ watch(
   props,
   () => {
     workflowId.value = props.selectedWorkflowId;
-    // workflow가 변경되면 기존 데이터 초기화
+    // Reset existing data when the workflow changes
     runTaskInstances.value.clear();
     runHasSwTask.value = {};
     runExecutionIds.value = {};
@@ -44,16 +44,16 @@ watch(
   { immediate: true },
 );
 
-// 테이블 아이템이 로드되면 각 run에 대해 task instances 가져오기 (순차 처리)
+// Once table items load, fetch task instances for each run (processed sequentially)
 watch(
   () => tableModel.value.tableState.items,
   async runs => {
     if (runs && runs.length > 0 && props.selectedWorkflowId) {
       for (const run of runs) {
-        // 이미 fetch한 데이터가 있으면 스킵
+        // Skip if we already fetched this data
         if (!runTaskInstances.value.has(run.workflow_run_id)) {
           await fetchTaskInstancesForRun(run);
-          // 서버 부하를 줄이기 위해 각 요청 사이에 약간의 지연
+          // Small delay between requests to reduce server load
           await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
@@ -62,7 +62,7 @@ watch(
   { immediate: true },
 );
 
-// 각 run에 대한 task instances 가져오기
+// Fetch task instances for a single run
 async function fetchTaskInstancesForRun(run: IWorkflowRun) {
   try {
     const { data, execute } = useGetTaskInstances(
@@ -76,26 +76,23 @@ async function fetchTaskInstancesForRun(run: IWorkflowRun) {
 
       runTaskInstances.value.set(run.workflow_run_id, tasks);
 
-      // is_software_migration_task가 true인 모든 task 찾기
+      // Find all tasks where is_software_migration_task is true
       const swTasks = tasks.filter(
         (task: any) => task.is_software_migration_task === true,
       );
 
       if (swTasks.length > 0) {
-        // 객체 전체를 재할당해서 reactivity 트리거
+        // Reassign the whole object so reactivity picks it up.
         runHasSwTask.value = {
           ...runHasSwTask.value,
           [run.workflow_run_id]: true,
         };
 
-        // 모든 execution_id 수집
-        const executionIds = swTasks.map((task: any) => {
-          // TODO: execution_id가 없으면 임시 ID 사용
-          return (
-            task.software_migration_execution_id ||
-            '0132478a-345a-458a-acce-3be7aa16f481'
-          );
-        });
+        // A task without an execution id has nothing to show. This used to fall back to a hardcoded
+        // id, so the screen would render some other migration's status as if it belonged to this run.
+        const executionIds = swTasks
+          .map((task: any) => task.software_migration_execution_id)
+          .filter(Boolean);
 
         runExecutionIds.value = {
           ...runExecutionIds.value,
@@ -109,7 +106,7 @@ async function fetchTaskInstancesForRun(run: IWorkflowRun) {
       }
     }
   } catch (error) {
-    // 에러가 나도 다음 run 처리를 위해 false로 설정
+    // On error, set to false so the next run can still be processed
     runHasSwTask.value = {
       ...runHasSwTask.value,
       [run.workflow_run_id]: false,
@@ -117,25 +114,25 @@ async function fetchTaskInstancesForRun(run: IWorkflowRun) {
   }
 }
 
-// 액션 버튼 클릭 핸들러
+// Action button click handler
 const handleViewDetail = (run: IWorkflowRun) => {
   selectedRun.value = run;
   isOverlayVisible.value = true;
 };
 
-// 오버레이 닫기 핸들러
+// Overlay close handler
 const handleCloseOverlay = () => {
   isOverlayVisible.value = false;
   selectedRun.value = null;
 };
 
-// SW 버튼 클릭 핸들러
+// SW button click handler
 const handleViewSw = (run: IWorkflowRun) => {
   selectedSwRun.value = run;
   isSwOverlayVisible.value = true;
 };
 
-// SW Overlay 닫기 핸들러
+// SW overlay close handler
 const handleCloseSwOverlay = () => {
   isSwOverlayVisible.value = false;
   selectedSwRun.value = null;
@@ -149,6 +146,9 @@ const handleCloseSwOverlay = () => {
       :items="tableModel.tableState.items"
       :loading="tableModel.tableState.loading"
     >
+      <template #col-state-format="{ item }">
+        <span data-testid="workflow-run-state">{{ item.state }}</span>
+      </template>
       <template #col-tasks-format="{ item }">
         <p-button
           style-type="tertiary"
@@ -163,6 +163,7 @@ const handleCloseSwOverlay = () => {
           v-if="runHasSwTask[item.workflow_run_id]"
           style-type="tertiary"
           size="sm"
+          data-testid="workflow-view-sw"
           @click="handleViewSw(item)"
         >
           View SW

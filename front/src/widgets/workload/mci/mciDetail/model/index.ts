@@ -41,7 +41,7 @@ export function useMciDetailModel() {
         description: mci.description || '',
         status: mci.status || '',
         // @ts-ignore
-        type: mci.type || 'MCI',
+        type: mci.type || 'Infra',
         // @ts-ignore
         action: mci.action || 'Instance',
         provider: getCloudProvidersInVms(mci.vm) || '',

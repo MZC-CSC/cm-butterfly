@@ -60,7 +60,7 @@ const handleLoginSuccess = (props: IUserLoginResponse & { id: string }) => {
   emit('handleLoginSuccess', props);
 };
 
-//FIXME role 처리
+//FIXME handle role
 watch(resLogin.data, () => {
   handleLoginSuccess({
     ...resLogin.data.value?.responseData,
@@ -105,6 +105,7 @@ watch([resLogin.error, resLogin.errorMsg], nv => {
             :invalid="invalid"
             :placeholder="'id'"
             block
+            data-testid="login-id"
             @blur="userId.onBlur"
           />
         </template>
@@ -122,6 +123,7 @@ watch([resLogin.error, resLogin.errorMsg], nv => {
             :invalid="invalid"
             :placeholder="i18n.t('AUTH.LOGIN.PASSWORD')"
             block
+            data-testid="login-password"
             @blur="userPW.onBlur"
             @keydown.prevent.enter="handleLogin"
           />
@@ -134,6 +136,7 @@ watch([resLogin.error, resLogin.errorMsg], nv => {
         type="submit"
         size="md"
         class="login-in-btn"
+        data-testid="login-submit"
         :loading="resLogin.isLoading.value"
         @click="handleLogin"
       >

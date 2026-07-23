@@ -33,7 +33,7 @@ export const useMigratorMenuStore = defineStore('MIGRATOR_MENU', {
       } else if (Array.isArray(apiMenu.menus) && apiMenu.menus?.length > 0) {
         const m_menus = apiMenu.menus?.map((menu: IMigratorMenu) => {
           if (menu.isaction === 'false') {
-            // TODO: menu.isAction === false인 경우에 대한 처리 필요 -> lsb 처리
+            // TODO: need to handle the case where menu.isAction === false -> lsb handling
             return {
               id: menu.id,
               name: menu.displayname,

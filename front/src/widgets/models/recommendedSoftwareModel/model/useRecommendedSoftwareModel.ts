@@ -26,13 +26,13 @@ interface IExtendRecommendModelResponse extends IRecommendModelResponse {
   estimateResponse?: IEsimateCostSpecResponse;
 }
 
-// Software Migration List API 응답 타입
+// Software Migration List API response type
 interface ISoftwareMigrationListResponse {
-  // API 응답 구조에 맞게 정의 필요
+  // Needs to be defined to match the API response structure
   [key: string]: any;
 }
 
-// Software 전용 테이블 타입
+// Software-specific table type
 type SoftwareMigrationTableType = 
   | 'migrationType'
   | 'description'
@@ -49,11 +49,11 @@ export function useRecommendedSoftwareModel() {
   const targetRecommendModel = ref<IExtendRecommendModelResponse | null>(null);
   const userStore = useAuthStore();
   
-  // Software Migration List API 호출
+  // Call the Software Migration List API
   const getSoftwareMigrationList = useAxiosPost<
     IAxiosResponse<ISoftwareMigrationListResponse>,
     RequestBodyWrapper<{ sourceSoftwareModel: any }>
-  >('Get-Migration-List', {
+  >('cm-grasshopper/Get-Migration-List', {
     request: {
       sourceSoftwareModel: null
     }
@@ -61,7 +61,7 @@ export function useRecommendedSoftwareModel() {
 
   function initToolBoxTableModel() {
     tableModel.initState();
-    // Software 전용 테이블 컬럼으로 변경
+    // Switch to Software-specific table columns
     tableModel.tableState.fields = [
       { name: 'migrationType', label: 'Migration Type' },
       { name: 'description', label: 'Description' },
@@ -84,7 +84,7 @@ export function useRecommendedSoftwareModel() {
     tableModel.tableState.selectIndex = [0];
   }
 
-  // Software Migration List 조회
+  // Fetch the Software Migration List
   async function getSoftwareMigrationListData(sourceSoftwareModel: any) {
     const requestWrapper: RequestBodyWrapper<{ sourceSoftwareModel: any }> = {
       request: {
@@ -95,9 +95,9 @@ export function useRecommendedSoftwareModel() {
     const response = await getSoftwareMigrationList.execute(requestWrapper);
     
     if (response.data.responseData) {
-      // 응답 데이터를 테이블 형식으로 변환
+      // Convert the response data into table format
       const migrationData = response.data.responseData;
-      // 실제 API 응답 구조에 맞게 수정 필요
+      // Needs to be adjusted to match the actual API response structure
       const tableData = {
         migrationType: migrationData.migrationType || 'N/A',
         description: migrationData.description || 'N/A',
@@ -112,13 +112,14 @@ export function useRecommendedSoftwareModel() {
     return response;
   }
 
-  // Provider 선택 메뉴 생성 (기존 함수 유지)
+  // Build the provider select menu (kept from the existing function)
   function generateProviderSelectMenu(
     providerResponse: IProviderResponse,
   ): Array<ISelectMenu> {
     const menu: Array<ISelectMenu> = [];
 
-    providerResponse.output.forEach(provider => {
+    // With no registered provider the output is empty — that is an empty menu, not an error.
+    (providerResponse?.output ?? []).forEach(provider => {
       menu.push({
         name: provider,
         label: provider,
@@ -130,7 +131,7 @@ export function useRecommendedSoftwareModel() {
     return menu;
   }
 
-  // Region 선택 메뉴 생성 (기존 함수 유지)
+  // Build the region select menu (kept from the existing function)
   function generateRegionSelectMenu(
     regionOfProviderResponse: IRegionOfProviderResponse,
   ): Array<ISelectMenu> {
@@ -147,7 +148,7 @@ export function useRecommendedSoftwareModel() {
     return menu;
   }
 
-  // 기존 함수들은 Software 전용으로 수정하거나 제거
+  // The existing functions are either adapted for Software use or removed
   function setTargetRecommendModel(
     _targetRecommendModel: IExtendRecommendModelResponse,
   ) {
@@ -155,9 +156,9 @@ export function useRecommendedSoftwareModel() {
   }
 
   function setTableStateItem() {
-    // Software 전용 테이블 상태 설정
+    // Set up the Software-specific table state
     if (targetRecommendModel.value) {
-      // Software 데이터에 맞게 수정
+      // Adjust to match the Software data
     }
   }
 
@@ -173,9 +174,9 @@ export function useRecommendedSoftwareModel() {
     sourceModelStore,
     setTableStateItem,
     setTargetRecommendModel,
-    getSoftwareMigrationListData, // 새로운 함수 추가
-    getSoftwareMigrationList,     // API 함수 추가
-    generateProviderSelectMenu,    // 기존 함수 유지
-    generateRegionSelectMenu,      // 기존 함수 유지
+    getSoftwareMigrationListData, // newly added function
+    getSoftwareMigrationList,     // added API function
+    generateProviderSelectMenu,    // kept existing function
+    generateRegionSelectMenu,      // kept existing function
   };
 }

@@ -1,6 +1,6 @@
 /**
  * Task Schema Store
- * list-task-component API에서 모든 task의 schema를 미리 로드하고 관리
+ * Preloads and manages the schema of every task from the list-task-component API
  */
 
 import { ref, computed } from 'vue';
@@ -38,7 +38,7 @@ class TaskSchemaStore {
     return computed(() => this.error.value);
   }
 
-  // 기존 API 응답에서 task schema 로드
+  // load task schemas from an existing API response
   loadTaskSchemasFromResponse(response: any): void {
     if (this.isLoaded.value) {
       console.log('Task schemas already loaded');
@@ -55,7 +55,7 @@ class TaskSchemaStore {
         console.log(`Found ${response.responseData.length} task components`);
         
         response.responseData.forEach((taskComponent: ITaskComponentInfoResponse) => {
-          // cm-cicada Type/Spec 응답을 legacy 형태로 정규화 (idempotent)
+          // normalize the cm-cicada Type/Spec response into the legacy form (idempotent)
           normalizeTaskComponentInPlace(taskComponent);
           console.log(`Processing task component: ${taskComponent.name}`);
           console.log(`Has body_params:`, !!taskComponent.data?.body_params);
@@ -73,7 +73,7 @@ class TaskSchemaStore {
             console.log(`Loaded schema for task: ${taskComponent.name}`);
             console.log(`Schema properties:`, Object.keys(taskComponent.data.body_params.properties || {}));
             
-            // tumblebug_mci_dynamic 특별 처리
+            // special handling for tumblebug_mci_dynamic
             if (taskComponent.name === 'tumblebug_mci_dynamic') {
               console.log('=== tumblebug_mci_dynamic schema details ===');
               console.log('Body params:', taskComponent.data.body_params);
@@ -88,7 +88,7 @@ class TaskSchemaStore {
         this.isLoaded.value = true;
         console.log(`Successfully loaded ${this.taskSchemas.value.size} task schemas`);
       } else {
-        // 데이터가 아직 없으면(비동기 로드 전) 조용히 반환 — 이후 watch 경로에서 다시 로드됨
+        // if data is not ready yet (before async load), return quietly — it reloads later via the watch path
         console.warn('Task schemas: responseData not ready yet, skipping');
         return;
       }
@@ -102,7 +102,7 @@ class TaskSchemaStore {
     }
   }
 
-  // 모든 task schema 로드 (API 호출)
+  // load all task schemas (API call)
   async loadAllTaskSchemas(): Promise<void> {
     if (this.isLoaded.value) {
       console.log('Task schemas already loaded');
@@ -124,7 +124,7 @@ class TaskSchemaStore {
     }
   }
 
-  // 특정 task의 schema 가져오기
+  // get the schema of a specific task
   getTaskSchema(taskName: string): TaskSchema | null {
     console.log(`Looking for schema for task: ${taskName}`);
     console.log(`Current loaded schemas:`, Array.from(this.taskSchemas.value.keys()));
@@ -141,30 +141,30 @@ class TaskSchemaStore {
     }
   }
 
-  // 모든 task 이름 목록 가져오기
+  // get the list of all task names
   getAllTaskNames(): string[] {
     return Array.from(this.taskSchemas.value.keys());
   }
 
-  // 특정 task의 body_params schema 가져오기
+  // get the body_params schema of a specific task
   getBodyParamsSchema(taskName: string): any {
     const schema = this.getTaskSchema(taskName);
     return schema?.body_params || null;
   }
 
-  // 특정 task의 path_params schema 가져오기
+  // get the path_params schema of a specific task
   getPathParamsSchema(taskName: string): any {
     const schema = this.getTaskSchema(taskName);
     return schema?.path_params || null;
   }
 
-  // 특정 task의 query_params schema 가져오기
+  // get the query_params schema of a specific task
   getQueryParamsSchema(taskName: string): any {
     const schema = this.getTaskSchema(taskName);
     return schema?.query_params || null;
   }
 
-  // Store 초기화
+  // reset the store
   reset(): void {
     this.taskSchemas.value.clear();
     this.isLoading.value = false;
@@ -172,7 +172,7 @@ class TaskSchemaStore {
     this.error.value = null;
   }
 
-  // 디버깅용: 모든 로드된 schema 출력
+  // for debugging: print all loaded schemas
   debugPrintAllSchemas(): void {
     console.log('=== Loaded Task Schemas ===');
     this.taskSchemas.value.forEach((schema, name) => {

@@ -13,9 +13,18 @@ import {
   showErrorMessage,
 } from '@/shared/utils';
 import DynamicTableIconButton from '@/shared/ui/Button/dynamicIconButton/DynamicTableIconButton.vue';
-import { onBeforeMount, onMounted, reactive, ref, watch, computed, nextTick } from 'vue';
+import {
+  onBeforeMount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+  computed,
+  nextTick,
+} from 'vue';
 import { useGetWorkflowList, useBulkDeleteWorkflow } from '@/entities';
 import { useRunWorkflow } from '@/entities';
+import { trackWorkflow } from '@/entities/workflow/lib/workflowTracker';
 import { useDynamicTableHeight } from '@/shared/hooks/table/useDynamicTableHeight';
 import { useToolboxTableHeight } from '@/shared/hooks/table/useToolboxTableHeight';
 
@@ -48,7 +57,7 @@ const modal = reactive({
 });
 const isRunLoading = ref<boolean>(false);
 const isDataLoaded = ref(false);
-const tableKey = ref(0); // 컴포넌트 재렌더링을 위한 key
+const tableKey = ref(0); // key for forcing a component re-render
 
 onBeforeMount(() => {
   initToolBoxTableModel();
@@ -58,10 +67,12 @@ onMounted(function (this: any) {
   fetchWorkflowList();
 });
 
-watch(isDataLoaded, (nv) => {
+watch(isDataLoaded, nv => {
   if (nv && toolboxTableRef.value) {
     nextTick(() => {
-      addDeleteIconAtTable.call({ $refs: { toolboxTable: toolboxTableRef.value } });
+      addDeleteIconAtTable.call({
+        $refs: { toolboxTable: toolboxTableRef.value },
+      });
     });
   }
 });
@@ -124,28 +135,48 @@ function handleSelectedIndex(selectedIndex: number) {
   }
 }
 
+/**
+ * Align the table's highlight to the workflow currently being viewed.
+ *
+ * When the list is re-fetched the row order can change (a newly created workflow
+ * slips in), but the table remembers the selection by *position index*. So if left
+ * as-is you get a state where **the table points at A while the detail/run status
+ * below shows B** — which is always the case right after a save.
+ */
+function highlightSelectedRow() {
+  if (!props.selectedWfId) return;
+  const index = tableModel.tableState.displayItems.findIndex(
+    (item: any) => item?.id === props.selectedWfId,
+  );
+  tableModel.tableState.selectIndex = index >= 0 ? [index] : [];
+}
+
 async function fetchWorkflowList() {
   isDataLoaded.value = false;
   try {
     tableModel.tableState.loading = true;
     const { data } = await getWorkflowList.execute();
-    if (data.status?.code === 200 && Array.isArray(data.responseData)) {
-      workflowStore.setWorkFlows(data.responseData);
-      if (data.responseData.length === 0) {
-        showErrorMessage('info', '조회된 Workflow가 없습니다.');
-      }
+    if (data.status?.code === 200) {
+      // With no workflows the response is [] or null. Both mean "none", not "failed", so keep the
+      // list empty and let the empty state show. This used to raise a toast, and since
+      // showErrorMessage always renders a red alert regardless of its first argument, a perfectly
+      // normal empty list looked like an error.
+      workflowStore.setWorkFlows(
+        Array.isArray(data.responseData) ? data.responseData : [],
+      );
     } else {
       workflowStore.setWorkFlows([]);
-      showErrorMessage('error', 'Workflow 목록을 불러오지 못했습니다.');
+      showErrorMessage('Error', 'Failed to load the workflow list.');
     }
     nextTick(() => {
       isDataLoaded.value = true;
-      // 데이터 로드 후 컴포넌트 재렌더링
+      // Re-render the component after data loads
       tableKey.value++;
+      highlightSelectedRow();
     });
   } catch (e) {
     workflowStore.setWorkFlows([]);
-    showErrorMessage('error', 'Workflow 목록 조회 중 오류가 발생했습니다.');
+    showErrorMessage('error', 'An error occurred while loading the workflow list.');
     isDataLoaded.value = true;
   } finally {
     tableModel.tableState.loading = false;
@@ -171,6 +202,14 @@ async function handleRunWorkflow(e: any) {
         'success',
         `Workflow ID: ${selectedWfId} run successfully`,
       );
+      // Hand it to the app-wide checker so the outcome is caught after leaving this screen.
+      // The name has to be captured here — at completion there is only the run id.
+      void trackWorkflow({
+        wfId: selectedWfId,
+        label:
+          workflowStore.getWorkflowById(selectedWfId)?.name || selectedWfId,
+        action: 'run',
+      });
     }
   } catch (error) {
     console.log(error);
@@ -182,8 +221,8 @@ watch(
   () => props.trigger,
   nv => {
     if (nv) {
-      // WorkflowEditor에서 save 후 trigger가 발생하면 선택을 유지
-      // selectedWfId가 있으면 선택 유지, 없으면 선택 초기화
+      // When a trigger fires after saving in WorkflowEditor, keep the selection.
+      // Keep the selection if selectedWfId is present, otherwise reset it.
       const keepSelection = !!props.selectedWfId;
       handleRefreshTable(keepSelection);
       emit('update:trigger');
@@ -196,17 +235,22 @@ watch(
   <div>
     <p-horizontal-layout :key="tableKey" :height="adjustedDynamicHeight">
       <template #container="{ height }">
-        <!-- 로딩 중일 때 스피너 표시 -->
+        <!-- Show a spinner while loading -->
         <table-loading-spinner
-          :loading="getWorkflowList.isLoading.value || tableModel.tableState.loading"
+          :loading="
+            getWorkflowList.isLoading.value || tableModel.tableState.loading
+          "
           :height="height"
           message="Loading workflows..."
         />
-        
-        <!-- 로딩 완료 후 테이블 표시 -->
+
+        <!-- Show the table after loading completes -->
         <p-toolbox-table
-          v-if="!getWorkflowList.isLoading.value && !tableModel.tableState.loading"
+          v-if="
+            !getWorkflowList.isLoading.value && !tableModel.tableState.loading
+          "
           ref="toolboxTableRef"
+          data-testid="workflow-list-table"
           :items="tableModel.tableState.displayItems"
           :fields="tableModel.tableState.fields"
           :total-count="tableModel.tableState.tableCount"
@@ -231,6 +275,7 @@ watch(
           <template #th-run> &nbsp; </template>
           <template #col-run-format>
             <p-button
+              data-testid="workflow-run-btn"
               style-type="tertiary"
               size="sm"
               @click="handleRunWorkflow"

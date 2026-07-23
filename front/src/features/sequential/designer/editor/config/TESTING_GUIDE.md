@@ -1,89 +1,89 @@
-# Task Property Order 기능 테스트 가이드
+# Task Property Order Feature Testing Guide
 
-## 구현 완료 사항
+## Completed implementation
 
-### 1. 설정 파일
-- `taskPropertyOrderConfig.ts` 생성 완료
-- `beetle_task_infra_migration`과 `grasshopper_task_software_migration` 순서 규칙 정의 완료
+### 1. Configuration file
+- Created `taskPropertyOrderConfig.ts`
+- Defined the ordering rules for `beetle_task_infra_migration` and `grasshopper_task_software_migration`
 
 ### 2. RecursiveFormField.vue
-- `taskName`과 `currentPath` props 추가 완료
-- `sortedPropertyNames`, `sortedArrayItemPropertyNames` computed 추가 완료
-- Object 및 Array item properties 렌더링 시 정렬 적용 완료
+- Added the `taskName` and `currentPath` props
+- Added the `sortedPropertyNames` and `sortedArrayItemPropertyNames` computed properties
+- Applied sorting when rendering Object and Array item properties
 
 ### 3. TaskComponentEditor.vue
-- `getCurrentTaskComponentName()` 메서드 추가 완료
-- RecursiveFormField에 taskName과 currentPath 전달 완료
+- Added the `getCurrentTaskComponentName()` method
+- Passed taskName and currentPath to RecursiveFormField
 
-## 테스트 시나리오
+## Test scenarios
 
-### 테스트 1: beetle_task_infra_migration
+### Test 1: beetle_task_infra_migration
 
-**목적**: Body Parameters의 property 순서가 설정대로 표시되는지 확인
+**Goal**: Verify that the property order in Body Parameters displays as configured
 
-**테스트 단계**:
-1. Workflow Editor를 엽니다
-2. `beetle_task_infra_migration` task를 생성하거나 기존 task를 엽니다
-3. Task Editor가 열리면 Body Parameters 섹션을 확인합니다
+**Steps**:
+1. Open the Workflow Editor
+2. Create a `beetle_task_infra_migration` task or open an existing one
+3. When the Task Editor opens, check the Body Parameters section
 
-**예상 결과**:
-Body Parameters의 property들이 다음 순서로 표시되어야 합니다:
-1. `targetVmInfra` (첫 번째)
+**Expected result**:
+The properties in Body Parameters should be displayed in this order:
+1. `targetVmInfra` (first)
 2. `targetSecurityGroupList`
 3. `targetSshKey`
 4. `targetVNet`
 5. `targetVmOsImageList`
 6. `targetVmSpecList`
-7. (기타 설정에 없는 properties가 있다면 원래 순서대로 마지막에 표시)
+7. (any properties not in the config are displayed last, in their original order)
 
-**검증 방법**:
-- 브라우저 개발자 도구(F12)를 열고 Console 탭 확인
-- RecursiveFormField에서 출력되는 로그 확인
-- UI에서 실제 필드 순서 육안 확인
+**How to verify**:
+- Open the browser developer tools (F12) and check the Console tab
+- Check the logs output by RecursiveFormField
+- Visually confirm the actual field order in the UI
 
-### 테스트 2: grasshopper_task_software_migration
+### Test 2: grasshopper_task_software_migration
 
-**목적**: servers 배열의 각 item 내부 property 순서가 설정대로 표시되는지 확인
+**Goal**: Verify that the property order inside each item of the servers array displays as configured
 
-**테스트 단계**:
-1. Workflow Editor를 엽니다
-2. `grasshopper_task_software_migration` task를 생성하거나 기존 task를 엽니다
-3. Task Editor가 열리면 Body Parameters 섹션을 확인합니다
-4. `servers` 배열이 있다면 펼칩니다
-5. 배열의 각 item을 펼쳐서 내부 properties를 확인합니다
+**Steps**:
+1. Open the Workflow Editor
+2. Create a `grasshopper_task_software_migration` task or open an existing one
+3. When the Task Editor opens, check the Body Parameters section
+4. If there is a `servers` array, expand it
+5. Expand each item of the array and check its inner properties
 
-**예상 결과**:
-servers 배열의 각 item 내부에서 property들이 다음 순서로 표시되어야 합니다:
-1. `source_connection_info_id` (첫 번째)
+**Expected result**:
+Inside each item of the servers array, the properties should be displayed in this order:
+1. `source_connection_info_id` (first)
 2. `migration_list`
 3. `errors`
-4. (기타 설정에 없는 properties가 있다면 원래 순서대로 마지막에 표시)
+4. (any properties not in the config are displayed last, in their original order)
 
-**검증 방법**:
-- UI에서 servers 배열의 item을 펼쳤을 때 필드 순서 확인
-- 브라우저 개발자 도구에서 sortedArrayItemPropertyNames 결과 확인
+**How to verify**:
+- Check the field order when expanding an item of the servers array in the UI
+- Check the sortedArrayItemPropertyNames result in the browser developer tools
 
-### 테스트 3: 다른 Task (설정 없음)
+### Test 3: Other tasks (no config)
 
-**목적**: 설정이 없는 task는 기존 동작을 유지하는지 확인
+**Goal**: Verify that tasks without a config keep their existing behavior
 
-**테스트 단계**:
-1. Workflow Editor를 엽니다
-2. 다른 task component (예: `tumblebug_mci_dynamic`)를 엽니다
-3. Task Editor의 Body Parameters를 확인합니다
+**Steps**:
+1. Open the Workflow Editor
+2. Open another task component (e.g., `tumblebug_mci_dynamic`)
+3. Check the Body Parameters of the Task Editor
 
-**예상 결과**:
-- Property들이 기존과 동일한 순서로 표시되어야 합니다
-- 순서 변경이 없어야 합니다
+**Expected result**:
+- The properties should be displayed in the same order as before
+- There should be no change in order
 
-## 디버깅 팁
+## Debugging tips
 
-### 1. Console 로그 확인
+### 1. Check the console logs
 
-RecursiveFormField.vue에서 다음 로그를 추가하여 확인할 수 있습니다:
+You can add the following logs in RecursiveFormField.vue to check:
 
 ```typescript
-// sortedPropertyNames computed 내부에 추가
+// add inside the sortedPropertyNames computed
 console.log('🔍 Property Sorting:', {
   taskName: props.taskName,
   currentPath: props.currentPath,
@@ -93,35 +93,35 @@ console.log('🔍 Property Sorting:', {
 });
 ```
 
-### 2. 경로(Path) 확인
+### 2. Check the path
 
-현재 필드의 경로가 올바른지 확인:
-- `body_params` - beetle_task의 최상위 body params
-- `body_params.servers[]` - grasshopper_task의 servers 배열 item 내부
+Verify that the current field's path is correct:
+- `body_params` - the top-level body params of beetle_task
+- `body_params.servers[]` - inside a servers array item of grasshopper_task
 
-### 3. Task Name 확인
+### 3. Check the task name
 
-getCurrentTaskComponentName()이 올바른 값을 반환하는지 확인:
+Verify that getCurrentTaskComponentName() returns the correct value:
 
 ```typescript
-// TaskComponentEditor.vue에서 확인
+// check in TaskComponentEditor.vue
 console.log('Current Task Component:', getCurrentTaskComponentName());
 ```
 
-## 추가 설정 방법
+## Adding more configuration
 
-새로운 task에 순서 규칙을 추가하려면:
+To add an ordering rule for a new task:
 
-1. `taskPropertyOrderConfig.ts` 파일을 엽니다
-2. `TASK_PROPERTY_ORDER_CONFIG`에 새로운 task 설정을 추가합니다:
+1. Open the `taskPropertyOrderConfig.ts` file
+2. Add the new task configuration to `TASK_PROPERTY_ORDER_CONFIG`:
 
 ```typescript
 export const TASK_PROPERTY_ORDER_CONFIG: Record<string, PropertyOrderRule[]> = {
-  // ... 기존 설정 ...
+  // ... existing config ...
   
   'new_task_name': [
     {
-      path: 'body_params',  // 또는 'body_params.someArray[]' 등
+      path: 'body_params',  // or 'body_params.someArray[]', etc.
       order: [
         'property1',
         'property2',
@@ -132,17 +132,16 @@ export const TASK_PROPERTY_ORDER_CONFIG: Record<string, PropertyOrderRule[]> = {
 };
 ```
 
-## 알려진 제한사항
+## Known limitations
 
-1. **중첩 경로**: 현재는 `body_params`, `body_params.field[]` 형태의 경로만 지원합니다
-2. **동적 경로**: 배열 인덱스를 포함한 동적 경로는 `[]`로 표현합니다
-3. **순서 유지**: 설정에 없는 properties는 원래 순서를 유지합니다 (알파벳 순 아님)
+1. **Nested paths**: currently only paths of the form `body_params` and `body_params.field[]` are supported
+2. **Dynamic paths**: dynamic paths that include an array index are expressed with `[]`
+3. **Order preservation**: properties not in the config keep their original order (not alphabetical)
 
-## 성공 기준
+## Success criteria
 
-✅ beetle_task_infra_migration의 Body Parameters에서 targetVmInfra가 첫 번째로 표시됨
-✅ grasshopper_task_software_migration의 servers[] item에서 source_connection_info_id가 첫 번째로 표시됨
-✅ 설정이 없는 다른 task들은 기존 순서 유지됨
-✅ Linter 오류 없음
-✅ 기존 기능에 영향 없음
-
+✅ targetVmInfra is displayed first in the Body Parameters of beetle_task_infra_migration
+✅ source_connection_info_id is displayed first in the servers[] items of grasshopper_task_software_migration
+✅ Other tasks without a config keep their existing order
+✅ No linter errors
+✅ No impact on existing features

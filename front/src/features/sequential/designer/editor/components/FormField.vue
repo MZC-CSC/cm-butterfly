@@ -1,6 +1,6 @@
 <template>
   <div class="form-field">
-    <!-- Input 필드 -->
+    <!-- Input field -->
     <div v-if="type === 'input'" class="field-group flex border-bottom">
       <div class="field-title-box">
         {{ title }}{{ isRequired ? '*' : '' }}
@@ -15,7 +15,7 @@
       </div>
     </div>
     
-    <!-- Nested Object 필드 -->
+    <!-- Nested Object field -->
     <div v-else-if="type === 'nestedObject'" class="nested-object-content">
       <div class="nested-object-header">
         <span class="nested-object-title">{{ title }}</span>
@@ -26,7 +26,7 @@
       </div>
     </div>
     
-    <!-- Accordion 필드 -->
+    <!-- Accordion field -->
     <div v-else-if="type === 'accordion'" class="accordion-content">
       <div class="accordion-header">
         <span class="accordion-title">{{ title }}</span>

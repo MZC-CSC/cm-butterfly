@@ -113,6 +113,16 @@ export interface ITaskInstance {
   software_migration_execution_id?: string;
 }
 
+/** Task marked for re-run (dryRun response) */
+export interface ITaskInstanceReference {
+  task_id: string;
+  task_name: string;
+  workflow_id?: string;
+  dag_id?: string;
+  workflow_run_id?: string;
+  execution_date?: string;
+}
+
 export interface ITaskInstancesResponse {
   taskInstances: ITaskInstance[];
 }
@@ -132,8 +142,9 @@ export interface ITargetMapping {
   source_connection_info_id: string;
   target: {
     namespace_id: string;
-    mci_id: string;
-    vm_id: string;
+    // cb-tumblebug's MCI→Infra rename is reflected in cm-grasshopper responses as well.
+    infra_id: string;
+    node_id: string;
   };
   status: string;
   software_migration_status_list: ISoftwareMigrationStatus[];

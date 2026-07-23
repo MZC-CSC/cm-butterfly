@@ -42,18 +42,18 @@ interface TargetVmInfra {
   label: string | null;
   name: string;
   systemLabel: string;
-  subGroups: Vm[];
+  nodeGroups: Vm[];
 }
 
 export interface IRecommendModelResponse {
   description: string;
   status: string;
-  targetVmInfra: TargetVmInfra;
+  targetInfra: TargetVmInfra;
   targetSecurityGroupList?: any[];
   targetSshKey?: any;
   targetVNet?: any;
-  targetVmOsImageList?: any[];
-  targetVmSpecList?: any[];
+  targetOsImageList?: any[];
+  targetSpecList?: any[];
 }
 
 interface EstimateCostSpecDetail {

@@ -22,10 +22,78 @@ interface IExtendRecommendModelResponse extends IRecommendModelResponse {
   estimateResponse?: IEsimateCostSpecResponse;
 }
 
+// Value validation: decides whether a spec/image field holds "an abnormal value
+// that is not a real input value". The goal is not to catch input-guidance
+// placeholders, but to detect bad values/types that cm-beetle left because it
+// could not fill them in (`string`, `npt`, `undefined`, etc.) or empty values.
+// Saving such a candidate as a target model does succeed, but later, when the
+// infrastructure (MCI) is created, beetle fails to resolve the image and errors out.
+//
+// Set treated as abnormal (provisional): '' / whitespace / null / undefined (value) /
+// the string 'string' / 'npt' / 'undefined' / 'empty' (an earlier stage substitutes
+// this for empty values).
+// Note: 'default' is not abnormal — in cb-spider `string` is an error, but `default`
+// is a legitimately allowed value implemented to "behave as the default", so it counts
+// as a complete value.
+//
+// TODO(cb-spider): which values are a "legitimate default" versus an "error" can differ
+// per column. The exact set must be confirmed by inspecting the cb-spider source, and
+// INVALID_FIELD_VALUES below is a provisional definition covering only what is currently known.
+const INVALID_FIELD_VALUES = new Set(['', 'string', 'npt', 'undefined', 'empty']);
+
+function isInvalidFieldValue(value?: string | null): boolean {
+  if (value === undefined || value === null) return true;
+  const normalized = String(value).trim().toLowerCase();
+  // Legitimately allowed values such as 'default' are not caught here (not in the set).
+  return INVALID_FIELD_VALUES.has(normalized);
+}
+
+// True if any of the candidate's (recommended infra) nodeGroups holds an abnormal value
+// in its spec (specId) or image (imageId). It does not block saving; it is only used for
+// the on-screen warning (`!`), markers, and tooltips.
+function hasMissingRequiredFields(
+  model?: IExtendRecommendModelResponse | null,
+): boolean {
+  const groups = model?.targetInfra?.nodeGroups;
+  if (!groups || groups.length === 0) return true;
+  return groups.some(
+    group =>
+      isInvalidFieldValue(group?.specId) || isInvalidFieldValue(group?.imageId),
+  );
+}
+
+// Returns the on-screen labels (Spec/Image) of the required columns holding an abnormal
+// value — so the tooltip text can name the actual empty column. Shares the same
+// isInvalidFieldValue criterion as hasMissingRequiredFields.
+function getMissingRequiredFieldLabels(
+  model?: IExtendRecommendModelResponse | null,
+): string[] {
+  const groups = model?.targetInfra?.nodeGroups;
+  const missing: string[] = [];
+  if (!groups || groups.length === 0) {
+    return ['Spec', 'Image'];
+  }
+  if (groups.some(group => isInvalidFieldValue(group?.specId))) {
+    missing.push('Spec');
+  }
+  if (groups.some(group => isInvalidFieldValue(group?.imageId))) {
+    missing.push('Image');
+  }
+  return missing;
+}
+
 export function useRecommendedInfraModel() {
   const tableModel =
     useToolboxTableModel<
-      Partial<Record<RecommendedModelTableType | 'originalData', any>>
+      Partial<
+        Record<
+          | RecommendedModelTableType
+          | 'originalData'
+          | 'hasMissingInfo'
+          | 'missingFields',
+          any
+        >
+      >
     >();
   const sourceModelStore = useSourceModelStore();
   const targetRecommendModel = ref<IExtendRecommendModelResponse | null>(null);
@@ -73,8 +141,8 @@ export function useRecommendedInfraModel() {
   function organizeRecommendedModelTableItem(
     recommendedModel: IExtendRecommendModelResponse,
   ) {
-    // 입력 데이터 유효성 검사
-    if (!recommendedModel || !recommendedModel.targetVmInfra || !recommendedModel.targetVmInfra.subGroups) {
+    // Validate the input data
+    if (!recommendedModel || !recommendedModel.targetInfra || !recommendedModel.targetInfra.nodeGroups) {
       console.warn('Invalid recommendedModel data:', recommendedModel);
       return {
         name: 'Invalid Data',
@@ -86,6 +154,8 @@ export function useRecommendedInfraModel() {
         os: 'n/a',
         architecture: 'n/a',
         estimateCost: 'n/a',
+        hasMissingInfo: true,
+        missingFields: 'Spec, Image',
         originalData: recommendedModel,
       };
     }
@@ -117,14 +187,14 @@ export function useRecommendedInfraModel() {
       estimateCost = 'n/a';
     }
 
-    // Extract vCPU, memory, and disk from targetVmSpecList
+    // Extract vCPU, memory, and disk from targetSpecList
     const vCpuValues: string[] = [];
     const memoryValues: string[] = [];
     const diskValues: string[] = [];
     
-    recommendedModel.targetVmInfra.subGroups?.forEach(subGroup => {
+    recommendedModel.targetInfra.nodeGroups?.forEach(subGroup => {
       // Find matching spec
-      const matchingSpec = recommendedModel.targetVmSpecList?.find(
+      const matchingSpec = recommendedModel.targetSpecList?.find(
         spec => spec.id === subGroup.specId
       );
       
@@ -146,13 +216,13 @@ export function useRecommendedInfraModel() {
       }
     });
 
-    // Extract OS and Architecture from targetVmOsImageList
+    // Extract OS and Architecture from targetOsImageList
     const osValues: string[] = [];
     const archValues: string[] = [];
     
-    recommendedModel.targetVmInfra.subGroups?.forEach(subGroup => {
+    recommendedModel.targetInfra.nodeGroups?.forEach(subGroup => {
       // Find matching image
-      const matchingImage = recommendedModel.targetVmOsImageList?.find(
+      const matchingImage = recommendedModel.targetOsImageList?.find(
         image => image.cspImageName === subGroup.imageId
       );
       
@@ -189,23 +259,29 @@ export function useRecommendedInfraModel() {
     });
 
     const organizedDatum: Partial<
-      Record<RecommendedModelTableType | 'originalData', any>
+      Record<
+        | RecommendedModelTableType
+        | 'originalData'
+        | 'hasMissingInfo'
+        | 'missingFields',
+        any
+      >
     > = {
-      name: recommendedModel.targetVmInfra.name,
+      name: recommendedModel.targetInfra.name,
       //id: recommendedModel['id'] || '',
       //description: recommendedModel['description'] || '',
       spec:
-        recommendedModel.targetVmInfra.subGroups
+        recommendedModel.targetInfra.nodeGroups
           ?.reduce((acc, cur) => {
-            // specId가 "empty"인 경우도 포함
+            // Also covers the case where specId is "empty"
             if (!cur.specId || cur.specId.trim() === '') {
               return acc;
             }
-            // specId가 "empty"면 그대로 사용
+            // If specId is "empty", use it as-is
             if (cur.specId === 'empty') {
               return `${acc}empty / `;
             }
-            // specId에 +가 있으면 마지막 부분을, 없으면 전체를 사용
+            // If specId contains a '+', use the last part; otherwise use the whole value
             const specValue = cur.specId.includes('+') ? cur.specId.split('+').at(-1) : cur.specId;
             return `${acc}${specValue} / `;
           }, '')
@@ -214,17 +290,17 @@ export function useRecommendedInfraModel() {
       memory: memoryValues.length > 0 ? memoryValues.join(' / ') : 'n/a',
       disk: diskValues.length > 0 ? diskValues.join(' / ') : 'n/a',
       image:
-        recommendedModel.targetVmInfra.subGroups
+        recommendedModel.targetInfra.nodeGroups
           ?.reduce((acc, cur) => {
-            // imageId가 "empty"인 경우도 포함
+            // Also covers the case where imageId is "empty"
             if (!cur.imageId || cur.imageId.trim() === '') {
               return acc;
             }
-            // imageId가 "empty"면 그대로 사용
+            // If imageId is "empty", use it as-is
             if (cur.imageId === 'empty') {
               return `${acc}empty / `;
             }
-            // imageId에 +가 있으면 마지막 부분을, 없으면 전체를 사용
+            // If imageId contains a '+', use the last part; otherwise use the whole value
             const imageValue = cur.imageId.includes('+') ? cur.imageId.split('+').at(-1) : cur.imageId;
             return `${acc}${imageValue} / `;
           }, '')
@@ -232,6 +308,10 @@ export function useRecommendedInfraModel() {
       os: osValues.length > 0 ? osValues.join(' / ') : 'n/a',
       architecture: archValues.length > 0 ? archValues.join(' / ') : 'n/a',
       estimateCost: estimateCost || 'n/a',
+      hasMissingInfo: hasMissingRequiredFields(recommendedModel),
+      missingFields:
+        getMissingRequiredFieldLabels(recommendedModel).join(', ') ||
+        'Spec, Image',
       originalData: recommendedModel,
     };
 
@@ -249,7 +329,8 @@ export function useRecommendedInfraModel() {
   ): Array<ISelectMenu> {
     const menu: Array<ISelectMenu> = [];
 
-    providerResponse.output.forEach(provider => {
+    // With no registered provider the output is empty — that is an empty menu, not an error.
+    (providerResponse?.output ?? []).forEach(provider => {
       menu.push({
         name: provider,
         label: provider,

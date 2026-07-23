@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import {
   JSONEditor,
   Mode,
@@ -24,6 +24,14 @@ interface Props {
   statusBar?: boolean;
   /** Editor height */
   height?: string;
+  /** Show Import button (always hidden when readOnly) */
+  allowImport?: boolean;
+  /** Show Export button (available even when readOnly) */
+  allowExport?: boolean;
+  /** Prefix of the exported file name: {fileName}-{yyyyMMdd-HHmmss}.json */
+  fileName?: string;
+  /** Maximum size of an imported file, in bytes */
+  maxImportSize?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -34,6 +42,10 @@ const props = withDefaults(defineProps<Props>(), {
   navigationBar: true,
   statusBar: true,
   height: '100%',
+  allowImport: true,
+  allowExport: true,
+  fileName: 'json-data',
+  maxImportSize: 10 * 1024 * 1024,
 });
 
 const emit = defineEmits<{
@@ -41,9 +53,12 @@ const emit = defineEmits<{
   (e: 'update:mode', value: string): void;
   (e: 'change', value: { content: Content; previousContent: Content; changeStatus: OnChangeStatus }): void;
   (e: 'error', value: Error): void;
+  (e: 'import', value: { fileName: string; json: unknown }): void;
+  (e: 'export', value: { fileName: string }): void;
 }>();
 
 const editorRef = ref<HTMLElement | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
 let editorInstance: JSONEditor | null = null;
 const currentMode = ref<Mode>(props.mode as Mode);
 const showPropertyGrid = ref(props.mode === 'table');
@@ -75,7 +90,7 @@ function contentToString(content: Content): string {
   if ('text' in content && content.text !== undefined) {
     const trimmed = content.text.trim();
     console.log('[EnhancedJsonEditor] contentToString (Text mode), trimmed:', JSON.stringify(trimmed).substring(0, 50));
-    // 빈 문자열이면 빈 객체 JSON으로 반환
+    // For an empty string, return the JSON of an empty object
     if (!trimmed || trimmed === '') {
       console.log('[EnhancedJsonEditor] Empty text detected, returning "{}"');
       return '{}';
@@ -83,7 +98,124 @@ function contentToString(content: Content): string {
     return content.text;
   }
   console.log('[EnhancedJsonEditor] contentToString fallback, returning "{}"');
-  return '{}';  // 기본값을 빈 문자열 대신 '{}'로
+  return '{}';  // default to '{}' instead of an empty string
+}
+
+/* ── Import / Export ───────────────────────────────────────── */
+
+// Import only in an editable editor (when readOnly, the button is not shown at all)
+const showImport = computed(() => props.allowImport && !props.readOnly);
+const showExport = computed(() => props.allowExport);
+const showToolbar = computed(() => showImport.value || showExport.value);
+
+function setError(message: string) {
+  hasError.value = true;
+  errorMessage.value = message;
+  emit('error', new Error(message));
+}
+
+// Get the content currently shown in the editor as JSON (including unsaved edits in progress).
+// In text mode the JSON may be broken, so return null if parsing fails.
+function getCurrentJson(): unknown | null {
+  const content: Content = editorInstance
+    ? editorInstance.get()
+    : toContent(props.modelValue);
+
+  if ('json' in content && content.json !== undefined) {
+    return content.json;
+  }
+  if ('text' in content && content.text !== undefined) {
+    const trimmed = content.text.trim();
+    if (!trimmed) return {};
+    return JSON.parse(trimmed);
+  }
+  return null;
+}
+
+function timestamp(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
+    `-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+  );
+}
+
+function handleExport() {
+  let json: unknown | null;
+  try {
+    json = getCurrentJson();
+  } catch (err) {
+    setError(`Export failed: invalid JSON format (${(err as Error).message})`);
+    return;
+  }
+  if (json === null) {
+    setError('Export failed: no JSON content to export');
+    return;
+  }
+
+  const outName = `${props.fileName}-${timestamp()}.json`;
+  const blob = new Blob([JSON.stringify(json, null, 2)], {
+    type: 'application/json',
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = outName;
+  anchor.click();
+  URL.revokeObjectURL(url);
+
+  hasError.value = false;
+  errorMessage.value = '';
+  emit('export', { fileName: outName });
+}
+
+function triggerImport() {
+  fileInputRef.value?.click();
+}
+
+// Apply the file content to the editor. If parsing fails, leave the existing content as-is.
+function applyImportedText(text: string, sourceName: string) {
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch (err) {
+    setError(`Import failed: JSON parse error (${(err as Error).message})`);
+    return;
+  }
+
+  hasError.value = false;
+  errorMessage.value = '';
+
+  if (editorInstance) {
+    editorInstance.update({ json } as Content);
+  }
+  emit('update:modelValue', JSON.stringify(json, null, 2));
+  emit('import', { fileName: sourceName, json });
+}
+
+function handleFileSelected(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+
+  if (file.size > props.maxImportSize) {
+    const limitMb = Math.round(props.maxImportSize / (1024 * 1024));
+    setError(`Import failed: file is too large (max ${limitMb}MB)`);
+    input.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    applyImportedText(String(reader.result ?? ''), file.name);
+    input.value = ''; // clear it so the same file can be selected again
+  };
+  reader.onerror = () => {
+    setError('Import failed: cannot read file');
+    input.value = '';
+  };
+  reader.readAsText(file);
 }
 
 function initEditor() {
@@ -228,6 +360,8 @@ function switchToEditor() {
 // Expose methods for parent component
 defineExpose({
   getEditor: () => editorInstance,
+  exportJson: handleExport,
+  importJson: (text: string) => applyImportedText(text, `${props.fileName}.json`),
   refresh: () => {
     if (!editorInstance) return;
     editorInstance.update(toContent(props.modelValue));
@@ -235,7 +369,7 @@ defineExpose({
   setMode: (mode: 'tree' | 'text' | 'table') => {
     if (!editorInstance) return;
     try {
-      // Property Grid는 우리 커스텀 모드
+      // Property Grid is our custom mode
       if (mode === 'table' || mode === Mode.table) {
         showPropertyGrid.value = true;
         editorInstance.updateProps({ mode: Mode.tree });
@@ -253,19 +387,19 @@ defineExpose({
     if (!editorInstance) return;
 
     try {
-      // Property Grid 모드에서는 skip
+      // Skip in Property Grid mode
       if (showPropertyGrid.value) {
         console.log('expandAll: Skipping - Property Grid mode');
         return;
       }
 
-      // tree 모드에서만 expand 가능
+      // Expand is only possible in tree mode
       if (currentMode.value !== Mode.tree) {
         console.log('expandAll: Skipping - not in tree mode, current mode:', currentMode.value);
         return;
       }
 
-      // tree 모드에서만 expand 실행
+      // Only run expand in tree mode
       editorInstance.expand(() => true);
     } catch (e) {
       console.warn('expandAll failed:', e.message);
@@ -295,6 +429,35 @@ defineExpose({
 
 <template>
   <div class="enhanced-json-editor" :style="{ height }">
+    <!-- File toolbar - kept outside the vanilla editor so it stays visible in Property Grid mode too -->
+    <div v-if="showToolbar" class="file-toolbar">
+      <button
+        v-if="showImport"
+        type="button"
+        class="file-btn"
+        title="Import JSON file"
+        @click="triggerImport"
+      >
+        ↑ Import
+      </button>
+      <button
+        v-if="showExport"
+        type="button"
+        class="file-btn"
+        title="Export to JSON file"
+        @click="handleExport"
+      >
+        ↓ Export
+      </button>
+      <input
+        ref="fileInputRef"
+        type="file"
+        accept="application/json,.json"
+        class="file-input"
+        @change="handleFileSelected"
+      />
+    </div>
+
     <!-- Property Grid view (replaces vanilla-jsoneditor table mode) -->
     <div v-if="showPropertyGrid" class="property-grid-wrapper">
       <div class="pg-header">
@@ -313,8 +476,8 @@ defineExpose({
     <!-- vanilla-jsoneditor (tree / text modes) -->
     <div v-show="!showPropertyGrid" ref="editorRef" class="editor-container" />
 
-    <!-- Error indicator -->
-    <div v-if="hasError && !showPropertyGrid" class="error-bar">
+    <!-- Error indicator - also carries Import/Export failures, so it must show in Property Grid mode as well -->
+    <div v-if="hasError" class="error-bar">
       {{ errorMessage }}
     </div>
   </div>
@@ -328,6 +491,35 @@ defineExpose({
   border-radius: 6px;
   overflow: hidden;
   background-color: #ffffff;
+}
+
+.file-toolbar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 10px;
+  background: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.file-btn {
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #4f46e5;
+  background: #ffffff;
+  border: 1px solid #c7d2fe;
+  border-radius: 3px;
+  cursor: pointer;
+
+  &:hover {
+    background: #eef2ff;
+  }
+}
+
+.file-input {
+  display: none;
 }
 
 .editor-container {
@@ -346,10 +538,27 @@ defineExpose({
     --jse-theme-color-highlight: #e0e7ff;
   }
 
+  /*
+    The bar is light, so its buttons must be dark — set both, never just one.
+    vanilla-jsoneditor colours its menu buttons white to sit on its own dark bar.
+    Under 0.23 the background rule below lost to the library's stylesheet, so the
+    bar stayed dark and the white buttons were legible. Under 3.x it wins: the bar
+    turned light, the buttons stayed white, and they were invisible until hovered.
+  */
   :deep(.jse-menu) {
     background-color: #f9fafb;
     border-bottom: 1px solid #e5e7eb;
     display: flex !important; /* Force menu to show even in readOnly mode */
+  }
+
+  /* Leave .jse-selected alone — that is how the current mode is marked. */
+  :deep(.jse-menu .jse-button:not(.jse-selected)) {
+    color: #374151 !important;
+  }
+
+  :deep(.jse-menu .jse-button:not(.jse-selected):hover) {
+    background-color: #e5e7eb !important;
+    color: #111827 !important;
   }
 
   :deep(.jse-contents) {

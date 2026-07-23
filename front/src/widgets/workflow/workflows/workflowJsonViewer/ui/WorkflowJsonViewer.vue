@@ -24,8 +24,7 @@ const emit = defineEmits([
   'update:trigger',
 ]);
 
-// Decode base64 content for cicada_task_run_script tasks
-// cicada_task_run_script 태스크의 content 필드를 base64로 디코딩
+// Decode the base64 content field of cicada_task_run_script tasks
 const decodedJson = computed(() => {
   if (!props.json || typeof props.json !== 'object') {
     return props.json;
@@ -47,17 +46,21 @@ function processTaskGroups(taskGroups: any[]) {
     if (taskGroup.tasks && Array.isArray(taskGroup.tasks)) {
       taskGroup.tasks.forEach((task: any) => {
         // Check task.task_component (fixed identifier, not user-changeable)
-        // task.task_component로 확인 (고정 식별자, 사용자 변경 불가)
-        if (task.task_component === 'cicada_task_run_script' && task.request_body) {
-          try {
-            const requestBody = JSON.parse(task.request_body);
-            if (requestBody.content) {
-              console.log('🔓 Decoding content in JSON Viewer for task:', task.name);
-              requestBody.content = decodeBase64(requestBody.content);
-              task.request_body = JSON.stringify(requestBody);
+        // cm-cicada type/spec schema: request_body lives at task.spec.request_body.
+        if (task.task_component === 'cicada_task_run_script') {
+          const rawRequestBody = task.spec?.request_body;
+          if (rawRequestBody) {
+            try {
+              const requestBody = JSON.parse(rawRequestBody);
+              if (requestBody.content) {
+                console.log('🔓 Decoding content in JSON Viewer for task:', task.name);
+                requestBody.content = decodeBase64(requestBody.content);
+                const encoded = JSON.stringify(requestBody);
+                task.spec.request_body = encoded;
+              }
+            } catch (e) {
+              console.error('Error decoding task request_body:', e);
             }
-          } catch (e) {
-            console.error('Error decoding task request_body:', e);
           }
         }
       });
@@ -119,7 +122,6 @@ function handleModelUpdate(value: string) {
 async function handleSave() {
   if (updatedData.value !== null) {
     // Re-encode content fields before saving
-    // 저장 전에 content 필드를 다시 인코딩
     const dataToSave = JSON.parse(JSON.stringify(updatedData.value));
     
     if (dataToSave.task_groups && Array.isArray(dataToSave.task_groups)) {
@@ -137,17 +139,21 @@ function encodeTaskGroups(taskGroups: any[]) {
     if (taskGroup.tasks && Array.isArray(taskGroup.tasks)) {
       taskGroup.tasks.forEach((task: any) => {
         // Check task.task_component (fixed identifier, not user-changeable)
-        // task.task_component로 확인 (고정 식별자, 사용자 변경 불가)
-        if (task.task_component === 'cicada_task_run_script' && task.request_body) {
-          try {
-            const requestBody = JSON.parse(task.request_body);
-            if (requestBody.content) {
-              console.log('🔐 Encoding content in JSON Viewer for task:', task.name);
-              requestBody.content = encodeBase64(requestBody.content);
-              task.request_body = JSON.stringify(requestBody);
+        // cm-cicada type/spec schema: request_body lives at task.spec.request_body.
+        if (task.task_component === 'cicada_task_run_script') {
+          const rawRequestBody = task.spec?.request_body;
+          if (rawRequestBody) {
+            try {
+              const requestBody = JSON.parse(rawRequestBody);
+              if (requestBody.content) {
+                console.log('🔐 Encoding content in JSON Viewer for task:', task.name);
+                requestBody.content = encodeBase64(requestBody.content);
+                const encoded = JSON.stringify(requestBody);
+                task.spec.request_body = encoded;
+              }
+            } catch (e) {
+              console.error('Error encoding task request_body:', e);
             }
-          } catch (e) {
-            console.error('Error encoding task request_body:', e);
           }
         }
       });
@@ -171,7 +177,7 @@ function encodeTaskGroups(taskGroups: any[]) {
     @update:modal-state="handleModal"
   >
     <template #add-info>
-      <div class="workflow-json-editor-wrapper">
+      <div data-testid="workflow-json-viewer" class="workflow-json-editor-wrapper">
         <div class="editor-title">Target Model</div>
         <EnhancedJsonEditor
           ref="jsonEditorRef"
@@ -182,6 +188,7 @@ function encodeTaskGroups(taskGroups: any[]) {
           :navigation-bar="true"
           :status-bar="false"
           height="600px"
+          file-name="workflow"
           @update:modelValue="handleModelUpdate"
         />
       </div>

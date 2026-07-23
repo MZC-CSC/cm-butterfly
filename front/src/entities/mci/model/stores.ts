@@ -11,8 +11,15 @@ const NAMESPACE = 'MCI';
 export const useMCIStore = defineStore(NAMESPACE, () => {
   const mcis = ref<IMci[]>([]);
 
+  // tb-0.12.9 boundary adapter: cb-tumblebug responses changed vm to node (infra[].node[]).
+  // Internal code uses the vm naming widely, so we adapt node to vm at the boundary (a full internal rename is tech debt).
+  function adaptNode(_mci: IMci): IMci {
+    if (_mci && !_mci.vm && _mci.node) _mci.vm = _mci.node;
+    return _mci;
+  }
+
   function setMcis(_mcis: IMci[]) {
-    mcis.value = _mcis;
+    mcis.value = (_mcis ?? []).map(adaptNode);
   }
 
   function getMciById(mciId: string) {
@@ -24,6 +31,8 @@ export const useMCIStore = defineStore(NAMESPACE, () => {
   }
 
   function setMci(_mci: IMci) {
+    if (!_mci) return;
+    adaptNode(_mci);
     const targetMci = mcis.value.find(mci => mci.uid === _mci.uid);
     if (targetMci) {
       Object.assign(targetMci, _mci);
@@ -39,16 +48,22 @@ export const useMCIStore = defineStore(NAMESPACE, () => {
 
   function setVmInfo(mciID: string, vm: IVm) {
     const mci = getMciById(mciID);
-    const targetVm = mci?.vm.find(_vm => _vm.uid === vm.uid);
+    const targetVm = mci?.vm?.find(_vm => _vm.uid === vm.uid);
     if (targetVm) {
       Object.assign(targetVm, vm);
     }
   }
 
+  /**
+   * Holds the node's most recent load test state.
+   *
+   * `undefined` means *there is nothing to show* — used when the run that came back belongs
+   * to a different VM and must not reach the screen.
+   */
   function assignLastLoadTestStateToVm(
     mciID: string,
     vmID: string,
-    response: ILastloadtestStateResponse,
+    response: ILastloadtestStateResponse | undefined,
   ) {
     const mci = getMciById(mciID);
     if (mci) {

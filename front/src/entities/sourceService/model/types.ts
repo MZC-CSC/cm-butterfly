@@ -55,7 +55,8 @@ export interface ISourceServiceResponseElement {
 }
 
 export interface ISourceServiceResponse {
-  source_group: Array<ISourceServiceResponseElement>;
+  // honeybee returns null (not an empty array) when there are no source groups.
+  source_group: Array<ISourceServiceResponseElement> | null;
 }
 
 export type IInfraSourceGroupResponse = Array<IInfraConnectionData>;

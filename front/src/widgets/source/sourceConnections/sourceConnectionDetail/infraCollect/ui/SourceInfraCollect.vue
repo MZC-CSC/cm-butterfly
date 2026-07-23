@@ -2,8 +2,10 @@
 import { PButton, PDefinitionTable, PStatus } from '@cloudforet-test/mirinae';
 import { onBeforeMount, watch } from 'vue';
 import { useSourceInfraCollectModel } from '@/widgets/source/sourceConnections/sourceConnectionDetail/infraCollect/model/sourceInfraCollectModel';
-import { useCollectInfra } from '@/entities/sourceConnection/api';
-import { showErrorMessage } from '@/shared/utils';
+import { useCollectInfra, useGetInfraInfo } from '@/entities/sourceConnection/api';
+import { showErrorMessage,
+  toErrorMessage,
+} from '@/shared/utils';
 
 interface IProps {
   sourceGroupId: string | null;
@@ -26,6 +28,7 @@ const resCollectInfra = useCollectInfra({
   sgId: null,
   connId: null,
 });
+const resGetInfraInfo = useGetInfraInfo(null, null);
 
 watch(
   () => props.connectionId,
@@ -39,6 +42,8 @@ onBeforeMount(() => {
 });
 
 function handleCollectInfra() {
+  // Collect the infra (import-infra), then load its structured JSON form
+  // (get-infra-info) for the viewer's left "Meta" pane.
   resCollectInfra
     .execute({
       pathParams: {
@@ -47,17 +52,29 @@ function handleCollectInfra() {
       },
     })
     .then(res => {
-      if (res.data.responseData) {
-        if (props.connectionId) {
-          sourceConnectionStore.mapSourceConnectionCollectInfraResponse(
-            res.data.responseData,
-          );
-          loadInfraCollectTableData(props.connectionId);
-        }
+      if (!res.data.responseData || !props.connectionId) return undefined;
+      sourceConnectionStore.mapSourceConnectionCollectInfraResponse(
+        res.data.responseData,
+      );
+      loadInfraCollectTableData(props.connectionId);
+      return resGetInfraInfo.execute({
+        pathParams: {
+          sgId: props.sourceGroupId,
+          connId: props.connectionId,
+        },
+      });
+    })
+    .then(infoRes => {
+      if (infoRes && infoRes.data.responseData && props.connectionId) {
+        sourceConnectionStore.setConnectionInfraModel(
+          props.connectionId,
+          infoRes.data.responseData,
+        );
+        loadInfraCollectTableData(props.connectionId);
       }
     })
     .catch(e => {
-      if (e.errorMsg.value) showErrorMessage('Error', e.errorMsg.value);
+      showErrorMessage('Error', toErrorMessage(e, 'Failed to load collected infrastructure information.'));
     });
 }
 </script>
@@ -75,6 +92,7 @@ function handleCollectInfra() {
       </template>
       <template #data-viewInfra="{ data }">
         <p
+          data-testid="view-infra-meta"
           class="text-blue-700 cursor-pointer"
           @click="emit('update:metaViewerModalState', true)"
         >
@@ -84,6 +102,7 @@ function handleCollectInfra() {
       <template #extra="{ name }">
         <div v-if="name === 'collectInfraStatus'">
           <p-button
+            data-testid="collect-infra"
             style-type="tertiary"
             size="sm"
             :loading="resCollectInfra.isLoading.value"

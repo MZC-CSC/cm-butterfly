@@ -65,7 +65,7 @@ const sourceConnectionDetailTabState = reactive({
   ],
 });
 
-//trigger true해주면 업데이트 되도록 함.
+// Setting trigger to true causes it to update.
 const modalStates = reactive({
   addServiceGroup: {
     open: false,
@@ -154,7 +154,7 @@ const data = computed(() => {
       v-if="!modalStates.addSourceConnection.open"
       :class="`${pageName}-page-header`"
     >
-      <p>{{ pageName }}</p>
+      <p data-testid="source-services-header">{{ pageName }}</p>
     </header>
     <section :class="`${pageName}-page-body`">
       <SourceServiceList

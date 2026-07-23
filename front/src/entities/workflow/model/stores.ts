@@ -5,6 +5,8 @@ import {
   ITaskComponent,
 } from '@/entities/workflow/model/types';
 import { normalizeTaskComponentInPlace } from '@/entities/workflow/lib/schemaAdapter';
+import { axiosPost } from '@/shared/libs/api/request';
+import { IAxiosResponse } from '@/shared/libs';
 import { ref } from 'vue';
 
 const NAMESPACE = 'WORKFLOW';
@@ -16,19 +18,76 @@ export const useWorkflowStore = defineStore(NAMESPACE, () => {
   const workflowTemplates = ref<IWorkflow[]>([]);
   const taskComponents = ref<ITaskComponent[]>([]);
 
-  function getWorkflowById(workflowId: string | null | undefined) {
-    return workflows.value.find(workflow => workflow.id === workflowId);
-  }
-
-  function setWorkFlows(_workflows: IWorkflowResponse[]) {
-    workflows.value = _workflows.map(workflow => ({
+  /**
+   * API response → the shape stored in the store.
+   *
+   * This is the only place that knows the stored shape. Whether stored as a list or a
+   * single item, everything goes through this function, so if the storage structure
+   * changes, this is the one place to fix.
+   */
+  function toWorkflowEntry(workflow: IWorkflowResponse): IWorkflow {
+    return {
       created_at: workflow.created_at,
       data: workflow.data,
       name: workflow.name,
       updated_at: workflow.updated_at,
       id: workflow.id,
       description: '',
-    }));
+    };
+  }
+
+  function getWorkflowById(workflowId: string | null | undefined) {
+    return workflows.value.find(workflow => workflow.id === workflowId);
+  }
+
+  function setWorkFlows(_workflows: IWorkflowResponse[]) {
+    workflows.value = _workflows.map(toWorkflowEntry);
+  }
+
+  /**
+   * Insert or update a single item.
+   *
+   * The list screen watches this array to render the table. So instead of swapping an
+   * element in place, we *build a new array*. Pushing into it wouldn't re-render the
+   * list, and a workflow newly created by cloning wouldn't appear in the list.
+   */
+  function upsertWorkflow(workflow: IWorkflowResponse) {
+    const entry = toWorkflowEntry(workflow);
+    const index = workflows.value.findIndex(w => w.id === workflow.id);
+    workflows.value =
+      index >= 0
+        ? workflows.value.map((w, i) => (i === index ? entry : w))
+        : [...workflows.value, entry];
+  }
+
+  /**
+   * Return the workflow. If it isn't in the cache, fetch it, fill the cache, then return it.
+   *
+   * The cache policy lives in this one place. If callers each start doing "refetch the
+   * list if it's missing", the same code multiplies every time a new create-workflow
+   * feature appears and someone somewhere leaves it out (the blank screen when opening
+   * a clone in the editor was one such case).
+   */
+  async function ensureWorkflowById(
+    workflowId: string | null | undefined,
+  ): Promise<IWorkflow | undefined> {
+    if (!workflowId) return undefined;
+
+    const cached = getWorkflowById(workflowId);
+    if (cached) return cached;
+
+    // The composable (useGetWorkflow) is built to be used within a component setup
+    // context. Called from a store action, the request doesn't finish properly and the
+    // caller keeps waiting. So here we use the axios call directly.
+    const response = await axiosPost<IAxiosResponse<IWorkflowResponse>, any>(
+      'cm-cicada/get-workflow',
+      { pathParams: { wfId: workflowId } },
+    );
+    const fetched = response?.data?.responseData;
+    if (!fetched?.id) return undefined;
+
+    upsertWorkflow(fetched);
+    return getWorkflowById(workflowId);
   }
 
   function getWorkflowTemplateById(templateId: string | null | undefined) {
@@ -54,8 +113,8 @@ export const useWorkflowStore = defineStore(NAMESPACE, () => {
 
   function setTaskComponents(_taskComponents: ITaskComponent[]) {
     taskComponents.value = _taskComponents.map(taskComponent => {
-      // cm-cicada Type/Spec 응답을 legacy `data` 형태로 정규화 (idempotent).
-      // 정규화하지 않으면 `.data` 가 undefined 라 상세 JSON 뷰가 비어 보인다.
+      // Normalize the cm-cicada Type/Spec response into the legacy `data` shape (idempotent).
+      // Without normalizing, `.data` is undefined so the detail JSON view looks empty.
       normalizeTaskComponentInPlace(taskComponent);
       return {
         created_at: taskComponent.created_at,
@@ -68,20 +127,23 @@ export const useWorkflowStore = defineStore(NAMESPACE, () => {
         spec: (taskComponent as any).spec,
       };
     });
-    
-    // 각 task component의 model 정보를 콘솔에 출력
+
+    // Print each task component's model information to the console
     console.log('=== Task Components Model Information ===');
     _taskComponents.forEach(taskComponent => {
       console.log(`Task: ${taskComponent.name}`, {
         id: taskComponent.id,
         model: taskComponent.data,
         created_at: taskComponent.created_at,
-        updated_at: taskComponent.updated_at
+        updated_at: taskComponent.updated_at,
       });
-      
-      // Task component의 body_params 모델 정보 상세 출력
+
+      // Print the task component's body_params model information in detail
       if (taskComponent.data && (taskComponent.data as any).body_params) {
-        console.log(`📋 ${taskComponent.name} Body Params Model:`, (taskComponent.data as any).body_params);
+        console.log(
+          `📋 ${taskComponent.name} Body Params Model:`,
+          (taskComponent.data as any).body_params,
+        );
       }
     });
     console.log('==========================================');
@@ -115,6 +177,8 @@ export const useWorkflowStore = defineStore(NAMESPACE, () => {
     taskComponents,
     setWorkFlows,
     getWorkflowById,
+    ensureWorkflowById,
+    upsertWorkflow,
     setWorkflowTemplates,
     getWorkflowTemplateById,
     setTaskComponents,

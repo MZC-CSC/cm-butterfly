@@ -1,9 +1,9 @@
 <template>
   <div class="data-structure-renderer">
-    <!-- Array 표시 -->
+    <!-- Array display -->
     <span v-if="Array.isArray(value)" :style="getArrayStyle()">
       [Array: {{ value.length }} items]
-      <!-- Array 상세 표시 -->
+      <!-- Array detail display -->
       <div v-if="value.length > 0" :style="getNestedStyle()">
         <div v-for="(arrayItem, arrayIdx) in value.slice(0, getMaxItems())" :key="arrayIdx" :style="getItemStyle()">
           <span :style="getIndexStyle()">{{ arrayIdx + 1 }}:</span>
@@ -20,10 +20,10 @@
       </div>
     </span>
     
-    <!-- Object 표시 -->
+    <!-- Object display -->
     <span v-else-if="typeof value === 'object' && value !== null" :style="getObjectStyle()">
       [Object: {{ Object.keys(value).length }} props]
-      <!-- Object 상세 표시 -->
+      <!-- Object detail display -->
       <div v-if="Object.keys(value).length > 0" :style="getNestedStyle()">
         <div v-for="(objValue, objKey) in value" :key="objKey" :style="getItemStyle()">
           <span :style="getKeyStyle()">{{ objKey }}:</span>
@@ -37,12 +37,12 @@
       </div>
     </span>
     
-    <!-- Null 값 표시 -->
+    <!-- Null value display -->
     <span v-else-if="value === null" :style="getNullStyle()">
       null
     </span>
     
-    <!-- Primitive 값 표시 -->
+    <!-- Primitive value display -->
     <span v-else :style="getPrimitiveStyle()">
       {{ formatPrimitiveValue(value) }}
     </span>

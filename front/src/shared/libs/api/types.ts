@@ -40,13 +40,13 @@ export interface IUseAxiosWrapperReturnType<T, D> {
 export interface IUseBulkAxiosWrapperReturnType<T, D extends Array<unknown>> {
   isLoading: Ref<boolean>;
   status: Ref<AsyncStatus>;
-  data: Ref<T[] | null>; // T[]로 정의되어 있는지 확인
+  data: Ref<T[] | null>; // Check whether it's defined as T[]
   error: Ref<Error | null>;
   errorMsg: Ref<string[] | null>;
   execute: (
     payload?: D,
     config?: AxiosRequestConfig,
-  ) => Promise<AxiosResponse<T>[]>; // Promise<AxiosResponse<T[]>>로 정의되어 있는지 확인
+  ) => Promise<AxiosResponse<T>[]>; // Check whether it's defined as Promise<AxiosResponse<T[]>>
   reset: () => void;
 }
 

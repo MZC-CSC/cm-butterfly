@@ -64,7 +64,7 @@ watch(_name, () => {}, { immediate: true });
       <p-pane-layout class="layout">
         <p-pane-layout class="text-input-layout">
           <p-field-group :label="nameLabel" required>
-            <p-text-input v-model="_name" :placeholder="namePlaceholder" />
+            <p-text-input v-model="_name" data-testid="model-name-input" :placeholder="namePlaceholder" />
           </p-field-group>
           <p-field-group label="Description">
             <p-textarea v-model="_description" />
@@ -76,7 +76,9 @@ watch(_name, () => {}, { immediate: true });
       <span>{{ i18n.t('COMPONENT.BUTTON_MODAL.CANCEL') }}</span>
     </template>
     <template #confirm-button>
-      <span>{{ i18n.t('COMPONENT.BUTTON_MODAL.SAVE') }}</span>
+      <span data-testid="model-name-save">{{
+        i18n.t('COMPONENT.BUTTON_MODAL.SAVE')
+      }}</span>
     </template>
   </p-button-modal>
 </template>

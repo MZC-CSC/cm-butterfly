@@ -53,7 +53,7 @@ const shouldRenderField = (field: Field) => {
       </div>
     </div>
 
-    <!-- Array Field (migration_list 제외) -->
+    <!-- Array Field (excluding migration_list) -->
     <div v-else-if="field.type === 'array' && !isMigrationListField(field)" class="field-group-vertical">
       <div class="field-title-box">
         {{ field.context.subject }}
@@ -116,7 +116,7 @@ const shouldRenderField = (field: Field) => {
       </div>
     </div>
 
-    <!-- Migration List Field (특별 처리) -->
+    <!-- Migration List Field (special handling) -->
     <div v-else-if="field.type === 'array' && isMigrationListField(field)" class="field-group-vertical">
       <div class="field-title-box">
         {{ field.context.subject }}
@@ -206,7 +206,7 @@ const shouldRenderField = (field: Field) => {
   }
 }
 
-/* flex 클래스가 있는 field-group은 가로 배치 강제 */
+/* Force horizontal layout for field-groups that have the flex class */
 .field-group.flex {
   display: flex;
   flex-direction: row;
@@ -254,7 +254,7 @@ const shouldRenderField = (field: Field) => {
     width: 100%;
   }
   
-  /* field-group-vertical 내부의 field-group은 가로 배치 */
+  /* field-groups inside field-group-vertical are laid out horizontally */
   .field-group {
     display: flex;
     flex-direction: row;
@@ -309,7 +309,7 @@ const shouldRenderField = (field: Field) => {
   }
 }
 
-/* migration_list 내부의 field-group은 세로 배치 */
+/* field-groups inside migration_list are laid out vertically */
 .array-item .field-group {
   display: flex;
   flex-direction: column;

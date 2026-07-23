@@ -30,16 +30,16 @@ const emit = defineEmits([
 ]);
 const taskEditorModel = useGrasshopperTaskEditorModel();
 
-// Props에서 받아온 정보 로그
-console.log('=== Props 정보 ===');
+// Log the info received from props
+console.log('=== Props info ===');
 console.log('props.step:', props.step);
 console.log('props.step.properties:', props.step.properties);
 console.log('props.step.properties.model:', props.step.properties.model);
 console.log('props.step.properties.fixedModel:', props.step.properties.fixedModel);
 console.log('props.step.name:', props.step.name);
 
-// taskEditorModel 초기 상태 로그
-console.log('=== taskEditorModel 초기 상태 ===');
+// Log the initial taskEditorModel state
+console.log('=== taskEditorModel initial state ===');
 console.log('taskEditorModel:', taskEditorModel);
 console.log('taskEditorModel.componentNameModel:', taskEditorModel.componentNameModel);
 console.log('taskEditorModel.formContext:', taskEditorModel.formContext);
@@ -57,27 +57,27 @@ const editorFormElement = ref(null);
 let shortCut;
 
 onBeforeMount(() => {
-  console.log('=== onBeforeMount 시작 ===');
-  
-  // Form Context 설정
-  console.log('props.step.properties.model 설정 전:', props.step.properties.model);
+  console.log('=== onBeforeMount start ===');
+
+  // Set Form Context
+  console.log('props.step.properties.model before set:', props.step.properties.model);
   taskEditorModel.setFormContext(props.step.properties.model ?? '');
-  console.log('Form Context 설정 후:', taskEditorModel.formContext.value);
-  
-  // Params Context 설정
+  console.log('Form Context after set:', taskEditorModel.formContext.value);
+
+  // Set Params Context
   if (props.step.properties.fixedModel) {
-    console.log('props.step.properties.fixedModel 설정 전:', props.step.properties.fixedModel);
+    console.log('props.step.properties.fixedModel before set:', props.step.properties.fixedModel);
     taskEditorModel.setParamsContext(props.step.properties.fixedModel);
-    console.log('Params Context 설정 후:', taskEditorModel.paramsContext.value);
+    console.log('Params Context after set:', taskEditorModel.paramsContext.value);
   }
 
-  // Component Name 설정
-  console.log('props.step.name 설정 전:', props.step.name);
+  // Set Component Name
+  console.log('props.step.name before set:', props.step.name);
   taskEditorModel.setComponentName(props.step.name);
-  console.log('Component Name 설정 후:', taskEditorModel.componentNameModel.value);
+  console.log('Component Name after set:', taskEditorModel.componentNameModel.value);
 
-  console.log('=== onBeforeMount 완료 ===');
-  console.log('최종 taskEditorModel 상태:', {
+  console.log('=== onBeforeMount done ===');
+  console.log('final taskEditorModel state:', {
     componentNameModel: taskEditorModel.componentNameModel.value,
     formContext: taskEditorModel.formContext.value,
     paramsContext: taskEditorModel.paramsContext.value
@@ -159,40 +159,40 @@ function handleClickOutside(event: MouseEvent) {
   }
 }
 
-// depth 0에서 array 타입인지 확인하는 함수
+// Checks whether the value is an array type at depth 0
 function isDepthZeroArray(formData: any): boolean {
-  console.log('=== isDepthZeroArray 확인 ===');
+  console.log('=== isDepthZeroArray check ===');
   console.log('formData.type:', formData.type);
   console.log('formData.context.subject:', formData.context.subject);
   
-  // subject에서 depth 정보를 확인 (예: "[d-sub-0-array] key" 형태)
+  // Read the depth info from the subject (e.g. "[d-sub-0-array] key")
   const isArray = formData.type === 'array';
   const hasDepthZero = formData.context.subject.includes('[d-sub-0-array]');
   
   console.log('isArray:', isArray);
   console.log('hasDepthZero:', hasDepthZero);
-  console.log('최종 결과:', isArray && hasDepthZero);
+  console.log('final result:', isArray && hasDepthZero);
   
   return isArray && hasDepthZero;
 }
 
-// ArrayContext를 ObjectArrayContext로 변환하는 함수 (depth 4까지 처리)
+// Converts an ArrayContext into an ObjectArrayContext (handles up to depth 4)
 function convertToObjectArrayContext(formData: any) {
-  console.log('=== convertToObjectArrayContext 시작 ===');
+  console.log('=== convertToObjectArrayContext start ===');
   console.log('formData:', formData);
   console.log('formData.context.values:', formData.context.values);
   
   const subject = formData.context.subject.replace(/^\[d-sub-\d+-array\] /, '');
   
-  // depth 4까지만 표시하기 위해 values를 ObjectContext로 변환
+  // Convert values into ObjectContext so we only render up to depth 4
   const items = formData.context.values.map((item: any, index: number) => {
-    console.log(`=== 아이템 ${index} 처리 시작 ===`);
+    console.log(`=== item ${index} processing start ===`);
     console.log('item:', item);
     console.log('item.type:', item.type);
     console.log('item.context:', item.context);
     
     if (item.type === 'nestedObject') {
-      // nestedObject를 ObjectContext로 변환 (depth 3까지 처리)
+      // Convert nestedObject into ObjectContext (handles up to depth 3)
       const fields = item.context.values.map((field: any) => {
         if (field.type === 'input') {
           return {
@@ -201,20 +201,20 @@ function convertToObjectArrayContext(formData: any) {
             value: field.context.model
           };
         } else if (field.type === 'keyValueInput') {
-          // KeyValueInputContext 처리
+          // Handle KeyValueInputContext
           return {
             type: 'keyValue',
             key: (field.context.title.value || 'key'),
             value: field.context.model
           };
         } else if (field.type === 'nestedObject') {
-          // depth 2의 nestedObject 처리
-          console.log('=== depth 2 nestedObject 처리 시작 ===');
+          // Handle the depth-2 nestedObject
+          console.log('=== depth 2 nestedObject processing start ===');
           console.log('field:', field);
           console.log('field.context.values:', field.context.values);
           
           const nestedFields = field.context.values.map((nestedField: any) => {
-            console.log('nestedField 처리:', nestedField.type, nestedField);
+            console.log('processing nestedField:', nestedField.type, nestedField);
             
             if (nestedField.type === 'input') {
               return {
@@ -223,18 +223,18 @@ function convertToObjectArrayContext(formData: any) {
                 value: nestedField.context.model
               };
             } else if (nestedField.type === 'keyValueInput') {
-              // KeyValueInputContext 처리 (depth 2)
+              // Handle KeyValueInputContext (depth 2)
               return {
                 type: 'keyValue',
                 key: (nestedField.context.title.value || 'key'),
                 value: nestedField.context.model
               };
             } else if (nestedField.type === 'array') {
-              console.log('=== depth 2 nestedObject 내부 array 처리 시작 ===');
+              console.log('=== depth 2 nestedObject inner array processing start ===');
               console.log('nestedField (array):', nestedField);
               console.log('nestedField.context.values:', nestedField.context.values);
               
-              // depth 2의 array 처리 - ObjectArray로 변환
+              // Handle the depth-2 array - convert to ObjectArray
               const arrayItems = nestedField.context.values.map((arrayItem: any, arrayIndex: number) => {
                 console.log(`depth 2 arrayItem ${arrayIndex}:`, arrayItem);
                 
@@ -276,11 +276,11 @@ function convertToObjectArrayContext(formData: any) {
                     fields: arrayItemFields
                   };
                 }
-                console.log(`처리되지 않은 depth 2 arrayItem 타입: ${arrayItem.type}`, arrayItem);
+                console.log(`unhandled depth 2 arrayItem type: ${arrayItem.type}`, arrayItem);
                 return arrayItem;
               });
               
-              console.log('depth 2 arrayItems 결과:', arrayItems);
+              console.log('depth 2 arrayItems result:', arrayItems);
               
               return {
                 type: 'objectArray',
@@ -288,7 +288,7 @@ function convertToObjectArrayContext(formData: any) {
                 items: arrayItems
               };
             } else if (nestedField.type === 'nestedObject') {
-              // depth 3의 nestedObject 처리
+              // Handle the depth-3 nestedObject
               const depth3Fields = nestedField.context.values.map((depth3Field: any) => {
                 if (depth3Field.type === 'input') {
                   return {
@@ -297,14 +297,14 @@ function convertToObjectArrayContext(formData: any) {
                     value: depth3Field.context.model
                   };
                 } else if (depth3Field.type === 'keyValueInput') {
-                  // KeyValueInputContext 처리 (depth 3)
+                  // Handle KeyValueInputContext (depth 3)
                   return {
                     type: 'keyValue',
                     key: (depth3Field.context.title.value || 'key'),
                     value: depth3Field.context.model
                   };
                 } else if (depth3Field.type === 'nestedObject') {
-                  // depth 4의 nestedObject 처리
+                  // Handle the depth-4 nestedObject
                   const depth4Fields = depth3Field.context.values.map((depth4Field: any) => {
                     if (depth4Field.type === 'input') {
                       return {
@@ -313,14 +313,14 @@ function convertToObjectArrayContext(formData: any) {
                         value: depth4Field.context.model
                       };
                     } else if (depth4Field.type === 'keyValueInput') {
-                      // KeyValueInputContext 처리 (depth 4)
+                      // Handle KeyValueInputContext (depth 4)
                       return {
                         type: 'keyValue',
                         key: (depth4Field.context.title.value || 'key'),
                         value: depth4Field.context.model
                       };
                     }
-                    // depth 4에서는 더 깊은 중첩은 표시하지 않음
+                    // At depth 4 we do not render any deeper nesting
                     return depth4Field;
                   });
                   
@@ -330,7 +330,7 @@ function convertToObjectArrayContext(formData: any) {
                     fields: depth4Fields
                   };
                 } else if (depth3Field.type === 'array') {
-                  // depth 3의 array 처리
+                  // Handle the depth-3 array
                   const depth3ArrayItems = depth3Field.context.values.map((depth3ArrayItem: any, depth3ArrayIndex: number) => {
                     if (depth3ArrayItem.type === 'input') {
                       return {
@@ -388,8 +388,8 @@ function convertToObjectArrayContext(formData: any) {
                 fields: depth3Fields
               };
             } else if (nestedField.type === 'array') {
-              // depth 2의 array 처리 - ObjectArray로 변환
-              console.log('=== depth 2 array 처리 시작 ===');
+              // Handle the depth-2 array - convert to ObjectArray
+              console.log('=== depth 2 array processing start ===');
               console.log('nestedField:', nestedField);
               console.log('nestedField.context.values:', nestedField.context.values);
               
@@ -425,7 +425,7 @@ function convertToObjectArrayContext(formData: any) {
                         value: arrayField.context.model
                       };
                     } else if (arrayField.type === 'array') {
-                      // depth 2의 array 처리 - ObjectArray로 변환
+                      // Handle the depth-2 array - convert to ObjectArray
                       const nestedArrayItems = arrayField.context.values.map((nestedArrayItem: any, nestedArrayIndex: number) => {
                         if (nestedArrayItem.type === 'input') {
                           return {
@@ -456,11 +456,11 @@ function convertToObjectArrayContext(formData: any) {
                     fields: arrayItemFields
                   };
                 }
-                console.log(`처리되지 않은 arrayItem 타입: ${arrayItem.type}`, arrayItem);
+                console.log(`unhandled arrayItem type: ${arrayItem.type}`, arrayItem);
                 return arrayItem;
               });
               
-              console.log('arrayItems 결과:', arrayItems);
+              console.log('arrayItems result:', arrayItems);
               
               return {
                 type: 'objectArray',
@@ -477,8 +477,8 @@ function convertToObjectArrayContext(formData: any) {
             fields: nestedFields
           };
         } else if (field.type === 'array') {
-          // depth 1의 array 처리 - ObjectArray로 변환
-          console.log('=== depth 1 array 처리 시작 ===');
+          // Handle the depth-1 array - convert to ObjectArray
+          console.log('=== depth 1 array processing start ===');
           console.log('field:', field);
           console.log('field.context.values:', field.context.values);
           
@@ -514,7 +514,7 @@ function convertToObjectArrayContext(formData: any) {
                     value: arrayField.context.model
                   };
                 } else if (arrayField.type === 'array') {
-                  // depth 2의 array 처리 - ObjectArray로 변환
+                  // Handle the depth-2 array - convert to ObjectArray
                   const nestedArrayItems = arrayField.context.values.map((nestedArrayItem: any, nestedArrayIndex: number) => {
                     if (nestedArrayItem.type === 'input') {
                       return {
@@ -545,11 +545,11 @@ function convertToObjectArrayContext(formData: any) {
                 fields: arrayItemFields
               };
             }
-            console.log(`처리되지 않은 arrayItem 타입: ${arrayItem.type}`, arrayItem);
+            console.log(`unhandled arrayItem type: ${arrayItem.type}`, arrayItem);
             return arrayItem;
           });
           
-          console.log('arrayItems 결과:', arrayItems);
+          console.log('arrayItems result:', arrayItems);
           
           return {
             type: 'objectArray',
@@ -566,7 +566,7 @@ function convertToObjectArrayContext(formData: any) {
         fields: fields
       };
     } else if (item.type === 'input') {
-      // 단순 input을 keyValue로 변환
+      // Convert a plain input into a keyValue
       return {
         type: 'object',
         subject: `Object ${index + 1}`,
@@ -577,7 +577,7 @@ function convertToObjectArrayContext(formData: any) {
         }]
       };
     } else if (item.type === 'keyValueInput') {
-      // KeyValueInputContext 처리 (depth 0)
+      // Handle KeyValueInputContext (depth 0)
       return {
         type: 'object',
         subject: `Object ${index + 1}`,
@@ -588,7 +588,7 @@ function convertToObjectArrayContext(formData: any) {
         }]
       };
     } else if (item.type === 'accordion') {
-      // AccordionContext 처리 - AccordionSlotContext들을 ObjectContext로 변환
+      // Handle AccordionContext - convert each AccordionSlotContext into an ObjectContext
       const accordionItems = item.context.values.map((slot: any, slotIndex: number) => {
         const slotFields = slot.content.map((contentItem: any) => {
           if (contentItem.type === 'input') {
@@ -614,7 +614,7 @@ function convertToObjectArrayContext(formData: any) {
         items: accordionItems
       };
     } else if (item.type === 'softwareModel') {
-      // SoftwareModelContext 처리
+      // Handle SoftwareModelContext
       const softwareFields = item.context.values.map((softwareField: any) => {
         if (softwareField.type === 'input') {
           return {
@@ -642,22 +642,22 @@ function convertToObjectArrayContext(formData: any) {
     items: items
   };
   
-  console.log('변환 결과:', result);
+  console.log('conversion result:', result);
   return result;
 }
 
-// ObjectArrayContext 업데이트 함수 (depth 4까지 처리)
+// Updates the ObjectArrayContext (handles up to depth 4)
 function updateObjectArrayContext(index: number, updatedContext: any) {
-  console.log('=== updateObjectArrayContext 시작 ===');
+  console.log('=== updateObjectArrayContext start ===');
   console.log('index:', index);
   console.log('updatedContext:', updatedContext);
   
-  // ObjectArrayContext를 다시 ArrayContext로 변환하여 formContext 업데이트
+  // Convert the ObjectArrayContext back into an ArrayContext to update formContext
   const originalFormData = taskEditorModel.formContext.value[index];
   if (originalFormData.type === 'array') {
-    // ObjectArrayContext의 items를 다시 ArrayContext의 values로 변환 (depth 4까지 처리)
+    // Convert the ObjectArrayContext items back into ArrayContext values (handles up to depth 4)
     const updatedValues = updatedContext.items.map((item: any) => {
-      // ObjectContext를 nestedObject로 변환 (depth 3까지 처리)
+      // Convert ObjectContext into nestedObject (handles up to depth 3)
       const nestedValues = item.fields.map((field: any) => {
         if (field.type === 'keyValue') {
           return {
@@ -668,7 +668,7 @@ function updateObjectArrayContext(index: number, updatedContext: any) {
             }
           };
         } else if (field.type === 'object') {
-          // depth 2의 object 처리
+          // Handle the depth-2 object
           const nestedObjectValues = field.fields.map((nestedField: any) => {
             if (nestedField.type === 'keyValue') {
               return {
@@ -679,7 +679,7 @@ function updateObjectArrayContext(index: number, updatedContext: any) {
                 }
               };
             } else if (nestedField.type === 'object') {
-              // depth 3의 object 처리
+              // Handle the depth-3 object
               const depth3ObjectValues = nestedField.fields.map((depth3Field: any) => {
                 if (depth3Field.type === 'keyValue') {
                   return {
@@ -690,7 +690,7 @@ function updateObjectArrayContext(index: number, updatedContext: any) {
                     }
                   };
                 } else if (depth3Field.type === 'object') {
-                  // depth 4의 object 처리
+                  // Handle the depth-4 object
                   const depth4ObjectValues = depth3Field.fields.map((depth4Field: any) => {
                     if (depth4Field.type === 'keyValue') {
                       return {
@@ -723,7 +723,7 @@ function updateObjectArrayContext(index: number, updatedContext: any) {
                 }
               };
             } else if (nestedField.type === 'objectArray') {
-              // depth 3의 objectArray 처리
+              // Handle the depth-3 objectArray
               const depth3ArrayValues = nestedField.items.map((depth3ArrayItem: any) => {
                 const depth3ArrayItemValues = depth3ArrayItem.fields.map((depth3ArrayField: any) => {
                   if (depth3ArrayField.type === 'keyValue') {
@@ -767,7 +767,7 @@ function updateObjectArrayContext(index: number, updatedContext: any) {
             }
           };
         } else if (field.type === 'objectArray') {
-          // depth 1의 objectArray 처리
+          // Handle the depth-1 objectArray
           const arrayValues = field.items.map((arrayItem: any) => {
             const arrayItemValues = arrayItem.fields.map((arrayField: any) => {
               if (arrayField.type === 'keyValue') {
@@ -812,9 +812,9 @@ function updateObjectArrayContext(index: number, updatedContext: any) {
       };
     });
     
-    // formContext 업데이트
+    // Update formContext
     originalFormData.context.values = updatedValues;
-    console.log('업데이트된 formData:', originalFormData);
+    console.log('updated formData:', originalFormData);
   }
 }
 
@@ -925,19 +925,19 @@ function updateObjectArrayContext(index: number, updatedContext: any) {
         </div>
       </div>
 
-      <!-- Array Context - depth 0에서 array 타입인 경우 ObjectArray.vue 사용 -->
+      <!-- Array Context - use ObjectArray.vue when the depth-0 value is an array type -->
       <div v-else-if="formData.type === 'array'" class="array-box w-full h-full">
         <div class="subject-title border-bottom">
           {{ formData.context.subject.replace(/^\[d-sub-\d+-\w+\] /, '') }}
         </div>
-        <!-- depth 0에서 array인 경우 ObjectArray.vue 사용 (depth 1까지만 표시) -->
+        <!-- Use ObjectArray.vue when depth 0 is an array (renders only up to depth 1) -->
         <ObjectArray
           v-if="isDepthZeroArray(formData)"
           :context="convertToObjectArrayContext(formData)"
           :readonly="false"
           @update:context="updateObjectArrayContext(index, $event)"
         />
-        <!-- 기존 방식 (DepthField 사용) -->
+        <!-- Legacy approach (using DepthField) -->
         <div v-else>
           <div 
             v-for="(item, itemIndex) of formData.context.values" 
@@ -1113,7 +1113,7 @@ function updateObjectArrayContext(index: number, updatedContext: any) {
   }
 }
 
-/* flex 클래스가 있는 field-group은 가로 배치 강제 */
+/* Force a field-group with the flex class to lay out horizontally */
 .field-group.flex {
   display: flex;
   flex-direction: row;
@@ -1161,7 +1161,7 @@ function updateObjectArrayContext(index: number, updatedContext: any) {
     width: 100%;
   }
   
-  /* field-group-vertical 내부의 field-group은 가로 배치 */
+  /* A field-group inside field-group-vertical lays out horizontally */
   .field-group {
     display: flex;
     flex-direction: row;
@@ -1216,7 +1216,7 @@ function updateObjectArrayContext(index: number, updatedContext: any) {
   }
 }
 
-/* migration_list 내부의 field-group은 세로 배치 */
+/* A field-group inside migration_list lays out vertically */
 .array-item .field-group {
   display: flex;
   flex-direction: column;

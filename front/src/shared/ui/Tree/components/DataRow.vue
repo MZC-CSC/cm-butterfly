@@ -1,6 +1,6 @@
 <template>
   <div class="data-row-container">
-    <!-- Subject Row: 라벨 + 값 -->
+    <!-- Subject Row: label + value -->
     <div v-if="rowType === 'subject'" class="field-group flex border-bottom">
       <div class="field-title-box">
         {{ label }}
@@ -14,7 +14,7 @@
       </div>
     </div>
 
-    <!-- Values Row: 라벨 + Add Object 버튼 (Array만) -->
+    <!-- Values Row: label + Add Object button (Array only) -->
     <div v-else-if="rowType === 'values'" class="field-group flex border-bottom">
       <div class="section-title" @click="$emit('toggle')">
         <PIconButton
@@ -38,7 +38,7 @@
       </div>
     </div>
 
-    <!-- Properties Row: 라벨 + 값 (삭제 가능) -->
+    <!-- Properties Row: label + value (deletable) -->
     <div v-else-if="rowType === 'properties'" class="field-group flex border-bottom">
       <div class="field-title-box">
         {{ label }}

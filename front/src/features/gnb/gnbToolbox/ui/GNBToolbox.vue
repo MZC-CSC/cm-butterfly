@@ -31,6 +31,14 @@ const dictionary = [
   'wls',
 ];
 
+// tb-0.12.9 update (MCI→Infra) — keep the route name/menuId, only render the
+// breadcrumb with the current terminology. Swap the pre-split tokens (mci/wls)
+// at display time only.
+const breadcrumbDisplayRename: Record<string, string> = {
+  mci: 'Infra',
+  wls: 'Workloads',
+};
+
 const { isCollapsed } = storeToRefs(sidebar);
 
 const state = reactive({
@@ -98,7 +106,10 @@ function splitWordsFromDictionary(str: string, dictionary: string[]) {
 
     for (let word of dictionary) {
       if (remaining.startsWith(word)) {
-        result += word.charAt(0).toUpperCase() + word.slice(1) + ' ';
+        const display =
+          breadcrumbDisplayRename[word] ??
+          word.charAt(0).toUpperCase() + word.slice(1);
+        result += display + ' ';
         remaining = remaining.slice(word.length);
         found = true;
         break;

@@ -2,8 +2,8 @@
 /**
  * TableLoadingSpinner
  * 
- * 테이블 데이터 로딩 시 표시되는 공통 스피너 컴포넌트
- * 
+ * Shared spinner component shown while table data is loading
+ *
  * @example
  * <table-loading-spinner 
  *   :loading="apiInstance.isLoading.value"
@@ -16,9 +16,9 @@
  *   @refresh="fetchData"
  * />
  * 
- * @prop {boolean} loading - 로딩 상태 (필수)
- * @prop {string} message - 표시할 메시지 (선택, 기본값: 'Loading...')
- * @prop {string|number} height - 스피너 영역 높이 (선택)
+ * @prop {boolean} loading - loading state (required)
+ * @prop {string} message - message to display (optional, default: 'Loading...')
+ * @prop {string|number} height - height of the spinner area (optional)
  */
 import { PSpinner } from '@cloudforet-test/mirinae';
 import { computed } from 'vue';

@@ -9,12 +9,7 @@ interface iProps {
 
 const props = defineProps<iProps>();
 
-const emit = defineEmits([
-  'update:workflow-name',
-  'update:workflow-json-modal',
-  'update:workflow-tool-modal',
-  'update:workflow-json',
-]);
+const emit = defineEmits(['update:workflow-name', 'update:workflow-json']);
 
 const { workflowStore, initTable, tableModel, workflowId } =
   useWorkflowDetailModel();
@@ -38,14 +33,6 @@ watchEffect(() => {
   );
 });
 
-function handleWorkflowTool() {
-  emit('update:workflow-tool-modal', true);
-}
-
-function handleJsonModal() {
-  emit('update:workflow-json-modal', true);
-}
-
 watchEffect(() => {
   emit(
     'update:workflow-json',
@@ -62,16 +49,6 @@ watchEffect(() => {
       :loading="tableModel.tableState.loading"
       block
     >
-      <template #data-workflowTool>
-        <p class="link-button-text" @click="handleWorkflowTool">
-          View Workflow Tool
-        </p>
-      </template>
-      <template #data-workflowJSON>
-        <p class="link-button-text" @click="handleJsonModal">
-          View Workflow JSON
-        </p>
-      </template>
     </p-definition-table>
   </div>
 </template>

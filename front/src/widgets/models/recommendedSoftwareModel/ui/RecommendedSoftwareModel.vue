@@ -26,12 +26,12 @@ const resCreateTargetSoftwareModel = createTargetSoftwareModel(null);
 const sourceEditorRef = ref<any>(null);
 const recommendedEditorRef = ref<any>(null);
 
-// 소스 모델 데이터
+// source model data
 const sourceModel = computed(() =>
   sourceModelStore.getSourceModelById(props.sourceModelId),
 );
 
-// 소스 소프트웨어 모델 데이터 (JSON 표시용)
+// source software model data (for JSON display)
 const sourceSoftwareModelData = computed(() => {
   if (sourceModel.value?.sourceSoftwareModel) {
     return sourceModel.value.sourceSoftwareModel;
@@ -39,7 +39,7 @@ const sourceSoftwareModelData = computed(() => {
   return null;
 });
 
-// 소스 모델 JSON string
+// source model JSON string
 const sourceSoftwareModelString = computed(() => {
   if (!sourceSoftwareModelData.value) return '{}';
   try {
@@ -50,10 +50,10 @@ const sourceSoftwareModelString = computed(() => {
   }
 });
 
-// 추천 모델 결과 데이터 (JSON 표시용)
+// recommended model result data (for JSON display)
 const recommendedModelData = ref<any>(null);
 
-// 추천 모델 JSON string
+// recommended model JSON string
 const recommendedModelString = computed(() => {
   if (!recommendedModelData.value) return '{}';
   try {
@@ -64,10 +64,10 @@ const recommendedModelString = computed(() => {
   }
 });
 
-// 로딩 상태
+// loading state
 const isLoading = ref(false);
 
-// Save TargetModel 모달 상태
+// Save TargetModel modal state
 const saveTargetModelModal = reactive({
   open: false,
   context: {
@@ -81,26 +81,50 @@ onMounted(() => {
 });
 
 // Watch for source model changes and expand all
-watch(sourceSoftwareModelData, (newVal) => {
-  if (newVal) {
-    console.log('Source model data changed, expanding...');
-    setTimeout(() => {
-      sourceEditorRef.value?.expandAll();
-    }, 300);
-  }
-}, { immediate: true, deep: true });
+watch(
+  sourceSoftwareModelData,
+  newVal => {
+    if (newVal) {
+      console.log('Source model data changed, expanding...');
+      setTimeout(() => {
+        sourceEditorRef.value?.expandAll();
+      }, 300);
+    }
+  },
+  { immediate: true, deep: true },
+);
 
 // Watch for recommended model changes and expand all
-watch(recommendedModelData, (newVal) => {
-  if (newVal) {
-    console.log('Recommended model data changed, expanding...');
-    setTimeout(() => {
-      recommendedEditorRef.value?.expandAll();
-    }, 300);
-  }
-}, { immediate: true, deep: true });
+watch(
+  recommendedModelData,
+  newVal => {
+    if (newVal) {
+      console.log('Recommended model data changed, expanding...');
+      setTimeout(() => {
+        recommendedEditorRef.value?.expandAll();
+      }, 300);
+    }
+  },
+  { immediate: true, deep: true },
+);
 
-// Get-Migration-List API 호출 (실패 시 더미 데이터 사용)
+/**
+ * Keep the failure reason on screen. The toast disappears after 5 seconds, but where the user
+ * is waiting for the result is the right-hand result panel. If the reason isn't left there, it just looks like "an empty screen".
+ */
+const loadErrorReason = ref<string | null>(null);
+
+/**
+ * Extract the failure reason the backend gave. It arrives in two forms:
+ *  - HTTP error → execute() rejects with `{ error, errorMsg, status }` (ref)
+ *  - error status carried in the body → thrown as an Error below
+ */
+function toFailureReason(e: any): string | null {
+  const fromRequest = e?.errorMsg?.value ?? e?.errorMsg;
+  const reason = fromRequest ?? e?.message ?? null;
+  return typeof reason === 'string' && reason.trim() ? reason.trim() : null;
+}
+
 async function handleGetMigrationList() {
   if (!sourceSoftwareModelData.value) {
     console.warn('Source software model data is not available');
@@ -108,144 +132,40 @@ async function handleGetMigrationList() {
   }
 
   isLoading.value = true;
+  loadErrorReason.value = null;
 
   try {
-    // 먼저 실제 API 호출 시도
-    const response = await recommendSoftwareModel.getSoftwareMigrationListData(sourceSoftwareModelData.value);
+    const response = await recommendSoftwareModel.getSoftwareMigrationListData(
+      sourceSoftwareModelData.value,
+    );
 
-    // 응답의 status.code를 확인하여 에러 여부 판단
+    // check the response's status.code to determine whether it's an error
     const statusCode = response?.data?.status?.code;
     if (statusCode && statusCode >= 400) {
-      console.warn(
-        'API returned error status, using dummy data:',
-        response.data.status,
-      );
       throw new Error(
-        `API Error: ${statusCode} - ${response.data.status?.message || 'Unknown error'}`,
+        response.data.status?.message ||
+          `The server returned status ${statusCode}.`,
       );
     }
 
-    // API 응답 데이터를 recommendedModelData에 저장
-    recommendedModelData.value = recommendSoftwareModel.tableModel.tableState.items[0]?.originalData || null;
-
-    console.log('API migration data loaded:', recommendedModelData.value);
+    // store the API response data in recommendedModelData
+    recommendedModelData.value =
+      recommendSoftwareModel.tableModel.tableState.items[0]?.originalData ||
+      null;
   } catch (error) {
-    console.warn('API call failed, using dummy data:', error);
-
-    // API 호출 실패 시 더미 데이터 사용
-    const dummyMigrationData = {
-      description: 'Software Migration Recommendations',
-      isInitUserModel: true,
-      targetSoftwareModel: {
-        servers: [
-          {
-            errors: ['No critical errors found'],
-            migration_list: {
-              binaries: [
-                {
-                  binary_path: '/usr/local/bin/app',
-                  custom_configs: ['/etc/app/config.json'],
-                  custom_data_paths: ['/var/lib/app/data'],
-                  name: 'Sample Application',
-                  needed_libraries: ['libssl-dev', 'libcurl4-openssl-dev'],
-                  order: 1,
-                  version: '1.0.0',
-                },
-              ],
-              containers: [
-                {
-                  container_id: 'sample-container-1',
-                  container_image: {
-                    image_architecture: 'common',
-                    image_hash: 'sha256:abc123def456',
-                    image_name: 'sample-app',
-                    image_version: 'latest',
-                  },
-                  container_ports: [
-                    {
-                      container_port: 8080,
-                      host_ip: '0.0.0.0',
-                      host_port: 8080,
-                      protocol: 'tcp',
-                    },
-                  ],
-                  container_status: 'running',
-                  docker_compose_path: '/opt/docker-compose.yml',
-                  envs: [
-                    {
-                      name: 'DB_HOST',
-                      value: 'localhost',
-                    },
-                    {
-                      name: 'DB_PORT',
-                      value: '5432',
-                    },
-                  ],
-                  mount_paths: ['/var/lib/app:/app/data'],
-                  name: 'sample-app-container',
-                  network_mode: 'bridge',
-                  order: 1,
-                  restart_policy: 'unless-stopped',
-                  runtime: 'docker',
-                },
-              ],
-              kubernetes: [
-                {
-                  kube_config: '/etc/kubernetes/admin.conf',
-                  order: 1,
-                  resources: {
-                    deployment: {
-                      replicas: 3,
-                      resources: {
-                        requests: {
-                          cpu: '100m',
-                          memory: '128Mi',
-                        },
-                        limits: {
-                          cpu: '500m',
-                          memory: '512Mi',
-                        },
-                      },
-                    },
-                  },
-                  velero: {
-                    backup_location_config: 'default',
-                    bucket: 'backup-bucket',
-                    features: 'EnableCSI',
-                    plugins: 'velero/velero-plugin-for-aws:v1.0.0',
-                    provider: 'aws',
-                    secret_file: '/etc/velero/credentials',
-                  },
-                  version: '1.24.0',
-                },
-              ],
-              packages: [
-                {
-                  custom_configs: ['/etc/nginx/nginx.conf'],
-                  custom_data_paths: ['/var/www/html'],
-                  gpg_key_url: 'https://nginx.org/keys/nginx_signing.key',
-                  name: 'nginx',
-                  need_to_delete_packages: ['apache2'],
-                  needed_packages: ['nginx', 'nginx-common'],
-                  order: 1,
-                  repo_url: 'http://nginx.org/packages/ubuntu',
-                  repo_use_os_version_code: false,
-                  version: '1.18.0',
-                },
-              ],
-            },
-            source_connection_info_id: 'conn-12345',
-          },
-        ],
-      },
-      userId: 'user-123',
-      userModelName: `${props.sourceModelName}_Migration`,
-      userModelVersion: 'v0.1',
-    };
-
-    // 더미 데이터를 recommendedModelData에 저장
-    recommendedModelData.value = dummyMigrationData;
-    console.log('Dummy migration data loaded:', dummyMigrationData);
+    // Let a failure look like a failure. This used to fall back to dummy recommendations, so a dead
+    // cm-grasshopper still rendered a plausible-looking result and the breakage went unnoticed.
+    //
+    // Also show the reason — cm-grasshopper re-queries source groups and connections at run time, so
+    // a source model referencing a connection that existed at collection time but was deleted afterward legitimately fails with "not found".
+    // Without the reason at that point, the user has no way to know what was missing.
+    console.error('Failed to load software migration list:', error);
+    recommendedModelData.value = null;
+    loadErrorReason.value = toFailureReason(error);
+    showErrorMessage(
+      'Failed to load the software migration recommendations.',
+      loadErrorReason.value ?? 'The server did not say why.',
+    );
   } finally {
     isLoading.value = false;
   }
@@ -255,7 +175,7 @@ function handleCloseModal() {
   emit('update:close-modal', false);
 }
 
-// Save 버튼 클릭 핸들러
+// Save button click handler
 function handleSaveTargetModel() {
   if (!recommendedModelData.value) {
     console.warn('No migration recommendations data to save');
@@ -265,19 +185,20 @@ function handleSaveTargetModel() {
   saveTargetModelModal.open = true;
 }
 
-// Save 모달 닫기 핸들러
+// Save modal close handler
 function handleCloseSaveModal() {
   saveTargetModelModal.open = false;
 }
 
-// 실제 저장 처리
+// perform the actual save
 function handleCreateTargetModel(e) {
   saveTargetModelModal.context.name = e.name;
   saveTargetModelModal.context.description = e.description;
 
-  // Source Software Model에서 isInitUserModel 값 가져오기
-  const isInitUserModel = sourceSoftwareModelData.value?.isInitUserModel ?? false;
-  const userId = authStore.id; // 로그인 유저의 ID 사용
+  // get the isInitUserModel value from the Source Software Model
+  const isInitUserModel =
+    sourceSoftwareModelData.value?.isInitUserModel ?? false;
+  const userId = authStore.id; // use the logged-in user's ID
   const userModelVersion = sourceModel.value?.userModelVersion ?? 'v0.1';
 
   const requestBody = {
@@ -311,6 +232,7 @@ function handleCreateTargetModel(e) {
   <div>
     <create-form
       class="page-modal-layout"
+      data-testid="sw-recommend-modal"
       title="Software Migration Recommendation"
       :need-widget-layout="true"
       :badge-title="sourceModelName"
@@ -319,7 +241,7 @@ function handleCreateTargetModel(e) {
     >
       <template #add-info>
         <div class="json-viewer-layout">
-          <!-- 왼쪽: Source Model JSON Viewer -->
+          <!-- Left: Source Model JSON Viewer -->
           <p-pane-layout class="json-editor-pane">
             <p class="editor-title">Source Software Model</p>
             <div class="editor-wrapper">
@@ -332,13 +254,15 @@ function handleCreateTargetModel(e) {
                 :navigation-bar="true"
                 :status-bar="false"
                 height="600px"
+                file-name="source-software-model"
               />
             </div>
           </p-pane-layout>
 
-          <!-- 가운데: Recommend Model 버튼 -->
+          <!-- Center: Recommend Model button -->
           <button
             class="convert-btn"
+            data-testid="sw-recommend-get"
             :disabled="!sourceSoftwareModelData || isLoading"
             @click="handleGetMigrationList"
           >
@@ -355,10 +279,34 @@ function handleCreateTargetModel(e) {
             <p-spinner v-if="isLoading" class="spinner" size="md" />
           </button>
 
-          <!-- 오른쪽: Recommended Model 결과 JSON Viewer -->
+          <!-- Right: Recommended Model result JSON Viewer -->
           <p-pane-layout class="json-editor-pane">
             <p class="editor-title">Migration Recommendations</p>
-            <div class="editor-wrapper">
+            <!--
+              On failure, leave the reason here instead of an empty viewer. This is where the user
+              waits for the result, and the toast disappears after 5 seconds, leaving no "why it's empty".
+            -->
+            <div
+              v-if="loadErrorReason"
+              class="recommend-error"
+              data-testid="sw-recommend-error"
+            >
+              <p class="recommend-error__title">
+                Could not load the migration recommendations.
+              </p>
+              <p
+                class="recommend-error__reason"
+                data-testid="sw-recommend-error-reason"
+              >
+                {{ loadErrorReason }}
+              </p>
+              <p class="recommend-error__hint">
+                The recommendations are built from the source group and
+                connection this model was collected from. If either no longer
+                exists, collect the source again and retry.
+              </p>
+            </div>
+            <div v-else class="editor-wrapper">
               <EnhancedJsonEditor
                 ref="recommendedEditorRef"
                 :model-value="recommendedModelString"
@@ -368,6 +316,7 @@ function handleCreateTargetModel(e) {
                 :navigation-bar="true"
                 :status-bar="false"
                 height="600px"
+                file-name="recommended-software-model"
               />
             </div>
           </p-pane-layout>
@@ -379,6 +328,7 @@ function handleCreateTargetModel(e) {
           Cancel
         </p-button>
         <p-button
+          data-testid="sw-recommend-save-target"
           :disabled="!recommendedModelData"
           @click="handleSaveTargetModel"
         >
@@ -387,7 +337,7 @@ function handleCreateTargetModel(e) {
       </template>
     </create-form>
 
-    <!-- Save Software Migration as Target Model 모달 -->
+    <!-- Save Software Migration as Target Model modal -->
     <simple-edit-form
       v-if="saveTargetModelModal.open"
       header-title="Save Software Migration as Target Model"
@@ -432,7 +382,7 @@ function handleCreateTargetModel(e) {
     font-size: 0.75rem;
     color: #6b7280;
     font-weight: 700;
-    background-color: #F7F7F7;
+    background-color: #f7f7f7;
     padding: 0.25rem 0.75rem;
     border-radius: 6px 0;
   }
@@ -443,6 +393,41 @@ function handleCreateTargetModel(e) {
     width: 100%;
     min-width: 280px;
     min-height: 400px;
+  }
+
+  /* failure reason — occupies the same spot as the result viewer so it isn't an "empty screen" */
+  .recommend-error {
+    background-color: white;
+    padding: 1.25rem;
+    width: 100%;
+    min-width: 280px;
+    min-height: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+
+  .recommend-error__title {
+    color: #b93c3c;
+    font-weight: 700;
+    font-size: 0.875rem;
+  }
+
+  /* show the server's message as-is — don't truncate even if it's long or contains identifiers */
+  .recommend-error__reason {
+    color: #3b3b3b;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    word-break: break-word;
+    background-color: #fdf3f3;
+    border-radius: 0.25rem;
+    padding: 0.625rem 0.75rem;
+  }
+
+  .recommend-error__hint {
+    color: #6b6e78;
+    font-size: 0.75rem;
+    line-height: 1.5;
   }
 }
 

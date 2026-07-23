@@ -69,7 +69,7 @@ export default {
       return migrationListContextOpen.value.has(fieldIndex);
     };
 
-    // Vue 2 호환 헬퍼 함수들
+    // Vue 2 compatible helper functions
     const getFieldTitle = (field: any) => {
       try {
         if (field && field.context) {
@@ -117,23 +117,23 @@ export default {
       try {
         if (!field || !field.context) return 'No context';
         
-        // context의 실제 값에 접근
+        // Access the actual value of context
         const context = field.context.value || field.context;
         const actualContext = context?.value || context;
         
-        // values에 접근
+        // Access values
         const values = actualContext?.values?.value || actualContext?.values;
         
         if (!values || !Array.isArray(values)) {
           return 'No values array';
         }
         
-        // migration_list의 각 항목들을 요약하여 표시
+        // Summarize and display each entry of migration_list
         const itemSummaries = values.map((valueItem: any) => {
           const valueContext = valueItem.context?.value || valueItem.context;
           const subject = valueContext?.subject || 'Unknown';
           
-          // 각 항목의 개수나 상태 정보 추출
+          // Extract count or status information for each entry
           if (subject === 'binaries') {
             const binariesFields = valueContext?.fields?.value || valueContext?.fields;
             const count = binariesFields && Array.isArray(binariesFields) ? binariesFields.length : 0;
@@ -162,28 +162,28 @@ export default {
       }
     };
 
-    // migration_list 자체를 Context 객체로 생성하는 함수
+    // Function that creates migration_list itself as a Context object
     const getMigrationListContext = (field: any) => {
       try {
         if (!field || !field.context) return null;
         
-        // context의 실제 값에 접근
+        // Access the actual value of context
         const context = field.context.value || field.context;
         const actualContext = context?.value || context;
         
-        // values에 접근
+        // Access values
         const values = actualContext?.values?.value || actualContext?.values;
         
         if (!values || !Array.isArray(values)) {
           return null;
         }
         
-        // migration_list의 모든 항목들을 BinaryAccordion 형식으로 변환
+        // Convert all entries of migration_list into BinaryAccordion format
         const migrationItems = values.map((valueItem: any, index: number) => {
           const valueContext = valueItem.context?.value || valueItem.context;
           const subject = valueContext?.subject || `Item ${index + 1}`;
           
-          // binaries 항목인 경우 BinaryAccordion 형식으로 변환
+          // For a binaries entry, convert it into BinaryAccordion format
           if (subject === 'binaries') {
             const binariesFields = valueContext?.fields?.value || valueContext?.fields;
             if (binariesFields && Array.isArray(binariesFields)) {
@@ -215,7 +215,7 @@ export default {
             }
           }
           
-          // 다른 항목들은 기본 형식으로 변환
+          // Convert the other entries into the default format
           return {
             header: {
               title: subject,
@@ -227,13 +227,13 @@ export default {
           };
         });
         
-        // migration_list 자체를 Context 객체로 반환
+        // Return migration_list itself as a Context object
         return {
           header: {
             title: 'Migration List',
             icon: 'ic_chevron-right'
           },
-          content: [], // migration_list 자체는 content가 없음
+          content: [], // migration_list itself has no content
           subItems: migrationItems,
           index: 0
         };
@@ -243,30 +243,30 @@ export default {
       }
     };
 
-    // 데이터 형태를 분석하는 함수
+    // Function that analyzes the data shape
     const analyzeDataStructure = (data: any) => {
       try {
         if (!data) return 'empty';
         
-        // Vue 반응형 객체의 실제 값을 가져오기
+        // Get the actual value of a Vue reactive object
         const actualData = data?.value || data;
         
-        // type이 명시적으로 있는 경우
+        // When type is explicitly present
         if (actualData.type) {
           return actualData.type;
         }
         
-        // context가 있는 경우
+        // When context exists
         if (actualData.context) {
           const context = actualData.context?.value || actualData.context;
           const actualContext = context?.value || context;
           
-          // values가 배열인 경우
+          // When values is an array
           if (actualContext?.values && Array.isArray(actualContext.values)) {
             return 'array';
           }
           
-          // fields가 배열인 경우 - subject가 'binaries', 'containers', 'kubernetes', 'packages'면 array로 판단
+          // When fields is an array - if subject is 'binaries', 'containers', 'kubernetes', 'packages', treat it as an array
           if (actualContext?.fields && Array.isArray(actualContext.fields)) {
             const subject = actualContext?.subject;
             console.log(`analyzeDataStructure - fields array detected, subject: ${subject}`);
@@ -278,27 +278,27 @@ export default {
             return 'nestedObject';
           }
           
-          // values가 배열인 경우 (container_ports 등)
+          // When values is an array (e.g. container_ports)
           if (actualContext?.values && Array.isArray(actualContext.values)) {
             console.log(`analyzeDataStructure - values array detected, subject: ${actualContext?.subject}, values:`, actualContext.values);
             return 'array';
           }
           
-          // model이 있는 경우 (input 타입)
+          // When model exists (input type)
           if (actualContext?.model) {
             return 'input';
           }
           
-          // 단순한 객체인 경우
+          // For a simple object
           if (typeof actualContext === 'object' && actualContext !== null) {
             return 'object';
           }
         }
         
-        // 배열인 경우
+        // For an array
         if (Array.isArray(actualData)) {
           console.log(`analyzeDataStructure - array detected, length: ${actualData.length}, data:`, actualData);
-          // 배열의 모든 요소가 문자열인 경우 stringArray로 처리
+          // If every element of the array is a string, handle it as a stringArray
           if (actualData.every(item => typeof item === 'string')) {
             console.log(`analyzeDataStructure - string array detected, returning 'stringArray'`);
             return 'stringArray';
@@ -306,12 +306,12 @@ export default {
           return 'array';
         }
         
-        // 단순한 값인 경우 (문자열, 숫자, 불린)
+        // For a simple value (string, number, boolean)
         if (typeof actualData === 'string' || typeof actualData === 'number' || typeof actualData === 'boolean') {
           return 'input';
         }
         
-        // 객체인 경우
+        // For an object
         if (typeof actualData === 'object' && actualData !== null) {
           return 'object';
         }
@@ -323,14 +323,14 @@ export default {
       }
     };
 
-    // 데이터 형태에 따른 Context를 생성하는 함수
+    // Function that creates a Context based on the data shape
     const createContextByType = (data: any, type: string, categoryName: string) => {
       try {
         const actualData = data?.value || data;
         
         switch (type) {
           case 'input':
-            // context가 있는 경우 (기존 방식)
+            // When context exists (existing approach)
             if (actualData.context?.model) {
               return {
                 type: 'input',
@@ -340,7 +340,7 @@ export default {
                 onBlur: actualData.context?.model?.onBlur || (() => {})
               };
             }
-            // 단순한 값인 경우 (문자열, 숫자, 불린)
+            // For a simple value (string, number, boolean)
             return {
               type: 'input',
               title: categoryName,
@@ -350,7 +350,7 @@ export default {
             };
             
           case 'stringArray':
-            // 문자열 배열인 경우 각 문자열을 하나의 input으로 처리
+            // For a string array, handle each string as one input
             const stringArrayValues = actualData;
             return {
               type: 'stringArray',
@@ -372,7 +372,7 @@ export default {
             };
 
           case 'array':
-            // binaries, containers, kubernetes, packages의 경우 fields 배열을 사용
+            // For binaries, containers, kubernetes, packages, use the fields array
             let arrayItems = [];
             if (categoryName === 'binaries' || categoryName === 'containers' || categoryName === 'kubernetes' || categoryName === 'packages') {
               const fields = actualData.context?.fields?.value || actualData.context?.fields || [];
@@ -381,7 +381,7 @@ export default {
                 data: item
               })) : [];
             } else {
-              // container_ports 등 다른 배열의 경우 values 사용
+              // For other arrays such as container_ports, use values
               const values = actualData.context?.values?.value || actualData.context?.values || actualData;
               arrayItems = Array.isArray(values) ? values.map((item: any, index: number) => ({
                 title: `${categoryName} ${index + 1}`,
@@ -441,23 +441,23 @@ export default {
       }
     };
 
-    // migration_list의 4개 카테고리를 추출하는 함수
+    // Function that extracts the four categories of migration_list
     const getMigrationListCategories = (field: any) => {
       try {
         if (!field || !field.context) return [];
         
-        // context의 실제 값에 접근
+        // Access the actual value of context
         const context = field.context.value || field.context;
         const actualContext = context?.value || context;
         
-        // values에 접근
+        // Access values
         const values = actualContext?.values?.value || actualContext?.values;
         
         if (!values || !Array.isArray(values)) {
           return [];
         }
         
-        // 4개 카테고리 순서대로 정렬
+        // Sort the four categories in order
         const categoryOrder = ['binaries', 'containers', 'kubernetes', 'packages'];
         const categories: Array<{name: string, items: any[], dataType?: string, context?: any}> = [];
         
@@ -468,12 +468,12 @@ export default {
           });
           
           if (categoryItem) {
-            // 원본 데이터 구조 확인
+            // Check the original data structure
             console.log(`ServerAccordion getMigrationListCategories - ${categoryName} raw data:`, categoryItem);
             console.log(`ServerAccordion getMigrationListCategories - ${categoryName} context:`, categoryItem.context);
             console.log(`ServerAccordion getMigrationListCategories - ${categoryName} fields:`, categoryItem.context?.fields);
             
-            // containers의 경우 container_ports 확인
+            // For containers, check container_ports
             if (categoryName === 'containers') {
               const fields = categoryItem.context?.fields?.value || categoryItem.context?.fields || [];
               fields.forEach((field: any, index: number) => {
@@ -483,11 +483,11 @@ export default {
                   console.log(`ServerAccordion container_ports values:`, field.context?.values);
                   console.log(`ServerAccordion container_ports fields:`, field.context?.fields);
                   
-                  // container_ports의 타입 분석
+                  // Analyze the type of container_ports
                   const containerPortsType = analyzeDataStructure(field);
                   console.log(`ServerAccordion container_ports type:`, containerPortsType);
                   
-                  // container_ports의 values 배열 확인
+                  // Check the values array of container_ports
                   const containerPortsValues = field.context?.values?.value || field.context?.values;
                   console.log(`ServerAccordion container_ports values array:`, containerPortsValues);
                   console.log(`ServerAccordion container_ports values isArray:`, Array.isArray(containerPortsValues));
@@ -504,15 +504,15 @@ export default {
               });
             }
             
-            // 데이터 형태 분석
+            // Analyze the data shape
             const dataType = analyzeDataStructure(categoryItem);
             console.log(`ServerAccordion getMigrationListCategories - ${categoryName} dataType:`, dataType);
             
-            // 형태에 따른 Context 생성
+            // Build the Context depending on the shape
             const context = createContextByType(categoryItem, dataType, categoryName);
             console.log(`ServerAccordion getMigrationListCategories - ${categoryName} context:`, context);
             
-            // Context를 기반으로 아이템 생성
+            // Create an item based on the Context
             let items: any[] = [];
             
             switch (dataType) {
@@ -558,17 +558,17 @@ export default {
                 
               case 'array':
                 items = (context?.items || []).map((item: any, index: number) => {
-                  // 각 배열 요소의 형태를 분석
+                  // Analyze the shape of each array element
                   const itemType = analyzeDataStructure(item.data);
                   console.log(`ServerAccordion getMigrationListCategories - ${categoryName} array item ${index} type:`, itemType);
                   
-                  // 형태에 따라 content 생성
+                  // Build content depending on the shape
                   let content: any[] = [];
                   let subItems: any[] = [];
                   
                   switch (itemType) {
                     case 'input':
-                      // context가 있는 경우 (기존 방식)
+                      // When context exists (existing approach)
                       if (item.data.context?.model) {
                         content = [{
                           type: 'input',
@@ -582,7 +582,7 @@ export default {
                           }
                         }];
                       } else {
-                        // 단순한 값인 경우 (문자열, 숫자, 불린)
+                        // For a simple value (string, number, boolean)
                         content = [{
                           type: 'input',
                           context: {
@@ -617,9 +617,9 @@ export default {
                         const fieldType = analyzeDataStructure(field);
                         console.log(`ServerAccordion array nestedObject field ${field.context?.subject} type:`, fieldType, field);
                         
-                        // input 타입인 경우 FieldGroup으로 표시
+                        // For an input type, show it as a FieldGroup
                         if (fieldType === 'input') {
-                          // context가 있는 경우 (기존 방식)
+                          // When context exists (existing approach)
                           if (field.context?.model) {
                             return {
                               type: 'input',
@@ -633,7 +633,7 @@ export default {
                               }
                             };
                           } else {
-                            // 단순한 값인 경우 (문자열, 숫자, 불린)
+                            // For a simple value (string, number, boolean)
                             return {
                               type: 'input',
                               context: {
@@ -648,7 +648,7 @@ export default {
                           }
                         }
                         
-                        // 다른 타입인 경우 기존 방식
+                        // For other types, use the existing approach
                         return {
                           type: fieldType,
                           context: field.context || {
@@ -682,20 +682,20 @@ export default {
                 break;
                 
               case 'nestedObject':
-                // binaries, containers, kubernetes, packages의 경우 배열처럼 처리
+                // For binaries, containers, kubernetes, packages, handle them like arrays
                 if (categoryName === 'binaries' || categoryName === 'containers' || categoryName === 'kubernetes' || categoryName === 'packages') {
                   items = (context?.fields || []).map((field: any, index: number) => {
-                    // 각 필드의 형태를 분석
+                    // Analyze the shape of each field
                     const fieldType = analyzeDataStructure(field.data);
                     console.log(`ServerAccordion getMigrationListCategories - ${categoryName} array field ${index} type:`, fieldType);
                     
-                    // 형태에 따라 content 생성
+                    // Build content depending on the shape
                     let content: any[] = [];
                     let subItems: any[] = [];
                     
                     switch (fieldType) {
                       case 'input':
-                        // context가 있는 경우 (기존 방식)
+                        // When context exists (existing approach)
                         if (field.data.context?.model) {
                           content = [{
                             type: 'input',
@@ -709,7 +709,7 @@ export default {
                             }
                           }];
                         } else {
-                          // 단순한 값인 경우 (문자열, 숫자, 불린)
+                          // For a simple value (string, number, boolean)
                           content = [{
                             type: 'input',
                             context: {
@@ -744,9 +744,9 @@ export default {
                           const nestedFieldType = analyzeDataStructure(nestedField);
                           console.log(`ServerAccordion nestedObject field ${nestedField.context?.subject} type:`, nestedFieldType, nestedField);
                           
-                          // input 타입인 경우 FieldGroup으로 표시
+                          // For an input type, show it as a FieldGroup
                           if (nestedFieldType === 'input') {
-                            // context가 있는 경우 (기존 방식)
+                            // When context exists (existing approach)
                             if (nestedField.context?.model) {
                               return {
                                 type: 'input',
@@ -760,7 +760,7 @@ export default {
                                 }
                               };
                             } else {
-                              // 단순한 값인 경우 (문자열, 숫자, 불린)
+                              // For a simple value (string, number, boolean)
                               return {
                                 type: 'input',
                                 context: {
@@ -775,13 +775,13 @@ export default {
                             }
                           }
                           
-                          // 배열 타입인 경우 (custom_configs, custom_data_paths, needed_libraries, container_ports 등)
+                          // For an array type (custom_configs, custom_data_paths, needed_libraries, container_ports, etc.)
                           if (nestedFieldType === 'stringArray' || nestedFieldType === 'array') {
                             const arrayValues = nestedField.context?.values?.value || nestedField.context?.values || [];
                             console.log(`ServerAccordion nestedObject array field ${nestedField.context?.subject} values:`, arrayValues);
                             
                             if (Array.isArray(arrayValues) && arrayValues.length > 0) {
-                              // 문자열 배열인 경우 각 문자열을 하나의 input으로 처리
+                              // For a string array, handle each string as one input
                               const items = arrayValues.map((item: any, index: number) => {
                                 if (typeof item === 'string') {
                                   return {
@@ -816,7 +816,7 @@ export default {
                             }
                           }
                           
-                          // nestedObject 타입인 경우 (container_image 등)
+                          // For a nestedObject type (e.g. container_image)
                           if (nestedFieldType === 'nestedObject') {
                             const nestedFields = nestedField.context?.fields?.value || nestedField.context?.fields || [];
                             console.log(`ServerAccordion nestedObject nestedObject field ${nestedField.context?.subject} fields:`, nestedFields);
@@ -834,7 +834,7 @@ export default {
                             };
                           }
                           
-                          // values가 있는 nestedObject의 경우 특별 처리 (envs, mount_paths 등)
+                          // Special handling for a nestedObject with values (envs, mount_paths, etc.)
                           if (nestedFieldType === 'nestedObject' && nestedField.context?.values) {
                             const values = nestedField.context.values.value || nestedField.context.values;
                             console.log(`ServerAccordion nestedObject ${nestedField.context?.subject} values:`, values);
@@ -884,19 +884,19 @@ export default {
                     };
                   });
                 } else {
-                  // 일반적인 nestedObject 처리
+                  // General nestedObject handling
                   items = (context?.fields || []).map((field: any, index: number) => {
-                    // 각 필드의 형태를 분석 (input, array, nestedObject 중 하나)
+                    // Analyze the shape of each field (one of input, array, nestedObject)
                     const fieldType = analyzeDataStructure(field.data);
                     console.log(`ServerAccordion getMigrationListCategories - ${categoryName} nestedObject field ${index} type:`, fieldType);
                     
-                    // 형태에 따라 content와 subItems 생성
+                    // Build content and subItems depending on the shape
                     let content: any[] = [];
                     let subItems: any[] = [];
                     
                     switch (fieldType) {
                       case 'input':
-                        // context가 있는 경우 (기존 방식)
+                        // When context exists (existing approach)
                         if (field.data.context?.model) {
                           content = [{
                             type: 'input',
@@ -910,7 +910,7 @@ export default {
                             }
                           }];
                         } else {
-                          // 단순한 값인 경우 (문자열, 숫자, 불린)
+                          // For a simple value (string, number, boolean)
                           content = [{
                             type: 'input',
                             context: {
@@ -931,7 +931,7 @@ export default {
                       console.log(`ServerAccordion nestedObject array - ${field.title} isArray:`, Array.isArray(arrayValues));
                       
                       if (Array.isArray(arrayValues)) {
-                        // container_ports의 경우 중첩된 구조 처리
+                        // For container_ports, handle the nested structure
                         if (field.title === 'container_ports' && arrayValues.length === 1 && arrayValues[0].context?.values) {
                           const nestedValues = arrayValues[0].context.values.value || arrayValues[0].context.values;
                           console.log(`ServerAccordion nestedObject array - ${field.title} nested values:`, nestedValues);
@@ -941,9 +941,9 @@ export default {
                               const nestedItemType = analyzeDataStructure(nestedItem);
                               console.log(`ServerAccordion nestedObject nested array item ${nestedIndex} type:`, nestedItemType, nestedItem);
                               
-                              // input 타입인 경우 FieldGroup으로 표시
+                              // For an input type, show it as a FieldGroup
                               if (nestedItemType === 'input') {
-                                // context가 있는 경우 (기존 방식)
+                                // When context exists (existing approach)
                                 if (nestedItem.context?.model) {
                                   return {
                                     type: 'input',
@@ -957,7 +957,7 @@ export default {
                                     }
                                   };
                                 } else {
-                                  // 단순한 값인 경우 (문자열, 숫자, 불린)
+                                  // For a simple value (string, number, boolean)
                                   return {
                                     type: 'input',
                                     context: {
@@ -988,12 +988,12 @@ export default {
                             content = [];
                           }
                         } else if (field.title === 'container_ports' && arrayValues.length === 1 && arrayValues[0].context?.subject?.includes('[0]')) {
-                          // container_ports[0]의 경우 subject를 표시하고 nestedObject 처리
+                          // For container_ports[0], show the subject and handle it as a nestedObject
                           const containerPortsItem = arrayValues[0];
                           const containerPortsType = analyzeDataStructure(containerPortsItem);
                           console.log(`ServerAccordion container_ports[0] type:`, containerPortsType);
                           
-                          // container_ports[0]의 subject를 표시하는 아이템 추가
+                          // Add an item that shows the subject of container_ports[0]
                           content = [{
                             type: 'nestedObject',
                             context: {
@@ -1003,18 +1003,18 @@ export default {
                           }];
                           
                           if (containerPortsType === 'nestedObject') {
-                            // nestedObject인 경우 fields를 처리
+                            // For a nestedObject, handle its fields
                             const nestedFields = containerPortsItem.context?.fields?.value || containerPortsItem.context?.fields || [];
                             console.log(`ServerAccordion container_ports[0] nested fields:`, nestedFields);
                             
-                            // 기존 content에 nested fields 추가
+                            // Add nested fields to the existing content
                             const nestedContent = nestedFields.map((nestedField: any, nestedIndex: number) => {
                               const nestedFieldType = analyzeDataStructure(nestedField);
                               console.log(`ServerAccordion container_ports[0] nested field ${nestedIndex} type:`, nestedFieldType, nestedField);
                               
-                              // input 타입인 경우 FieldGroup으로 표시
+                              // For an input type, show it as a FieldGroup
                               if (nestedFieldType === 'input') {
-                                // context가 있는 경우 (기존 방식)
+                                // When context exists (existing approach)
                                 if (nestedField.context?.model) {
                                   return {
                                     type: 'input',
@@ -1028,7 +1028,7 @@ export default {
                                     }
                                   };
                                 } else {
-                                  // 단순한 값인 경우 (문자열, 숫자, 불린)
+                                  // For a simple value (string, number, boolean)
                                   return {
                                     type: 'input',
                                     context: {
@@ -1056,18 +1056,18 @@ export default {
                               };
                             });
                             
-                            // content에 nested fields 추가
+                            // Add nested fields to content
                             content = [...content, ...nestedContent];
                           }
                         } else {
-                          // 일반적인 배열 처리
+                          // General array handling
                           content = arrayValues.map((arrayItem: any, arrayIndex: number) => {
                             const arrayItemType = analyzeDataStructure(arrayItem);
                             console.log(`ServerAccordion nestedObject array item ${arrayIndex} type:`, arrayItemType, arrayItem);
                             
-                            // input 타입인 경우 FieldGroup으로 표시
+                            // For an input type, show it as a FieldGroup
                             if (arrayItemType === 'input') {
-                              // context가 있는 경우 (기존 방식)
+                              // When context exists (existing approach)
                               if (arrayItem.context?.model) {
                                 return {
                                   type: 'input',
@@ -1081,7 +1081,7 @@ export default {
                                   }
                                 };
                               } else {
-                                // 단순한 값인 경우 (문자열, 숫자, 불린)
+                                // For a simple value (string, number, boolean)
                                 return {
                                   type: 'input',
                                   context: {
@@ -1096,7 +1096,7 @@ export default {
                               }
                             }
                             
-                            // 객체인 경우 속성들을 개별 필드로 표시
+                            // For an object, show its properties as individual fields
                             if (arrayItemType === 'object' && typeof arrayItem === 'object' && arrayItem !== null) {
                               return {
                                 type: 'object',
@@ -1125,7 +1125,7 @@ export default {
                           });
                         }
                       } else {
-                        // 배열이 아닌 경우 빈 배열로 처리
+                        // If it is not an array, treat it as an empty array
                         console.log(`ServerAccordion nestedObject array - ${field.title} is not array:`, arrayValues);
                         content = [];
                       }
@@ -1136,9 +1136,9 @@ export default {
                         content = nestedFields.map((nestedField: any) => {
                           const nestedFieldType = analyzeDataStructure(nestedField);
                           
-                          // input 타입인 경우 FieldGroup으로 표시
+                          // For an input type, show it as a FieldGroup
                           if (nestedFieldType === 'input') {
-                            // context가 있는 경우 (기존 방식)
+                            // When context exists (existing approach)
                             if (nestedField.context?.model) {
                               return {
                                 type: 'input',
@@ -1152,7 +1152,7 @@ export default {
                                 }
                               };
                             } else {
-                              // 단순한 값인 경우 (문자열, 숫자, 불린)
+                              // For a simple value (string, number, boolean)
                               return {
                                 type: 'input',
                                 context: {
@@ -1167,7 +1167,7 @@ export default {
                             }
                           }
                           
-                          // 다른 타입인 경우 기존 방식
+                          // For other types, use the existing approach
                           return {
                             type: nestedFieldType,
                             context: nestedField.context || {
@@ -1264,7 +1264,7 @@ export default {
               context: context
             });
           } else {
-            // 카테고리가 없어도 빈 배열로 추가
+            // Add an empty array even if the category is absent
             categories.push({
               name: categoryName,
               items: [],
@@ -1281,23 +1281,23 @@ export default {
       }
     };
 
-    // migration_list에서 binaries 항목을 추출하는 함수 (기존 함수 유지)
+    // Function that extracts the binaries entry from migration_list (kept as is)
     const getBinariesFromMigrationList = (field: any) => {
       try {
         if (!field || !field.context) return [];
         
-        // context의 실제 값에 접근
+        // Access the actual value of context
         const context = field.context.value || field.context;
         const actualContext = context?.value || context;
         
-        // values에 접근
+        // Access values
         const values = actualContext?.values?.value || actualContext?.values;
         
         if (!values || !Array.isArray(values)) {
           return [];
         }
         
-        // values에서 subject가 "binaries"인 항목을 찾기
+        // Find the entry whose subject is "binaries" in values
         const binariesItem = values.find((valueItem: any) => {
           const valueContext = valueItem.context?.value || valueItem.context;
           return valueContext && valueContext.subject === 'binaries';
@@ -1307,7 +1307,7 @@ export default {
           return [];
         }
         
-        // binaries 항목의 fields를 가져와서 BinaryAccordion 형식으로 변환
+        // Get the binaries entry's fields and convert them into BinaryAccordion format
         const binariesContext = binariesItem.context?.value || binariesItem.context;
         const binariesFields = binariesContext?.fields?.value || binariesContext?.fields;
         
@@ -1315,7 +1315,7 @@ export default {
           return [];
         }
         
-        // BinaryAccordion 형식으로 변환
+        // Convert to BinaryAccordion format
         return binariesFields.map((binaryField: any, index: number) => {
           const fieldContext = binaryField.context?.value || binaryField.context;
           return {
@@ -1335,35 +1335,35 @@ export default {
     };
 
 
-    // Binary item의 기본 필드들을 추출하는 함수
+    // Function that extracts a Binary item's basic fields
     const getBinaryFields = (binaryItem: any) => {
       try {
         console.log('ServerAccordion getBinaryFields - binaryItem:', binaryItem);
         
-        // Vue 반응형 객체의 실제 값을 가져오기
+        // Get the actual value of a Vue reactive object
         const actualItem = binaryItem?.value || binaryItem;
         console.log('ServerAccordion getBinaryFields - actualItem:', actualItem);
         
-        // context의 실제 값에 접근
+        // Access the actual value of context
         const context = actualItem?.context?.value || actualItem?.context;
         console.log('ServerAccordion getBinaryFields - context:', context);
         
-        // context가 반응형 객체인 경우 .value로 접근
+        // If context is a reactive object, access it via .value
         const actualContext = context?.value || context;
         console.log('ServerAccordion getBinaryFields - actualContext:', actualContext);
         
-        // fields에 접근
+        // Access fields
         const fields = actualContext?.fields?.value || actualContext?.fields;
         console.log('ServerAccordion getBinaryFields - fields:', fields);
         
-        // nestedObjectDisplay 타입인 경우 fields에서 필드들을 추출
+        // For a nestedObjectDisplay type, extract the fields from fields
         if (fields && Array.isArray(fields)) {
           console.log('ServerAccordion getBinaryFields - fields is array, length:', fields.length);
           
-          // 모든 필드들을 추출 (배열 필드 포함)
+          // Extract all fields (including array fields)
           const allFields = fields;
           
-          // input 타입인 경우 title과 model.value를 표시하도록 변환
+          // For an input type, convert it to show title and model.value
           const processedFields = allFields.map((field: any) => {
             const fieldContext = field.context?.value || field.context;
             const actualFieldContext = fieldContext?.value || fieldContext;
@@ -1375,12 +1375,12 @@ export default {
               hasModel: !!actualFieldContext?.model
             });
             
-            // input 타입인 경우
+            // For an input type
             if (field.type === 'input' && actualFieldContext?.title && actualFieldContext?.model) {
               console.log('ServerAccordion getBinaryFields - processing input field:', actualFieldContext.title);
               return {
                 ...field,
-                type: 'input', // type 정보 유지
+                type: 'input', // Keep the type information
                 context: {
                   ...actualFieldContext,
                   subject: actualFieldContext.title,
@@ -1392,13 +1392,13 @@ export default {
               };
             }
             
-            // stringArray 타입인 경우 (custom_configs, custom_data_paths, needed_libraries)
+            // For a stringArray type (custom_configs, custom_data_paths, needed_libraries)
             if (field.type === 'stringArray' || field.type === 'array' || ['custom_configs', 'custom_data_paths', 'needed_libraries'].includes(actualFieldContext?.subject)) {
               console.log('ServerAccordion getBinaryFields - processing array field:', actualFieldContext?.subject);
               const arrayValues = actualFieldContext?.values?.value || actualFieldContext?.values || actualFieldContext?.value || [];
               
               if (Array.isArray(arrayValues)) {
-                // 문자열 배열인 경우 각 문자열을 하나의 input으로 처리
+                // For a string array, handle each string as one input
                 const items = arrayValues.map((item: any, index: number) => {
                   if (typeof item === 'string') {
                     return {
@@ -1434,7 +1434,7 @@ export default {
               }
             }
             
-            // 모든 필드에 type 정보를 명시적으로 추가
+            // Add type information explicitly to every field
             return {
               ...field,
               type: field.type || 'unknown'
@@ -1445,7 +1445,7 @@ export default {
           return processedFields;
         }
         
-        // fallback: 단순한 객체인 경우 직접 필드들을 추출
+        // fallback: for a simple object, extract the fields directly
         const simpleFields: any[] = [];
         
         if (actualItem && typeof actualItem === 'object') {
@@ -1473,34 +1473,34 @@ export default {
       }
     };
 
-    // Binary item의 하위 배열 항목들을 가져오는 함수
+    // Function that gets a Binary item's child array entries
     const getBinarySubItems = (binaryItem: any) => {
       try {
         console.log('ServerAccordion getBinarySubItems - binaryItem:', binaryItem);
         
-        // Vue 반응형 객체의 실제 값을 가져오기
+        // Get the actual value of a Vue reactive object
         const actualItem = binaryItem?.value || binaryItem;
         console.log('ServerAccordion getBinarySubItems - actualItem:', actualItem);
         
-        // context의 실제 값에 접근
+        // Access the actual value of context
         const context = actualItem?.context?.value || actualItem?.context;
         console.log('ServerAccordion getBinarySubItems - context:', context);
         
-        // context가 반응형 객체인 경우 .value로 접근
+        // If context is a reactive object, access it via .value
         const actualContext = context?.value || context;
         console.log('ServerAccordion getBinarySubItems - actualContext:', actualContext);
         
-        // fields에 접근
+        // Access fields
         const fields = actualContext?.fields?.value || actualContext?.fields;
         console.log('ServerAccordion getBinarySubItems - fields:', fields);
         
         const subItems: any[] = [];
         
-        // nestedObjectDisplay 타입인 경우 fields에서 배열 필드들을 추출
+        // For a nestedObjectDisplay type, extract the array fields from fields
         if (fields && Array.isArray(fields)) {
           console.log('ServerAccordion getBinarySubItems - fields is array, length:', fields.length);
           
-          // fields에서 배열 필드들만 추출
+          // Extract only the array fields from fields
           const arrayFields = fields.filter((field: any) => {
             const fieldContext = field.context?.value || field.context;
             const actualFieldContext = fieldContext?.value || fieldContext;
@@ -1514,7 +1514,7 @@ export default {
             const actualFieldContext = fieldContext?.value || fieldContext;
             
             if (actualFieldContext) {
-              // values 배열에서 데이터 가져오기
+              // Get the data from the values array
               const values = actualFieldContext.values?.value || actualFieldContext.values || actualFieldContext.value || [];
               
               if (Array.isArray(values) && values.length > 0) {
@@ -1535,7 +1535,7 @@ export default {
             }
           });
         } else {
-          // fallback: 단순한 객체인 경우 직접 배열 필드들을 추출
+          // fallback: for a simple object, extract the array fields directly
           if (actualItem && typeof actualItem === 'object') {
             ['custom_configs', 'custom_data_paths', 'needed_libraries'].forEach(key => {
               if (actualItem[key] && Array.isArray(actualItem[key])) {
@@ -1565,7 +1565,7 @@ export default {
       }
     };
 
-    // content에서 migration_list 필드를 찾는 함수
+    // Function that finds the migration_list field in content
     const getMigrationListFromContent = (content: any[]) => {
       console.log('### ServerAccordion getMigrationListFromContent - content:', content);
       try {
@@ -1587,14 +1587,14 @@ export default {
       }
     };
 
-    // migration_list 필드의 모든 요소들을 BinaryAccordion 형식으로 변환하는 함수
+    // Function that converts all elements of the migration_list field into BinaryAccordion format
     const getMigrationListItems = (migrationListField: any) => {
       try {
         if (!migrationListField || !migrationListField.context) {
           return [];
         }
         
-        // migration_list 필드의 실제 값에 접근
+        // Access the actual value of the migration_list field
         const context = migrationListField.context.value || migrationListField.context;
         const actualContext = context?.value || context;
         const migrationListData = actualContext?.values?.value || actualContext?.values;
@@ -1607,7 +1607,7 @@ export default {
         
         const items: any[] = [];
         
-        // binaries 배열 처리
+        // Handle the binaries array
         if (migrationListData.binaries && Array.isArray(migrationListData.binaries)) {
           items.push({
             title: 'Binaries',
@@ -1615,7 +1615,7 @@ export default {
           });
         }
         
-        // containers 배열 처리
+        // Handle the containers array
         if (migrationListData.containers && Array.isArray(migrationListData.containers)) {
           items.push({
             title: 'Containers',
@@ -1623,7 +1623,7 @@ export default {
           });
         }
         
-        // kubernetes 배열 처리
+        // Handle the kubernetes array
         if (migrationListData.kubernetes && Array.isArray(migrationListData.kubernetes)) {
           items.push({
             title: 'Kubernetes',
@@ -1631,7 +1631,7 @@ export default {
           });
         }
         
-        // packages 배열 처리
+        // Handle the packages array
         if (migrationListData.packages && Array.isArray(migrationListData.packages)) {
           items.push({
             title: 'Packages',
@@ -1647,7 +1647,7 @@ export default {
       }
     };
 
-    // Binaries를 BinaryAccordion 형식으로 변환하는 함수
+    // Function that converts Binaries into BinaryAccordion format
     const getBinariesAccordionItems = (binariesList: any[]) => {
       try {
         if (!binariesList || !Array.isArray(binariesList)) {
@@ -1655,10 +1655,10 @@ export default {
         }
         
         return binariesList.map((binaryItem, index) => {
-          // Vue 반응형 객체의 실제 값을 가져오기
+          // Get the actual value of a Vue reactive object
           const actualBinaryItem = binaryItem?.value || binaryItem;
           
-          // binary item의 필드들을 추출
+          // Extract the binary item's fields
           const binaryFields = getBinaryFields(actualBinaryItem);
           const subItems = getBinarySubItems(actualBinaryItem);
           
@@ -1765,7 +1765,7 @@ export default {
               :key="fieldIndex"
               class="field-group"
             >
-              <!-- migration_list 필드인 경우 계층 구조로 표시 -->
+              <!-- For a migration_list field, show it as a hierarchy -->
               <div v-if="getFieldTitle(field) === 'migration_list'" class="migration-list-field">
                 <div class="migration-list-header">
                   <div class="field-title-box">
@@ -1773,12 +1773,12 @@ export default {
                   </div>
                   <div class="field-content-box">
                     <div @click="logMigrationList(field)" style="cursor: pointer; margin-bottom: 8px;">
-                      {{ getMigrationListContent(field) }} (클릭하여 로그 출력)
+                      {{ getMigrationListContent(field) }} (click to view log)
                     </div>
                   </div>
                 </div>
                 
-                <!-- migration_list의 4개 카테고리 표시 -->
+                <!-- Show the four categories of migration_list -->
                 <div class="migration-categories">
                   <div v-for="category in getMigrationListCategories(field)" :key="category.name" class="migration-category">
                     <div class="category-name">
@@ -1797,16 +1797,16 @@ export default {
                             </span>
                           </div>
                           
-                          <!-- 아이템의 content 표시 -->
+                          <!-- Show the item's content -->
                           <div v-if="item.content && item.content.length > 0" class="item-content">
                             <div v-for="contentField in item.content" :key="contentField.context?.subject" class="content-field">
-                              <!-- 디버깅 로그 -->
+                              <!-- Debug log -->
                               <!-- <div v-if="contentField.type === 'input'" style="background: yellow; padding: 4px; margin: 2px 0; font-size: 10px;">
                                     DEBUG: input field detected - {{ contentField.context?.title }}
                                     <br>Full context: {{ JSON.stringify(contentField.context, null, 2) }}
                               </div> -->
                               
-                              <!-- input 타입인 경우 FieldGroup 사용 -->
+                              <!-- For an input type, use FieldGroup -->
                               <div v-if="contentField.type === 'input' && contentField.context?.title && contentField.context?.model" style="background: lightblue; padding: 4px; margin: 2px 0;">
                                 <!-- <div style="font-size: 10px; color: blue;">
                                   DEBUG FieldGroup: title={{ contentField.context.title }}, value={{ contentField.context.model.value }}, isValid={{ contentField.context.model.isValid }}
@@ -1819,7 +1819,7 @@ export default {
                                   @update:model-value="(value) => contentField.context.model.value = value"
                                 />
                               </div>
-                              <!-- object 타입인 경우 속성들을 표시 -->
+                              <!-- For an object type, show its properties -->
                               <div v-else-if="contentField.type === 'object' && contentField.context?.properties" class="object-display">
                                 <div class="object-title">{{ contentField.context.subject }}:</div>
                                 <div v-for="prop in contentField.context.properties" :key="prop.key" class="object-property">
@@ -1829,7 +1829,7 @@ export default {
                                 </div>
                               </div>
                               
-                              <!-- array 타입인 경우 배열 아이템들을 표시 -->
+                              <!-- For an array type, show the array items -->
                               <div v-else-if="contentField.type === 'array' && contentField.context?.items" class="array-display">
                                 <div class="array-title">
                                   {{ contentField.context?.subject }}:
@@ -1861,7 +1861,7 @@ export default {
                                 </div>
                               </div>
                               
-                              <!-- nestedObject 타입인 경우 subject와 type 표시 -->
+                              <!-- For a nestedObject type, show subject and type -->
                               <div v-else-if="contentField.type === 'nestedObject'" class="nested-object-display">
                                 <div class="nested-object-title">
                                   {{ contentField.context?.subject }}:
@@ -1869,7 +1869,7 @@ export default {
                                 </div>
                                 <div v-if="contentField.context?.fields" class="nested-object-fields">
                                   <div v-for="(field, fieldIndex) in contentField.context.fields" :key="fieldIndex" class="nested-field">
-                                    <!-- input 타입인 경우 FieldGroup 사용 -->
+                                    <!-- For an input type, use FieldGroup -->
                                     <FieldGroup
                                       v-if="field.type === 'input' && field.data && field.data.context && field.data.context.model"
                                       :title="field.data.context.title || field.data.context.subject || field.title"
@@ -1878,7 +1878,7 @@ export default {
                                       :on-blur="field.data.context.model.onBlur"
                                       @update:model-value="(value) => field.data.context.model.value = value"
                                     />
-                                    <!-- 다른 타입인 경우 기존 방식 -->
+                                    <!-- For other types, use the existing approach -->
                                     <div v-else class="nested-field-content">
                                       <div class="nested-field-title">{{ field.title }}:</div>
                                       <div v-if="field.data && field.data.context" class="nested-field-data">
@@ -1889,7 +1889,7 @@ export default {
                                 </div>
                               </div>
                               
-                              <!-- 다른 타입인 경우 기존 방식 -->
+                              <!-- For other types, use the existing approach -->
                               <div v-else class="field-display">
                                 <span class="field-name">{{ contentField.context?.subject }}:</span>
                                 <span class="field-value">{{ contentField.context?.model?.value || 'N/A' }}</span>
@@ -1898,7 +1898,7 @@ export default {
                             </div>
                           </div>
                           
-                          <!-- 아이템의 subItems 표시 (BinaryAccordion 사용) -->
+                          <!-- Show the item's subItems (using BinaryAccordion) -->
                           <div v-if="item.subItems && item.subItems.length > 0" class="item-sub-items">
                             <div v-for="subItem in item.subItems" :key="subItem.type" class="sub-item">
                               <div class="sub-item-title">{{ subItem.type }}</div>
@@ -1911,7 +1911,7 @@ export default {
                             </div>
                           </div>
                           
-                          <!-- 아이템이 단순한 경우 -->
+                          <!-- When the item is simple -->
                           <div v-if="(!item.content || item.content.length === 0) && (!item.subItems || item.subItems.length === 0)" class="simple-item">
                             <span class="simple-item-text">Item available</span>
                           </div>
@@ -1923,7 +1923,7 @@ export default {
                 </div>
               </div>
               
-              <!-- 일반 필드인 경우 기존 방식으로 표시 -->
+              <!-- For a normal field, show it in the existing way -->
               <div v-else class="field-group flex border-bottom">
               <div class="field-title-box">
                 {{ getFieldTitle(field) }}

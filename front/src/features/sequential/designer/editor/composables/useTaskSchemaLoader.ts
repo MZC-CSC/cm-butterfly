@@ -1,18 +1,18 @@
 /**
  * Task Schema Loader Composable
- * Workflow editor에서 task schema를 미리 로드하고 관리
+ * Preloads and manages task schemas for the workflow editor.
  */
 
 import { onMounted, onUnmounted } from 'vue';
 import taskSchemaStore from '../store/taskSchemaStore';
 
 export function useTaskSchemaLoader() {
-  // Task schema store 로드 상태 확인
+  // Task schema store load state
   const isSchemaLoaded = taskSchemaStore.isSchemaLoaded;
   const isLoading = taskSchemaStore.loading;
   const error = taskSchemaStore.errorMessage;
 
-  // 기존 API 응답에서 task schema 로드
+  // Load task schemas from an existing API response
   const loadTaskSchemasFromResponse = (response: any) => {
     try {
       console.log('Loading task schemas from existing response...');
@@ -24,7 +24,7 @@ export function useTaskSchemaLoader() {
     }
   };
 
-  // 모든 task schema 로드 (API 호출)
+  // Load all task schemas (API call)
   const loadAllTaskSchemas = async () => {
     try {
       console.log('Loading all task schemas...');
@@ -36,27 +36,27 @@ export function useTaskSchemaLoader() {
     }
   };
 
-  // 특정 task의 schema 가져오기
+  // Get the schema for a specific task
   const getTaskSchema = (taskName: string) => {
     return taskSchemaStore.getTaskSchema(taskName);
   };
 
-  // 특정 task의 body_params schema 가져오기
+  // Get the body_params schema for a specific task
   const getBodyParamsSchema = (taskName: string) => {
     return taskSchemaStore.getBodyParamsSchema(taskName);
   };
 
-  // 모든 task 이름 목록 가져오기
+  // Get the list of all task names
   const getAllTaskNames = () => {
     return taskSchemaStore.getAllTaskNames();
   };
 
-  // Store 초기화
+  // Reset the store
   const resetStore = () => {
     taskSchemaStore.reset();
   };
 
-  // 디버깅용: 모든 schema 출력
+  // For debugging: print all schemas
   const debugPrintAllSchemas = () => {
     taskSchemaStore.debugPrintAllSchemas();
   };

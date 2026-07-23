@@ -14,11 +14,14 @@ const NAMESPACE = 'SOURCECONNECTION';
 export const useSourceConnectionStore = defineStore(NAMESPACE, () => {
   //key : sourceConnection Id , value : sourceConnection Info
   const connections = ref<Record<string, ISourceConnection>>({});
-  const editConnections: any[] = [];
+  // Must be a ref. With a plain array, the watchEffect reading this value would
+  // not react to updates, so the view would keep showing the old content even
+  // after the import result changes.
+  const editConnections = ref<any[]>([]);
   const withSourceConnection = ref(false);
 
   function setEditConnections(value: any) {
-    return editConnections.push(value);
+    return editConnections.value.push(value);
   }
 
   function setWithSourceConnection(value: boolean) {
@@ -29,8 +32,9 @@ export const useSourceConnectionStore = defineStore(NAMESPACE, () => {
     return connections.value[connectId] || null;
   }
 
-  function setConnections(res: ISourceConnectionResponse) {
-    res.connection_info.forEach(el => {
+  function setConnections(res: ISourceConnectionResponse | null | undefined) {
+    // A source group with no connections arrives without connection_info at all — that means none, not an error.
+    (res?.connection_info ?? []).forEach(el => {
       setConnection(el);
     });
   }
@@ -78,6 +82,22 @@ export const useSourceConnectionStore = defineStore(NAMESPACE, () => {
     }
   }
 
+  // Store the structured (get-infra-info / get-software-info) JSON for a
+  // connection so the viewer shows it as a JSON tree instead of the raw string.
+  function setConnectionInfraModel(connId: string, data: any) {
+    const sourceConnection = getConnectionById(connId);
+    if (sourceConnection) {
+      sourceConnection.infraData = data;
+    }
+  }
+
+  function setConnectionSoftwareModel(connId: string, data: any) {
+    const sourceConnection = getConnectionById(connId);
+    if (sourceConnection) {
+      sourceConnection.softwareData = data;
+    }
+  }
+
   function clear() {
     connections.value = {};
   }
@@ -91,6 +111,8 @@ export const useSourceConnectionStore = defineStore(NAMESPACE, () => {
     setConnections,
     mapSourceConnectionCollectSWResponse,
     mapSourceConnectionCollectInfraResponse,
+    setConnectionInfraModel,
+    setConnectionSoftwareModel,
     clear,
     withSourceConnection,
     setWithSourceConnection,

@@ -34,14 +34,16 @@ export interface ISourceSoftwareCollectResponse {
 export interface ISourceInfraInfo {
   collectInfraStatus: string;
   collectInfraDateTime: string;
-  infraData: string;
+  // Structured collected infra (object from get-infra-info) shown in the viewer.
+  infraData: any;
   viewInfra: boolean;
 }
 
 export interface ISourceSoftwareCollect {
   collectSwStatus: string;
   collectSwDateTime: string;
-  softwareData: string;
+  // Structured collected software (object from get-software-info).
+  softwareData: any;
   viewSW: boolean;
 }
 

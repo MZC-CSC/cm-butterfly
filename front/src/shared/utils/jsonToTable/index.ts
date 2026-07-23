@@ -34,10 +34,10 @@ export interface JsonToTreeOptions {
 }
 
 /**
- * JSON 데이터를 표 형태로 변환하는 함수
- * @param jsonData - 변환할 JSON 데이터
- * @param options - 변환 옵션
- * @returns 표 데이터 객체
+ * Converts JSON data into table form
+ * @param jsonData - the JSON data to convert
+ * @param options - conversion options
+ * @returns table data objects
  */
 export function jsonToTable(
   jsonData: any,
@@ -51,24 +51,24 @@ export function jsonToTable(
 
   const tables: TableData[] = [];
 
-  // 루트 레벨의 각 키에 대해 표 생성
+  // Create a table for each root-level key
   Object.keys(jsonData).forEach(key => {
     const value = jsonData[key];
     
     if (Array.isArray(value)) {
-      // 배열인 경우
+      // Array case
       const table = createTableFromArray(key, value, maxDepth, arrayItemLimit);
       if (table) {
         tables.push(table);
       }
     } else if (typeof value === 'object' && value !== null) {
-      // 객체인 경우
+      // Object case
       const table = createTableFromObject(key, value, maxDepth, showNestedObjects);
       if (table) {
         tables.push(table);
       }
     } else {
-      // 기본값인 경우
+      // Primitive value case
       const table = createSimpleTable(key, value);
       tables.push(table);
     }
@@ -78,7 +78,7 @@ export function jsonToTable(
 }
 
 /**
- * 배열 데이터로부터 표 생성
+ * Create a table from array data
  */
 function createTableFromArray(
   key: string,
@@ -92,7 +92,7 @@ function createTableFromArray(
   const firstItem = limitedArray[0];
 
   if (typeof firstItem === 'object' && firstItem !== null) {
-    // 객체 배열인 경우
+    // Array-of-objects case
     const columns = extractColumnsFromObject(firstItem, maxDepth);
     const rows = limitedArray.map((item, index) => ({
       ...flattenObject(item, maxDepth),
@@ -101,17 +101,17 @@ function createTableFromArray(
 
     return {
       columns: [
-        { key: '_index', label: '순번', width: '80px' },
+        { key: '_index', label: 'No.', width: '80px' },
         ...columns
       ],
       rows
     };
   } else {
-    // 기본값 배열인 경우
+    // Array-of-primitives case
     return {
       columns: [
-        { key: 'index', label: '순번', width: '80px' },
-        { key: 'value', label: '값', width: '200px' }
+        { key: 'index', label: 'No.', width: '80px' },
+        { key: 'value', label: 'Value', width: '200px' }
       ],
       rows: limitedArray.map((item, index) => ({
         index: index + 1,
@@ -122,7 +122,7 @@ function createTableFromArray(
 }
 
 /**
- * 객체 데이터로부터 표 생성
+ * Create a table from object data
  */
 function createTableFromObject(
   key: string,
@@ -143,13 +143,13 @@ function createTableFromObject(
 }
 
 /**
- * 단순한 키-값 쌍으로 표 생성
+ * Create a table from a simple key-value pair
  */
 function createSimpleTable(key: string, value: any): TableData {
   return {
     columns: [
-      { key: 'key', label: '키', width: '200px' },
-      { key: 'value', label: '값', width: '300px' }
+      { key: 'key', label: 'Key', width: '200px' },
+      { key: 'value', label: 'Value', width: '300px' }
     ],
     rows: [{
       key,
@@ -159,7 +159,7 @@ function createSimpleTable(key: string, value: any): TableData {
 }
 
 /**
- * 객체에서 컬럼 정보 추출
+ * Extract column info from an object
  */
 function extractColumnsFromObject(obj: any, maxDepth: number): TableColumn[] {
   const columns: TableColumn[] = [];
@@ -207,7 +207,7 @@ function extractColumnsFromObject(obj: any, maxDepth: number): TableColumn[] {
 }
 
 /**
- * 객체를 평면화하여 표 행 데이터로 변환
+ * Flatten an object into table row data
  */
 function flattenObject(obj: any, maxDepth: number, currentDepth: number = 0): Record<string, any> {
   const flattened: Record<string, any> = {};
@@ -220,7 +220,7 @@ function flattenObject(obj: any, maxDepth: number, currentDepth: number = 0): Re
     const value = obj[key];
     
     if (Array.isArray(value)) {
-      flattened[key] = `[${value.length}개 항목]`;
+      flattened[key] = `[${value.length} items]`;
     } else if (typeof value === 'object' && value !== null) {
       if (currentDepth < maxDepth - 1) {
         const nested = flattenObject(value, maxDepth, currentDepth + 1);
@@ -239,8 +239,8 @@ function flattenObject(obj: any, maxDepth: number, currentDepth: number = 0): Re
 }
 
 /**
- * 특정 JSON 구조에 최적화된 표 생성 함수
- * 주어진 예시 데이터 구조에 맞춰 표를 생성
+ * Table-building function optimized for a specific JSON structure
+ * Builds tables to match the given example data structure
  */
 export function createMigrationDataTables(jsonData: any): TableData[] {
   const tables: TableData[] = [];
@@ -252,30 +252,30 @@ export function createMigrationDataTables(jsonData: any): TableData[] {
       const servers = data.targetSoftwareModel.servers;
       
       servers.forEach((server: any, serverIndex: number) => {
-        // 서버 기본 정보 표
+        // Server basic info table
         tables.push({
           columns: [
-            { key: 'field', label: '필드', width: '200px' },
-            { key: 'value', label: '값', width: '300px' }
+            { key: 'field', label: 'Field', width: '200px' },
+            { key: 'value', label: 'Value', width: '300px' }
           ],
           rows: [
-            { field: '서버 인덱스', value: serverIndex + 1 },
-            { field: '에러', value: server.errors?.join(', ') || '없음' },
-            { field: '소스 연결 ID', value: data.source_connection_info_id || 'N/A' }
+            { field: 'Server Index', value: serverIndex + 1 },
+            { field: 'Error', value: server.errors?.join(', ') || 'None' },
+            { field: 'Source Connection ID', value: data.source_connection_info_id || 'N/A' }
           ]
         });
 
-        // Binaries 표
+        // Binaries table
         if (server.migration_list?.binaries?.length > 0) {
           tables.push({
             columns: [
-              { key: 'name', label: '이름', width: '200px' },
-              { key: 'version', label: '버전', width: '100px' },
-              { key: 'binary_path', label: '바이너리 경로', width: '250px' },
-              { key: 'needed_libraries', label: '필요 라이브러리', width: '200px' },
-              { key: 'custom_configs', label: '커스텀 설정', width: '200px' },
-              { key: 'custom_data_paths', label: '커스텀 데이터 경로', width: '200px' },
-              { key: 'order', label: '순서', width: '80px' }
+              { key: 'name', label: 'Name', width: '200px' },
+              { key: 'version', label: 'Version', width: '100px' },
+              { key: 'binary_path', label: 'Binary Path', width: '250px' },
+              { key: 'needed_libraries', label: 'Required Libraries', width: '200px' },
+              { key: 'custom_configs', label: 'Custom Configs', width: '200px' },
+              { key: 'custom_data_paths', label: 'Custom Data Paths', width: '200px' },
+              { key: 'order', label: 'Order', width: '80px' }
             ],
             rows: server.migration_list.binaries.map((binary: any) => ({
               name: binary.name || 'N/A',
@@ -289,19 +289,19 @@ export function createMigrationDataTables(jsonData: any): TableData[] {
           });
         }
 
-        // Containers 표
+        // Containers table
         if (server.migration_list?.containers?.length > 0) {
           tables.push({
             columns: [
-              { key: 'name', label: '컨테이너 이름', width: '200px' },
-              { key: 'container_id', label: '컨테이너 ID', width: '150px' },
-              { key: 'image_name', label: '이미지 이름', width: '150px' },
-              { key: 'image_version', label: '이미지 버전', width: '100px' },
-              { key: 'container_status', label: '상태', width: '100px' },
-              { key: 'runtime', label: '런타임', width: '100px' },
-              { key: 'network_mode', label: '네트워크 모드', width: '120px' },
-              { key: 'restart_policy', label: '재시작 정책', width: '120px' },
-              { key: 'order', label: '순서', width: '80px' }
+              { key: 'name', label: 'Container Name', width: '200px' },
+              { key: 'container_id', label: 'Container ID', width: '150px' },
+              { key: 'image_name', label: 'Image Name', width: '150px' },
+              { key: 'image_version', label: 'Image Version', width: '100px' },
+              { key: 'container_status', label: 'Status', width: '100px' },
+              { key: 'runtime', label: 'Runtime', width: '100px' },
+              { key: 'network_mode', label: 'Network Mode', width: '120px' },
+              { key: 'restart_policy', label: 'Restart Policy', width: '120px' },
+              { key: 'order', label: 'Order', width: '80px' }
             ],
             rows: server.migration_list.containers.map((container: any) => ({
               name: container.name || 'N/A',
@@ -317,18 +317,18 @@ export function createMigrationDataTables(jsonData: any): TableData[] {
           });
         }
 
-        // Kubernetes 표
+        // Kubernetes table
         if (server.migration_list?.kubernetes?.length > 0) {
           tables.push({
             columns: [
-              { key: 'version', label: 'K8s 버전', width: '100px' },
+              { key: 'version', label: 'K8s Version', width: '100px' },
               { key: 'kube_config', label: 'Kube Config', width: '200px' },
-              { key: 'replicas', label: '레플리카 수', width: '100px' },
-              { key: 'cpu_limit', label: 'CPU 제한', width: '100px' },
-              { key: 'memory_limit', label: '메모리 제한', width: '100px' },
-              { key: 'cpu_request', label: 'CPU 요청', width: '100px' },
-              { key: 'memory_request', label: '메모리 요청', width: '100px' },
-              { key: 'order', label: '순서', width: '80px' }
+              { key: 'replicas', label: 'Replicas', width: '100px' },
+              { key: 'cpu_limit', label: 'CPU Limit', width: '100px' },
+              { key: 'memory_limit', label: 'Memory Limit', width: '100px' },
+              { key: 'cpu_request', label: 'CPU Request', width: '100px' },
+              { key: 'memory_request', label: 'Memory Request', width: '100px' },
+              { key: 'order', label: 'Order', width: '80px' }
             ],
             rows: server.migration_list.kubernetes.map((k8s: any) => ({
               version: k8s.version || 'N/A',
@@ -343,19 +343,19 @@ export function createMigrationDataTables(jsonData: any): TableData[] {
           });
         }
 
-        // Packages 표
+        // Packages table
         if (server.migration_list?.packages?.length > 0) {
           tables.push({
             columns: [
-              { key: 'name', label: '패키지 이름', width: '150px' },
-              { key: 'version', label: '버전', width: '100px' },
-              { key: 'needed_packages', label: '필요 패키지', width: '200px' },
-              { key: 'need_to_delete_packages', label: '삭제할 패키지', width: '200px' },
-              { key: 'repo_url', label: '저장소 URL', width: '200px' },
-              { key: 'gpg_key_url', label: 'GPG 키 URL', width: '200px' },
-              { key: 'custom_configs', label: '커스텀 설정', width: '200px' },
-              { key: 'custom_data_paths', label: '커스텀 데이터 경로', width: '200px' },
-              { key: 'order', label: '순서', width: '80px' }
+              { key: 'name', label: 'Package Name', width: '150px' },
+              { key: 'version', label: 'Version', width: '100px' },
+              { key: 'needed_packages', label: 'Required Packages', width: '200px' },
+              { key: 'need_to_delete_packages', label: 'Packages to Remove', width: '200px' },
+              { key: 'repo_url', label: 'Repository URL', width: '200px' },
+              { key: 'gpg_key_url', label: 'GPG Key URL', width: '200px' },
+              { key: 'custom_configs', label: 'Custom Configs', width: '200px' },
+              { key: 'custom_data_paths', label: 'Custom Data Paths', width: '200px' },
+              { key: 'order', label: 'Order', width: '80px' }
             ],
             rows: server.migration_list.packages.map((pkg: any) => ({
               name: pkg.name || 'N/A',
@@ -373,29 +373,29 @@ export function createMigrationDataTables(jsonData: any): TableData[] {
       });
     }
 
-    // Software Model 정보 표
+    // Software Model info table
     if (data.softwareModel) {
       tables.push({
         columns: [
-          { key: 'field', label: '필드', width: '200px' },
-          { key: 'value', label: '값', width: '300px' }
+          { key: 'field', label: 'Field', width: '200px' },
+          { key: 'value', label: 'Value', width: '300px' }
         ],
         rows: [
           { field: 'ID', value: data.softwareModel.id || 'N/A' },
-          { field: '이름', value: data.softwareModel.name || 'N/A' },
-          { field: '설명', value: data.softwareModel.description || 'N/A' }
+          { field: 'Name', value: data.softwareModel.name || 'N/A' },
+          { field: 'Description', value: data.softwareModel.description || 'N/A' }
         ]
       });
     }
 
   } catch (error) {
-    console.error('JSON 파싱 오류:', error);
+    console.error('JSON parsing error:', error);
     tables.push({
       columns: [
-        { key: 'error', label: '오류', width: '500px' }
+        { key: 'error', label: 'Error', width: '500px' }
       ],
       rows: [
-        { error: 'JSON 데이터를 파싱할 수 없습니다.' }
+        { error: 'Cannot parse JSON data.' }
       ]
     });
   }
@@ -404,10 +404,10 @@ export function createMigrationDataTables(jsonData: any): TableData[] {
 }
 
 /**
- * JSON 데이터를 Tree 구조로 변환하는 함수
- * @param jsonData - 변환할 JSON 데이터
- * @param options - 변환 옵션
- * @returns Tree 노드 배열
+ * Converts JSON data into a tree structure
+ * @param jsonData - the JSON data to convert
+ * @param options - conversion options
+ * @returns array of tree nodes
  */
 export function jsonToTree(
   jsonData: any,
@@ -467,12 +467,12 @@ export function jsonToTree(
         children,
         level,
         path: fullPath,
-        expanded: level < 2 // 처음 2레벨은 기본적으로 확장
+        expanded: level < 2 // The first 2 levels are expanded by default
       };
     }
 
     if (typeof data === 'object') {
-      // 순환 참조 방지
+      // Guard against circular references
       if (visitedObjects.has(data)) {
         return {
           id: currentNodeId,
@@ -502,11 +502,11 @@ export function jsonToTree(
         children,
         level,
         path: fullPath,
-        expanded: level < 2 // 처음 2레벨은 기본적으로 확장
+        expanded: level < 2 // The first 2 levels are expanded by default
       };
     }
 
-    // Primitive 타입
+    // Primitive type
     const displayValue = showPrimitiveValues ? `: ${data}` : '';
     return {
       id: currentNodeId,
@@ -523,9 +523,9 @@ export function jsonToTree(
 }
 
 /**
- * Tree 노드를 평면화하여 배열로 변환하는 함수
- * @param treeNodes - Tree 노드 배열
- * @returns 평면화된 노드 배열
+ * Flattens tree nodes into an array
+ * @param treeNodes - array of tree nodes
+ * @returns flattened array of nodes
  */
 export function flattenTreeNodes(treeNodes: TreeNode[]): TreeNode[] {
   const result: TreeNode[] = [];
@@ -544,10 +544,10 @@ export function flattenTreeNodes(treeNodes: TreeNode[]): TreeNode[] {
 }
 
 /**
- * Tree 노드에서 특정 경로의 노드를 찾는 함수
- * @param treeNodes - Tree 노드 배열
- * @param path - 찾을 경로
- * @returns 찾은 노드 또는 null
+ * Finds the node at a specific path within the tree nodes
+ * @param treeNodes - array of tree nodes
+ * @param path - the path to find
+ * @returns the found node, or null
  */
 export function findTreeNodeByPath(treeNodes: TreeNode[], path: string): TreeNode | null {
   const flattened = flattenTreeNodes(treeNodes);
@@ -555,10 +555,10 @@ export function findTreeNodeByPath(treeNodes: TreeNode[], path: string): TreeNod
 }
 
 /**
- * Tree 노드의 확장 상태를 토글하는 함수
- * @param treeNodes - Tree 노드 배열
- * @param nodeId - 토글할 노드 ID
- * @returns 업데이트된 Tree 노드 배열
+ * Toggles the expanded state of a tree node
+ * @param treeNodes - array of tree nodes
+ * @param nodeId - ID of the node to toggle
+ * @returns the updated array of tree nodes
  */
 export function toggleTreeNode(treeNodes: TreeNode[], nodeId: string): TreeNode[] {
   function toggleNode(nodes: TreeNode[]): TreeNode[] {
@@ -577,10 +577,10 @@ export function toggleTreeNode(treeNodes: TreeNode[], nodeId: string): TreeNode[
 }
 
 /**
- * Tree 노드를 필터링하는 함수
- * @param treeNodes - Tree 노드 배열
- * @param searchTerm - 검색어
- * @returns 필터링된 Tree 노드 배열
+ * Filters tree nodes
+ * @param treeNodes - array of tree nodes
+ * @param searchTerm - the search term
+ * @returns the filtered array of tree nodes
  */
 export function filterTreeNodes(treeNodes: TreeNode[], searchTerm: string): TreeNode[] {
   if (!searchTerm.trim()) return treeNodes;
@@ -600,7 +600,7 @@ export function filterTreeNodes(treeNodes: TreeNode[], searchTerm: string): Tree
           acc.push({
             ...node,
             children: filteredChildren,
-            expanded: true // 필터링된 노드는 확장 상태로 표시
+            expanded: true // Show filtered nodes in the expanded state
           });
         }
       }

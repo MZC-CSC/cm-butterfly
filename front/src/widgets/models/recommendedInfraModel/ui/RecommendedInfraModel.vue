@@ -16,7 +16,11 @@ import {
   useGetRecommendModelListBySourceModel,
   useGetRecommendModelCandidates,
 } from '@/entities/recommendedModel/api';
-import { showErrorMessage } from '@/shared/utils';
+import {
+  showErrorMessage,
+  showInfoMessage,
+  toErrorMessage,
+} from '@/shared/utils';
 import { IRecommendModelResponse } from '@/entities/recommendedModel/model/types';
 import { useGetProviderList, useGetRegionList } from '@/entities/provider/api';
 import { useAuth } from '@/features/auth/model/useAuth.ts';
@@ -32,7 +36,7 @@ const emit = defineEmits(['update:close-modal']);
 
 const auth = useAuth();
 
-// VM 데이터 유효성 검사 헬퍼 함수
+// Helper to validate VM data
 function isValidVmData(vm: any): boolean {
   return vm && 
          vm.specId && 
@@ -41,11 +45,11 @@ function isValidVmData(vm: any): boolean {
          vm.imageId.trim() !== '';
 }
 
-// "empty" 문구를 빨간색으로 표시하는 헬퍼 함수
+// Helper to render the "empty" text in red
 function formatEmptyValue(value: string): string {
   if (!value) return '';
-  
-  // "empty" 문자열을 빨간색으로 변환 (단어 단위로 대체)
+
+  // Turn the "empty" string red (replace on a whole-word basis)
   return value.replace(/\bempty\b/g, '<span style="color: red; font-weight: bold;">empty</span>');
 }
 const recommendInfraModel = useRecommendedInfraModel();
@@ -109,10 +113,10 @@ const targetSourceModel = computed(() =>
   recommendInfraModel.sourceModelStore.getSourceModelById(props.sourceModelId),
 );
 
-// Query parameter 입력값
+// Query parameter inputs
 const candidateLimit = ref<number>(3);
 const minimumMatchRateMin = ref<number | null>(null);
-const minimumMatchRateMax = ref<number>(100);  // 기본값 100
+const minimumMatchRateMax = ref<number>(100);  // default 100
 
 const modalState = reactive({
   targetModal: false,
@@ -128,7 +132,7 @@ async function getRecommendModelList() {
   recommendInfraModel.initToolBoxTableModel();
 
   try {
-    // minimumMatchRate 파라미터 조합
+    // Assemble the minimumMatchRate parameter
     let minimumMatchRateParam: string | number | null = null;
     if (minimumMatchRateMin.value !== null && minimumMatchRateMax.value !== null) {
       minimumMatchRateParam = `${minimumMatchRateMin.value}-${minimumMatchRateMax.value}`;
@@ -138,7 +142,7 @@ async function getRecommendModelList() {
       minimumMatchRateParam = minimumMatchRateMax.value;
     }
     
-    // Candidates API 호출 (복수 후보 조회)
+    // Call the Candidates API (fetch multiple candidates)
     const getRecommendCandidates = useGetRecommendModelCandidates(
       targetSourceModel.value?.onpremiseInfraModel || null,
       provider.selected,
@@ -155,21 +159,21 @@ async function getRecommendModelList() {
     console.log('res.data type:', typeof res.data);
     console.log('res.data keys:', res.data ? Object.keys(res.data) : 'null');
     
-    // API 응답 구조: { responseData: { data: [...] } }
+    // API response shape: { responseData: { data: [...] } }
     if (res.data?.responseData?.data && Array.isArray(res.data.responseData.data)) {
       const candidates = res.data.responseData.data;
       console.log(`Found ${candidates.length} candidate(s)`);
       
-      // 각 후보에 대해 비용 계산 및 데이터 정제
+      // Compute cost and clean up data for each candidate
       const processedCandidates = candidates.map((candidate, index) => {
         console.log(`Processing candidate ${index + 1}:`, JSON.stringify(candidate, null, 2));
         
-        // API 응답 데이터 검증 및 정리
-        if (candidate.targetVmInfra?.subGroups) {
-          const originalLength = candidate.targetVmInfra.subGroups.length;
+        // Validate and clean up the API response data
+        if (candidate.targetInfra?.nodeGroups) {
+          const originalLength = candidate.targetInfra.nodeGroups.length;
           
-          // 무효한 데이터 로깅
-          const invalidVms = candidate.targetVmInfra.subGroups.filter(vm => 
+          // Log invalid data
+          const invalidVms = candidate.targetInfra.nodeGroups.filter(vm => 
             !vm || !vm.specId || vm.specId.trim() === '' || !vm.imageId || vm.imageId.trim() === ''
           );
           
@@ -177,8 +181,8 @@ async function getRecommendModelList() {
             console.warn(`Candidate ${index + 1}: Found ${invalidVms.length} invalid VMs`);
           }
           
-          // 무효한 데이터의 빈 필드를 "empty"로 대체
-          candidate.targetVmInfra.subGroups = candidate.targetVmInfra.subGroups.map(vm => {
+          // Replace empty fields of invalid data with "empty"
+          candidate.targetInfra.nodeGroups = candidate.targetInfra.nodeGroups.map(vm => {
             const updatedVm = { ...vm };
             if (!vm.specId || vm.specId.trim() === '') {
               updatedVm.specId = 'empty';
@@ -190,14 +194,14 @@ async function getRecommendModelList() {
           });
         }
 
-        // 비용 계산 (targetVmSpecList 기반)
+        // Cost calculation (based on targetSpecList)
         try {
           let totalCostPerHour = 0;
           let currency = '';
           let skippedVms: Array<{ vmName: string; specId: string; costPerHour: number }> = [];
           
-          candidate.targetVmInfra.subGroups?.forEach(vm => {
-            const matchingSpec = candidate.targetVmSpecList?.find(spec => spec.id === vm.specId);
+          candidate.targetInfra.nodeGroups?.forEach(vm => {
+            const matchingSpec = candidate.targetSpecList?.find(spec => spec.id === vm.specId);
             if (matchingSpec && matchingSpec.costPerHour !== undefined && matchingSpec.costPerHour !== null) {
               if (matchingSpec.costPerHour < 0) {
                 skippedVms.push({
@@ -257,12 +261,12 @@ async function getRecommendModelList() {
       console.log('Processed candidates:', processedCandidates);
       console.log('=== End Response Log ===');
 
-      // n개의 후보를 모두 테이블에 표시
+      // Show all n candidates in the table
       try {
         const tableItems = processedCandidates.map((candidate, index) => {
           console.log(`Organizing table item ${index + 1}:`, candidate);
           const item = recommendInfraModel.organizeRecommendedModelTableItem(candidate);
-          item.index = index + 1; // 순번 추가
+          item.index = index + 1; // add the sequence number
           console.log(`Organized item ${index + 1}:`, item);
           return item;
         });
@@ -276,11 +280,19 @@ async function getRecommendModelList() {
       }
       
     } else {
-      showErrorMessage('error', 'No candidates found');
+      // No matching candidate is a normal outcome — it happens whenever the spec filter is narrow.
+      // Leave the table empty and just inform. A red error here makes a 200 OK look like a failure.
       recommendInfraModel.initToolBoxTableModel();
+      showInfoMessage(
+        'No candidates',
+        'No candidate matched these conditions. Try widening them and search again.',
+      );
     }
   } catch (err: any) {
-    showErrorMessage('error', err?.errorMsg || 'Failed to get recommendations');
+    showErrorMessage(
+      'Error',
+      toErrorMessage(err, 'Failed to get recommendations'),
+    );
     recommendInfraModel.initToolBoxTableModel();
   }
 }
@@ -302,7 +314,7 @@ function handleSave(e: { name: string; description: string }) {
   description.value = e.description;
 
   try {
-    // selectIndex는 배열 형태([0], [1], [2], ...)로 저장되므로 첫 번째 요소를 추출
+    // selectIndex is stored as an array ([0], [1], [2], ...), so extract the first element
     const selectIndex = recommendInfraModel.tableModel.tableState.selectIndex;
     const rowIndex = Array.isArray(selectIndex) ? selectIndex[0] : selectIndex as number;
 
@@ -313,34 +325,35 @@ function handleSave(e: { name: string; description: string }) {
 
     let selectedModel: IRecommendModelResponse = displayItem.originalData;
 
-    if (!selectedModel?.targetVmInfra?.subGroups || selectedModel.targetVmInfra.subGroups.length === 0) {
-      throw new Error('Selected model has no VM subGroups');
+    if (!selectedModel?.targetInfra?.nodeGroups || selectedModel.targetInfra.nodeGroups.length === 0) {
+      throw new Error('Selected model has no VM nodeGroups');
     }
 
-    // 선택된 Row의 데이터를 가공 없이 그대로 사용
-    // 주의: selectIndex는 테이블 행의 인덱스이고, 이미 displayItems[rowIndex]에서 해당 모델을 가져왔으므로
-    // subGroups에서는 첫 번째 VM(인덱스 0)을 사용해야 함 (CSP/Region 추출용)
-    const selectedVm = selectedModel.targetVmInfra.subGroups[0];
-    
-    // 기존 targetVmInfra를 그대로 사용 (가공 없이)
+    // Use the selected row's data as-is, without processing.
+    // Note: selectIndex is the table row index, and we already got the model from
+    // displayItems[rowIndex], so within nodeGroups we should use the first VM
+    // (index 0) — for extracting CSP/Region.
+    const selectedVm = selectedModel.targetInfra.nodeGroups[0];
+
+    // Use the existing targetInfra as-is (no processing)
     const modifiedTargetVmInfra = {
-      ...selectedModel.targetVmInfra
-      // subGroups는 원본 그대로 유지
+      ...selectedModel.targetInfra
+      // Keep nodeGroups exactly as the original
     };
 
-    // API 스펙에 맞는 cloudInfraModel 구조 생성
+    // Build the cloudInfraModel structure per the API spec
     const cloudInfraModel = {
       description: selectedModel.description || '',
       status: selectedModel.status || '',
       targetSecurityGroupList: selectedModel.targetSecurityGroupList || [],
       targetSshKey: selectedModel.targetSshKey || {},
       targetVNet: selectedModel.targetVNet || {},
-      targetVmInfra: modifiedTargetVmInfra, // 가공되지 않은 targetVmInfra 사용
-      targetVmOsImageList: selectedModel.targetVmOsImageList || [],
-      targetVmSpecList: selectedModel.targetVmSpecList || []
+      targetInfra: modifiedTargetVmInfra, // use the unprocessed targetInfra
+      targetOsImageList: selectedModel.targetOsImageList || [],
+      targetSpecList: selectedModel.targetSpecList || []
     };
 
-    // specId가 빈 문자열이거나 +가 없는 경우 기본값 사용
+    // Use defaults if specId is an empty string or has no +
     let csp = 'default-csp';
     let region = 'default-region';
     
@@ -355,7 +368,7 @@ function handleSave(e: { name: string; description: string }) {
     resCreateTargetModel
       .execute({
         request: {
-          cloudInfraModel: cloudInfraModel as any, // 가공되지 않은 데이터 전달
+          cloudInfraModel: cloudInfraModel as any, // pass the unprocessed data
           csp: csp,
           description: description.value,
           isInitUserModel: true,
@@ -382,6 +395,7 @@ function handleSave(e: { name: string; description: string }) {
   <div>
     <create-form
       class="page-modal-layout"
+      data-testid="recommend-modal"
       title="Recommend Model"
       :need-widget-layout="true"
       :badge-title="sourceModelName"
@@ -390,10 +404,11 @@ function handleSave(e: { name: string; description: string }) {
     >
       <template #add-info>
         <div class="flex gap-4 flex-col w-full">
-          <!-- Provider, Region, Search 버튼을 같은 라인에 배치 -->
+          <!-- Place the Provider, Region and Search buttons on the same line -->
           <section class="select-service-box flex w-full items-center gap-4">
             <p class="text-label-lg font-bold">Provider</p>
             <p-select-dropdown
+              data-testid="recommend-provider-select"
               :menu="provider.menu"
               :loading="provider.loading"
               @update:visible-menu="handleProviderMenuClick"
@@ -406,6 +421,7 @@ function handleSave(e: { name: string; description: string }) {
             ></p-select-dropdown>
             <p class="text-label-lg font-bold">Region</p>
             <p-select-dropdown
+              data-testid="recommend-region-select"
               :menu="region.menu"
               :loading="region.loading"
               :disabled="provider.selected === ''"
@@ -417,21 +433,23 @@ function handleSave(e: { name: string; description: string }) {
               "
             ></p-select-dropdown>
             
-            <!-- Search 버튼을 오른쪽 끝으로 -->
+            <!-- Push the Search button to the far right -->
             <div class="flex-grow"></div>
             <p-button
+              data-testid="recommend-search"
               :disabled="!provider.selected || !region.selected"
               @click="getRecommendModelList"
             >
               Search
             </p-button>
           </section>
-          <!-- Query Parameters를 가로로 배치 -->
+          <!-- Lay out the Query Parameters horizontally -->
           <section class="select-service-box flex w-full items-center gap-4">
             <!-- Candidate Limit with tooltip -->
             <p class="text-label-lg font-bold" title="Maximum number of recommended infrastructures to return (default: 3)">Candidate Limit</p>
             <input
               v-model.number="candidateLimit"
+              data-testid="recommend-candidate-limit"
               type="number"
               :min="1"
               :max="10"
@@ -469,6 +487,7 @@ function handleSave(e: { name: string; description: string }) {
           </section>
           <p-toolbox-table
             ref="toolboxTable"
+            data-testid="recommend-result-table"
             :items="recommendInfraModel.tableModel.tableState.displayItems"
             :fields="recommendInfraModel.tableModel.tableState.fields"
             :total-count="recommendInfraModel.tableModel.tableState.tableCount"
@@ -485,6 +504,39 @@ function handleSave(e: { name: string; description: string }) {
             :multi-select="false"
             @change="recommendInfraModel.tableModel.handleChange"
           >
+            <!--
+              Carry the candidate's complete/incomplete marker in the first column (No.).
+              - For humans: if the spec or image has bad values, prefix the number with
+                a red "!", and on hover indicate which columns are actually empty
+                (warning only, doesn't block saving).
+              - For E2E: use data-complete="true|false" so tests can mechanically pick
+                only complete candidates.
+              The judgment uses the same criterion as the model's hasMissingRequiredFields
+              (item.hasMissingInfo).
+            -->
+            <template #col-index-format="{ item }">
+              <span
+                class="recommend-candidate"
+                :class="{
+                  'recommend-candidate--invalid': item.hasMissingInfo,
+                }"
+                data-testid="recommend-candidate"
+                :data-complete="item.hasMissingInfo ? 'false' : 'true'"
+                :data-id="item.name || ''"
+                :title="
+                  item.hasMissingInfo
+                    ? `Required information is missing. You must fill in these fields (${item.missingFields || 'Spec, Image'}) when building the workflow.`
+                    : undefined
+                "
+              >
+                <span
+                  v-if="item.hasMissingInfo"
+                  class="recommend-candidate__flag"
+                  data-testid="recommend-candidate-invalid"
+                  >!</span
+                >{{ item.index }}
+              </span>
+            </template>
             <template #col-spec-format="{ item }">
               <span v-html="formatEmptyValue(item.spec)"></span>
             </template>
@@ -496,7 +548,10 @@ function handleSave(e: { name: string; description: string }) {
       </template>
       <template #buttons>
         <p-button style-type="tertiary" @click="handleModal">cancel</p-button>
-        <p-button @click="modalState.targetModal = true">
+        <p-button
+          data-testid="recommend-save-target"
+          @click="modalState.targetModal = true"
+        >
           Save as a Target Model
         </p-button>
       </template>
@@ -557,5 +612,14 @@ function handleSave(e: { name: string; description: string }) {
 
 .parameter-input input {
   width: 120px;
+}
+
+.recommend-candidate--invalid {
+  color: red;
+  font-weight: bold;
+}
+
+.recommend-candidate__flag {
+  margin-right: 2px;
 }
 </style>

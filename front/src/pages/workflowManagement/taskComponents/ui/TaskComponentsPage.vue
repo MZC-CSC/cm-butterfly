@@ -43,16 +43,17 @@ const mainTabState = reactive({
   ],
 });
 
+// cm-cicada type/spec migration: TaskComponent uses the { type, spec } schema (old options/param_option removed)
 const schema = {
   json: true,
   properties: {
-    options: {
-      type: 'object',
-      title: 'Options',
+    type: {
+      type: 'string',
+      title: 'Type',
     },
-    param_option: {
+    spec: {
       type: 'object',
-      title: 'Param Option',
+      title: 'Spec',
     },
   },
 };
@@ -63,13 +64,12 @@ function handleClickTemplateComponentId(id: string) {
 
 async function handleUpdateTaskComponent(updatedData: object) {
   try {
+    // New schema: send { type, spec, name, description } at the top level (old { data } wrapper removed)
     const { data } = await updateTaskComponent.execute({
       pathParams: {
         tcId: selectedTaskComponentId.value,
       },
-      request: {
-        data: updatedData,
-      },
+      request: updatedData,
     });
 
     if (
@@ -99,11 +99,12 @@ async function getTaskComponentById() {
       },
     });
 
+    // New schema: TaskComponent is top-level { type, spec, ... } (old .data wrapper removed)
     if (
-      data.responseData?.data &&
-      Object.values(data.responseData.data).length > 0
+      data.responseData &&
+      Object.values(data.responseData).length > 0
     ) {
-      tcIdData.value = data.responseData?.data;
+      tcIdData.value = data.responseData;
     }
   } catch (error) {
     showErrorMessage('error', 'Failed to get the task component.');
@@ -124,18 +125,18 @@ async function handleUpdateTaskComponentEdit() {
     if (selectedTaskComponentId.value.length > 0) {
       await getTaskComponentById()
         .then(async r => {
+          // New schema: send { type, spec, ... } at the top level (old { data } wrapper removed)
           const { data } = await updateTaskComponent.execute({
             pathParams: {
               tcId: selectedTaskComponentId.value,
             },
             request: {
-              data: tcIdData.value,
+              ...tcIdData.value,
               name: taskComponentName.value,
             },
           });
 
-          console.log('jere');
-          if (data.responseData?.data !== null) {
+          if (data.responseData !== null) {
             showSuccessMessage(
               'success',
               'Task Component data updated successfully.',
@@ -164,7 +165,7 @@ async function handleUpdateTaskComponentEdit() {
 <template>
   <div :class="`${pageName}-page page`">
     <header>
-      <p>{{ pageName }}</p>
+      <p data-testid="taskcomponent-page-header">{{ pageName }}</p>
     </header>
     <section :class="`${pageName}-page-body`">
       <task-components-list

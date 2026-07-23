@@ -84,6 +84,10 @@ func main() {
 	// Menu endpoint
 	api.POST("/getmenutree", menuHandler.GetMenuTree)
 
+	// Tabular import (CSV / Excel) — parsing only. Validation stays in the console
+	// so the interactive form and the import path share one set of rules.
+	api.POST("/parsetabularimport", handler.ParseTabularImport)
+
 	// Project management endpoints
 	api.POST("/createproject", workspaceHandler.CreateProject)
 	api.POST("/getprojectlist", workspaceHandler.GetProjectList)
@@ -96,6 +100,24 @@ func main() {
 	api.POST("/getworkspaceuserrolemappinglistbyuserid", workspaceHandler.GetWorkspaceUserRoleMappingListByUserId)
 
 	// API Test endpoints
+	// Track workload deletion status — kept on the server, not the browser, so it can be resumed from anywhere.
+	deleteRequestHandler := handler.NewDeleteRequestHandler(db)
+	api.POST("/listdeleterequests", deleteRequestHandler.ListDeleteRequests)
+	api.POST("/savedeleterequest", deleteRequestHandler.SaveDeleteRequest)
+	api.POST("/updatedeleterequeststatus", deleteRequestHandler.UpdateDeleteRequestStatus)
+	api.POST("/removedeleterequest", deleteRequestHandler.RemoveDeleteRequest)
+
+	notificationHandler := handler.NewNotificationHandler(db)
+	api.POST("/listnotifications", notificationHandler.ListNotifications)
+	api.POST("/addnotification", notificationHandler.AddNotification)
+	api.POST("/readnotification", notificationHandler.ReadNotification)
+	api.POST("/readallnotifications", notificationHandler.ReadAllNotifications)
+
+	trackedJobHandler := handler.NewTrackedJobHandler(db)
+	api.POST("/listtrackedjobs", trackedJobHandler.ListTrackedJobs)
+	api.POST("/savetrackedjob", trackedJobHandler.SaveTrackedJob)
+	api.POST("/removetrackedjob", trackedJobHandler.RemoveTrackedJob)
+
 	api.POST("/test", handler.ApiTestController)
 
 	// API list endpoint (no auth required)

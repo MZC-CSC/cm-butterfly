@@ -27,6 +27,7 @@ watch(
 <template>
   <div>
     <p-definition-table
+      data-testid="mci-detail-table"
       :fields="mciDetailModel.tableModel.tableState.fields"
       :data="mciDetailModel.tableModel.tableState.data"
       :loading="mciDetailModel.tableModel.tableState.loading"

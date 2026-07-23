@@ -50,7 +50,7 @@ export default defineComponent({
     }
   },
   setup() {
-    const showDebugInfo = ref(true); // 디버그 정보를 기본적으로 표시
+    const showDebugInfo = ref(true); // Show debug info by default
 
     const toggleDebugInfo = () => {
       showDebugInfo.value = !showDebugInfo.value;
