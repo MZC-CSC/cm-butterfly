@@ -13,6 +13,9 @@ const GET_SOURCE_SERVICE_LIST = 'cm-honeybee/list-source-group';
 const GET_SOURCE_SERVICE = 'cm-honeybee/get-source-group';
 const DELETE_SOURCE_SERVICE = 'cm-honeybee/delete-source-group';
 const GET_INFRA_SOURCE_GROUP = 'cm-honeybee/import-infra-source-group';
+const GET_INFRA_INFO_SOURCE_GROUP = 'cm-honeybee/get-infra-info-source-group';
+const GET_SOFTWARE_INFO_SOURCE_GROUP =
+  'cm-honeybee/get-software-info-source-group';
 const GET_INFRA_INFO_SOURCE_GROUP_REFINE =
   'cm-honeybee/get-infra-info-source-group-refined';
 
@@ -88,6 +91,35 @@ export function useGetInfraSourceGroup(sourceGroupId: string | null) {
     IAxiosResponse<IInfraSourceGroupResponse>,
     Required<Pick<RequestBodyWrapper<{ sgId: string | null }>, 'pathParams'>>
   >(GET_INFRA_SOURCE_GROUP, requestWrapper);
+}
+
+// Structured (non-refined) view of the collected infra for a source group —
+// the JSON form of the data collected by import-infra-source-group.
+export function useGetInfraInfoSourceGroup(sourceGroupId: string | null) {
+  const requestWrapper: Required<
+    Pick<RequestBodyWrapper<{ sgId: string | null }>, 'pathParams'>
+  > = {
+    pathParams: { sgId: sourceGroupId },
+  };
+
+  return useAxiosPost<
+    IAxiosResponse<any>,
+    Required<Pick<RequestBodyWrapper<{ sgId: string | null }>, 'pathParams'>>
+  >(GET_INFRA_INFO_SOURCE_GROUP, requestWrapper);
+}
+
+// Structured (non-refined) view of the collected software for a source group.
+export function useGetSoftwareInfoSourceGroup(sourceGroupId: string | null) {
+  const requestWrapper: Required<
+    Pick<RequestBodyWrapper<{ sgId: string | null }>, 'pathParams'>
+  > = {
+    pathParams: { sgId: sourceGroupId },
+  };
+
+  return useAxiosPost<
+    IAxiosResponse<any>,
+    Required<Pick<RequestBodyWrapper<{ sgId: string | null }>, 'pathParams'>>
+  >(GET_SOFTWARE_INFO_SOURCE_GROUP, requestWrapper);
 }
 
 export function useGetInfraSourceGroupInfraRefine(

@@ -20,6 +20,8 @@ const metaEditorRef = ref<InstanceType<typeof EnhancedJsonEditor> | null>(null);
 const modelEditorRef = ref<InstanceType<typeof EnhancedJsonEditor> | null>(null);
 
 // formData를 JSON string으로 변환
+// formData is the structured collected meta (an object from get-infra-info /
+// get-software-info), so it is stringified directly for the tree view.
 const metaDataString = computed(() => {
   if (!props.formData) return '{}';
   if (typeof props.formData === 'string') return props.formData;
@@ -122,7 +124,7 @@ function handleModelUpdate(value: string) {
     <!-- 좌측: Meta (읽기 전용) -->
     <p-pane-layout class="json-editor-pane">
       <p class="editor-title">Meta (data)</p>
-      <div class="editor-wrapper">
+      <div class="editor-wrapper" data-testid="source-meta-json">
         <EnhancedJsonEditor
           ref="metaEditorRef"
           :model-value="metaDataString"
@@ -155,7 +157,7 @@ function handleModelUpdate(value: string) {
     <!-- 우측: Model (편집 가능) -->
     <p-pane-layout class="json-editor-pane">
       <p class="editor-title">Model</p>
-      <div class="editor-wrapper">
+      <div class="editor-wrapper" data-testid="source-model-json">
         <EnhancedJsonEditor
           ref="modelEditorRef"
           :model-value="modelDataString"

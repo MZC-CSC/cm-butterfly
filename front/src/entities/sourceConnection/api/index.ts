@@ -20,6 +20,8 @@ const COLLECT_SW_SOURCE_GROUP = 'cm-honeybee/import-software-source-group';
 const DELETE_SOURCE_CONNECTION = 'cm-honeybee/delete-connection-info';
 const REFRESH_SOURCE_GROUP_CONNECTION_INFO_STATUS =
   'cm-honeybee/Refresh-Source-Group-Connection-Info-Status';
+const GET_INFRA_INFO = 'cm-honeybee/get-infra-info';
+const GET_SOFTWARE_INFO = 'cm-honeybee/get-software-info';
 const GET_INFRA_INFO_REFINED = 'cm-honeybee/get-infra-info-refined';
 const GET_INFRA_INFO_SOURCE_GROUP_REFINED = 'cm-honeybee/get-infra-info-source-group-refined';
 const GET_SOFTWARE_INFO_REFINED = 'cm-honeybee/get-software-info-refined';
@@ -198,6 +200,49 @@ export function useGetInfraInfoRefined(
       >
     >
   >(GET_INFRA_INFO_REFINED, requestWrapper);
+}
+
+// Structured (non-refined) view of the collected infra — the JSON form of the
+// same data collected by import-infra, shown in the viewer's left "Meta" pane.
+export function useGetInfraInfo(sgId: string | null, connId: string | null) {
+  const requestWrapper: Required<
+    Pick<
+      RequestBodyWrapper<{ sgId: string | null; connId: string | null }>,
+      'pathParams'
+    >
+  > = {
+    pathParams: { sgId, connId },
+  };
+  return useAxiosPost<
+    IAxiosResponse<any>,
+    Required<
+      Pick<
+        RequestBodyWrapper<{ sgId: string | null; connId: string | null }>,
+        'pathParams'
+      >
+    >
+  >(GET_INFRA_INFO, requestWrapper);
+}
+
+// Structured (non-refined) view of the collected software.
+export function useGetSoftwareInfo(sgId: string | null, connId: string | null) {
+  const requestWrapper: Required<
+    Pick<
+      RequestBodyWrapper<{ sgId: string | null; connId: string | null }>,
+      'pathParams'
+    >
+  > = {
+    pathParams: { sgId, connId },
+  };
+  return useAxiosPost<
+    IAxiosResponse<any>,
+    Required<
+      Pick<
+        RequestBodyWrapper<{ sgId: string | null; connId: string | null }>,
+        'pathParams'
+      >
+    >
+  >(GET_SOFTWARE_INFO, requestWrapper);
 }
 
 export function useGetSoftwareInfoRefined(

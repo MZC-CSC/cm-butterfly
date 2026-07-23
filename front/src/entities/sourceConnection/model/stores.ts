@@ -81,6 +81,22 @@ export const useSourceConnectionStore = defineStore(NAMESPACE, () => {
     }
   }
 
+  // Store the structured (get-infra-info / get-software-info) JSON for a
+  // connection so the viewer shows it as a JSON tree instead of the raw string.
+  function setConnectionInfraModel(connId: string, data: any) {
+    const sourceConnection = getConnectionById(connId);
+    if (sourceConnection) {
+      sourceConnection.infraData = data;
+    }
+  }
+
+  function setConnectionSoftwareModel(connId: string, data: any) {
+    const sourceConnection = getConnectionById(connId);
+    if (sourceConnection) {
+      sourceConnection.softwareData = data;
+    }
+  }
+
   function clear() {
     connections.value = {};
   }
@@ -94,6 +110,8 @@ export const useSourceConnectionStore = defineStore(NAMESPACE, () => {
     setConnections,
     mapSourceConnectionCollectSWResponse,
     mapSourceConnectionCollectInfraResponse,
+    setConnectionInfraModel,
+    setConnectionSoftwareModel,
     clear,
     withSourceConnection,
     setWithSourceConnection,
