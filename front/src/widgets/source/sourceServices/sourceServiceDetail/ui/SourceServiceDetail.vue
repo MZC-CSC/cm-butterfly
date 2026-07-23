@@ -4,6 +4,8 @@ import { onBeforeMount, reactive, ref, watch, watchEffect } from 'vue';
 import { useSourceServiceDetailModel } from '@/widgets/source/sourceServices/sourceServiceDetail/model/sourceServiceDetailModel';
 import {
   useGetInfraSourceGroup,
+  useGetInfraInfoSourceGroup,
+  useGetSoftwareInfoSourceGroup,
   useGetSourceService,
 } from '@/entities/sourceService/api';
 import { showErrorMessage } from '@/shared/utils';
@@ -36,11 +38,13 @@ const refreshSourceGroupConnectionInfoStatus =
   useRefreshSourceGroupConnectionInfoStatus(null);
 const getSourceService = useGetSourceService(null);
 const resGetInfraSourceGroup = useGetInfraSourceGroup(null);
+const resGetInfraInfoSourceGroup = useGetInfraInfoSourceGroup(null);
 const infraModel = ref<any>(null);
 
-// Software 관련 상태
+// Software-related state
 const softwareModel = ref<any>(null);
 const resCollectSWSourceGroup = useCollectSWSourceGroup(null);
+const resGetSoftwareInfoSourceGroup = useGetSoftwareInfoSourceGroup(null);
 
 const modalState = reactive({
   open: false,
@@ -50,7 +54,7 @@ const modalState = reactive({
   },
 });
 
-// Software 모달 상태
+// Software modal state
 const softwareModalState = reactive({
   open: false,
   context: {
@@ -72,13 +76,17 @@ watch(
 );
 
 watchEffect(() => {
-  const serviceName = sourceServiceStore.getServiceById(props.selectedServiceId)?.name;
+  const serviceName = sourceServiceStore.getServiceById(
+    props.selectedServiceId,
+  )?.name;
   if (serviceName) {
     emit('update:source-connection-name', serviceName);
   }
 });
 
 function getSourceGroupInfras() {
+  // Collect the infra (import-infra-source-group), then show its structured
+  // JSON form (get-infra-info-source-group) in the viewer's left "Meta" pane.
   resGetInfraSourceGroup
     .execute({
       pathParams: {
@@ -86,15 +94,22 @@ function getSourceGroupInfras() {
       },
     })
     .then(res => {
-      if (res.data.responseData) {
-        sourceServiceStore.mappinginfraModel(
-          props.selectedServiceId,
-          res.data.responseData,
-        );
-        infraModel.value = res.data.responseData;
-        loadSourceServiceData(props.selectedServiceId);
-        
-        // 데이터를 가져온 후 자동으로 모달 열기
+      if (!res.data.responseData) return undefined;
+      sourceServiceStore.mappinginfraModel(
+        props.selectedServiceId,
+        res.data.responseData,
+      );
+      loadSourceServiceData(props.selectedServiceId);
+      return resGetInfraInfoSourceGroup.execute({
+        pathParams: {
+          sgId: props.selectedServiceId,
+        },
+      });
+    })
+    .then(infoRes => {
+      if (infoRes && infoRes.data.responseData) {
+        infraModel.value = infoRes.data.responseData;
+        // Automatically open the modal after fetching the data
         modalState.open = true;
       }
     })
@@ -105,6 +120,8 @@ function getSourceGroupInfras() {
 }
 
 function getSourceGroupSoftware() {
+  // Collect the software (import-software-source-group), then show its
+  // structured JSON form (get-software-info-source-group) in the pane.
   resCollectSWSourceGroup
     .execute({
       pathParams: {
@@ -112,15 +129,22 @@ function getSourceGroupSoftware() {
       },
     })
     .then(res => {
-      if (res.data.responseData) {
-        sourceServiceStore.mappingSoftwareModel(
-          props.selectedServiceId,
-          res.data.responseData,
-        );
-        softwareModel.value = res.data.responseData;
-        loadSourceServiceData(props.selectedServiceId);
-        
-        // 데이터를 가져온 후 자동으로 모달 열기
+      if (!res.data.responseData) return undefined;
+      sourceServiceStore.mappingSoftwareModel(
+        props.selectedServiceId,
+        res.data.responseData,
+      );
+      loadSourceServiceData(props.selectedServiceId);
+      return resGetSoftwareInfoSourceGroup.execute({
+        pathParams: {
+          sgId: props.selectedServiceId,
+        },
+      });
+    })
+    .then(infoRes => {
+      if (infoRes && infoRes.data.responseData) {
+        softwareModel.value = infoRes.data.responseData;
+        // Automatically open the modal after fetching the data
         softwareModalState.open = true;
       }
     })
@@ -176,20 +200,35 @@ function handleSoftwareModal() {
       </template>
 
       <template #data-viewInfra="{ data }">
-        <p class="text-blue-700 cursor-pointer" @click="handleJsonModal">
-          {{ data.isShow ? 'View Infra(Meta) ->' : null }}
+        <p
+          v-if="data.isShow"
+          data-testid="source-group-view-infra-meta"
+          class="text-blue-700 cursor-pointer"
+          @click="handleJsonModal"
+        >
+          View Infra(Meta) -&gt;
         </p>
+        <!-- keep the slot non-empty so PDefinitionTable does not fall back to dumping the raw cell object -->
+        <span v-else />
       </template>
 
       <template #data-viewSoftware="{ data }">
-        <p class="text-blue-700 cursor-pointer" @click="handleSoftwareModal">
-          {{ data.isShow ? 'View Software(Meta) ->' : null }}
+        <p
+          v-if="data.isShow"
+          data-testid="source-group-view-sw-meta"
+          class="text-blue-700 cursor-pointer"
+          @click="handleSoftwareModal"
+        >
+          View Software(Meta) -&gt;
         </p>
+        <!-- keep the slot non-empty so PDefinitionTable does not fall back to dumping the raw cell object -->
+        <span v-else />
       </template>
 
       <template #extra="{ name }">
         <div v-if="name === 'status'">
           <p-button
+            data-testid="source-group-refresh"
             style-type="tertiary"
             size="sm"
             :loading="refreshSourceGroupConnectionInfoStatus.isLoading.value"
@@ -200,6 +239,7 @@ function handleSoftwareModal() {
         </div>
         <div v-else-if="name === 'viewInfra'">
           <p-button
+            data-testid="source-group-collect-infra"
             style-type="tertiary"
             size="sm"
             :loading="resGetInfraSourceGroup.isLoading.value"
@@ -210,6 +250,7 @@ function handleSoftwareModal() {
         </div>
         <div v-else-if="name === 'viewSoftware'">
           <p-button
+            data-testid="source-group-collect-sw"
             style-type="tertiary"
             size="sm"
             :loading="resCollectSWSourceGroup.isLoading.value"

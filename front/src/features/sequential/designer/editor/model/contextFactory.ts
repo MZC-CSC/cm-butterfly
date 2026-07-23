@@ -19,7 +19,7 @@ export class ContextFactoryImpl implements ContextFactory {
     return {
       type: 'keyValue',
       key,
-      value: inputModel as any, // 타입 캐스팅으로 임시 해결
+      value: inputModel as any, // temporary workaround via type casting
     };
   }
 
@@ -74,9 +74,9 @@ export class ContextConverterImpl implements ContextConverter {
   convertToFormContext(data: any): FormContext {
     if (typeof data === 'object' && data !== null) {
       if (Array.isArray(data)) {
-        // 배열인 경우
+        // array case
         if (data.length > 0 && typeof data[0] === 'object' && data[0] !== null) {
-          // 객체 배열인 경우
+          // array of objects
           const items = data.map((item, index) => 
             this.factory.createObjectContext(`Item ${index + 1}`, this.convertObjectToFields(item))
           );
@@ -84,7 +84,7 @@ export class ContextConverterImpl implements ContextConverter {
             this.factory.createObjectArrayContext('Items', items)
           ]);
         } else {
-          // 단순 배열인 경우
+          // simple array
           const items = data.map((item, index) => 
             this.factory.createKeyValueContext(`item_${index}`, String(item))
           );
@@ -93,12 +93,12 @@ export class ContextConverterImpl implements ContextConverter {
           ]);
         }
       } else {
-        // 객체인 경우
+        // object case
         const fields = this.convertObjectToFields(data);
         return this.factory.createFormContext('Object', fields);
       }
     } else {
-      // 단순 값인 경우
+      // primitive value case
       return this.factory.createFormContext('Value', [
         this.factory.createKeyValueContext('value', String(data))
       ]);
@@ -117,20 +117,20 @@ export class ContextConverterImpl implements ContextConverter {
         fields.push(this.factory.createKeyValueContext(key, String(value)));
       } else if (Array.isArray(value)) {
         if (value.length > 0 && typeof value[0] === 'object' && value[0] !== null) {
-          // 객체 배열
+          // array of objects
           const items = value.map((item, index) => 
             this.factory.createObjectContext(`Item ${index + 1}`, this.convertObjectToFields(item))
           );
           fields.push(this.factory.createObjectArrayContext(key, items));
         } else {
-          // 단순 배열
+          // simple array
           const items = value.map((item, index) => 
             this.factory.createKeyValueContext(`item_${index}`, String(item))
           );
           fields.push(this.factory.createArrayContext(key, items));
         }
       } else if (typeof value === 'object' && value !== null) {
-        // 중첩 객체
+        // nested object
         fields.push(this.factory.createObjectContext(key, this.convertObjectToFields(value)));
       }
     });
@@ -233,7 +233,7 @@ export class ContextEditorImpl implements ContextEditor {
   }
 }
 
-// 싱글톤 인스턴스들
+// singleton instances
 export const contextFactory = new ContextFactoryImpl();
 export const contextConverter = new ContextConverterImpl(contextFactory);
 export const contextEditor = new ContextEditorImpl();

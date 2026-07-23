@@ -2,7 +2,7 @@
 import { useConfigStore } from '@/entities/credentials/model/stores';
 import { useDefinitionTableModel } from '@/shared/hooks/table/definitionTable/useDefinitionTableModel';
 import { ref, watch } from 'vue';
-import { showErrorMessage } from '@/shared/utils'; // showErrorMessage 임포트
+import { showErrorMessage } from '@/shared/utils'; // import showErrorMessage
 
 type CredentialDetailTableType = 'Provider' | 'CredentialName' | 'KeyValueInfo';
 
@@ -12,12 +12,12 @@ export function useCredentialsDetailModel() {
   const tableModel =
     useDefinitionTableModel<Record<CredentialDetailTableType, any>>();
 
-  // Credential Name 설정 함수
+  // Sets the credential name
   function setCredentialName(name: string | null) {
     credentialName.value = name;
   }
 
-  // 테이블 초기화
+  // Initialize the table
   function initTable() {
     tableModel.initState();
 
@@ -28,7 +28,7 @@ export function useCredentialsDetailModel() {
     ];
   }
 
-  // 테이블 데이터 설정 함수
+  // Sets the table data
   function setDefineTableData(name: string) {
     const credential = configStore.getConfigByName(name);
     if (credential) {
@@ -42,12 +42,12 @@ export function useCredentialsDetailModel() {
       };
     } else {
       tableModel.tableState.data = {};
-      showErrorMessage('Error', '선택한 Credential을 찾을 수 없습니다.');
+      showErrorMessage('Error', 'The selected Credential could not be found.');
     }
     tableModel.tableState.loading = false;
   }
 
-  // Credential 데이터를 로드하는 함수
+  // Loads the credential data
   function loadCredentialData(name: string | null) {
     tableModel.tableState.loading = true;
     if (name) {
@@ -58,7 +58,7 @@ export function useCredentialsDetailModel() {
     }
   }
 
-  // Credential Name 변경 감지
+  // Watch for credential name changes
   watch(credentialName, newName => {
     loadCredentialData(newName);
   });

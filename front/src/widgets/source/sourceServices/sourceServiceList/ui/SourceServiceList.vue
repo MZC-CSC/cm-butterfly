@@ -11,6 +11,7 @@ import {
   insertDynamicComponent,
   showErrorMessage,
   showSuccessMessage,
+  toErrorMessage,
 } from '@/shared/utils';
 import { useSourceServiceListModel } from '@/widgets/source/sourceServices/sourceServiceList/model/sourceServiceListModel';
 import DynamicTableIconButton from '@/shared/ui/Button/dynamicIconButton/DynamicTableIconButton.vue';
@@ -35,7 +36,7 @@ const { toolboxTableRef, adjustedDynamicHeight } = useToolboxTableHeight(
 );
 
 const isDataLoaded = ref(false);
-const tableKey = ref(0); // 컴포넌트 재렌더링을 위한 key
+const tableKey = ref(0); // key used to force the component to re-render
 
 interface IProps {
   addModalState: boolean;
@@ -89,6 +90,8 @@ function addDeleteIconAtTable() {
     targetElement,
     'prepend',
   );
+  // Give the dynamically injected delete icon a data-testid for e2e selectors
+  instance.$el.setAttribute('data-testid', 'source-group-delete');
   return instance;
 }
 
@@ -124,12 +127,12 @@ function getSourceServiceList() {
       
       nextTick(() => {
         isDataLoaded.value = true;
-        // 데이터 로드 후 컴포넌트 재렌더링
+        // Re-render the component after the data loads
         tableKey.value++;
       });
     })
     .catch(e => {
-      if (e.errorMsg.value) showErrorMessage('Error', e.errorMsg.value);
+      showErrorMessage('Error', toErrorMessage(e, 'Failed to load the source group list.'));
       isDataLoaded.value = true;
     });
 }
@@ -169,15 +172,16 @@ watch(
   <div>
     <p-horizontal-layout :key="tableKey" :height="adjustedDynamicHeight">
       <template #container="{ height }">
-        <!-- 로딩 중일 때 스피너 표시 -->
+        <!-- Show a spinner while loading -->
         <table-loading-spinner
           :loading="resSourceServiceList.isLoading.value"
           :height="height"
           message="Loading source services..."
         />
         
-        <!-- 로딩 완료 후 테이블 표시 -->
+        <!-- Show the table once loading completes -->
         <p-toolbox-table
+          data-testid="source-group-list-table"
           v-if="!resSourceServiceList.isLoading.value"
           ref="toolboxTableRef"
           :items="tableModel.tableState.displayItems"
@@ -200,6 +204,7 @@ watch(
         >
           <template #toolbox-left>
             <p-button
+              data-testid="source-group-add"
               style-type="primary"
               icon-left="ic_plus_bold"
               @click="

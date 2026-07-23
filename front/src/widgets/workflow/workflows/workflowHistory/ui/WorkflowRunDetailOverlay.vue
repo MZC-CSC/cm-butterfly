@@ -8,7 +8,7 @@ import {
 import { IWorkflowRun, ITaskInstance } from '@/entities/workflow/model/types';
 import { useGetTaskInstances } from '@/entities/workflow/api/index';
 import { useDefinitionTableModel } from '@/shared/hooks/table/definitionTable/useDefinitionTableModel';
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import TaskLogModal from './TaskLogModal.vue';
 import SoftwareMigrationOverlay from './SoftwareMigrationOverlay.vue';
 
@@ -31,19 +31,27 @@ const props = defineProps<Props>();
 
 const emit = defineEmits(['close']);
 
-// Task instances 상태 관리
+// Task instances state management
 const taskInstances = ref<ITaskInstance[]>([]);
 const loading = ref(false);
 
-// 로그 모달 상태 관리
+// Log modal state management
 const showLogModal = ref(false);
 const currentLogTask = ref<ITaskInstance>();
 
-// SW 마이그레이션 모달 상태 관리
+// SW migration modal state management
 const showSWModal = ref(false);
 const currentSWTask = ref<ITaskInstance>();
 
-// 테이블 필드 정의
+// With no execution ID there is nothing to query. Previously it queried using another execution's ID
+// hardcoded in the source, so someone else's install result looked like this execution's result.
+const swExecutionIds = computed(() =>
+  currentSWTask.value?.software_migration_execution_id
+    ? [currentSWTask.value.software_migration_execution_id]
+    : [],
+);
+
+// Table field definitions
 const tableFields = ref([
   { label: 'Task ID', name: 'task_id' },
   { label: 'Task Name', name: 'task_name' },
@@ -56,38 +64,38 @@ const tableFields = ref([
   { label: 'Log', name: 'log', sortable: false },
 ]);
 
-// Run Information definition table 모델
+// Run Information definition table model
 const { tableState: runInfoTableState } = useDefinitionTableModel<IRunInfo>();
 
 const handleClose = () => {
   emit('close');
 };
 
-// View Log 버튼 클릭 핸들러
+// View Log button click handler
 const handleViewLog = (taskInstance: ITaskInstance) => {
   currentLogTask.value = taskInstance;
   showLogModal.value = true;
 };
 
-// 로그 모달 닫기
+// Close the log modal
 const closeLogModal = () => {
   showLogModal.value = false;
   currentLogTask.value = undefined;
 };
 
-// View SW 버튼 클릭 핸들러
+// View SW button click handler
 const handleViewSW = (taskInstance: ITaskInstance) => {
   currentSWTask.value = taskInstance;
   showSWModal.value = true;
 };
 
-// SW 모달 닫기
+// Close the SW modal
 const closeSWModal = () => {
   showSWModal.value = false;
   currentSWTask.value = undefined;
 };
 
-// Task instances 로드
+// Load task instances
 const loadTaskInstances = async () => {
   if (!props.selectedRun) return;
 
@@ -111,7 +119,7 @@ const loadTaskInstances = async () => {
   }
 };
 
-// selectedRun이 변경될 때마다 task instances 로드
+// Load task instances whenever selectedRun changes
 watch(
   () => props.selectedRun,
   () => {
@@ -123,11 +131,11 @@ watch(
   { immediate: true },
 );
 
-// Run Information 데이터 업데이트
+// Update Run Information data
 const updateRunInfoData = () => {
   if (!props.selectedRun) return;
 
-  // 필드 정의
+  // Field definitions
   runInfoTableState.fields = [
     { name: 'runId', label: 'Run ID' },
     { name: 'state', label: 'State' },
@@ -138,7 +146,7 @@ const updateRunInfoData = () => {
     { name: 'executionDate', label: 'Execution Date' },
   ];
 
-  // 데이터 설정
+  // Set the data
   runInfoTableState.data = {
     runId: props.selectedRun.workflow_run_id,
     state: props.selectedRun.state,
@@ -166,7 +174,7 @@ const updateRunInfoData = () => {
       </div>
 
       <div class="overlay-content">
-        <!-- 워크플로우 실행 정보 -->
+        <!-- Workflow run information -->
         <div class="run-info">
           <h3>Workflow Run Information</h3>
           <p-definition-table
@@ -175,7 +183,7 @@ const updateRunInfoData = () => {
           />
         </div>
 
-        <!-- Task Instances 테이블 -->
+        <!-- Task Instances table -->
         <div class="task-instances">
           <h3>Task Instances</h3>
           <p-data-table
@@ -206,7 +214,7 @@ const updateRunInfoData = () => {
           </p-data-table>
         </div>
 
-        <!-- 로그 모달 -->
+        <!-- Log modal -->
         <TaskLogModal
           :is-visible="showLogModal"
           :task-instance="currentLogTask"
@@ -215,15 +223,11 @@ const updateRunInfoData = () => {
           @close="closeLogModal"
         />
 
-        <!-- SW 마이그레이션 모달 -->
+        <!-- SW migration modal -->
         <SoftwareMigrationOverlay
           :is-visible="showSWModal"
           :selected-run="props.selectedRun"
-          :execution-ids="
-            currentSWTask?.software_migration_execution_id
-              ? [currentSWTask.software_migration_execution_id]
-              : ['0132478a-345a-458a-acce-3be7aa16f481']
-          "
+          :execution-ids="swExecutionIds"
           @close="closeSWModal"
         />
       </div>

@@ -21,7 +21,7 @@ function updateField(fieldIndex: number, field: Context) {
 }
 
 function addField() {
-  // 새로운 KeyValue 필드 추가
+  // Add a new KeyValue field
   const newField: Context = {
     type: 'keyValue',
     key: 'newField',
@@ -57,7 +57,7 @@ function removeField(fieldIndex: number) {
         :key="fieldIndex"
         class="field-group-vertical border-bottom"
       >
-        <!-- KeyValueContext인 경우 -->
+        <!-- KeyValueContext case -->
         <KeyValue
           v-if="field.type === 'keyValue'"
           :context="field"
@@ -65,7 +65,7 @@ function removeField(fieldIndex: number) {
           @update:context="updateField(fieldIndex, $event)"
         />
         
-        <!-- ObjectContext인 경우 -->
+        <!-- ObjectContext case -->
         <Object
           v-else-if="field.type === 'object'"
           :context="field"
@@ -73,7 +73,7 @@ function removeField(fieldIndex: number) {
           @update:context="updateField(fieldIndex, $event)"
         />
         
-        <!-- ArrayContext인 경우 -->
+        <!-- ArrayContext case -->
         <Array
           v-else-if="field.type === 'array'"
           :context="field"
@@ -81,7 +81,7 @@ function removeField(fieldIndex: number) {
           @update:context="updateField(fieldIndex, $event)"
         />
         
-        <!-- ObjectArrayContext인 경우 -->
+        <!-- ObjectArrayContext case -->
         <ObjectArray
           v-else-if="field.type === 'objectArray'"
           :context="field"
@@ -89,7 +89,7 @@ function removeField(fieldIndex: number) {
           @update:context="updateField(fieldIndex, $event)"
         />
         
-        <!-- NestedObjectContext인 경우 -->
+        <!-- NestedObjectContext case -->
         <NestedObject
           v-else-if="field.type === 'nestedObject'"
           :subject="field.context.subject || field.context.title"
@@ -98,7 +98,7 @@ function removeField(fieldIndex: number) {
           :readonly="readonly"
         />
         
-        <!-- NestedObjectArrayContext인 경우 -->
+        <!-- NestedObjectArrayContext case -->
         <NestedObject
           v-else-if="field.type === 'nestedObjectArray'"
           :subject="field.context.subject || field.context.title"
@@ -107,7 +107,7 @@ function removeField(fieldIndex: number) {
           :readonly="readonly"
         />
         
-        <!-- ComplexContext인 경우 -->
+        <!-- ComplexContext case -->
         <Complex
           v-else-if="field.type === 'complex'"
           :context="field"

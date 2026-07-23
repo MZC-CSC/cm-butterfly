@@ -9,28 +9,32 @@ import {
   IWorkflowResponse,
   IWorkflowRun,
   ISoftwareMigrationStatusResponse,
+  ITaskInstanceReference,
 } from '@/entities/workflow/model/types';
 import { axiosInstance } from '@/shared/libs/api/instance';
 
-const GET_WORKFLOW_LIST = 'list-workflow';
-const GET_WORKFLOW = 'get-workflow';
-const CREATE_WORKFLOW = 'create-workflow';
-const UPDATE_WORKFLOW = 'update-workflow';
-const RUN_WORKFLOW = 'run-workflow';
-const DELETE_WORKFLOW = 'delete-workflow';
-const GET_WORKFLOW_RUNS = 'get-workflow-runs';
-const GET_TASK_INSTANCES = 'get-task-instances';
-const GET_TASK_LOGS = 'get-task-logs';
-const GET_SOFTWARE_MIGRATION_STATUS = 'get-software-migration-status';
+const GET_WORKFLOW_LIST = 'cm-cicada/list-workflow';
+const GET_WORKFLOW = 'cm-cicada/get-workflow';
+const CREATE_WORKFLOW = 'cm-cicada/create-workflow';
+const UPDATE_WORKFLOW = 'cm-cicada/update-workflow';
+const RUN_WORKFLOW = 'cm-cicada/run-workflow';
+const DELETE_WORKFLOW = 'cm-cicada/delete-workflow';
+const GET_WORKFLOW_RUNS = 'cm-cicada/get-workflow-runs';
+const GET_TASK_INSTANCES = 'cm-cicada/get-task-instances';
+const GET_TASK_LOGS = 'cm-cicada/get-task-logs';
+const CLEAR_TASK_INSTANCES = 'cm-cicada/clear-task-instances';
+const CLONE_WORKFLOW = 'cm-cicada/clone-workflow';
+const GET_SOFTWARE_MIGRATION_STATUS =
+  'cm-grasshopper/get-software-migration-status';
 
 // const GET_DISK_TYPE = 'GET_DISK_TYPE';
-const GET_WORKFLOW_TEMPLATE_LIST = 'list-workflow-template';
+const GET_WORKFLOW_TEMPLATE_LIST = 'cm-cicada/list-workflow-template';
 
-const GET_TASK_COMPONENT_LIST = 'list-task-component';
-const GET_TASK_COMPONENT = 'get-task-component';
+const GET_TASK_COMPONENT_LIST = 'cm-cicada/list-task-component';
+const GET_TASK_COMPONENT = 'cm-cicada/get-task-component';
 const CREATE_TASK_COMPONENT = 'cm-cicada/create-task-component';
-const UPDATE_TASK_COMPONENT = 'update-task-component';
-const DELETE_TASK_COMPONENT = 'delete-task-component';
+const UPDATE_TASK_COMPONENT = 'cm-cicada/update-task-component';
+const DELETE_TASK_COMPONENT = 'cm-cicada/delete-task-component';
 
 // 1. workflow
 export function useGetWorkflowList() {
@@ -299,6 +303,56 @@ export function useGetTaskLogs(
       wfRunId: wfRunId ? encodeURIComponent(wfRunId) : wfRunId,
       taskId,
       taskTryNum,
+    },
+  });
+}
+
+/**
+ * Re-run tasks. The engine treats this as a "clear of the run history".
+ *
+ * With dryRun enabled it returns **only the target list, without actually running**. The engine,
+ * not the diagram on screen, decides which tasks re-run, so always confirm with this before running.
+ */
+export interface IClearTaskOption {
+  dryRun: boolean;
+  taskIds: string[];
+  includeUpstream: boolean;
+  includeDownstream: boolean;
+  onlyFailed: boolean;
+  resetDagRuns: boolean;
+}
+
+export function useClearTaskInstances(
+  wfId: string | null,
+  wfRunId: string | null,
+  option: IClearTaskOption,
+) {
+  return useAxiosPost<IAxiosResponse<ITaskInstanceReference[]>, any>(
+    CLEAR_TASK_INSTANCES,
+    {
+      pathParams: {
+        wfId,
+        wfRunId: wfRunId ? encodeURIComponent(wfRunId) : wfRunId,
+      },
+      request: option,
+    },
+  );
+}
+
+/**
+ * Clone a workflow.
+ *
+ * The engine records the origin (the source workflow) on the clone, so the link to the
+ * original is not lost. The engine names it `{original}_copy` on its own.
+ *
+ * To run with changed parameters, don't edit the original — clone it with this and edit the
+ * clone. Editing the original makes that workflow's *past runs* show wrong values on screen
+ * (the engine does not return "the definition used for that run").
+ */
+export function useCloneWorkflow(wfId: string | null) {
+  return useAxiosPost<IAxiosResponse<IWorkflowResponse>, any>(CLONE_WORKFLOW, {
+    pathParams: {
+      wfId,
     },
   });
 }

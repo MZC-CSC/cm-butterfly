@@ -1,4 +1,4 @@
-// TODO: Role별 접근가능한 페이지 목록 정의
+// TODO: define the list of pages accessible per role
 export const PLATFORM_ADMIN_DEFAULT_PERMISSIONS: any = [
   // MENU_ID.ORGANIZATIONS,
   // MENU_ID.USERS,

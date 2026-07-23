@@ -4,6 +4,7 @@ import {
   insertDynamicComponent,
   showErrorMessage,
   showSuccessMessage,
+  toErrorMessage,
 } from '@/shared/utils';
 import { onBeforeMount, onMounted, reactive, watch, computed, ref, nextTick } from 'vue';
 import TableLoadingSpinner from '@/shared/ui/LoadingSpinner/TableLoadingSpinner.vue';
@@ -45,7 +46,7 @@ const { toolboxTableRef, adjustedDynamicHeight } = useToolboxTableHeight(
 );
 
 const isDataLoaded = ref(false);
-const tableKey = ref(0); // 컴포넌트 재렌더링을 위한 key
+const tableKey = ref(0); // key for re-rendering the component
 
 const modals = reactive({
   alertModalState: { open: false },
@@ -83,23 +84,26 @@ function getSourceConnectionList() {
       pathParams: { sgId: props.selectedServiceId },
     })
     .then(res => {
-      if (res.data.responseData) {
-        sourceConnectionStore.setConnections(res.data.responseData);
+      // A source group with no connections returns connection_info as null or omits it.
+      // Absent means none, not broken, so treat it as an empty list.
+      sourceConnectionStore.setConnections(res.data.responseData);
 
-        const connectionIds = res.data.responseData.connection_info.map(
-          el => el.id,
-        );
-        setTargetConnections(connectionIds);
-      }
-      
+      const connectionIds = (
+        res.data.responseData?.connection_info ?? []
+      ).map(el => el.id);
+      setTargetConnections(connectionIds);
+
       nextTick(() => {
         isDataLoaded.value = true;
-        // 데이터 로드 후 컴포넌트 재렌더링
+        // re-render the component after loading the data
         tableKey.value++;
       });
     })
     .catch(e => {
-      if (e.errorMsg.value) showErrorMessage('Error', e.errorMsg.value);
+      showErrorMessage(
+        'Error',
+        toErrorMessage(e, 'Failed to load the connection list.'),
+      );
       isDataLoaded.value = true;
     });
 }
@@ -189,14 +193,14 @@ function handleSourceConnectionList() {
     <section>
       <p-horizontal-layout :key="tableKey" :height="adjustedDynamicHeight">
         <template #container="{ height }">
-          <!-- 로딩 중일 때 스피너 표시 -->
+          <!-- Show a spinner while loading -->
           <table-loading-spinner
             :loading="resSourceConnectionList.isLoading.value || tableModel.tableState.loading"
             :height="height"
             message="Loading source connections..."
           />
           
-          <!-- 로딩 완료 후 테이블 표시 -->
+          <!-- Show the table after loading completes -->
           <p-toolbox-table
             v-if="!resSourceConnectionList.isLoading.value && !tableModel.tableState.loading"
             ref="toolboxTableRef"
@@ -220,6 +224,7 @@ function handleSourceConnectionList() {
           >
             <template #toolbox-left>
               <p-button
+                data-testid="source-connection-add-edit"
                 style-type="secondary"
                 icon-left="ic_plus_bold"
                 @click="handleSourceConnectionList"

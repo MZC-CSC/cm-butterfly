@@ -10,7 +10,10 @@ import {
   PToggleButton,
   PDivider,
 } from '@cloudforet-test/mirinae';
-import { useLoadConfigModel } from '@/features/workload/actionLoadConfig/model';
+import {
+  useLoadConfigModel,
+  ILoadConfigInitialValues,
+} from '@/features/workload/actionLoadConfig/model';
 import { watch, ref, onMounted } from 'vue';
 import { showErrorMessage } from '@/shared/utils';
 import {
@@ -24,6 +27,7 @@ interface IProps {
   mciId: string;
   vmId: string;
   ip: string;
+  initialConfig?: ILoadConfigInitialValues | null;
 }
 
 const props = defineProps<IProps>();
@@ -32,15 +36,15 @@ const emit = defineEmits(['close', 'success']);
 const loadConfigModel = useLoadConfigModel();
 const resRunLoadTest = useRunLoadTest(null);
 
-// API 훅
+// API hooks
 const { data: catalogsData, execute: fetchCatalogs } =
   useGetAllLoadTestScenarioCatalogs();
 
-// 템플릿 관련 상태
+// Template-related state
 const savedTemplates = ref<any[]>([]);
 const selectedTemplate = ref<string>('');
 
-// 템플릿 로드
+// Load templates
 async function loadTemplates() {
   try {
     await fetchCatalogs();
@@ -56,27 +60,44 @@ async function loadTemplates() {
   }
 }
 
-// 템플릿 선택 시 필드 자동 채우기
+// Auto-fill fields when a template is selected
 function applyTemplate(templateName: string) {
   if (!templateName) return;
 
-  // 선택된 템플릿 찾기
+  // Find the selected template
   const template = savedTemplates.value.find(t => t.name === templateName);
   if (!template) return;
 
-  // 템플릿 데이터를 폼에 적용
+  // Apply the template data to the form
   loadConfigModel.inputModels.virtualUsers.value = template.virtualUsers;
   loadConfigModel.inputModels.testDuration.value = template.duration;
   loadConfigModel.inputModels.rampUpTime.value = template.rampUpTime;
   loadConfigModel.inputModels.rampUpSteps.value = template.rampUpSteps;
 }
 
-// 템플릿 적용을 위한 expose
+// Apply the re-run initial values to the form (pre-fill with the last run's parameters).
+// host (agent/target) uses the selected VM IP as-is, so we don't overwrite it here.
+function applyInitialConfig(cfg: ILoadConfigInitialValues) {
+  const im = loadConfigModel.inputModels;
+  if (cfg.scenarioName !== undefined) im.scenarioName.value = cfg.scenarioName;
+  if (cfg.virtualUsers !== undefined) im.virtualUsers.value = cfg.virtualUsers;
+  if (cfg.testDuration !== undefined) im.testDuration.value = cfg.testDuration;
+  if (cfg.rampUpTime !== undefined) im.rampUpTime.value = cfg.rampUpTime;
+  if (cfg.rampUpSteps !== undefined) im.rampUpSteps.value = cfg.rampUpSteps;
+  if (cfg.port !== undefined && cfg.port !== '') im.port.value = cfg.port;
+  if (cfg.path !== undefined) im.path.value = cfg.path;
+  if (cfg.bodyData !== undefined) im.bodyData.value = cfg.bodyData;
+  if (cfg.method) loadConfigModel.methods.selected = cfg.method.toLowerCase();
+  if (cfg.protocol)
+    loadConfigModel.protocol.selected = cfg.protocol.toLowerCase();
+}
+
+// expose for applying templates
 defineExpose({
   applyTemplate,
 });
 
-// 컴포넌트 마운트 시 템플릿 로드
+// Load templates when the component mounts
 onMounted(() => {
   loadTemplates();
 });
@@ -96,6 +117,15 @@ watch(
     if (isOpen) {
       loadTemplates();
       selectedTemplate.value = '';
+      // Fill the host from the selected server on every open. handelClose() clears it, and the
+      // props.ip watcher only fires when the ip itself changes — so on a second open for the
+      // same VM (e.g. Load Config again from the Evaluate Perf tab) the Target Host was blank.
+      loadConfigModel.inputModels.agentHostName.value = props.ip;
+      loadConfigModel.inputModels.targetHostName.value = props.ip;
+      // Re-run: pre-fill the last run's parameters (no initialConfig on a plain open).
+      if (props.initialConfig) {
+        applyInitialConfig(props.initialConfig);
+      }
     }
   },
 );
@@ -112,6 +142,7 @@ async function validate() {
 
 async function handleConfirm() {
   const isValid = await validate();
+  const im = loadConfigModel.inputModels;
 
   if (isValid && !resRunLoadTest.isLoading.value) {
     resRunLoadTest
@@ -137,24 +168,71 @@ async function handleConfirm() {
           duration: loadConfigModel.inputModels.testDuration.value,
           rampUpTime: loadConfigModel.inputModels.rampUpTime.value,
           rampUpSteps: loadConfigModel.inputModels.rampUpSteps.value,
-          mciId: props.mciId,
+          infraId: props.mciId,
           nsId: props.nsId,
-          vmId: props.vmId,
+          nodeId: props.vmId,
         },
       })
       .then(res => {
-        emit('success', loadConfigModel.inputModels.scenarioName.value);
+        // cm-ant returns the execution key, and this response was being discarded. Without
+        // that key the only way left to ask how the run turned out is by name, and names are
+        // reused, so the answer can come back describing another VM's run.
+        const loadTestKey = res?.data?.responseData?.result ?? '';
+        // Hand back exactly what was submitted so Re-run can pre-fill from it. The server's
+        // GetLoadTestExecutionInfo cannot be relied on here: a run that fails in pre-check has
+        // no execution info and the call 500s, which is why Re-run came up empty.
+        const submitted: ILoadConfigInitialValues = {
+          scenarioName: im.scenarioName.value,
+          virtualUsers: im.virtualUsers.value,
+          testDuration: im.testDuration.value,
+          rampUpTime: im.rampUpTime.value,
+          rampUpSteps: im.rampUpSteps.value,
+          method: loadConfigModel.methods.selected,
+          protocol: loadConfigModel.protocol.selected,
+          port: im.port.value,
+          path: im.path.value,
+          bodyData: im.bodyData.value,
+        };
+        emit('success', im.scenarioName.value, loadTestKey, submitted);
       })
       .catch(e => {
         showErrorMessage('error', e.errorMsg);
       });
-  } else {
-    console.log('Some inputs are invalid');
+  } else if (!resRunLoadTest.isLoading.value) {
+    // Before this the OK press failed validation silently to the console, so an enabled
+    // button that did nothing read as a broken button. Tell the user what is missing and
+    // take them to the first field that needs input (the fields also show their invalid
+    // state now that validation has run).
+    const order = [
+      ['scenarioName', 'load-config-scenario-name'],
+      ['targetHostName', 'load-config-target-host'],
+      ['port', 'load-config-port'],
+      ['path', 'load-config-path'],
+      ['virtualUsers', 'load-config-virtual-users'],
+      ['testDuration', 'load-config-duration'],
+      ['rampUpTime', 'load-config-rampup-time'],
+      ['rampUpSteps', 'load-config-rampup-steps'],
+    ];
+    const first = order.find(
+      ([k]) =>
+        loadConfigModel.inputModels[k] &&
+        !loadConfigModel.inputModels[k].isValid,
+    );
+    showErrorMessage('error', 'Please fill in all required fields.');
+    if (first) {
+      const el = document.querySelector(
+        `input[data-testid="${first[1]}"]`,
+      ) as HTMLElement | null;
+      if (el) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el.focus();
+      }
+    }
   }
 }
 
 function handelClose() {
-  // 폼 리셋
+  // Reset the form
   loadConfigModel.inputModels.scenarioName.value = '';
   loadConfigModel.inputModels.targetHostName.value = '';
   loadConfigModel.inputModels.port.value = '';
@@ -177,6 +255,7 @@ function handelClose() {
 
 <template>
   <PButtonModal
+    data-testid="load-config-modal"
     :visible="isOpen"
     :v-model="isOpen"
     size="sm"
@@ -197,6 +276,7 @@ function handelClose() {
             <template #default="{ invalid }">
               <p-text-input
                 v-model="loadConfigModel.inputModels.scenarioName.value"
+                data-testid="load-config-scenario-name"
                 :invalid="invalid"
                 :placeholder="'Test Scenario Name'"
                 block
@@ -214,6 +294,7 @@ function handelClose() {
             <template #default="{ invalid }">
               <p-text-input
                 v-model="loadConfigModel.inputModels.targetHostName.value"
+                data-testid="load-config-target-host"
                 :invalid="invalid"
                 :placeholder="'Host Name'"
                 block
@@ -228,6 +309,7 @@ function handelClose() {
             <template #default="{ invalid }">
               <p-text-input
                 v-model="loadConfigModel.inputModels.port.value"
+                data-testid="load-config-port"
                 :invalid="invalid"
                 :type="'number'"
                 :placeholder="'1~65535'"
@@ -243,7 +325,7 @@ function handelClose() {
             <template #default="{ invalid }">
               <div class="flex gap-1">
                 <p-select-dropdown
-                  class="flex-1"
+                  class="flex-1 min-w-0"
                   :menu="loadConfigModel.protocol.menu"
                   :selected="loadConfigModel.protocol.selected"
                   :placeholder="'Protocol'"
@@ -251,8 +333,9 @@ function handelClose() {
                 />
                 <p-text-input
                   v-model="loadConfigModel.inputModels.path.value"
+                  data-testid="load-config-path"
                   :invalid="invalid"
-                  class="flex-2"
+                  class="flex-2 min-w-0"
                   :placeholder="'Path'"
                   block
                 />
@@ -305,6 +388,7 @@ function handelClose() {
             <template #default="{ invalid }">
               <p-text-input
                 v-model="loadConfigModel.inputModels.virtualUsers.value"
+                data-testid="load-config-virtual-users"
                 :invalid="invalid"
                 :type="'number'"
                 :placeholder="'Number of virtual users'"
@@ -320,6 +404,7 @@ function handelClose() {
             <template #default="{ invalid }">
               <p-text-input
                 v-model="loadConfigModel.inputModels.testDuration.value"
+                data-testid="load-config-duration"
                 :invalid="invalid"
                 :type="'number'"
                 :placeholder="'Test Run Time'"
@@ -329,16 +414,17 @@ function handelClose() {
               </p-text-input>
             </template>
           </p-field-group>
-          <div class="flex gap-1">
+          <div class="flex flex-col gap-2">
             <p-field-group
               :invalid="!loadConfigModel.inputModels.rampUpTime.isValid"
-              class="flex-1 !m-0"
+              class="!m-0"
               :label="'RampUp Time'"
               required
             >
               <template #default="{ invalid }">
                 <p-text-input
                   v-model="loadConfigModel.inputModels.rampUpTime.value"
+                  data-testid="load-config-rampup-time"
                   :invalid="invalid"
                   :placeholder="'Time'"
                   :type="'number'"
@@ -348,13 +434,14 @@ function handelClose() {
             </p-field-group>
             <p-field-group
               :invalid="!loadConfigModel.inputModels.rampUpSteps.isValid"
-              class="flex-1 !m-0"
+              class="!m-0"
               :label="'RampUp Steps'"
               required
             >
               <template #default="{ invalid }">
                 <p-text-input
                   v-model="loadConfigModel.inputModels.rampUpSteps.value"
+                  data-testid="load-config-rampup-steps"
                   :invalid="invalid"
                   :placeholder="'Number of steps'"
                   :type="'number'"
@@ -381,44 +468,19 @@ function handelClose() {
           </p-field-group>
         </section>
         <section class="section">
+          <!--
+            Just the metrics toggle. The agent host and the "Agent Installed" select used to
+            sit here, but cm-ant decides both on its own: the monitoring agent is installed on
+            the selected server via cb-tumblebug (so the host can only be that server, which
+            cm-ant resolves when the field is left empty), and it installs / skips / verifies
+            the agent itself from this toggle. Neither field reached the API, so they are gone.
+          -->
           <div class="flex gap-2">
             <p-toggle-button
               :value="loadConfigModel.isMetrics.value"
               @update:value="e => (loadConfigModel.isMetrics.value = e)"
             />
             <p>Collect Additional System Metrics</p>
-          </div>
-          <p-divider class="mt-2 mb-2" />
-          <div class="flex w-full gap-1">
-            <p-field-group
-              :invalid="!loadConfigModel.inputModels.agentHostName.isValid"
-              class="!m-0 flex-2"
-              :label="'Agent Hostname'"
-            >
-              <template #default="{ invalid }">
-                <p-text-input
-                  v-model="loadConfigModel.inputModels.agentHostName.value"
-                  :invalid="invalid"
-                  :placeholder="'Agent Host Name'"
-                  block
-                />
-              </template>
-            </p-field-group>
-            <p-field-group
-              class="!m-0 flex-1"
-              :label="'Agent Hostname'"
-              required
-            >
-              <template #default="{ invalid }">
-                <p-select-dropdown
-                  class="block"
-                  :menu="loadConfigModel.installed.menu"
-                  :selected="loadConfigModel.installed.selected"
-                  :placeholder="'select'"
-                  @select="e => (loadConfigModel.installed.selected = e)"
-                />
-              </template>
-            </p-field-group>
           </div>
         </section>
       </div>

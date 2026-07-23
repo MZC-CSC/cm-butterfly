@@ -16,7 +16,7 @@ const state = reactive({
   menuSet: computed(() => {
     let baseMenuSet: any;
     
-    // migratorMenu가 비어있으면 빈 배열 반환
+    // if migratorMenu is empty, return an empty array
     if (!migratorMenu.value || migratorMenu.value.length === 0) {
       return [];
     }
@@ -27,7 +27,7 @@ const state = reactive({
           m.menu.forEach(sb => {
             if (Object.keys(sb).includes('submenus')) {
               if (sb['submenus'] && sb['submenus'].length > 0) {
-                // submenus[0]에서 실제 서브메뉴 배열을 가져옴
+                // get the actual submenu array from submenus[0]
                 baseMenuSet = sb['submenus'][0];
               }
             }

@@ -1,5 +1,5 @@
 export interface MciResponseData {
-  mci: IMci[];
+  infra: IMci[]; // tb-0.12.9: cb-tumblebug GetAllInfra wrapper mci→infra (confirmed from source)
 }
 
 export type McisTableType =
@@ -53,7 +53,7 @@ export interface IVm {
   id: string;
   uid: string;
   name: string;
-  subGroupId: string;
+  nodeGroupId: string;
   location: Location;
   status: string;
   targetStatus: string;
@@ -133,7 +133,8 @@ export interface IMci {
   systemLabel: string;
   systemMessage: string;
   description: string;
-  vm: IVm[];
+  vm: IVm[]; // tb-0.12.9: cb-tumblebug response comes as node[] → adapted to vm at the store boundary
+  node?: IVm[]; // cb-tumblebug v0.12.19 raw response field (infra[].node[])
   newVmList: any; // Assuming newVmList can be any type
 }
 
@@ -196,8 +197,35 @@ interface LoadGeneratorInstallInfo {
   updatedAt: string;
 }
 
+// One stage of a load test run (cm-ant FR-MA2-PERF-007-08 steps[]).
+//
+// cm-ant returns these already shaped as a tree: the top level is the phases
+// (precheck · generator_install · agent_install · jmx_prepare · jmeter_run · result_fetch)
+// and each phase carries its sub-steps in `children`. A caller that only wants the phases
+// can ignore `children` and see what it saw before.
+//   status : pending · running · ok · failed · skipped
+//   message: short current-status line (e.g. "Checking the metric agent port")
+//   detail : verbose diagnosis / error cause (multi-line, shown on a failed step)
+//   elapsedSec: whole span once done, or time-so-far while running
+export interface ILoadTestExecutionStep {
+  seq?: number;
+  name: string;
+  status: string;
+  attempt?: number;
+  startAt?: string;
+  finishAt?: string;
+  message?: string;
+  detail?: string;
+  elapsedSec?: number;
+  children?: ILoadTestExecutionStep[];
+}
+
 export interface ILastloadtestStateResponse {
   compileDuration: string;
+  // The *uid of the target node* as recorded by cm-ant. A node id is a name and names are
+  // reused, so without this there is no way to tell whether a result belongs to the VM on
+  // screen. Records written before this was added do not carry it.
+  nodeUid?: string;
   createdAt: string;
   executionDuration: string;
   executionStatus: string;
@@ -205,6 +233,10 @@ export interface ILastloadtestStateResponse {
   loadGeneratorInstallInfo: LoadGeneratorInstallInfo;
   loadTestKey: string;
   startAt: string;
+  finishAt?: string;
   totalExpectedExecutionSecond: number;
   updatedAt: string;
+  // Fine-grained progress (cm-ant FR-007-08). Absent on older cm-ant.
+  failureMessage?: string;
+  steps?: ILoadTestExecutionStep[];
 }

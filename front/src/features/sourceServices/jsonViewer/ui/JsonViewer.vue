@@ -19,7 +19,9 @@ const emit = defineEmits(['update:is-converted', 'update:convertedJSON']);
 const metaEditorRef = ref<InstanceType<typeof EnhancedJsonEditor> | null>(null);
 const modelEditorRef = ref<InstanceType<typeof EnhancedJsonEditor> | null>(null);
 
-// formData를 JSON string으로 변환
+// Convert formData to a JSON string
+// formData is the structured collected meta (an object from get-infra-info /
+// get-software-info), so it is stringified directly for the tree view.
 const metaDataString = computed(() => {
   if (!props.formData) return '{}';
   if (typeof props.formData === 'string') return props.formData;
@@ -34,7 +36,7 @@ const metaDataString = computed(() => {
   return '{}';
 });
 
-// convertedJSON을 JSON string으로 변환
+// Convert convertedJSON to a JSON string
 const modelDataString = computed(() => {
   console.log('[JsonViewer] modelDataString computed, convertedJSON:', props.convertedJSON, 'type:', typeof props.convertedJSON);
 
@@ -86,7 +88,7 @@ watch(() => props.convertedJSON, (newVal) => {
 function handleConvertJson() {
   props.promiseFunc().then(res => {
     emit('update:is-converted', res);
-    // Convert 완료 후 우측 에디터 전체 확장 (현재 모드 유지)
+    // After conversion, fully expand the right editor (keep the current mode)
     setTimeout(() => {
       console.log('Convert completed, expanding Model...');
       modelEditorRef.value?.expandAll();
@@ -94,11 +96,11 @@ function handleConvertJson() {
   });
 }
 
-// Model 수정 시 부모에 전달
+// Propagate to the parent when the Model is edited
 function handleModelUpdate(value: string) {
   console.log('[JsonViewer] handleModelUpdate called, value:', JSON.stringify(value).substring(0, 100));
 
-  // 빈 문자열이나 공백만 있는 경우 빈 객체로 처리
+  // Treat empty or whitespace-only strings as an empty object
   const trimmedValue = value.trim();
   if (!trimmedValue || trimmedValue === '') {
     console.log('[JsonViewer] Empty value detected, emitting empty object {}');
@@ -112,17 +114,17 @@ function handleModelUpdate(value: string) {
     emit('update:convertedJSON', parsed);
   } catch (e) {
     console.warn('[JsonViewer] Invalid JSON, not updating parent:', e);
-    // 잘못된 JSON은 부모에 전달하지 않음
+    // Do not propagate invalid JSON to the parent
   }
 }
 </script>
 
 <template>
   <div class="json-viewer-layout">
-    <!-- 좌측: Meta (읽기 전용) -->
+    <!-- Left: Meta (read-only) -->
     <p-pane-layout class="json-editor-pane">
       <p class="editor-title">Meta (data)</p>
-      <div class="editor-wrapper">
+      <div class="editor-wrapper" data-testid="source-meta-json">
         <EnhancedJsonEditor
           ref="metaEditorRef"
           :model-value="metaDataString"
@@ -132,12 +134,13 @@ function handleModelUpdate(value: string) {
           :navigation-bar="true"
           :status-bar="false"
           height="600px"
+          file-name="source-metadata"
         />
       </div>
     </p-pane-layout>
 
-    <!-- 중앙: 변환 버튼 -->
-    <button class="convert-btn" @click="handleConvertJson">
+    <!-- Center: convert button -->
+    <button data-testid="source-refine-convert" class="convert-btn" @click="handleConvertJson">
       <div class="flex flex-row">
         <p-i
           class="icon"
@@ -151,10 +154,10 @@ function handleModelUpdate(value: string) {
       <p-spinner v-if="loading" class="spinner" size="md" />
     </button>
 
-    <!-- 우측: Model (편집 가능) -->
+    <!-- Right: Model (editable) -->
     <p-pane-layout class="json-editor-pane">
       <p class="editor-title">Model</p>
-      <div class="editor-wrapper">
+      <div class="editor-wrapper" data-testid="source-model-json">
         <EnhancedJsonEditor
           ref="modelEditorRef"
           :model-value="modelDataString"
@@ -164,6 +167,7 @@ function handleModelUpdate(value: string) {
           :navigation-bar="true"
           :status-bar="false"
           height="600px"
+          file-name="source-model"
           @update:modelValue="handleModelUpdate"
         />
       </div>

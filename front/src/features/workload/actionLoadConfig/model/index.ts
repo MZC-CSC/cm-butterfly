@@ -5,6 +5,21 @@ import {
   validateNumberFunc,
 } from '@/features/workload/actionLoadConfig/model/validate';
 
+// Initial values used to pre-fill the Load Config form with the last run's parameters on re-run.
+// When present, they populate the form when the modal opens, creating a "new run based on the current settings".
+export interface ILoadConfigInitialValues {
+  scenarioName?: string;
+  virtualUsers?: string;
+  testDuration?: string;
+  rampUpTime?: string;
+  rampUpSteps?: string;
+  method?: string;
+  protocol?: string;
+  port?: string;
+  path?: string;
+  bodyData?: string;
+}
+
 export function useLoadConfigModel() {
   const protocol = reactive({
     menu: [

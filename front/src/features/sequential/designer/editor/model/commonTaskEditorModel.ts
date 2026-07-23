@@ -1,6 +1,6 @@
 import { ref, Ref, reactive } from 'vue';
 
-// JsonSchema 타입 정의
+// JsonSchema type definitions
 export interface JsonSchema {
   type: 'string' | 'integer' | 'number' | 'boolean' | 'object' | 'array';
   properties?: Record<string, JsonSchema>;
@@ -12,7 +12,7 @@ export interface JsonSchema {
   example?: any;
 }
 
-// Context 타입 정의
+// Context type definitions
 export interface InputContext {
   type: 'input';
   context: {
@@ -45,7 +45,7 @@ export interface ArrayContext {
   };
 }
 
-// ArrayType별 Context 정의
+// Context definitions per ArrayType
 export interface StringArrayContext {
   type: 'stringArray';
   context: {
@@ -152,8 +152,8 @@ export interface NestedObjectContext {
     values: any[];
     isRequired: boolean;
     description?: string;
-    subject?: string;  // Form.vue 호환성
-    rawData?: any;    // 빈 객체 데이터 저장용
+    subject?: string;  // Form.vue compatibility
+    rawData?: any;    // For storing empty object data
   };
 }
 
@@ -214,7 +214,7 @@ export interface FixedModel {
 
 /**
  * Common Task Editor Model
- * 범용적인 태스크 에디터를 위한 모델 관리
+ * Model management for a generic task editor
  */
 export function useCommonTaskEditorModel() {
   const formContext = ref<FormContext[]>([]);
@@ -225,7 +225,7 @@ export function useCommonTaskEditorModel() {
   let originalSchema: JsonSchema | null = null;
   let taskComponentModel: JsonSchema | null = null;
 
-  // 헬퍼 함수들
+  // Helper functions
   function getContextSubject(item: any): string {
     return item.context?.subject || item.context?.title || '';
   }
@@ -250,7 +250,7 @@ export function useCommonTaskEditorModel() {
     }
   }
   
-  // Object 복잡도 분석 함수
+  // Object complexity analysis function
   function analyzeObjectComplexity(schema: any, data: any): boolean {
     console.log(`🔍 Analyzing object complexity:`, { schema, data });
     
@@ -262,13 +262,13 @@ export function useCommonTaskEditorModel() {
     const properties = schema.properties;
     const propertyKeys = Object.keys(properties);
     
-    // 1. properties 개수가 많으면 복잡한 객체
+    // 1. Many properties means a complex object
     if (propertyKeys.length > 5) {
       console.log(`  - Complex object: too many properties (${propertyKeys.length})`);
       return true;
     }
     
-    // 2. 중첩된 object나 array가 있으면 복잡한 객체
+    // 2. A nested object or array means a complex object
     const hasNestedStructures = propertyKeys.some(key => {
       const prop = properties[key];
       return prop.type === 'object' || prop.type === 'array';
@@ -279,7 +279,7 @@ export function useCommonTaskEditorModel() {
       return true;
     }
     
-    // 3. 실제 데이터가 복잡한 구조를 가지고 있으면 복잡한 객체
+    // 3. If the actual data has a complex structure, it is a complex object
     if (data && typeof data === 'object') {
       const dataKeys = Object.keys(data);
       const hasComplexData = dataKeys.some(key => {
@@ -297,26 +297,26 @@ export function useCommonTaskEditorModel() {
     return false;
   }
   
-  // ArrayType 결정 함수 - 스키마 우선, 데이터로 값 설정
+  // ArrayType decision function - schema first, values set from data
   function determineArrayTypeFromSchema(fieldSchema: JsonSchema, key: string, arrayData: any[]): string {
     console.log(`🔍 Determining ArrayType for ${key}:`, { fieldSchema, arrayData });
     
-    // 1. 스키마의 items 타입 분석 (우선순위 1)
-    // items가 있으면 array 타입으로 간주 (type이 명시되지 않은 경우도 처리)
+    // 1. Analyze the schema's items type (priority 1)
+    // If items exists, treat it as an array type (also handles when type is not specified)
     if (fieldSchema.type === 'array' || fieldSchema.items) {
       const itemType = fieldSchema.items?.type;
       console.log(`Schema items type: ${itemType}`);
       
-      // items가 있지만 type이 undefined인 경우, items의 properties를 분석
+      // When items exists but type is undefined, analyze items' properties
       if (!itemType && fieldSchema.items?.properties) {
         const properties = fieldSchema.items.properties;
         const propertyKeys = Object.keys(properties);
         const propertyTypes = Object.values(properties).map((prop: any) => prop.type);
         
-        // 기본형 타입들 정의
+        // Define the primitive types
         const basicTypes = ['string', 'integer', 'number', 'boolean'];
         
-        // properties 분석
+        // Analyze the properties
         const basicTypeProperties = propertyTypes.filter(type => basicTypes.includes(type));
         const objectProperties = propertyTypes.filter(type => type === 'object');
         const arrayProperties = propertyTypes.filter(type => type === 'array');
@@ -330,7 +330,7 @@ export function useCommonTaskEditorModel() {
         console.log(`  - Array types: ${arrayProperties.length}`);
         console.log(`  - Other types: ${otherProperties.length}`);
         
-        // 1. properties가 1개의 기본형인 경우
+        // 1. When there is a single primitive property
         if (propertyKeys.length === 1 && basicTypeProperties.length === 1) {
           const singleType = basicTypeProperties[0];
           if (singleType === 'string') {
@@ -345,26 +345,26 @@ export function useCommonTaskEditorModel() {
           }
         }
         
-        // 2. properties가 2개 이상의 기본형인 경우 (객체가 아닌 기본형들만)
+        // 2. When there are two or more primitive properties (primitives only, not objects)
         if (propertyKeys.length >= 2 && basicTypeProperties.length === propertyKeys.length && objectProperties.length === 0 && arrayProperties.length === 0) {
           console.log(`✅ ${key} is basicObjectArray (schema-based: multiple basic type properties)`);
           return 'basicObjectArray';
         }
         
-        // 3. 여러 형태가 섞여있는 경우 (기본형 + 객체 + 배열 등)
+        // 3. When multiple shapes are mixed (primitive + object + array, etc.)
         if (objectProperties.length > 0 || arrayProperties.length > 0 || otherProperties.length > 0 || 
             (basicTypeProperties.length > 0 && (objectProperties.length > 0 || arrayProperties.length > 0))) {
           console.log(`✅ ${key} is nestedObjectArray (schema-based: mixed types - basic:${basicTypeProperties.length}, object:${objectProperties.length}, array:${arrayProperties.length})`);
           return 'nestedObjectArray';
         }
         
-        // 4. 기본형이지만 위 조건에 맞지 않는 경우 (fallback)
+        // 4. Primitive but does not match the conditions above (fallback)
         if (basicTypeProperties.length > 0) {
           console.log(`✅ ${key} is basicObjectArray (schema-based: fallback for basic types)`);
           return 'basicObjectArray';
         }
         
-        // 5. 알 수 없는 경우
+        // 5. Unknown case
         console.log(`⚠️ ${key} has unknown structure, defaulting to basicObjectArray`);
         return 'basicObjectArray';
       }
@@ -379,7 +379,7 @@ export function useCommonTaskEditorModel() {
         console.log(`✅ ${key} is booleanArray (schema-based)`);
         return 'booleanArray';
       } else if (itemType === 'object' && fieldSchema.items?.properties) {
-        // 객체 배열인 경우 - 내부 properties 분석
+        // For an object array - analyze the inner properties
         const properties = fieldSchema.items.properties;
         const propertyKeys = Object.keys(properties);
         const hasNestedObjects = Object.values(properties).some((prop: any) => 
@@ -401,7 +401,7 @@ export function useCommonTaskEditorModel() {
       }
     }
     
-    // 2. 실제 데이터 분석 (fallback - 스키마가 없는 경우)
+    // 2. Analyze the actual data (fallback - when there is no schema)
     if (arrayData && arrayData.length > 0) {
       const firstItem = arrayData[0];
       const itemType = typeof firstItem;
@@ -416,7 +416,7 @@ export function useCommonTaskEditorModel() {
         console.log(`✅ ${key} is booleanArray (data-based fallback)`);
         return 'booleanArray';
       } else if (itemType === 'object' && firstItem !== null) {
-        // 객체 배열인 경우 - 내부 properties 분석
+        // For an object array - analyze the inner properties
         const keys = Object.keys(firstItem);
         const hasNestedObjects = keys.some(itemKey => 
           typeof firstItem[itemKey] === 'object' || Array.isArray(firstItem[itemKey])
@@ -432,18 +432,18 @@ export function useCommonTaskEditorModel() {
       }
     }
     
-    // 3. 빈 배열인 경우
+    // 3. When the array is empty
     if (!arrayData || arrayData.length === 0) {
       console.log(`⚠️ ${key} is emptyArray (no data)`);
       return 'emptyArray';
     }
     
-    // 4. 기본값
+    // 4. Default value
     console.log(`⚠️ ${key} is unknownArray (fallback)`);
     return 'unknownArray';
   }
 
-  // Context 생성 헬퍼 함수들
+  // Context creation helper functions
   function createInputContext(
     key: string, 
     fieldValue: any, 
@@ -472,11 +472,11 @@ export function useCommonTaskEditorModel() {
     return {
       type: 'nestedObject',
       context: {
-        title: key,    // title 사용
+        title: key,    // Use title
         values,
         isRequired,
         description,
-        subject: key   // subject 추가 (Form.vue 호환성)
+        subject: key   // Add subject (Form.vue compatibility)
       }
     };
   }
@@ -501,7 +501,7 @@ export function useCommonTaskEditorModel() {
   }
   
   /**
-   * Array item의 스키마를 기반으로 FormContext 생성
+   * Build a FormContext based on the Array item schema
    */
   function createArrayItemContext(arraySchema: any, itemData?: any): FormContext[] {
     console.log('createArrayItemContext called with:', arraySchema, 'itemData:', itemData);
@@ -514,20 +514,20 @@ export function useCommonTaskEditorModel() {
     const itemSchema = arraySchema.items;
     console.log('Array item schema:', itemSchema);
 
-    // Array item이 object 타입인 경우
+    // When the Array item is an object type
     if (itemSchema.type === 'object' && itemSchema.properties) {
       const contexts: FormContext[] = [];
       
       Object.entries(itemSchema.properties).forEach(([key, fieldSchema]: [string, any]) => {
         console.log(`Processing array item property: ${key}`, fieldSchema);
         
-        // Array 타입은 제외 (중첩 배열 처리 안함)
+        // Exclude Array types (no nested array handling)
         if (fieldSchema.type === 'array') {
           console.log(`Skipping nested array field: ${key}`);
           return;
         }
         
-        // Input 필드
+        // Input field
         if (fieldSchema.type === 'string' || fieldSchema.type === 'integer' || fieldSchema.type === 'number' || fieldSchema.type === 'boolean') {
           const fieldValue = itemData && itemData[key] !== undefined ? itemData[key] : (fieldSchema.default || '');
           contexts.push(createInputContext(
@@ -539,7 +539,7 @@ export function useCommonTaskEditorModel() {
           ));
           console.log(`✅ Array item input field ${key} created with value: ${fieldValue}`);
         }
-        // Nested Object 필드
+        // Nested Object field
         else if (fieldSchema.type === 'object') {
           const nestedData = itemData && itemData[key] ? itemData[key] : undefined;
           contexts.push(createNestedObjectContext(
@@ -556,13 +556,13 @@ export function useCommonTaskEditorModel() {
       return contexts;
     }
     
-    // Array item이 primitive 타입인 경우
+    // When the Array item is a primitive type
     console.log('Array item is primitive type, no properties to create');
     return [];
   }
 
   /**
-   * JSON Schema를 파싱하여 폼 컨텍스트 생성
+   * Parse the JSON Schema to build the form context
    */
   function parseJsonSchema(schema: JsonSchema, data?: any, depth: number = 0): FormContext[] {
     console.log(`🔍 parseJsonSchema START (depth: ${depth})`);
@@ -582,19 +582,19 @@ export function useCommonTaskEditorModel() {
     Object.entries(schema.properties).forEach(([key, fieldSchema]) => {
       console.log(`Processing field: ${key} (depth: ${depth})`);
       
-      // Array 타입은 적절한 ArrayType context로 처리
+      // Handle Array types with the appropriate ArrayType context
       if (fieldSchema.type === 'array' || fieldSchema.items) {
-        // Array 데이터 추출
+        // Extract the Array data
         const arrayData = data && data[key] ? data[key] : [];
         console.log(`Processing ARRAY field: ${key} (depth: ${depth})`);
         
-        // ArrayType 결정
+        // Determine the ArrayType
         const arrayType = determineArrayTypeFromSchema(fieldSchema, key, arrayData);
         console.log(`ArrayType determined for ${key}: ${arrayType}`);
         console.log(`Field schema for ${key}:`, fieldSchema);
         console.log(`Array data for ${key}:`, arrayData);
         
-        // ArrayType에 따라 적절한 Context 생성
+        // Create the appropriate Context depending on the ArrayType
         if (arrayType === 'stringArray') {
           contexts.push({
             type: 'stringArray',
@@ -632,22 +632,22 @@ export function useCommonTaskEditorModel() {
           });
           console.log(`✅ BooleanArray field ${key} created with ${arrayData.length} items`);
         } else if (arrayType === 'nestedObjectArray') {
-          // nestedObjectArray인 경우 items.properties를 기반으로 처리
+          // For a nestedObjectArray, handle based on items.properties
           console.log(`Processing nestedObjectArray ${key} with items schema:`, fieldSchema.items);
           
           let values: any[] = [];
           
-          // items.properties를 기반으로 템플릿 생성
+          // Build a template based on items.properties
           if (fieldSchema.items && fieldSchema.items.properties) {
             const templateContext = parseJsonSchema(fieldSchema.items, `${key}`, depth + 1);
             console.log(`Generated template context for ${key}:`, templateContext);
             
-            // 실제 데이터가 있는 경우 각 아이템을 처리
+            // When actual data exists, process each item
             if (arrayData && Array.isArray(arrayData) && arrayData.length > 0) {
               console.log(`Processing ${arrayData.length} actual items for nestedObjectArray ${key}`);
               values = arrayData.map((item, index) => {
                 if (typeof item === 'object' && item !== null) {
-                  // 각 아이템의 properties를 input context로 변환
+                  // Convert each item's properties into an input context
                   const itemContexts = Object.keys(item).map(itemKey => {
                     const itemValue = item[itemKey];
                     const itemSchema = fieldSchema.items?.properties?.[itemKey];
@@ -667,11 +667,11 @@ export function useCommonTaskEditorModel() {
                         }
                       };
                     } else if (itemSchema?.type === 'object') {
-                      // object 타입인 경우 복잡도에 따라 처리
+                      // For an object type, handle depending on the complexity
                       const isComplexObject = analyzeObjectComplexity(itemSchema, itemValue);
                       
                       if (isComplexObject) {
-                        // 복잡한 object인 경우 nestedObject로 처리
+                        // For a complex object, handle as a nestedObject
                         console.log(`  - Complex object detected for ${itemKey}, creating nestedObject`);
                         return {
                           type: 'nestedObject',
@@ -685,7 +685,7 @@ export function useCommonTaskEditorModel() {
                           }
                         };
                       } else {
-                        // 단순한 object인 경우 properties를 직접 표시
+                        // For a simple object, show the properties directly
                         console.log(`  - Simple object detected for ${itemKey}, showing properties directly`);
                         return {
                           type: 'input',
@@ -702,7 +702,7 @@ export function useCommonTaskEditorModel() {
                         };
                       }
                     } else if (itemSchema?.type === 'array') {
-                      // array 타입인 경우 nestedObject로 처리 (복잡한 구조)
+                      // For an array type, handle as nestedObject (complex structure)
                       console.log(`  - Array detected for ${itemKey}, creating nestedObject`);
                       return {
                         type: 'nestedObject',
@@ -716,7 +716,7 @@ export function useCommonTaskEditorModel() {
                         }
                       };
                     } else {
-                      // 기타 타입은 input으로 처리
+                      // Handle other types as input
                       return {
                         type: 'input',
                         context: {
@@ -733,7 +733,7 @@ export function useCommonTaskEditorModel() {
                     }
                   });
                   
-                  // nestedObjectArray의 아이템은 nestedObject로 래핑하지 않고 직접 properties 반환
+                  // Return the properties directly for nestedObjectArray items instead of wrapping them in a nestedObject
                   return {
                     type: 'nestedObjectArrayItem',
                     context: {
@@ -746,20 +746,20 @@ export function useCommonTaskEditorModel() {
                 return null;
               }).filter(Boolean);
             } else {
-              // 데이터가 없는 경우 템플릿만 생성 (복잡도 분석 적용)
+              // When there is no data, create only the template (applying complexity analysis)
               console.log(`No data for nestedObjectArray ${key}, creating template with complexity analysis`);
               
-              // 템플릿 컨텍스트를 복잡도에 따라 처리
+              // Handle the template context depending on the complexity
               const processedTemplateContext = templateContext.map(templateItem => {
                 if (templateItem.type === 'nestedObject' && templateItem.context) {
                   const itemSchema = fieldSchema.items?.properties?.[templateItem.context.title];
                   const isComplexObject = analyzeObjectComplexity(itemSchema, null);
                   
                   if (isComplexObject) {
-                    // 복잡한 object는 nestedObject로 유지
+                    // Keep a complex object as a nestedObject
                     return templateItem;
                   } else {
-                    // 단순한 object는 input으로 변환
+                    // Convert a simple object into an input
                     return {
                       type: 'input',
                       context: {
@@ -792,16 +792,16 @@ export function useCommonTaskEditorModel() {
             values = [];
           }
           
-          // nestedObjectArray는 accordionContext로 처리
+          // Handle nestedObjectArray with accordionContext
           const accordionItems = values.map((item: any, index: number) => {
-            // 기존 데이터를 올바른 properties 구조로 변환
+            // Convert existing data into the correct properties structure
             let itemProperties: any[] = [];
             
             if (item.context?.values && Array.isArray(item.context.values)) {
-              // 이미 FormContext 구조인 경우
+              // When it is already a FormContext structure
               itemProperties = item.context.values as any[];
             } else if (item.context && typeof item.context === 'object') {
-              // 일반 객체인 경우 properties로 변환
+              // For a plain object, convert to properties
               itemProperties = Object.entries(item.context).map(([key, value]: [string, any]) => ({
                 type: 'input',
                 context: {
@@ -812,12 +812,12 @@ export function useCommonTaskEditorModel() {
                 }
               }));
             } else if (typeof item === 'object' && item !== null) {
-              // 직접 객체인 경우 스키마를 기반으로 properties 변환
+              // For a direct object, convert properties based on the schema
               if (fieldSchema && fieldSchema.items && fieldSchema.items.properties) {
                 console.log(`🔍 Processing item with schema:`, fieldSchema.items.properties);
                 console.log(`🔍 Item data:`, item);
                 
-                // 스키마 기반으로 properties 생성
+                // Build the properties based on the schema
                 itemProperties = Object.entries(fieldSchema.items.properties).map(([key, propSchema]: [string, any]) => {
                   const actualValue = item[key];
                   const propertyType = propSchema.type || 'string';
@@ -830,9 +830,9 @@ export function useCommonTaskEditorModel() {
                   });
                   
                   if (propertyType === 'object' && propSchema.properties) {
-                    // object 타입인 경우 nestedObject로 생성
+                    // For an object type, create a nestedObject
                     console.log(`🔍 Creating nestedObject for ${key} with properties:`, propSchema.properties);
-                    // propSchema 자체를 스키마로 전달 (properties가 포함된 전체 스키마)
+                    // Pass propSchema itself as the schema (the full schema including properties)
                     const nestedValues = parseJsonSchema(propSchema, actualValue || {});
                     console.log(`🔍 Parsed ${nestedValues.length} nested values for ${key}:`, nestedValues);
                     
@@ -847,7 +847,7 @@ export function useCommonTaskEditorModel() {
                       }
                     };
                   } else if (propertyType === 'array' && propSchema.items) {
-                    // array 타입인 경우 nestedObjectArray로 생성
+                    // For an array type, create a nestedObjectArray
                     return {
             type: 'nestedObjectArray',
             context: {
@@ -859,7 +859,7 @@ export function useCommonTaskEditorModel() {
                       }
                     };
                   } else {
-                    // 기본 타입인 경우 input으로 생성
+                    // For a primitive type, create as input
                     return {
                       type: 'input',
                       context: {
@@ -872,7 +872,7 @@ export function useCommonTaskEditorModel() {
                   }
                 });
               } else {
-                // 스키마가 없는 경우 기본 input 타입으로 변환
+                // When there is no schema, convert to the default input type
                 itemProperties = Object.entries(item).map(([key, value]: [string, any]) => ({
                   type: 'input',
                   context: {
@@ -909,7 +909,7 @@ export function useCommonTaskEditorModel() {
           console.log(`✅ NestedObjectArray field ${key} converted to accordionContext with ${values.length} items`);
           console.log(`Values for ${key}:`, values);
         } else if (arrayType === 'basicObjectArray') {
-          // basicObjectArray는 accordionContext로 처리
+          // Handle basicObjectArray with accordionContext
           const accordionItems = arrayData.map((item: any, index: number) => reactive({
             type: 'nestedObjectArrayItem',
             context: {
@@ -940,7 +940,7 @@ export function useCommonTaskEditorModel() {
           });
           console.log(`✅ BasicObjectArray field ${key} converted to accordionContext with ${arrayData.length} items`);
         } else if (arrayType === 'basicArray') {
-          // basicInputArray는 selectContext로 처리
+          // Handle basicInputArray with selectContext
           contexts.push({
             type: 'select',
             context: {
@@ -997,9 +997,9 @@ export function useCommonTaskEditorModel() {
         return;
       }
       
-      // 필드 타입에 따라 컨텍스트 생성
+      // Create the context depending on the field type
       if (fieldSchema.type === 'string' || fieldSchema.type === 'integer' || fieldSchema.type === 'number' || fieldSchema.type === 'boolean') {
-        // Input 필드 - 데이터가 있으면 해당 값을 사용
+        // Input field - use the value if data exists
         const fieldValue = data && data[key] !== undefined ? data[key] : (fieldSchema.default || '');
         contexts.push(createInputContext(
           key,
@@ -1010,45 +1010,45 @@ export function useCommonTaskEditorModel() {
         ));
         console.log(`✅ Input field ${key} created with value: ${fieldValue}`);
       } else if (fieldSchema.type === 'object') {
-        // Object 필드 처리 (범용적 처리)
+        // Handle Object fields (generic handling)
         const nestedData = data && data[key] ? data[key] : undefined;
         console.log(`Processing OBJECT field: ${key} (depth: ${depth})`);
         console.log(`Object schema:`, fieldSchema);
         
-        // Properties가 정의되지 않은 빈 객체인 경우 처리
+        // Handle an empty object with no defined properties
         if (!fieldSchema.properties || Object.keys(fieldSchema.properties).length === 0) {
           console.log(`Object ${key} has no properties defined, creating empty nested object`);
           
-          // 빈 객체이지만 nestedObject로 처리하여 UI에서 표시할 수 있도록 함
-          // "property 정의되지 않음" 메시지를 표시하기 위해 특별한 컨텍스트 생성
+          // Although it is an empty object, handle it as a nestedObject so it can be shown in the UI
+          // Create a special context to show the "property not defined" message
           const emptyObjectContext = createNestedObjectContext(
             key,
-            [], // 빈 배열 - properties가 없으므로
+            [], // Empty array - because there are no properties
             schema.required?.includes(key) || false,
             fieldSchema.description
           );
           
-          // 빈 객체임을 표시하기 위한 특별한 플래그 추가
+          // Add a special flag to indicate an empty object
           (emptyObjectContext as any).isEmptyObject = true;
-          (emptyObjectContext as any).emptyMessage = 'property 정의되지 않음';
+          (emptyObjectContext as any).emptyMessage = 'property not defined';
           
           contexts.push(emptyObjectContext);
           console.log(`✅ Empty nested object field ${key} created (depth: ${depth})`);
         } else {
-          // Object 내부에 array가 있는지 확인하고 복잡도 분석
+          // Check whether the Object contains an array and analyze the complexity
           const arrayProperties = fieldSchema.properties ? 
             Object.entries(fieldSchema.properties).filter(([_, prop]: [string, any]) => prop.type === 'array') : [];
           
           console.log(`Object ${key} has ${arrayProperties.length} array properties:`, arrayProperties.map(([name, _]) => name));
           
-          // Array property의 복잡도 분석
+          // Analyze the complexity of the Array property
           let hasComplexArrays = false;
           if (arrayProperties.length > 0) {
             console.log(`Analyzing array complexity for object ${key}:`);
             arrayProperties.forEach(([arrayName, arrayProp]: [string, any]) => {
               console.log(`  - Array ${arrayName}:`, arrayProp);
               if (arrayProp.items) {
-                // Array item의 타입 분석
+                // Analyze the Array item type
                 if (arrayProp.items.type === 'object' && arrayProp.items.properties) {
                   const itemPropCount = Object.keys(arrayProp.items.properties).length;
                   const hasNestedInItems = Object.values(arrayProp.items.properties).some((itemProp: any) => 
@@ -1068,7 +1068,7 @@ export function useCommonTaskEditorModel() {
           
           console.log(`Object ${key} has complex arrays: ${hasComplexArrays}`);
           
-          // Array가 있거나 복잡한 구조인 경우 nestedObject로 처리
+          // Handle as nestedObject when there is an Array or a complex structure
           if (arrayProperties.length > 0 || hasComplexArrays) {
             console.log(`Converting object ${key} to nestedObject due to array properties or complexity`);
           
@@ -1082,7 +1082,7 @@ export function useCommonTaskEditorModel() {
           ));
           console.log(`✅ Nested object field ${key} created with data (depth: ${depth})`);
               } else {
-          // Array가 없는 경우에도 nestedObject로 처리하되, 내부 properties는 재귀적으로 생성
+          // Even with no Array, handle as nestedObject, but build the inner properties recursively
           console.log(`Object ${key} has no array properties, treating as nested object with recursive processing`);
           
           const nestedContexts = parseJsonSchema(fieldSchema, nestedData, depth + 1);
@@ -1105,7 +1105,7 @@ export function useCommonTaskEditorModel() {
   }
 
   /**
-   * Path Params를 파싱하여 컨텍스트 생성
+   * Parse the Path Params to build the context
    */
   function parsePathParams(pathParamsSchema: any): FormContext[] {
     console.log('parsePathParams called with:', pathParamsSchema);
@@ -1134,7 +1134,7 @@ export function useCommonTaskEditorModel() {
   }
 
   /**
-   * Query Params를 파싱하여 컨텍스트 생성
+   * Parse the Query Params to build the context
    */
   function parseQueryParams(queryParamsSchema: any): FormContext[] {
     console.log('parseQueryParams called with:', queryParamsSchema);
@@ -1163,15 +1163,15 @@ export function useCommonTaskEditorModel() {
   }
 
   /**
-   * 기존 데이터로 폼 채우기
+   * Fill the form with existing data
    */
   function populateFormWithExistingData(data: any, path: string): void {
     console.log('populateFormWithExistingData called with:', { data, path });
-    // TODO: 구현 필요
+    // TODO: implementation needed
   }
 
   /**
-   * Task Component Data를 활용한 데이터 매핑
+   * Data mapping using the Task Component Data
    */
   function populateFormWithTaskComponentData(
     savedData: any, 
@@ -1185,18 +1185,18 @@ export function useCommonTaskEditorModel() {
       return;
     }
     
-    // formContext를 순회하며 데이터 매핑
+    // Iterate over formContext and map the data
     formContext.value.forEach(context => {
       const contextSubject = getContextSubject(context);
       console.log(`Processing context: ${contextSubject}, type: ${context.type}`);
       
       if (context.type === 'nestedObject') {
-        // nestedObject인 경우 데이터 매핑
+        // For a nestedObject, map the data
         const nestedData = savedData[contextSubject];
         if (nestedData !== undefined) {
           console.log(`Mapping data for nestedObject ${contextSubject}:`, nestedData);
           
-          // 빈 객체인 경우 rawData로 저장
+          // For an empty object, store it as rawData
           if (typeof nestedData === 'object' && nestedData !== null && !Array.isArray(nestedData)) {
             if (!context.context.rawData) {
               context.context.rawData = {};
@@ -1204,7 +1204,7 @@ export function useCommonTaskEditorModel() {
             Object.assign(context.context.rawData, nestedData);
             console.log(`Stored raw data for ${contextSubject}:`, context.context.rawData);
             
-            // values가 있는 경우 실제 데이터로 업데이트
+            // If values exist, update with the actual data
             if (context.context.values && context.context.values.length > 0) {
               console.log(`Updating values for nestedObject ${contextSubject} with actual data`);
               context.context.values.forEach((valueContext: any) => {
@@ -1215,7 +1215,7 @@ export function useCommonTaskEditorModel() {
                 if (valueContext.type === 'input' && actualValue !== undefined) {
                   valueContext.context.model.value = String(actualValue);
                 } else if (valueContext.type === 'nestedObject' && actualValue && typeof actualValue === 'object') {
-                  // nestedObject의 경우 재귀적으로 업데이트
+                  // For a nestedObject, update recursively
                   if (valueContext.context.values && valueContext.context.values.length > 0) {
                     valueContext.context.values.forEach((nestedValueContext: any) => {
                       const nestedValueSubject = getContextSubject(nestedValueContext);
@@ -1226,29 +1226,29 @@ export function useCommonTaskEditorModel() {
                     });
                   }
                 } else if (valueContext.type === 'nestedObjectArray' && actualValue && Array.isArray(actualValue)) {
-                  // nestedObjectArray의 경우 배열 데이터로 업데이트
+                  // For a nestedObjectArray, update with the array data
                   console.log(`Updating nestedObjectArray ${valueSubject} with ${actualValue.length} items`);
-                  // 여기서는 실제 데이터가 있다는 것만 확인하고, 실제 렌더링은 스키마 기반으로 함
+                  // Here we only confirm that actual data exists; the actual rendering is schema-based
                 }
               });
             }
           }
         }
       } else if (context.type === 'nestedObjectArray') {
-        // nestedObjectArray인 경우 데이터 매핑
+        // For a nestedObjectArray, map the data
         const arrayData = savedData[contextSubject];
         if (arrayData && Array.isArray(arrayData)) {
           console.log(`Mapping data for nestedObjectArray ${contextSubject}:`, arrayData);
           
-          // 각 배열 아이템을 nestedObject로 변환
+          // Convert each array item into a nestedObject
           const mappedItems = arrayData.map((item, index) => {
             if (typeof item === 'object' && item !== null) {
-              // 객체의 각 속성을 적절한 context로 변환
+              // Convert each property of the object into the appropriate context
               const itemContexts = Object.keys(item).map(key => {
                 const value = item[key];
                 
                 if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-                  // object 타입인 경우 nestedObject로 처리
+                  // For an object type, handle as a nestedObject
                   return {
                     type: 'nestedObject',
                     context: {
@@ -1260,7 +1260,7 @@ export function useCommonTaskEditorModel() {
                     }
                   };
                 } else {
-                  // string 등 기타 타입은 input으로 처리
+                  // Handle string and other types as input
                   return {
                     type: 'input',
                     context: {
@@ -1292,7 +1292,7 @@ export function useCommonTaskEditorModel() {
           console.log(`Mapped ${mappedItems.length} items for nestedObjectArray ${contextSubject}`);
         }
       } else if (context.type === 'input' && context.context?.model) {
-        // input인 경우 직접 값 설정
+        // For an input, set the value directly
         const inputValue = savedData[contextSubject];
         if (inputValue !== undefined) {
           context.context.model.value = inputValue;
@@ -1305,7 +1305,7 @@ export function useCommonTaskEditorModel() {
   }
 
   /**
-   * TaskComponentData가 없을 때 fallback 처리
+   * Fallback handling when there is no TaskComponentData
    */
   function populateFormWithExistingDataFallback(
     savedData: any, 
@@ -1318,18 +1318,18 @@ export function useCommonTaskEditorModel() {
       return;
     }
     
-    // formContext를 순회하며 데이터 매핑
+    // Iterate over formContext and map the data
     formContext.value.forEach(context => {
       const contextSubject = getContextSubject(context);
       console.log(`Processing context (fallback): ${contextSubject}, type: ${context.type}`);
       
       if (context.type === 'nestedObject') {
-        // nestedObject인 경우 데이터 매핑
+        // For a nestedObject, map the data
         const nestedData = savedData[contextSubject];
         if (nestedData !== undefined) {
           console.log(`Mapping data for nestedObject ${contextSubject} (fallback):`, nestedData);
           
-          // 빈 객체인 경우 rawData로 저장
+          // For an empty object, store it as rawData
           if (typeof nestedData === 'object' && nestedData !== null && !Array.isArray(nestedData)) {
             if (!context.context.rawData) {
               context.context.rawData = {};
@@ -1339,20 +1339,20 @@ export function useCommonTaskEditorModel() {
           }
         }
       } else if (context.type === 'nestedObjectArray') {
-        // nestedObjectArray인 경우 데이터 매핑
+        // For a nestedObjectArray, map the data
         const arrayData = savedData[contextSubject];
         if (arrayData && Array.isArray(arrayData)) {
           console.log(`Mapping data for nestedObjectArray ${contextSubject} (fallback):`, arrayData);
           
-          // 각 배열 아이템을 nestedObject로 변환
+          // Convert each array item into a nestedObject
           const mappedItems = arrayData.map((item, index) => {
             if (typeof item === 'object' && item !== null) {
-              // 객체의 각 속성을 적절한 context로 변환
+              // Convert each property of the object into the appropriate context
               const itemContexts = Object.keys(item).map(key => {
                 const value = item[key];
                 
                 if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-                  // object 타입인 경우 nestedObject로 처리
+                  // For an object type, handle as a nestedObject
                   return {
                     type: 'nestedObject',
                     context: {
@@ -1364,7 +1364,7 @@ export function useCommonTaskEditorModel() {
                     }
                   };
                 } else {
-                  // string 등 기타 타입은 input으로 처리
+                  // Handle string and other types as input
                   return {
                     type: 'input',
                     context: {
@@ -1396,7 +1396,7 @@ export function useCommonTaskEditorModel() {
           console.log(`Mapped ${mappedItems.length} items for nestedObjectArray ${contextSubject} (fallback)`);
         }
       } else if (context.type === 'input' && context.context?.model) {
-        // input인 경우 직접 값 설정
+        // For an input, set the value directly
         const inputValue = savedData[contextSubject];
         if (inputValue !== undefined) {
           context.context.model.value = inputValue;
@@ -1409,7 +1409,7 @@ export function useCommonTaskEditorModel() {
   }
 
   /**
-   * 데이터를 폼 컨텍스트에 매핑 (최적화된 버전)
+   * Map the data onto the form context (optimized version)
    */
   function mapDataToFormContextOptimized(
     formContext: FormContext[], 
@@ -1418,7 +1418,7 @@ export function useCommonTaskEditorModel() {
   createAccordionSlotFn?: any,
   depth: number = 0
   ): void {
-  // 무한루프 방지: 최대 깊이 제한
+  // Prevent infinite loops: limit the maximum depth
   if (depth > 10) {
     console.warn('⚠️ mapDataToFormContextOptimized: Maximum depth reached, stopping recursion');
     return;
@@ -1436,24 +1436,24 @@ export function useCommonTaskEditorModel() {
       return;
     }
     
-    // FormContext가 비어있고 스키마가 있는 경우 - 스키마에서 FormContext 생성
+    // When FormContext is empty and a schema exists - build FormContext from the schema
     if (formContext.length === 0 && schema && Object.keys(schema).length > 0) {
       console.log(`⚠️ FormContext is empty but schema exists. Creating FormContext from schema...`);
       console.log(`Schema properties:`, Object.keys(schema));
       
-      // 스키마의 각 속성에 대해 FormContext 생성
+      // Create a FormContext for each schema property
       Object.entries(schema).forEach(([key, fieldSchema]: [string, any]) => {
         console.log(`Creating FormContext for ${key}:`, fieldSchema);
         
         if (fieldSchema.type === 'string' || fieldSchema.type === 'integer' || fieldSchema.type === 'boolean') {
-          // 기본 타입 - input으로 생성
+          // Primitive type - create as input
           const inputContext = createInputContext(
             key,
             data[key] || '',
             fieldSchema.required || false,
             fieldSchema.description || ''
           );
-          // title이 제대로 설정되었는지 확인
+          // Verify that title is set correctly
           console.log(`    📝 Input context for ${key}:`);
           console.log(`      - Title: ${(inputContext as any).title}`);
           console.log(`      - Value: ${inputContext.context.model.value}`);
@@ -1464,14 +1464,14 @@ export function useCommonTaskEditorModel() {
           });
           console.log(`    ✅ Created input context for ${key}`);
         } else if (fieldSchema.type === 'object') {
-          // 객체 타입 - nestedObject로 생성
+          // Object type - create a nestedObject
           let nestedValues: FormContext[] = [];
           
-          // fieldSchema.properties가 있는 경우 재귀적으로 파싱
+          // If fieldSchema.properties exists, parse it recursively
           if (fieldSchema.properties) {
             console.log(`    🔍 Parsing properties for nestedObject ${key}:`, fieldSchema.properties);
             console.log(`    🔍 Data for ${key}:`, data[key]);
-            // fieldSchema 전체를 스키마로 전달 (properties가 포함된 전체 스키마)
+            // Pass the whole fieldSchema as the schema (the full schema including properties)
             nestedValues = parseJsonSchema(fieldSchema, data[key] || {}, depth + 1);
             console.log(`    📦 Parsed ${nestedValues.length} properties for ${key}:`, nestedValues);
           } else {
@@ -1484,7 +1484,7 @@ export function useCommonTaskEditorModel() {
             fieldSchema.required || false,
             fieldSchema.description || ''
           );
-          // title이 제대로 설정되었는지 확인
+          // Verify that title is set correctly
           console.log(`    📦 NestedObject context for ${key}:`);
           console.log(`      - Title: ${(nestedObjectContext as any).title}`);
           console.log(`      - Properties count: ${nestedValues.length}`);
@@ -1495,7 +1495,7 @@ export function useCommonTaskEditorModel() {
           });
           console.log(`    ✅ Created nestedObject context for ${key}`);
         } else if (fieldSchema.type === 'array') {
-          // 배열 타입 - nestedObjectArray로 생성
+          // Array type - create as nestedObjectArray
           const arrayContext = {
             type: 'nestedObjectArray' as const,
             context: {
@@ -1505,7 +1505,7 @@ export function useCommonTaskEditorModel() {
               description: fieldSchema.description || ''
             }
           };
-          // title이 제대로 설정되었는지 확인
+          // Verify that title is set correctly
           console.log(`    📋 NestedObjectArray context for ${key}:`);
           console.log(`      - Title: ${arrayContext.context.title}`);
           // console.log(`      - Data: ${JSON.stringify(data[key], null, 2)}`);
@@ -1521,7 +1521,7 @@ export function useCommonTaskEditorModel() {
       
       console.log(`✅ Created ${formContext.length} FormContext items from schema`);
       
-      // 생성된 FormContext에 실제 데이터 매핑
+      // Map the actual data onto the generated FormContext
       console.log(`🔄 Mapping data to newly created FormContext items...`);
       formContext.forEach((context, index) => {
         console.log(`🔍 FormContext[${index}] structure:`, context);
@@ -1543,13 +1543,13 @@ export function useCommonTaskEditorModel() {
           // console.log(`🔍 Array data:`, data[fieldName]);
           console.log(`🔍 Array context before processing:`, context.context);
           
-          // 배열 아이템들 처리
+          // Process the array items
           console.log(`🔍 Starting forEach loop for ${data[fieldName].length} items`);
           data[fieldName].forEach((item: any, itemIndex: number) => {
             console.log(`  📋 Processing array item[${itemIndex}]:`, item);
             console.log(`  🔍 Item type: ${typeof item}, isObject: ${typeof item === 'object'}, isNull: ${item === null}`);
             
-            // item의 실제 타입 분석
+            // Analyze the item's actual type
             let itemType = 'object';
             if (typeof item === 'string') {
               itemType = 'string';
@@ -1565,7 +1565,7 @@ export function useCommonTaskEditorModel() {
 
             const itemContext = {
               type: 'nestedObjectArrayItem' as const,
-              itemType: itemType, // 실제 item의 타입 추가
+              itemType: itemType, // Add the actual item's type
               context: {
                 subject: `Item ${itemIndex + 1}`,
                 values: [] as FormContext[],
@@ -1601,7 +1601,7 @@ export function useCommonTaskEditorModel() {
       });
     }
     
-        // 각 FormContext 항목에 데이터 매핑
+        // Map the data to each FormContext entry
         formContext.forEach((context, index) => {
           console.log(`Processing FormContext[${index}]:`, context);
           console.log(`  Context type: ${context.type}`);
@@ -1610,7 +1610,7 @@ export function useCommonTaskEditorModel() {
           console.log(`  Context values length: ${(context.context as any)?.values?.length || 0}`);
           
           if (context.type === 'input' && context.context?.model) {
-            // Input 타입 - 직접 값 할당
+            // Input type - assign the value directly
             const fieldName = (context.context as any).title;
             console.log(`  Processing input field: ${fieldName}`);
             if (data[fieldName] !== undefined) {
@@ -1618,31 +1618,31 @@ export function useCommonTaskEditorModel() {
               console.log(`✅ Mapped input ${fieldName}:`, data[fieldName]);
             }
           } else if (context.type === 'nestedObject' && context.context?.values) {
-            // NestedObject 타입 - 재귀적으로 매핑
+            // NestedObject type - map recursively
             const fieldName = (context.context as any).title;
             console.log(`  Processing nested object field: ${fieldName}`);
             if (data[fieldName] && typeof data[fieldName] === 'object') {
               console.log(`🔄 Mapping nested object ${fieldName}:`, data[fieldName]);
-              // 해당 필드의 데이터만 전달
+              // Pass only that field's data
               const fieldData = data[fieldName];
               const fieldSchema = schema[fieldName]?.properties || {};
               mapDataToFormContextOptimized(context.context.values, fieldData, fieldSchema, createAccordionSlotFn, depth + 1);
             }
           } else if ((context.type === 'nestedObjectArray' || context.type === 'basicObjectArray' || context.type === 'accordion') && context.context?.values) {
-            // NestedObjectArray/BasicObjectArray/Accordion 타입 - 배열 아이템들 매핑
+            // NestedObjectArray/BasicObjectArray/Accordion type - map the array items
             const fieldName = (context.context as any).title;
             console.log(`  Processing array field: ${fieldName}`);
             if (Array.isArray(data[fieldName])) {
               console.log(`🔄 Mapping array ${fieldName} with ${data[fieldName].length} items:`, data[fieldName]);
           
-          // 기존 values 초기화
+          // Reset the existing values
           (context.context as any).values = [];
           
-          // 각 배열 아이템에 대해 처리
+          // Process each array item
           data[fieldName].forEach((item: any, itemIndex: number) => {
             console.log(`  Processing array item[${itemIndex}]:`, item);
             
-            // nestedObjectArrayItem 컨텍스트 생성
+            // Create the nestedObjectArrayItem context
             const itemContext = {
               type: 'nestedObjectArrayItem' as const,
               context: {
@@ -1652,19 +1652,19 @@ export function useCommonTaskEditorModel() {
               }
             };
             
-            // 아이템의 properties를 분석하여 values 생성
+            // Analyze the item's properties to build values
             if (typeof item === 'object' && item !== null) {
-              // 해당 아이템의 데이터와 스키마만 전달하여 재귀 호출
+              // Recurse passing only that item's data and schema
               const itemSchema = schema[fieldName]?.items?.properties || {};
               console.log(`  🔍 Processing item with schema:`, itemSchema);
               console.log(`  🔍 Item data:`, JSON.stringify(item, null, 2));
               
-              // 재귀적으로 아이템의 properties 처리
+              // Process the item's properties recursively
               mapDataToFormContextOptimized(itemContext.context.values, item, itemSchema, createAccordionSlotFn, depth + 1);
               
               console.log(`  ✅ Item processing completed. Values length: ${itemContext.context.values.length}`);
             } else {
-              // 기본값 아이템
+              // Default value item
               const inputContext = createInputContext(
                 `Value`,
                 item || '',
@@ -1690,18 +1690,18 @@ export function useCommonTaskEditorModel() {
   }
 
   /**
-   * 컨텍스트가 존재하도록 보장
+   * Ensure the context exists
    */
   function ensureContextsExist(
     formContext: FormContext[], 
     schema: Record<string, any>,
     createAccordionSlotFn?: any
   ): void {
-    // TODO: 구현 필요
+    // TODO: implementation needed
   }
 
   /**
-   * 기존 데이터를 기반으로 JSON Schema 생성
+   * Build a JSON Schema based on the existing data
    */
   function generateSchemaFromData(data: any): JsonSchema {
     console.log('generateSchemaFromData called with:', data);
@@ -1742,63 +1742,63 @@ export function useCommonTaskEditorModel() {
   }
 
   /**
-   * 아코디언 슬롯 생성
+   * Create the accordion slot
    */
   function createAccordionSlot(data: any, index: number, schema: JsonSchema): any {
-    // TODO: 구현 필요
+    // TODO: implementation needed
   }
 
   /**
-   * 폼 데이터를 원본 객체로 변환
+   * Convert the form data back into the original object
    */
   function convertFormToObject(): any {
-    // TODO: 구현 필요
+    // TODO: implementation needed
   }
 
   /**
-   * 중첩 객체를 데이터로 변환
+   * Convert a nested object into data
    */
   function convertNestedObjectToData(nestedObject: NestedObjectContext): any {
-    // TODO: 구현 필요
+    // TODO: implementation needed
   }
 
   /**
-   * 아코디언 슬롯을 데이터로 변환
+   * Convert the accordion slot into data
    */
   function convertAccordionSlotToData(slot: any): any {
-    // TODO: 구현 필요
+    // TODO: implementation needed
   }
 
   /**
-   * 배열 요소 추가
+   * Add an array element
    */
   function addArrayElement(arrayIndex: number): void {
-    // TODO: 구현 필요
+    // TODO: implementation needed
   }
 
   /**
-   * 배열 요소 삭제
+   * Remove an array element
    */
   function deleteArrayElement(arrayIndex: number, slotIndex: number): void {
-    // TODO: 구현 필요
+    // TODO: implementation needed
   }
 
   /**
-   * 엔티티 추가
+   * Add an entity
    */
   function addEntity(target: any): void {
-    // TODO: 구현 필요
+    // TODO: implementation needed
   }
 
   /**
-   * 엔티티 삭제
+   * Remove an entity
    */
   function deleteEntity(target: any, index: number): void {
-    // TODO: 구현 필요
+    // TODO: implementation needed
   }
 
   /**
-   * 폼 모델을 Step Properties로 변환
+   * Convert the form model into Step Properties
    */
   function convertFormModelToStepProperties(): object {
     console.log('convertFormModelToStepProperties called');
@@ -1806,7 +1806,7 @@ export function useCommonTaskEditorModel() {
   }
 
   /**
-   * 파라미터 모델을 Step Properties로 변환
+   * Convert the parameter model into Step Properties
    */
   function convertParamsModelToStepProperties(): FixedModel {
     console.log('convertParamsModelToStepProperties called');
@@ -1828,14 +1828,14 @@ export function useCommonTaskEditorModel() {
   }
 
   /**
-   * 기존 값 로드
+   * Load the existing values
    */
   function loadExistingValues(schema: JsonSchema, existingData: any): void {
-    // TODO: 구현 필요
+    // TODO: implementation needed
   }
 
   /**
-   * 최초 실행 여부와 데이터 존재 여부를 판단하여 적절한 초기화 수행
+   * Decide whether it is the first run and whether data exists, then initialize appropriately
    */
   function initializeWithData(
     stepProperties: any,
@@ -1847,26 +1847,26 @@ export function useCommonTaskEditorModel() {
     console.log('Task Data:', taskData);
     console.log('Workflow Store:', workflowStore);
 
-    // 1. 최초 실행 여부 판단
+    // 1. Determine whether this is the first run
     const isFirstTime = !formContext.value.length;
     console.log('Is First Time:', isFirstTime);
 
-    // 2. 데이터 존재 여부 판단
+    // 2. Determine whether data exists
     const hasTaskData = taskData && Object.keys(taskData).length > 0;
     console.log('Has Task Data:', hasTaskData);
 
-    // 3. Task Component Data 추출
+    // 3. Extract Task Component Data
     const taskComponentData = extractTaskComponentData(stepProperties, workflowStore);
     console.log('Extracted Task Component Data:', JSON.stringify(taskComponentData, null, 2));
 
-    // 4. Path Params와 Query Params 값 설정
+    // 4. Set the Path Params and Query Params values
     if (taskData.path_params && Object.keys(taskData.path_params).length > 0) {
       console.log('🔧 Setting path_params values from taskData:', taskData.path_params);
       if (!paramsContext.value) {
         paramsContext.value = {};
       }
       
-      // 스키마 정보가 있는 경우 values에 값 설정
+      // When schema information exists, set the value in values
       if (paramsContext.value.pathParams && paramsContext.value.pathParams.values) {
         paramsContext.value.pathParams.values.forEach((context: any) => {
           const key = (context.context as any).title;
@@ -1876,7 +1876,7 @@ export function useCommonTaskEditorModel() {
         });
         console.log('✅ Path params values set in schema contexts');
       } else {
-        // 스키마 정보가 없는 경우 직접 값 설정 (fallback)
+        // When there is no schema information, set the value directly (fallback)
         (paramsContext.value as any).path_params = taskData.path_params;
         console.log('✅ Path params values set directly (fallback)');
       }
@@ -1888,7 +1888,7 @@ export function useCommonTaskEditorModel() {
         paramsContext.value = {};
       }
       
-      // 스키마 정보가 있는 경우 values에 값 설정
+      // When schema information exists, set the value in values
       if (paramsContext.value.queryParams && paramsContext.value.queryParams.values) {
         paramsContext.value.queryParams.values.forEach((context: any) => {
           const key = (context.context as any).title;
@@ -1898,13 +1898,13 @@ export function useCommonTaskEditorModel() {
         });
         console.log('✅ Query params values set in schema contexts');
       } else {
-        // 스키마 정보가 없는 경우 직접 값 설정 (fallback)
+        // When there is no schema information, set the value directly (fallback)
         (paramsContext.value as any).query_params = taskData.query_params;
         console.log('✅ Query params values set directly (fallback)');
       }
     }
 
-    // 5. 적절한 초기화 방식 선택
+    // 5. Choose the appropriate initialization method
     if (isFirstTime) {
       if (hasTaskData && taskComponentData && Object.keys(taskComponentData).length > 0) {
         console.log('🔄 Initializing with schema and data');
@@ -1929,18 +1929,18 @@ export function useCommonTaskEditorModel() {
   }
 
   /**
-   * Task Component Data 추출
+   * Extract the Task Component Data
    */
   function extractTaskComponentData(stepProperties: any, workflowStore?: any): any {
     console.log('=== extractTaskComponentData START ===');
     //console.log('Step Properties:', JSON.stringify(stepProperties, null, 2));
     console.log('ℹ️ Using only list-task-component data from stepProperties');
 
-    // 1. step.properties.originalData에서 list-task-component 응답 구조 추출 (우선순위 1)
+    // 1. Extract the list-task-component response structure from step.properties.originalData (priority 1)
     if (stepProperties.originalData) {
       console.log('🔍 OriginalData found:', stepProperties.originalData);
       
-      // originalData.data가 있는 경우
+      // When originalData.data exists
       if (stepProperties.originalData.data) {
         const originalData = stepProperties.originalData.data;
         const extractedData = {
@@ -1952,7 +1952,7 @@ export function useCommonTaskEditorModel() {
         return extractedData;
       }
       
-      // originalData 자체에 path_params, query_params가 있는 경우
+      // When originalData itself has path_params, query_params
       if (stepProperties.originalData.path_params || stepProperties.originalData.query_params) {
         console.log('🔍 OriginalData structure:', JSON.stringify(stepProperties.originalData, null, 2));
         console.log('🔍 OriginalData body_params:', stepProperties.originalData.body_params);
@@ -1969,13 +1969,13 @@ export function useCommonTaskEditorModel() {
       }
     }
 
-    // 2. workflowStore 제거 - list-task-component에서만 데이터 사용
+    // 2. Removed workflowStore - use data only from list-task-component
     console.log('ℹ️ Skipping workflowStore - using only list-task-component data');
 
-    // 3. workflowStore.taskComponents 제거 - list-task-component에서만 데이터 사용
+    // 3. Removed workflowStore.taskComponents - use data only from list-task-component
     console.log('ℹ️ Skipping workflowStore.taskComponents - using only list-task-component data');
 
-    // 4. step.properties.model에서 직접 추출 (우선순위 4)
+    // 4. Extract directly from step.properties.model (priority 4)
     if (stepProperties.model && Object.keys(stepProperties.model).length > 0) {
       console.log('🔍 Using step.properties.model as fallback');
       console.log('🔍 Model structure:', JSON.stringify(stepProperties.model, null, 2));
@@ -1989,7 +1989,7 @@ export function useCommonTaskEditorModel() {
       return extractedData;
     }
 
-    // 2. step.properties.model에서 직접 추출 (우선순위 2)
+    // 2. Extract directly from step.properties.model (priority 2)
     if (stepProperties.model && Object.keys(stepProperties.model).length > 0) {
       const extractedData = {
         body_params: stepProperties.model,
@@ -2000,7 +2000,7 @@ export function useCommonTaskEditorModel() {
       return extractedData;
     }
 
-    // 3. workflowStore에서 task component 찾기 (우선순위 3)
+    // 3. Find the task component in workflowStore (priority 3)
     if (workflowStore && workflowStore.taskComponents) {
       console.log('🔍 Searching in workflowStore.taskComponents:', workflowStore.taskComponents);
       console.log('🔍 Looking for task component name:', stepProperties.name);
@@ -2023,7 +2023,7 @@ export function useCommonTaskEditorModel() {
   }
 
   /**
-   * 데이터로부터 스키마 추론
+   * Infer the schema from the data
    */
   function inferSchemaFromData(data: any, depth: number = 0): any {
     console.log(`inferSchemaFromData START (depth: ${depth})`);
@@ -2035,42 +2035,42 @@ export function useCommonTaskEditorModel() {
         console.log(`Processing field: ${key} (depth: ${depth})`);
         
         if (Array.isArray(value)) {
-          // Array 타입 - 범용 처리
+          // Array type - generic handling
           schema[key] = {
             type: 'array',
             items: value.length > 0 ? inferSchemaFromData(value[0], depth + 1) : { type: 'string' }
           };
           console.log(`✅ Array field ${key} inferred (depth: ${depth})`);
         } else if (typeof value === 'object' && value !== null) {
-          // Object 타입 - 범용 처리
+          // Object type - generic handling
           schema[key] = {
             type: 'object',
             properties: inferSchemaFromData(value, depth + 1)
           };
           console.log(`✅ Object field ${key} inferred (depth: ${depth})`);
         } else if (typeof value === 'string') {
-          // String 타입
+          // String type
           schema[key] = {
             type: 'string',
             example: value
           };
           console.log(`✅ String field ${key} inferred`);
         } else if (typeof value === 'number') {
-          // Number 타입
+          // Number type
           schema[key] = {
             type: 'number',
             example: value
           };
           console.log(`✅ Number field ${key} inferred`);
         } else if (typeof value === 'boolean') {
-          // Boolean 타입
+          // Boolean type
           schema[key] = {
             type: 'boolean',
             example: value
           };
           console.log(`✅ Boolean field ${key} inferred`);
         } else {
-          // 기타 타입
+          // Other types
           schema[key] = {
             type: 'string',
             example: String(value)
@@ -2085,7 +2085,7 @@ export function useCommonTaskEditorModel() {
   }
 
   /**
-   * 스키마와 데이터를 모두 사용한 초기화
+   * Initialization using both the schema and the data
    */
   function initializeWithSchemaAndData(taskComponentData: any, taskData: any): void {
     console.log('=== initializeWithSchemaAndData START ===');
@@ -2093,11 +2093,11 @@ export function useCommonTaskEditorModel() {
     console.log('TaskData:', JSON.stringify(taskData, null, 2));
     
     try {
-      // 1. Body Params 스키마 기반으로 폼 컨텍스트 생성
+      // 1. Build the form context based on the Body Params schema
       const bodyParamsSchema = taskComponentData?.body_params?.properties || {};
       console.log('Body params schema:', JSON.stringify(bodyParamsSchema, null, 2));
       
-      // targetSoftwareModel 스키마 확인
+      // Check the targetSoftwareModel schema
       if (bodyParamsSchema.targetSoftwareModel) {
         console.log('✅ Found targetSoftwareModel in body_params schema');
         console.log('targetSoftwareModel schema:', JSON.stringify(bodyParamsSchema.targetSoftwareModel, null, 2));
@@ -2112,7 +2112,7 @@ export function useCommonTaskEditorModel() {
         console.log('⚠️ targetSoftwareModel not found in body_params schema');
         console.log('Available properties:', Object.keys(bodyParamsSchema));
         
-        // targetSoftwareModel이 없는 경우, 하드코딩된 스키마 사용
+        // When there is no targetSoftwareModel, use the hardcoded schema
         if (Object.keys(bodyParamsSchema).length === 0) {
           console.log('🔄 No body_params schema found, using hardcoded targetSoftwareModel schema');
           const hardcodedSchema = {
@@ -2200,21 +2200,21 @@ export function useCommonTaskEditorModel() {
             }
           };
           
-          // bodyParamsSchema를 하드코딩된 스키마로 교체
+          // Replace bodyParamsSchema with the hardcoded schema
           Object.assign(bodyParamsSchema, hardcodedSchema);
           console.log('✅ Applied hardcoded targetSoftwareModel schema');
         }
       }
       
       if (Object.keys(bodyParamsSchema).length > 0) {
-        // Case 1: 스키마가 있는 경우
+        // Case 1: When a schema exists
         console.log('✅ Case 1: Using existing body_params schema');
         
-        // taskData에서 body_params 데이터 추출
+        // Extract the body_params data from taskData
         let bodyParamsData = taskData?.request_body || taskData?.body_params || {};
         console.log('Body params data for context creation:', JSON.stringify(bodyParamsData, null, 2));
         
-        // request_body가 객체인 경우 그대로 사용, 문자열인 경우 파싱
+        // If request_body is an object, use it as is; if a string, parse it
         if (typeof bodyParamsData === 'string') {
           try {
             bodyParamsData = JSON.parse(bodyParamsData);
@@ -2225,7 +2225,7 @@ export function useCommonTaskEditorModel() {
           }
         }
         
-        // targetSoftwareModel이 있는지 확인
+        // Check whether targetSoftwareModel exists
         if (bodyParamsData.targetSoftwareModel) {
           console.log('✅ Found targetSoftwareModel in request_body data');
           console.log('targetSoftwareModel data:', JSON.stringify(bodyParamsData.targetSoftwareModel, null, 2));
@@ -2255,7 +2255,7 @@ export function useCommonTaskEditorModel() {
         console.log('Form context length after parseJsonSchema:', formContext.value.length);
         console.log('Form context types:', formContext.value.map(c => c.type));
         
-        // 데이터 매핑 수행
+        // Perform the data mapping
         console.log('=== Calling mapDataToFormContextOptimized ===');
         console.log('formContext.value length:', formContext.value.length);
         console.log('bodyParamsData:', bodyParamsData);
@@ -2264,12 +2264,12 @@ export function useCommonTaskEditorModel() {
         console.log('✅ Data mapping completed');
         console.log('Form context length after mapping:', formContext.value.length);
       } else {
-        // Case 2: 스키마가 없는 경우 - request_body를 파싱하여 스키마 추론
+        // Case 2: When there is no schema - parse request_body to infer the schema
         console.log('⚠️ Case 2: No body_params schema found, inferring from request_body');
         
         let bodyParamsData = {};
         try {
-          // request_body가 JSON 문자열인 경우 파싱
+          // If request_body is a JSON string, parse it
           if (typeof taskData?.request_body === 'string') {
             bodyParamsData = JSON.parse(taskData.request_body);
             console.log('✅ Parsed request_body JSON');
@@ -2298,12 +2298,12 @@ export function useCommonTaskEditorModel() {
         }
       }
 
-      // 2. Path Params 처리
+      // 2. Handle Path Params
       const pathParamsSchema = taskComponentData?.path_params;
       if (pathParamsSchema && Object.keys(pathParamsSchema).length > 0) {
         const pathParamsContexts = parsePathParams(pathParamsSchema);
         if (pathParamsContexts.length > 0) {
-          // paramsContext에 path_params 저장
+          // Store path_params in paramsContext
           if (!paramsContext.value) {
             paramsContext.value = {};
           }
@@ -2314,12 +2314,12 @@ export function useCommonTaskEditorModel() {
         }
       }
 
-      // 3. Query Params 처리
+      // 3. Handle Query Params
       const queryParamsSchema = taskComponentData?.query_params;
       if (queryParamsSchema && Object.keys(queryParamsSchema).length > 0) {
         const queryParamsContexts = parseQueryParams(queryParamsSchema);
         if (queryParamsContexts.length > 0) {
-          // paramsContext에 query_params 저장
+          // Store query_params in paramsContext
           if (!paramsContext.value) {
             paramsContext.value = {};
           }
@@ -2330,7 +2330,7 @@ export function useCommonTaskEditorModel() {
         }
       }
 
-      // 4. 데이터 매핑
+      // 4. Data mapping
       const parsedTaskData = typeof taskData === 'string' ? JSON.parse(taskData) : taskData;
       populateFormWithTaskComponentData(parsedTaskData, taskComponentData);
       
@@ -2341,7 +2341,7 @@ export function useCommonTaskEditorModel() {
   }
 
   /**
-   * 데이터만 사용한 초기화
+   * Initialization using only the data
    */
   function initializeWithDataOnly(taskData: any): void {
     console.log('=== initializeWithDataOnly START ===');
@@ -2349,14 +2349,14 @@ export function useCommonTaskEditorModel() {
     try {
       const parsedTaskData = typeof taskData === 'string' ? JSON.parse(taskData) : taskData;
       
-      // 데이터에서 스키마 생성
+      // Build the schema from the data
       const generatedSchema = generateSchemaFromData(parsedTaskData);
       console.log('Generated schema from data:', generatedSchema);
       
-      // 생성된 스키마로 폼 컨텍스트 생성
+      // Build the form context from the generated schema
       formContext.value = parseJsonSchema(generatedSchema);
       
-      // 기존 데이터로 폼 채우기
+      // Fill the form with existing data
       populateFormWithExistingData(parsedTaskData, '');
       
       console.log('✅ Data-only initialization completed');
@@ -2366,7 +2366,7 @@ export function useCommonTaskEditorModel() {
   }
 
   /**
-   * 스키마만 사용한 초기화
+   * Initialization using only the schema
    */
   function initializeWithSchemaOnly(taskComponentData: any): void {
     console.log('=== initializeWithSchemaOnly START ===');
@@ -2388,7 +2388,7 @@ export function useCommonTaskEditorModel() {
   }
 
   /**
-   * 기존 컨텍스트에 데이터 매핑
+   * Map the data onto the existing context
    */
   function mapDataToExistingContext(taskData: any, taskComponentData: any): void {
     console.log('=== mapDataToExistingContext START ===');
@@ -2439,22 +2439,22 @@ export function useCommonTaskEditorModel() {
     parseQueryParams,
     createAccordionSlot,
     createNestedObjectContext: () => {
-      // TODO: contextCreators에서 import 필요
+      // TODO: needs to be imported from contextCreators
     },
     createArrayContext: () => {
-      // TODO: contextCreators에서 import 필요
+      // TODO: needs to be imported from contextCreators
     },
     createInputContext: () => {
-      // TODO: contextCreators에서 import 필요
+      // TODO: needs to be imported from contextCreators
     },
     createSelectContext: () => {
-      // TODO: contextCreators에서 import 필요
+      // TODO: needs to be imported from contextCreators
     },
     createJsonInputContext: () => {
-      // TODO: contextCreators에서 import 필요
+      // TODO: needs to be imported from contextCreators
     },
     createUnknownTypeContext: () => {
-      // TODO: contextCreators에서 import 필요
+      // TODO: needs to be imported from contextCreators
     },
     initializeWithData,
     extractTaskComponentData,

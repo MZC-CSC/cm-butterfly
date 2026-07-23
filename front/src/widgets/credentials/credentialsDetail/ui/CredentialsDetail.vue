@@ -2,7 +2,7 @@
 <script setup lang="ts">
 import { onBeforeMount, watch } from 'vue';
 import { useCredentialsDetailModel } from '@/widgets/credentials/credentialsDetail/model/credentialsDetailModel';
-import { PDefinitionTable } from '@cloudforet-test/mirinae'; // PDefinitionTable 임포트
+import { PDefinitionTable } from '@cloudforet-test/mirinae'; // PDefinitionTable import
 
 interface IProps {
   selectedCredentialName: string | null;
@@ -21,33 +21,33 @@ const emit = defineEmits([
 const { setCredentialName, initTable, tableModel } =
   useCredentialsDetailModel();
 
-// 선택된 Credential Name 설정
+// Set the selected Credential Name
 setCredentialName(props.selectedCredentialName);
 
-// 테이블 초기화
+// Initialize the table
 onBeforeMount(() => {
   initTable();
 });
 
-// 선택된 Credential Name이 변경될 때마다 설정
+// Set it whenever the selected Credential Name changes
 watch(
   () => props.selectedCredentialName,
   newName => {
-    console.log('Credential Name이 변경', newName);
-    setCredentialName(newName); // 모달에서 사용
+    console.log('Credential Name changed', newName);
+    setCredentialName(newName); // used in the modal
   },
 );
 
-// JSON 보기 핸들러
+// JSON view handler
 function handleJsonModal() {
   emit('update:custom-view-json-modal', true);
   emit('update:credential-name', tableModel.tableState.data.credentialName);
 }
 
-// 추천 모델 보기 핸들러 (필요 시 구현)
+// Recommended model view handler (implement as needed)
 function handleRecommendedList() {
-  // 예시: emit('update:view-recommend-list-modal', true);
-  // 필요에 따라 로직 추가
+  // Example: emit('update:view-recommend-list-modal', true);
+  // Add logic as needed
 }
 </script>
 

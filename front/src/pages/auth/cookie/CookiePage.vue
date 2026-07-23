@@ -15,14 +15,14 @@ async function setServerCookie() {
 
 async function setClientCookie() {
   document.cookie =
-    'clientCookie=클라이언트에 대한 정보; path=/; max-age=3600; SameSite=None; Secure;';
+    'clientCookie=client information; path=/; max-age=3600; SameSite=None; Secure;';
   alert('Client cookie is set');
 }
 
 async function readCookies() {
   try {
     const res = await axiosInstance.get('/read-cookies');
-    console.log('서버에서 받은 쿠키들');
+    console.log('Cookies received from the server');
     console.log(res.data);
   } catch (error) {
     console.error(error);

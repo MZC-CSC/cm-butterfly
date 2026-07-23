@@ -1,18 +1,18 @@
 <template>
   <div class="json-data-table-example">
-    <h2 class="text-2xl font-bold mb-6">JSON 데이터 표 변환 예시</h2>
+    <h2 class="text-2xl font-bold mb-6">JSON Data Table Conversion Example</h2>
     
     <div class="mb-6">
-      <h3 class="text-lg font-semibold mb-3">마이그레이션 데이터 표시</h3>
+      <h3 class="text-lg font-semibold mb-3">Migration Data Display</h3>
       <JsonDataTable 
         :json-data="migrationData" 
         :use-migration-format="true"
-        :table-titles="['서버 정보', '바이너리', '컨테이너', 'Kubernetes', '패키지', '소프트웨어 모델']"
+        :table-titles="['Server Info', 'Binary', 'Container', 'Kubernetes', 'Package', 'Software Model']"
       />
     </div>
 
     <div class="mb-6">
-      <h3 class="text-lg font-semibold mb-3">일반 JSON 데이터 표시</h3>
+      <h3 class="text-lg font-semibold mb-3">General JSON Data Display</h3>
       <JsonDataTable 
         :json-data="generalData" 
         :use-migration-format="false"

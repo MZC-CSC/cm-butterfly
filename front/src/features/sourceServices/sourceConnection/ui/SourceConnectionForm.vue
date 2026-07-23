@@ -6,7 +6,14 @@ import {
   PPaneLayout,
   PI,
 } from '@cloudforet-test/mirinae';
-import { reactive, watchEffect } from 'vue';
+import { computed, reactive, watchEffect } from 'vue';
+// Import from the shared module so it follows the same rules as the import path.
+import {
+  isFilled,
+  isIpValid,
+  isPortValid,
+  CREDENTIAL_HINT,
+} from '@/shared/utils/connectionValidation';
 
 interface ConnectionInfo {
   id?: string;
@@ -23,13 +30,18 @@ interface Props {
   sourceConnection?: ConnectionInfo;
   mode?: 'create' | 'edit';
   showDeleteButton?: boolean;
-  readonly?: string[]; // readonly로 만들 필드 목록
+  readonly?: string[]; // list of fields to make readonly
+  // When editing an already-registered connection, these are the values stored
+  // on the server. They're only shown as placeholders (the inputs aren't filled),
+  // so they're never used in the payload.
+  existing?: Partial<ConnectionInfo> | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   mode: 'create',
   showDeleteButton: false,
   readonly: () => [],
+  existing: null,
   sourceConnection: () => ({
     name: '',
     description: '',
@@ -43,58 +55,94 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits(['delete', 'update:valid']);
 
+// Whether this is editing an already-registered connection. In that case the
+// inputs open empty, and only the fields the user actually types are validated
+// and sent. Fields left blank keep their existing values.
+const isExistingEdit = computed(
+  () => props.mode === 'edit' && !!props.existing,
+);
+
+const KEEP_HINT = 'Leave blank to keep the current value';
+
+const placeholderFor = (field: keyof ConnectionInfo, fallback: string) => {
+  if (!isExistingEdit.value) return fallback;
+  const current = props.existing?.[field];
+  // Credential fields come down encrypted from the server, so there's no plaintext to show.
+  return current !== undefined && current !== null && current !== ''
+    ? String(current)
+    : KEEP_HINT;
+};
+
 const invalidState = reactive({
   isIpAddressValid: false,
   isPortValid: false,
 });
 
-// 공통 Validation 로직
 watchEffect(() => {
-  if (!props.sourceConnection) {
-    console.log('[SourceConnectionForm] sourceConnection is null/undefined');
-    return;
+  const conn = props.sourceConnection;
+  if (!conn) return;
+
+  const ipFilled = isFilled(conn.ip_address);
+  const portFilled = isFilled(conn.ssh_port);
+
+  invalidState.isIpAddressValid = ipFilled && isIpValid(conn.ip_address);
+  invalidState.isPortValid = portFilled && isPortValid(conn.ssh_port);
+
+  let isValid: boolean;
+
+  if (isExistingEdit.value) {
+    // Only look at the fields the user typed. If nothing was entered there's
+    // nothing to change, so it's valid, and on save this row sends no request at all.
+    isValid =
+      (!ipFilled || invalidState.isIpAddressValid) &&
+      (!portFilled || invalidState.isPortValid);
+  } else {
+    // New registration keeps the existing rules — username required + either a password or a private key.
+    isValid = Boolean(
+      isFilled(conn.name) &&
+        invalidState.isIpAddressValid &&
+        invalidState.isPortValid &&
+        isFilled(conn.user) &&
+        (isFilled(conn.password) || isFilled(conn.private_key)),
+    );
   }
 
-  console.log(
-    '[SourceConnectionForm] watchEffect triggered, sourceConnection:',
-    {
-      name: props.sourceConnection.name,
-      ip_address: props.sourceConnection.ip_address,
-      ssh_port: props.sourceConnection.ssh_port,
-      user: props.sourceConnection.user,
-      password: props.sourceConnection.password,
-    },
-  );
-
-  invalidState.isIpAddressValid =
-    props.sourceConnection.ip_address === '' ||
-    !props.sourceConnection.ip_address.match(/^(\d{1,3}\.){3}\d{1,3}$/)
-      ? false
-      : true;
-
-  if (typeof Number(props.sourceConnection.ssh_port) === 'number') {
-    invalidState.isPortValid =
-      Number(props.sourceConnection.ssh_port) > 0 &&
-      Number(props.sourceConnection.ssh_port) < 65535
-        ? true
-        : false;
-  }
-
-  // 전체 validation 상태를 parent에 emit
-  const isValid =
-    props.sourceConnection.name &&
-    invalidState.isIpAddressValid &&
-    invalidState.isPortValid &&
-    props.sourceConnection.user &&
-    (props.sourceConnection.password || props.sourceConnection.private_key);
-
-  console.log('[SourceConnectionForm] validation result:', {
-    isValid,
-    invalidState,
-  });
-
-  emit('update:valid', !!isValid);
+  emit('update:valid', isValid);
 });
+
+// So untouched fields don't turn red, only show an error when a value is present.
+const showIpError = computed(
+  () =>
+    (isExistingEdit.value
+      ? isFilled(props.sourceConnection?.ip_address)
+      : true) && !invalidState.isIpAddressValid,
+);
+
+const showPortError = computed(
+  () =>
+    (isExistingEdit.value
+      ? isFilled(props.sourceConnection?.ssh_port)
+      : true) && !invalidState.isPortValid,
+);
+
+const showNameError = computed(
+  () => !isExistingEdit.value && !isFilled(props.sourceConnection?.name),
+);
+
+const showUserError = computed(
+  () => !isExistingEdit.value && !isFilled(props.sourceConnection?.user),
+);
+
+// Case where the credential combination isn't valid for a new registration.
+// The server rejects a password without a username, or a private key without a username.
+const showCredentialError = computed(
+  () =>
+    !isExistingEdit.value &&
+    !(
+      isFilled(props.sourceConnection?.password) ||
+      isFilled(props.sourceConnection?.private_key)
+    ),
+);
 
 const isFieldReadonly = (fieldName: string) => {
   return props.readonly.includes(fieldName);
@@ -109,63 +157,101 @@ const handleDelete = () => {
   <div class="source-connection-layout">
     <p-pane-layout class="source-connection-info">
       <div class="left-layer">
-        <p-field-group label="Source Connection Name" invalid required>
+        <p-field-group
+          label="Source Connection Name"
+          :invalid="showNameError"
+          :required="!isExistingEdit"
+        >
           <p-text-input
             v-model="sourceConnection.name"
-            placeholder="Source Connection Name"
-            :invalid="!sourceConnection.name"
+            data-testid="source-connection-name"
+            :placeholder="placeholderFor('name', 'Source Connection Name')"
+            :invalid="showNameError"
             :disabled="isFieldReadonly('name')"
           />
         </p-field-group>
         <p-field-group label="Description">
           <p-textarea
             v-model="sourceConnection.description"
+            data-testid="source-connection-description"
+            :placeholder="placeholderFor('description', '')"
             :disabled="isFieldReadonly('description')"
           />
         </p-field-group>
       </div>
       <div class="right-layer">
-        <p-field-group label="IP Address" invalid required>
+        <p-field-group
+          label="IP Address"
+          :invalid="showIpError"
+          :required="!isExistingEdit"
+        >
           <p-text-input
             v-model="sourceConnection.ip_address"
-            :invalid="!invalidState.isIpAddressValid"
-            placeholder="###.###.###.###"
+            data-testid="source-connection-ip"
+            :invalid="showIpError"
+            :placeholder="placeholderFor('ip_address', '###.###.###.###')"
             :disabled="isFieldReadonly('ip_address')"
           />
         </p-field-group>
-        <p-field-group label="Port (for SSH)" invalid required>
+        <p-field-group
+          label="Port (for SSH)"
+          :invalid="showPortError"
+          :required="!isExistingEdit"
+        >
           <p-text-input
             v-model="sourceConnection.ssh_port"
-            placeholder="1~65535"
-            :invalid="!invalidState.isPortValid"
+            data-testid="source-connection-ssh-port"
+            :placeholder="placeholderFor('ssh_port', '1~65535')"
+            :invalid="showPortError"
             :disabled="isFieldReadonly('ssh_port')"
           />
         </p-field-group>
-        <p-field-group label="User" invalid required>
+        <p-field-group
+          label="User"
+          :invalid="showUserError"
+          :required="!isExistingEdit"
+        >
           <p-text-input
             v-model="sourceConnection.user"
-            placeholder="User ID"
-            :invalid="!sourceConnection.user"
+            data-testid="source-connection-user"
+            :placeholder="isExistingEdit ? KEEP_HINT : 'User ID'"
+            :invalid="showUserError"
             :disabled="isFieldReadonly('user')"
           />
         </p-field-group>
-        <p-field-group label="Password">
+        <p-field-group
+          label="Password"
+          :invalid="showCredentialError"
+          :invalid-text="showCredentialError ? CREDENTIAL_HINT : ''"
+        >
           <p-text-input
             v-model="sourceConnection.password"
-            placeholder="Password"
+            data-testid="source-connection-password"
+            :placeholder="isExistingEdit ? KEEP_HINT : 'Password'"
+            :invalid="showCredentialError"
             :disabled="isFieldReadonly('password')"
           />
         </p-field-group>
-        <p-field-group class="private-key" label="Private Key">
+        <p-field-group
+          class="private-key"
+          label="Private Key"
+          :invalid="showCredentialError"
+        >
           <p-textarea
             v-model="sourceConnection.private_key"
+            data-testid="source-connection-private-key"
+            :placeholder="isExistingEdit ? KEEP_HINT : ''"
             :rows="5"
             :disabled="isFieldReadonly('private_key')"
           />
         </p-field-group>
       </div>
     </p-pane-layout>
-    <button v-if="showDeleteButton" @click="handleDelete">
+    <button
+      v-if="showDeleteButton"
+      data-testid="source-connection-remove-row"
+      @click="handleDelete"
+    >
       <p-i name="ic_close" />
     </button>
   </div>

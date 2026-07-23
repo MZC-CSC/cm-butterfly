@@ -11,6 +11,7 @@
       </label>
       <textarea
         v-if="fieldSchema.type === 'string' && shouldUseTextarea"
+        :data-testid="fieldTestId"
         :value="fieldValue || ''"
         @input="handleInput($event)"
         class="field-textarea"
@@ -19,6 +20,7 @@
       ></textarea>
       <input
         v-else-if="fieldSchema.type === 'string'"
+        :data-testid="fieldTestId"
         type="text"
         :value="fieldValue || ''"
         @input="handleInput($event)"
@@ -27,6 +29,7 @@
       />
       <input
         v-else-if="fieldSchema.type === 'number' || fieldSchema.type === 'integer'"
+        :data-testid="fieldTestId"
         type="number"
         :value="fieldValue || 0"
         @input="handleInput($event)"
@@ -35,6 +38,7 @@
       />
       <input
         v-else-if="fieldSchema.type === 'boolean'"
+        :data-testid="fieldTestId"
         type="checkbox"
         :checked="!!fieldValue"
         @change="handleInput($event)"
@@ -68,6 +72,7 @@
         <div v-if="isStringArray" class="string-array">
           <div v-for="(item, index) in arrayValue" :key="index" class="array-item">
             <input
+              :data-testid="arrayItemTestId(index)"
               type="text"
               :value="item"
               @input="updateArrayItem(index, $event)"
@@ -105,6 +110,7 @@
                 :parent-required="fieldSchema.items?.required || []"
                 :task-name="taskName"
                 :current-path="`${currentPath}[]`"
+                :index-path="childIndexPath(String(propName), index)"
                 @update="updateObjectArrayItemProperty(index, String(propName), $event)"
                 :depth="depth + 1"
               />
@@ -156,6 +162,7 @@
           :parent-required="fieldSchema.required || []"
           :task-name="taskName"
           :current-path="computedChildPath(propName)"
+          :index-path="childIndexPath(String(propName))"
           @update="updateObjectProperty(String(propName), $event)"
           :depth="depth + 1"
         />
@@ -196,7 +203,7 @@ export default defineComponent({
     },
     maxAutoExpandDepth: {
       type: Number,
-      default: 2  // 기본값: depth 2까지만 자동 펼침
+      default: 2  // default: auto-expand only up to depth 2
     },
     parentRequired: {
       type: Array,
@@ -209,28 +216,52 @@ export default defineComponent({
     currentPath: {
       type: String,
       default: ''
+    },
+    // Path used only to build test ids. It mirrors currentPath but keeps array indices, so every leaf
+    // gets a unique id. currentPath itself must stay index-free — the schema lookup keys off `foo[]`.
+    indexPath: {
+      type: String,
+      default: ''
     }
   },
   emits: ['update'],
   setup(props, { emit }) {
-    // Required 여부 확인
+    // Every leaf input gets a stable id built from its path in the schema, e.g.
+    // `wf-field-body_params.targetInfra.name`. The label text is the only other thing that identifies
+    // a field here, and label text changes; the path does not. Tests need to point at one specific
+    // field (the target infrastructure name, say) without guessing at wording or DOM position.
+    const fieldTestId = computed(() =>
+      `wf-field-${props.indexPath || props.currentPath || props.fieldName}`,
+    );
+
+    /** Child path for the test id, keeping the array index so siblings do not collide. */
+    const childIndexPath = (propName: string | number, arrayIndex?: number) => {
+      const base = props.indexPath || props.currentPath || props.fieldName;
+      return arrayIndex === undefined
+        ? `${base}.${propName}`
+        : `${base}[${arrayIndex}].${propName}`;
+    };
+    const arrayItemTestId = (arrayIndex: number) =>
+      `wf-field-${props.indexPath || props.currentPath || props.fieldName}[${arrayIndex}]`;
+
+    // Check whether required
     const isRequired = computed(() => {
       return props.parentRequired.includes(props.fieldName);
     });
-    // 🔥 깊이 기반 자동 접기 로직
+    // 🔥 Depth-based auto-collapse logic
     const shouldAutoCollapse = computed(() => {
       return props.depth >= props.maxAutoExpandDepth;
     });
 
-    // textarea 사용 여부 판단
+    // Decide whether to use a textarea
     const shouldUseTextarea = computed(() => {
       const taskComponent = props.stepProperties?.originalData?.task_component;
-      // cicada_task_script 또는 cicada_task_run_script 둘 다 지원
-      const isCicadaScriptTask = taskComponent === 'cicada_task_script' || 
+      // Support both cicada_task_script and cicada_task_run_script
+      const isCicadaScriptTask = taskComponent === 'cicada_task_script' ||
                                  taskComponent === 'cicada_task_run_script';
       const result = isCicadaScriptTask && props.fieldName === 'content';
-      
-      // 디버깅 로그
+
+      // Debug logging
       if (props.fieldName === 'content') {
         console.log('🔍 shouldUseTextarea check for content field:');
         console.log('   taskComponent:', taskComponent);
@@ -246,7 +277,7 @@ export default defineComponent({
     // Collapse states
     const isArrayCollapsed = ref(shouldAutoCollapse.value);
     const isObjectCollapsed = ref(shouldAutoCollapse.value);
-    const itemCollapsedStates = ref<Record<number, boolean>>({}); // Array item별 접기/펼치기 상태
+    const itemCollapsedStates = ref<Record<number, boolean>>({}); // Per-array-item collapse/expand state
     
     const isSimpleType = computed(() => {
       return ['string', 'number', 'integer', 'boolean'].includes(props.fieldSchema.type);
@@ -270,7 +301,7 @@ export default defineComponent({
       return {};
     });
 
-    // Property 순서 정렬 - Object properties
+    // Property ordering - Object properties
     const sortedPropertyNames = computed(() => {
       if (!props.fieldSchema.properties) return [];
       const keys = Object.keys(props.fieldSchema.properties);
@@ -281,7 +312,7 @@ export default defineComponent({
       return order ? sortPropertiesByOrder(keys, order) : keys;
     });
 
-    // Property 순서 정렬 - Array item properties
+    // Property ordering - Array item properties
     const sortedArrayItemPropertyNames = computed(() => {
       if (!props.fieldSchema.items?.properties) return [];
       const keys = Object.keys(props.fieldSchema.items.properties);
@@ -293,7 +324,7 @@ export default defineComponent({
       return order ? sortPropertiesByOrder(keys, order) : keys;
     });
 
-    // 자식 경로 계산
+    // Compute the child path
     const computedChildPath = (propName: string): string => {
       if (!props.currentPath) return propName;
       return `${props.currentPath}.${propName}`;
@@ -315,8 +346,8 @@ export default defineComponent({
     };
 
     /**
-     * Find data in stepProperties by matching field structure
-     * step.properties 구조에서 현재 필드 경로에 해당하는 실제 데이터를 찾습니다
+     * Find data in stepProperties by matching field structure.
+     * Locates the actual data for the current field path within step.properties.
      */
     const findDataInStepProperties = (fieldPath: string): any => {
       console.log('🔍 Finding data in stepProperties for path:', fieldPath);
@@ -324,7 +355,7 @@ export default defineComponent({
       
       if (!props.stepProperties) return null;
       
-      // step.properties.model 또는 step.properties.originalData.request_body에서 찾기
+      // Search in step.properties.model or step.properties.originalData.request_body
       const searchPaths = [
         props.stepProperties,
         (props.stepProperties as any)?.model,
@@ -335,7 +366,7 @@ export default defineComponent({
       for (const searchRoot of searchPaths) {
         if (!searchRoot) continue;
         
-        // 현재 fieldName으로 직접 찾기
+        // Look up directly by the current fieldName
         if (searchRoot[props.fieldName] !== undefined) {
           console.log('✅ Found data in stepProperties:', props.fieldName, '=', searchRoot[props.fieldName]);
           return searchRoot[props.fieldName];
@@ -361,7 +392,7 @@ export default defineComponent({
         // Object array - create object from schema with default values
         const newItem: any = {};
         
-        // 1. stepProperties에서 실제 데이터 찾기
+        // 1. Find the actual data in stepProperties
         const actualDataArray = findDataInStepProperties(props.fieldName);
         console.log('📊 Actual data from stepProperties:', actualDataArray);
         
@@ -369,7 +400,7 @@ export default defineComponent({
           Object.keys(props.fieldSchema.items.properties).forEach(key => {
             const propSchema = props.fieldSchema.items.properties[key];
             
-            // Priority 1: 실제 stepProperties 데이터에서 첫 번째 item의 값 사용
+            // Priority 1: use the first item's value from the actual stepProperties data
             if (Array.isArray(actualDataArray) && actualDataArray.length > 0 && 
                 actualDataArray[0][key] !== undefined) {
               if (propSchema.type === 'array') {
@@ -390,7 +421,7 @@ export default defineComponent({
               newItem[key] = propSchema.default;
               console.log(`   🔧 Property "${key}" from schema default:`, newItem[key]);
             }
-            // Priority 3: 현재 배열의 첫 번째 item에서 복사
+            // Priority 3: copy from the first item of the current array
             else if (arrayValue.value.length > 0 && arrayValue.value[0][key] !== undefined) {
               if (propSchema.type === 'array') {
                 newItem[key] = Array.isArray(arrayValue.value[0][key]) ? 
@@ -516,7 +547,7 @@ export default defineComponent({
       const currentState = isItemCollapsed(index);
       console.log(`🔄 Toggle Item ${index}: ${currentState} → ${!currentState}`);
       
-      // Vue 3 reactivity를 위해 새 객체 생성
+      // Create a new object for Vue 3 reactivity
       itemCollapsedStates.value = {
         ...itemCollapsedStates.value,
         [index]: !currentState
@@ -526,9 +557,9 @@ export default defineComponent({
     };
 
     const isItemCollapsed = (index: number): boolean => {
-      // 초기 상태가 없으면 깊이에 따라 결정
+      // If there's no initial state, decide based on depth
       if (itemCollapsedStates.value[index] === undefined) {
-        // depth가 maxAutoExpandDepth - 1 이상이면 item도 접기
+        // If depth >= maxAutoExpandDepth - 1, collapse the item too
         const initialState = props.depth >= props.maxAutoExpandDepth - 1;
         itemCollapsedStates.value = {
           ...itemCollapsedStates.value,
@@ -539,6 +570,9 @@ export default defineComponent({
     };
 
     return {
+      fieldTestId,
+      childIndexPath,
+      arrayItemTestId,
       isSimpleType,
       isStringArray,
       arrayValue,

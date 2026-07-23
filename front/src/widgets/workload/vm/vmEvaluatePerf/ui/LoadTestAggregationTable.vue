@@ -78,8 +78,8 @@ watch(
       .execute({
         queryParams: {
           nsId: nv.nsId,
-          mciId: nv.mciId,
-          vmId: nv.vmId,
+          infraId: nv.mciId,
+          nodeId: nv.vmId,
           format: 'aggregate',
         },
       })
@@ -96,8 +96,8 @@ watch(
           detailTableModel.tableState.data = [];
         }
       })
-      .catch(e => {
-        showErrorMessage('error', e.errorMsg.value);
+      .catch(() => {
+        // The query can fail when there are no load test results yet. Leave it empty instead of showing an error toast.
         detailTableModel.tableState.data = [];
       })
       .finally(() => {

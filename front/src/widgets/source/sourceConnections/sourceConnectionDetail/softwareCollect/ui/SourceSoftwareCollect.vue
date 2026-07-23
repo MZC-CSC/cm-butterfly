@@ -2,8 +2,10 @@
 import { PButton, PDefinitionTable, PStatus } from '@cloudforet-test/mirinae';
 import { onBeforeMount, watch } from 'vue';
 import { useSourceSoftwareCollectModel } from '@/widgets/source/sourceConnections/sourceConnectionDetail/softwareCollect/model/sourceSoftwareCollectModel';
-import { useCollectSW } from '@/entities/sourceConnection/api';
-import { showErrorMessage } from '@/shared/utils';
+import { useCollectSW, useGetSoftwareInfo } from '@/entities/sourceConnection/api';
+import { showErrorMessage,
+  toErrorMessage,
+} from '@/shared/utils';
 
 interface IProps {
   sourceGroupId: string | null;
@@ -25,6 +27,7 @@ const resCollectSW = useCollectSW({
   sgId: null,
   connId: null,
 });
+const resGetSoftwareInfo = useGetSoftwareInfo(null, null);
 
 watch(
   () => props.connectionId,
@@ -39,6 +42,8 @@ onBeforeMount(() => {
 });
 
 function handleClickCollectSW() {
+  // Collect the software (import-software), then load its structured JSON form
+  // (get-software-info) for the viewer's left "Meta" pane.
   resCollectSW
     .execute({
       pathParams: {
@@ -47,15 +52,29 @@ function handleClickCollectSW() {
       },
     })
     .then(res => {
-      if (res.data.responseData && props.connectionId) {
-        sourceConnectionStore.mapSourceConnectionCollectSWResponse(
-          res.data.responseData,
+      if (!res.data.responseData || !props.connectionId) return undefined;
+      sourceConnectionStore.mapSourceConnectionCollectSWResponse(
+        res.data.responseData,
+      );
+      loadInfraSWTableData(props.connectionId);
+      return resGetSoftwareInfo.execute({
+        pathParams: {
+          sgId: props.sourceGroupId,
+          connId: props.connectionId,
+        },
+      });
+    })
+    .then(infoRes => {
+      if (infoRes && infoRes.data.responseData && props.connectionId) {
+        sourceConnectionStore.setConnectionSoftwareModel(
+          props.connectionId,
+          infoRes.data.responseData,
         );
         loadInfraSWTableData(props.connectionId);
       }
     })
     .catch(e => {
-      if (e.errorMsg.value) showErrorMessage('Error', e.errorMsg.value);
+      showErrorMessage('Error', toErrorMessage(e, 'Failed to load collected software information.'));
     });
 }
 </script>
@@ -73,6 +92,7 @@ function handleClickCollectSW() {
       </template>
       <template #data-viewSW="{ data }">
         <p
+          data-testid="view-software-meta"
           class="text-blue-700 cursor-pointer"
           @click="emit('update:metaViewerModalState', true)"
         >
@@ -82,6 +102,7 @@ function handleClickCollectSW() {
       <template #extra="{ name }">
         <div v-if="name === 'collectSwStatus'">
           <p-button
+            data-testid="collect-software"
             style-type="tertiary"
             size="sm"
             :loading="resCollectSW.isLoading.value"

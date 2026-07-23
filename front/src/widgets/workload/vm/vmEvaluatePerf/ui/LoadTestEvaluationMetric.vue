@@ -37,8 +37,8 @@ function loadChart() {
     .execute({
       queryParams: {
         nsId: props.nsId,
-        mciId: props.mciId,
-        vmId: props.vmId,
+        infraId: props.mciId,
+        nodeId: props.vmId,
         format: 'normal',
       },
     })

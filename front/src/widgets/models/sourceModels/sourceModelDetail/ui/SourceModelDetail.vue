@@ -22,7 +22,7 @@ const { sourceModelStore, setSourceModelId, initTable, tableModel } =
 
 const sourceModelName = ref<string | undefined>('');
 const sourceModelDescription = ref<string | undefined>('');
-const recommendedModelList = ref<string>('infra'); // 문자열로 초기화
+const recommendedModelList = ref<string>('infra'); // Initialize as a string
 
 watchEffect(() => {
   sourceModelName.value = sourceModelStore.getSourceModelById(
@@ -65,7 +65,7 @@ onBeforeMount(() => {
 });
 
 function handleJsonModal() {
-  // 디버깅을 위한 로그 출력
+  // Log output for debugging
   const sourceModel = sourceModelStore.getSourceModelById(props.selectedSourceModelId);
   // console.log('=== SourceModelDetail Debug Info ===');
   // console.log('selectedSourceModelId:', props.selectedSourceModelId);
@@ -84,20 +84,20 @@ function handleJsonModal() {
 function handleRecommendedList() {
   const sourceModel = sourceModelStore.getSourceModelById(props.selectedSourceModelId);
   
-  // modelType을 기반으로 recommended model list 설정
+  // Set the recommended model list based on modelType
   if (sourceModel?.modelType === 'SoftwareModel') {
     recommendedModelList.value = 'software';
   } else {
-    // CloudModel, OnPremiseModel 또는 기본값
+    // CloudModel, OnPremiseModel, or the default
     recommendedModelList.value = 'infra';
   }
   
-  // 기존 호환성을 위한 fallback 로직
+  // Fallback logic for backward compatibility
   if (sourceModel?.migrationType === 'Software' || sourceModel?.isSoftwareModel) {
     recommendedModelList.value = 'software';
   }
   
-  // 테스트를 위한 임시 로직: 이름에 'sw'가 포함되어 있으면 software로 설정
+  // Temporary logic for testing: if the name contains 'sw', set it to software
   if (sourceModel?.userModelName && sourceModel.userModelName.toLowerCase().includes('sw')) {
     recommendedModelList.value = 'software';
   }
@@ -118,14 +118,22 @@ function handleRecommendedList() {
     >
       <!-- :disable-copy="true" -->
       <template #data-customAndViewJSON>
-        <p class="link-button-text" @click="handleJsonModal">
+        <p
+          class="link-button-text"
+          data-testid="source-detail-custom-view"
+          @click="handleJsonModal"
+        >
           Custom & View Source Model
         </p>
         <!-- <p-button style-type="transparent" @click="handleJsonModal">
         </p-button> -->
       </template>
       <template #data-recommendModel>
-        <p class="link-button-text" @click="handleRecommendedList">
+        <p
+          class="link-button-text"
+          data-testid="source-detail-view-recommend"
+          @click="handleRecommendedList"
+        >
           View Recommended List
         </p>
       </template>

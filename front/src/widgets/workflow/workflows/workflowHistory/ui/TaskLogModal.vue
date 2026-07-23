@@ -1,7 +1,13 @@
 <script setup lang="ts">
-import { PIconButton, PTextEditor, PSpinner, PButton } from '@cloudforet-test/mirinae';
+import {
+  PIconButton,
+  PTextEditor,
+  PSpinner,
+  PButton,
+} from '@cloudforet-test/mirinae';
 import { ITaskInstance } from '@/entities/workflow/model/types';
 import { useGetTaskLogs } from '@/entities/workflow/api/index';
+import { normalizeTaskLog } from '@/entities/workflow/lib/taskLog';
 import { ref, watch, computed } from 'vue';
 
 interface Props {
@@ -14,45 +20,21 @@ interface Props {
 const props = defineProps<Props>();
 const emit = defineEmits(['close']);
 
-// 로그 데이터 관리
+// Log data management
 const taskLogs = ref<any>(null);
 const logsLoading = ref(false);
 
-// 로그를 문자열로 변환
-const processedLogs = computed(() => {
-  if (!taskLogs.value) return '';
+// Normalize the log into a form that can be rendered on screen.
+// The log the engine returns isn't plain text but the entire execution-engine response
+// stringified, so rendering it as-is collapses it into one line with extra clutter around it.
+const processedLogs = computed(() => normalizeTaskLog(taskLogs.value));
 
-  let logContent = '';
-
-  // content 필드가 있는 객체인 경우
-  if (typeof taskLogs.value === 'object' && taskLogs.value.content) {
-    logContent = taskLogs.value.content;
-  }
-  // 이미 문자열인 경우
-  else if (typeof taskLogs.value === 'string') {
-    logContent = taskLogs.value;
-  }
-  // 그 외 객체인 경우 JSON으로 변환
-  else if (typeof taskLogs.value === 'object') {
-    try {
-      logContent = JSON.stringify(taskLogs.value, null, 2);
-    } catch (e) {
-      logContent = String(taskLogs.value);
-    }
-  } else {
-    logContent = String(taskLogs.value);
-  }
-
-  // 개행문자(\n)를 실제 줄바꿈으로 변환
-  return logContent.replace(/\\n/g, '\n');
-});
-
-// 모달 닫기
+// Close the modal
 const handleClose = () => {
   emit('close');
 };
 
-// 로그 데이터 로드
+// Load the log data
 const loadTaskLogs = async () => {
   if (!props.taskInstance || !props.workflowId || !props.workflowRunId) return;
 
@@ -78,7 +60,7 @@ const loadTaskLogs = async () => {
   }
 };
 
-// taskInstance 또는 모달이 열릴 때 로그 로드
+// Load logs when taskInstance changes or the modal opens
 watch(
   () => [props.taskInstance, props.isVisible] as const,
   ([taskInstance, isVisible]) => {
@@ -89,7 +71,7 @@ watch(
   { immediate: true },
 );
 
-// 로그 다운로드
+// Download the log
 const handleDownloadLog = () => {
   if (!props.taskInstance || !processedLogs.value) return;
 

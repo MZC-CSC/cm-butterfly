@@ -30,7 +30,7 @@ const shortCutModel = ref({
 const editorFormElement = ref(null);
 const jsonEditorRef = ref(null);
 
-// targetSoftwareModel을 JSON string으로 변환
+// convert targetSoftwareModel to a JSON string
 const softwareModelString = computed(() => {
   const targetModel = taskEditorModel.formContext.value?.find(
     ctx => ctx.type === 'targetSoftwareModel'
@@ -48,7 +48,7 @@ const softwareModelString = computed(() => {
   }
 });
 
-// JSON Editor 업데이트 핸들러
+// JSON Editor update handler
 function handleModelUpdate(value: string) {
   try {
     const parsed = JSON.parse(value);
@@ -64,7 +64,7 @@ function handleModelUpdate(value: string) {
   }
 }
 
-// 자동 전체 확장
+// auto expand all
 watch(
   () => taskEditorModel.formContext.value,
   () => {
@@ -76,9 +76,9 @@ watch(
 );
 
 onBeforeMount(() => {
-  // softwareModel 데이터 설정
+  // set softwareModel data
   if (props.step.properties.model) {
-    console.log('SoftwareModelEditor - Model 설정:', props.step.properties.model);
+    console.log('SoftwareModelEditor - set Model:', props.step.properties.model);
     taskEditorModel.setGrasshopperBodyParamsContext(props.step.properties.model);
   }
   
@@ -168,7 +168,7 @@ function handleClickOutside(event: MouseEvent) {
 }
 
 
-// Vue 2 호환 헬퍼 함수들
+// Vue 2 compatible helper functions
 function getFieldTitle(field: any) {
   try {
     if (field && field.context) {
@@ -202,7 +202,7 @@ function getFieldModel(field: any) {
   }
 }
 
-// EnhancedJsonEditor로 전환하여 더 이상 필요 없는 JsonDataFormTree 관련 함수 제거
+// switched to EnhancedJsonEditor; removed the now-unneeded JsonDataFormTree-related functions
 
 
 </script>
@@ -272,12 +272,12 @@ function getFieldModel(field: any) {
       </div>
     </div>
 
-    <!-- Target Software Model 최상위 -->
+    <!-- Target Software Model top level -->
     <div
       v-for="(currentContext, index) of taskEditorModel.formContext.value"
       :key="index"
     >
-      <!-- targetSoftwareModel 표시 -->
+      <!-- targetSoftwareModel display -->
       <div
         v-if="currentContext.type === 'targetSoftwareModel'"
         class="params-box w-full h-full"
@@ -286,7 +286,7 @@ function getFieldModel(field: any) {
           {{ currentContext.context.subject || 'Target Software Model' }}
         </div>
 
-        <!-- targetSoftwareModel은 EnhancedJsonEditor로 표시 -->
+        <!-- targetSoftwareModel is shown via EnhancedJsonEditor -->
         <div class="json-editor-wrapper">
           <EnhancedJsonEditor
             ref="jsonEditorRef"
@@ -297,6 +297,7 @@ function getFieldModel(field: any) {
             :navigation-bar="true"
             :status-bar="false"
             height="600px"
+            file-name="software-model"
             @update:modelValue="handleModelUpdate"
           />
         </div>
@@ -357,7 +358,7 @@ function getFieldModel(field: any) {
   @apply pr-[16px] pl-[16px] mt-[16px] h-[44px] flex justify-between items-center text-gray-500;
 }
 
-/* Target Software Model 전용 스타일 */
+/* styles specific to Target Software Model */
 .target-software-model-box {
   margin: 8px 0;
   padding: 8px;
@@ -366,7 +367,7 @@ function getFieldModel(field: any) {
   border-radius: 4px;
 }
 
-/* Migration List Accordion 전용 스타일 */
+/* styles specific to Migration List Accordion */
 .migration-list-accordion {
   margin: 8px 0;
   padding: 8px;
@@ -375,7 +376,7 @@ function getFieldModel(field: any) {
   border-radius: 4px;
 }
 
-/* Binaries Accordion 전용 스타일 */
+/* styles specific to Binaries Accordion */
 .binaries-accordion {
   margin: 8px 0;
   padding: 8px;
@@ -384,7 +385,7 @@ function getFieldModel(field: any) {
   border-radius: 4px;
 }
 
-/* Binary Sub Item 스타일 */
+/* Binary Sub Item styles */
 .binary-sub-item {
   margin: 8px 0;
   padding: 8px;
@@ -397,7 +398,7 @@ function getFieldModel(field: any) {
   margin-top: 8px;
 }
 
-/* Servers List 전용 스타일 */
+/* styles specific to Servers List */
 .servers-list-section {
   margin: 8px 0;
   padding: 8px;

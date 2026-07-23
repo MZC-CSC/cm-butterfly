@@ -5,8 +5,35 @@
         <h4>{{ headerTitle }}</h4>
       </div>
 
+      <!--
+        A parallel box does not take a name.
+
+        It marks a branch point, not a grouping, so there is nowhere for a name to
+        live — it isn't drawn on the canvas (the library draws no label for parallel
+        boxes), and on save, if it sits inside a group box it gets folded into the
+        outer group and the name is lost. With only an input field and nothing kept
+        anywhere, the user is left believing it was saved.
+
+        What you actually want to name is the *grouping*, and that's what a TaskGroup
+        handles — its label is drawn on the canvas too. Put the parallel box inside a
+        TaskGroup and that name becomes the name of the section.
+      -->
+      <div v-if="isLaunchPad" class="parallel-note">
+        <p>
+          Drop tasks side by side inside this step to add branches. They all
+          start at the same time, and whatever you place after this step waits
+          for every branch to finish.
+        </p>
+        <p>
+          There is nothing to fill in here — the split is all this step does.
+          Looking for a name field? A parallel step has nowhere to keep one. To
+          label this part of the workflow, wrap it in a TaskGroup; that name is
+          drawn on the canvas.
+        </p>
+      </div>
+
       <!-- Name Input -->
-      <div class="component-name-section">
+      <div v-else class="component-name-section">
         <div class="field-label">
           <span class="label-text">{{ nameLabel }}</span>
           <span class="required-indicator">*</span>
@@ -16,7 +43,7 @@
           v-model="containerName"
           @input="handleNameChange"
           class="component-name-input"
-          :class="{ 'invalid': !isNameValid }"
+          :class="{ invalid: !isNameValid }"
           placeholder="Enter name"
         />
         <span v-if="!isNameValid" class="error-message">
@@ -24,24 +51,26 @@
         </span>
       </div>
 
-      <!-- Description (Optional) -->
-      <div class="params-section">
+      <!-- Description (Optional) — omitted for parallel boxes for the same reason as the name -->
+      <div v-if="!isLaunchPad" class="params-section">
         <h5 class="params-title">Description (optional)</h5>
         <div class="params-content">
           <textarea
             v-model="description"
             @input="handleDescriptionChange"
             class="param-input"
-            style="min-height: 80px; resize: vertical;"
-            placeholder="설명을 입력하세요..."
+            style="min-height: 80px; resize: vertical"
+            placeholder="Enter a description..."
           />
         </div>
       </div>
 
-      <!-- Info Box -->
-      <div :style="infoBoxStyle">
-        <strong :style="{ color: iconColor }">{{ icon }} {{ infoTitle }}</strong>
-        <p style="margin-top: 8px; color: #424242; font-size: 13px;">
+      <!-- Info Box — omitted for parallel boxes since the note above already says the same thing -->
+      <div v-if="!isLaunchPad" :style="infoBoxStyle">
+        <strong :style="{ color: iconColor }"
+          >{{ icon }} {{ infoTitle }}</strong
+        >
+        <p style="margin-top: 8px; color: #424242; font-size: 13px">
           {{ infoDescription }}
         </p>
       </div>
@@ -71,29 +100,33 @@ export default defineComponent({
     const isNameValid = ref(true);
     const errorMessage = ref('');
 
-    // 동적 설정 (TaskGroup vs launchPad)
-    const isLaunchPad = computed(() => props.step.componentType === 'launchPad');
-
-    const headerTitle = computed(() => 
-      isLaunchPad.value ? 'Parrel Settings' : 'TaskGroup Settings'
+    // Dynamic settings (TaskGroup vs launchPad)
+    const isLaunchPad = computed(
+      () => props.step.componentType === 'launchPad',
     );
 
-    const nameLabel = computed(() => 
-      isLaunchPad.value ? 'Parrel Name' : 'TaskGroup Name'
+    const headerTitle = computed(() =>
+      isLaunchPad.value ? 'Parallel Settings' : 'TaskGroup Settings',
     );
 
-    const icon = computed(() => isLaunchPad.value ? '🚀' : '📦');
-
-    const iconColor = computed(() => isLaunchPad.value ? '#2e7d32' : '#1565c0');
-
-    const infoTitle = computed(() => 
-      isLaunchPad.value ? 'Parallel Execution' : 'Sequential Execution'
+    const nameLabel = computed(() =>
+      isLaunchPad.value ? 'Parallel Name' : 'TaskGroup Name',
     );
 
-    const infoDescription = computed(() => 
-      isLaunchPad.value 
-        ? '이 Parrel 내의 task들은 동시에 병렬 실행됩니다.' 
-        : '이 TaskGroup 내의 task들은 순차적으로 실행됩니다.'
+    const icon = computed(() => (isLaunchPad.value ? '🚀' : '📦'));
+
+    const iconColor = computed(() =>
+      isLaunchPad.value ? '#2e7d32' : '#1565c0',
+    );
+
+    const infoTitle = computed(() =>
+      isLaunchPad.value ? 'Parallel Execution' : 'Sequential Execution',
+    );
+
+    const infoDescription = computed(() =>
+      isLaunchPad.value
+        ? 'Tasks in this Parallel run concurrently in parallel.'
+        : 'Tasks in this TaskGroup run sequentially.',
     );
 
     const infoBoxStyle = computed(() => ({
@@ -111,16 +144,20 @@ export default defineComponent({
 
     function handleNameChange() {
       const newName = containerName.value.trim();
-      
-      // 빈 이름 체크
+
+      // Check for empty name
       if (!newName) {
         isNameValid.value = false;
         errorMessage.value = '⚠️ Name cannot be empty';
         return;
       }
-      
-      // 중복 체크 (재귀적으로 전체 workflow 검사)
-      function findDuplicateInSequence(sequence: any[], targetName: string, excludeId: string): boolean {
+
+      // Check for duplicates (recursively scan the whole workflow)
+      function findDuplicateInSequence(
+        sequence: any[],
+        targetName: string,
+        excludeId: string,
+      ): boolean {
         for (const s of sequence) {
           if (s.id !== excludeId && s.name === targetName) {
             return true;
@@ -133,13 +170,19 @@ export default defineComponent({
         }
         return false;
       }
-      
-      if (findDuplicateInSequence(props.definition.sequence, newName, props.step.id)) {
+
+      if (
+        findDuplicateInSequence(
+          props.definition.sequence,
+          newName,
+          props.step.id,
+        )
+      ) {
         isNameValid.value = false;
         errorMessage.value = `❌ Name "${newName}" already exists`;
         return;
       }
-      
+
       isNameValid.value = true;
       errorMessage.value = '';
       emit('saveComponentName', newName);
@@ -164,6 +207,7 @@ export default defineComponent({
       infoTitle,
       infoDescription,
       infoBoxStyle,
+      isLaunchPad,
       handleNameChange,
       handleDescriptionChange,
     };
@@ -174,6 +218,17 @@ export default defineComponent({
 <style scoped lang="postcss">
 .task-component-editor {
   @apply p-4 bg-white;
+}
+
+.parallel-note {
+  margin-bottom: 12px;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.parallel-note p + p {
+  margin-top: 10px;
 }
 
 .component-name-section {
@@ -236,4 +291,3 @@ export default defineComponent({
   @apply text-lg font-semibold text-gray-800;
 }
 </style>
-

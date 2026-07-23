@@ -1,23 +1,93 @@
 <script setup lang="ts">
 import { PTab, PButton } from '@cloudforet-test/mirinae';
-import { ref, reactive } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
+import { useRoute } from 'vue-router/composables';
 import {
   WorkflowList,
   WorkflowDetail,
   WorkflowJsonViewer,
   WorkflowHistory,
+  WorkflowRunViewer,
 } from '@/widgets/workflow';
 import { SimpleEditForm } from '@/widgets/layout';
-import { useGetWorkflow, useUpdateWorkflow } from '@/entities';
-import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
+import {
+  useGetWorkflow,
+  useUpdateWorkflow,
+  useWorkflowStore,
+} from '@/entities';
+import {
+  showErrorMessage,
+  showSuccessMessage,
+  toErrorMessage,
+} from '@/shared/utils';
 import WorkflowEditor from '@/features/workflow/workflowEditor/ui/WorkflowEditor.vue';
 
 const getWorkflow = useGetWorkflow(null);
 const updateWorkflow = useUpdateWorkflow(null, null);
+const workflowStore = useWorkflowStore();
+const route = useRoute();
 
 const pageName = 'Workflows';
 
+/**
+ * Clone from the run viewer and edit.
+ *
+ * When you want to change values and run again, *don't edit the original* — the engine does not
+ * return "the definition used for that run", so editing the original makes that workflow's past
+ * runs show wrong values on screen. Set the clone as selected and open it in the editor.
+ */
+function handleEditClone(clonedWorkflowId: string) {
+  // The viewer already put the clone in the store. Both the list and the editor render from the
+  // store, so there's no need to refetch the list here — refetching redraws the table and closes
+  // the editor we just opened.
+  selectedWorkflowId.value = clonedWorkflowId;
+  modalState.workflowToolModal.open = true;
+}
+
+/**
+ * Open an unrun original in the graphic editor (without cloning). With no run history, editing the original directly is fine.
+ */
+function handleEditOriginal(workflowId: string) {
+  selectedWorkflowId.value = workflowId;
+  modalState.workflowToolModal.open = true;
+}
+
+/**
+ * Open a workflow the graphic editor can't handle (because it's parallel) in the JSON editor.
+ * Original (unrun Edit) or clone (run Clone&Edit) — either way, pull the definition from the
+ * store by id and pass it to the JSON editor. (The viewer already put the clone in the store.)
+ */
+/** Open graphs the workflow tool can't move over as-is in the JSON editor */
+function handleEditJson(workflowId: string) {
+  selectedWorkflowId.value = workflowId;
+  const wf = workflowStore.getWorkflowById(workflowId);
+  workflowName.value = wf?.name ?? '';
+  workflowJson.value = wf?.data ?? {};
+  modalState.workflowJsonModal.open = true;
+}
+
+/**
+ * After saving, send to the run-status view. The usual next step after saving is *running*,
+ * and the status screen lets you go on to decide between running and editing.
+ */
+function handleSavedWorkflow(workflowId: string) {
+  if (workflowId) selectedWorkflowId.value = workflowId;
+  mainTabState.activeTab = 'runViewer';
+}
+
 const selectedWorkflowId = ref<string>('');
+
+/**
+ * When arriving after creating a workflow on another screen (the target model).
+ *
+ * The destination right after saving should be the same even from a different screen — that side
+ * can't switch tabs, so it passes which workflow via the query, and here we pick it and open the run status.
+ */
+onMounted(() => {
+  const wfId = route.query.wfId;
+  if (typeof wfId === 'string' && wfId) handleSavedWorkflow(wfId);
+});
+
 const workflowName = ref<string>('');
 const workflowJson = ref<object>({});
 const wfIdData = ref<object>({});
@@ -37,7 +107,9 @@ const modalState = reactive({
 });
 
 const mainTabState = reactive({
-  activeTab: 'details',
+  // When a workflow is selected, **show the run status first.** This is where running vs. editing
+  // is decided (the buttons differ by whether there is history), and the definition itself is shown as a graph below.
+  activeTab: 'runViewer',
   tabs: [
     {
       name: 'details',
@@ -46,6 +118,10 @@ const mainTabState = reactive({
     {
       name: 'history',
       label: 'History',
+    },
+    {
+      name: 'runViewer',
+      label: 'Run Status',
     },
   ],
 });
@@ -129,20 +205,19 @@ async function handleUpdateWorkflow(updatedData: object) {
       },
     });
 
-    if (
-      // data.responseData?.data.description !== '' &&
-      data.responseData?.data.task_groups !== null
-    ) {
+    // The response may arrive without the data wrapper, so read all the way down optionally.
+    // This used to throw and fall into the catch, which then showed a hardcoded, unrelated message.
+    if (data.responseData?.data?.task_groups != null) {
       modalState.addWorkflow.trigger = true;
-      showSuccessMessage('success', 'Workflow data updated successfully.');
+      showSuccessMessage('Success', 'Workflow data updated successfully.');
     } else {
       modalState.addWorkflow.trigger = true;
-      showErrorMessage('error', 'Workflow data cannot be null.');
+      showErrorMessage('Error', 'Workflow data cannot be null.');
     }
   } catch (error) {
     showErrorMessage(
-      'error',
-      'Failed to update the workflow. (Error:wrong dependency found in migrate_infra.infra_get (infra_impor111t))',
+      'Error',
+      toErrorMessage(error, 'Failed to update the workflow.'),
     );
   }
 }
@@ -151,7 +226,7 @@ async function handleUpdateWorkflow(updatedData: object) {
 <template>
   <div :class="`${pageName}-page page`">
     <header>
-      <p>{{ pageName }}</p>
+      <p data-testid="workflow-page-header">{{ pageName }}</p>
     </header>
     <section :class="`${pageName}-page-body`">
       <workflow-list
@@ -182,12 +257,6 @@ async function handleUpdateWorkflow(updatedData: object) {
             </div>
             <workflow-detail
               :selected-workflow-id="selectedWorkflowId"
-              @update:workflow-json-modal="
-                modalState.workflowJsonModal.open = true
-              "
-              @update:workflow-tool-modal="
-                e => (modalState.workflowToolModal.open = e)
-              "
               @update:workflow-name="e => (workflowName = e)"
               @update:workflow-json="e => (workflowJson = e)"
             />
@@ -197,6 +266,18 @@ async function handleUpdateWorkflow(updatedData: object) {
               <p>Workflow History</p>
             </div>
             <workflow-history :selected-workflow-id="selectedWorkflowId" />
+          </template>
+          <template #runViewer>
+            <div class="tab-section-header">
+              <p>Workflow Run Status</p>
+            </div>
+            <workflow-run-viewer
+              :workflow-id="selectedWorkflowId"
+              @edit-json="handleEditJson"
+              @view-json="handleEditJson"
+              @edit-clone="handleEditClone"
+              @edit-original="handleEditOriginal"
+            />
           </template>
         </p-tab>
       </div>
@@ -236,6 +317,7 @@ async function handleUpdateWorkflow(updatedData: object) {
         :wft-id="selectedWorkflowId"
         @update:close-modal="e => (modalState.workflowToolModal.open = e)"
         @update:trigger="modalState.addWorkflow.trigger = true"
+        @update:saved="handleSavedWorkflow"
       />
     </div>
   </div>

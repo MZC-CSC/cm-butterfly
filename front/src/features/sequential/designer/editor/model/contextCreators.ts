@@ -71,7 +71,7 @@ export interface NestedObjectContext {
 }
 
 /**
- * 컨텍스트 팩토리 함수
+ * Context factory function
  */
 export function createContextFactory(
   key: string,
@@ -99,7 +99,7 @@ export function createContextFactory(
 }
 
 /**
- * 배열 컨텍스트 생성
+ * Create array context
  */
 export function createArrayContext(
   key: string,
@@ -116,7 +116,7 @@ export function createArrayContext(
   });
 
   if (schema.items?.type === 'object') {
-    // 객체 배열인 경우 Accordion으로 표시
+    // Display an object array as an Accordion
     console.log(`Creating AccordionContext for object array ${key}`);
     return {
       type: 'accordion',
@@ -131,7 +131,7 @@ export function createArrayContext(
       schema,
     } as AccordionContext;
   } else {
-    // 기본 타입 배열인 경우
+    // Primitive-type array
     return {
       type: 'array',
       context: {
@@ -148,7 +148,7 @@ export function createArrayContext(
 }
 
 /**
- * 중첩 객체 컨텍스트 생성
+ * Create nested object context
  */
 export function createNestedObjectContext(
   key: string,
@@ -178,7 +178,7 @@ export function createNestedObjectContext(
 }
 
 /**
- * 입력 컨텍스트 생성
+ * Create input context
  */
 export function createInputContext(
   key: string,
@@ -210,7 +210,7 @@ export function createInputContext(
 }
 
 /**
- * 선택 컨텍스트 생성
+ * Create select context
  */
 export function createSelectContext(
   key: string,
@@ -242,7 +242,7 @@ export function createSelectContext(
 }
 
 /**
- * migration_list 컨텍스트 생성
+ * Create migration_list context
  */
 export function createMigrationListContext(
   key: string,
@@ -260,7 +260,7 @@ export function createMigrationListContext(
 
   const context = createNestedObjectContext(key, schema, path, isRequired, data);
   
-  // migration_list 내부 필드들 생성
+  // Create the fields inside migration_list
   if (schema.properties) {
     Object.keys(schema.properties).forEach(propertyName => {
       const propertySchema = schema.properties[propertyName];
@@ -288,7 +288,7 @@ export function createMigrationListContext(
 }
 
 /**
- * containers 배열 컨텍스트 생성
+ * Create containers array context
  */
 export function createContainersArrayContext(
   key: string,
@@ -306,7 +306,7 @@ export function createContainersArrayContext(
 
   const context = createArrayContext(key, schema, path, isRequired) as AccordionContext;
   
-  // containers 배열 아이템들 생성
+  // Create the containers array items
   if (data && Array.isArray(data)) {
     data.forEach((item, index) => {
       console.log(`Creating container item ${index}:`, item);

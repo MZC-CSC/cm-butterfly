@@ -16,7 +16,7 @@
     <div v-if="triggerDagId" class="field">
       <label class="field-label">Trigger Workflow (DAG)</label>
       <input class="text-input readonly" type="text" :value="triggerDagId" readonly />
-      <p class="hint">Task component에 고정된 트리거 대상 워크플로우입니다.</p>
+      <p class="hint">This is the trigger target workflow fixed on the task component.</p>
     </div>
 
     <div class="field">
@@ -29,7 +29,7 @@
         @input="onConf"
       ></textarea>
       <p v-if="error" class="error">{{ error }}</p>
-      <p v-else class="hint">트리거되는 워크플로우로 전달할 conf 객체 (선택).</p>
+      <p v-else class="hint">conf object to pass to the triggered workflow (optional).</p>
     </div>
   </div>
 </template>

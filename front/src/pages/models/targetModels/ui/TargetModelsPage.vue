@@ -8,6 +8,30 @@ import { reactive, ref, computed } from 'vue';
 import WorkflowEditor from '@/features/workflow/workflowEditor/ui/WorkflowEditor.vue';
 import { useTargetModelStore, useUpdateTargetModel } from '@/entities';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
+import { useRouter } from 'vue-router/composables';
+import { WORKFLOW_MANAGEMENT_ROUTE } from '@/app/providers/router/routes/constants';
+
+const router = useRouter();
+
+/**
+ * A workflow created here is also **sent to the execution-state view** once saved.
+ *
+ * It should land in the same place as saving from the workflow view — what you
+ * usually do after saving is *run* it, and whether to run or keep editing is
+ * decided on the execution-state screen. Previously, saving here only closed the
+ * editor and left you on the target-models screen, so **to get to the workflow
+ * you just created you had to navigate to the workflow list and pick it again.**
+ *
+ * Since the screens differ (target models vs. workflow) this is routing, not a
+ * tab switch, and which workflow is passed along as a query parameter.
+ */
+function handleSavedWorkflow(workflowId: string) {
+  modalStates.workflowEditorModal.open = false;
+  router.push({
+    name: WORKFLOW_MANAGEMENT_ROUTE.WORKFLOWS._NAME,
+    query: workflowId ? { wfId: workflowId } : {},
+  });
+}
 
 const pageName = 'Target Models';
 
@@ -20,31 +44,36 @@ const targetModelStore = useTargetModelStore();
 
 // Add computed property for targetModel
 const targetModelForWorkflow = computed(() => {
-  const model = targetModelStore.getTargetModelById(selectedTargetModelId.value);
+  const model = targetModelStore.getTargetModelById(
+    selectedTargetModelId.value,
+  );
   if (model) {
-    // modelType을 기반으로 migrationType 설정
-    let migrationType = 'infra'; // 기본값
-    
+    // Set migrationType based on modelType
+    let migrationType = 'infra'; // default
+
     if (model.modelType === 'SoftwareModel') {
       migrationType = 'software';
-    } else if (model.modelType === 'CloudModel' || model.modelType === 'OnPremiseModel') {
+    } else if (
+      model.modelType === 'CloudModel' ||
+      model.modelType === 'OnPremiseModel'
+    ) {
       migrationType = 'infra';
     }
-    
+
     const modelWithMigrationType = {
       ...model,
-      migrationType: migrationType
+      migrationType: migrationType,
     };
-    
+
     console.log('Passing targetModel to WorkflowEditor:', {
       selectedTargetModelId: selectedTargetModelId.value,
       model: modelWithMigrationType,
       modelType: model?.modelType,
       migrationType: migrationType,
       hasCloudInfraModel: !!model?.cloudInfraModel,
-      isCloudModel: model?.isCloudModel
+      isCloudModel: model?.isCloudModel,
     });
-    
+
     return modelWithMigrationType;
   }
   return model;
@@ -115,7 +144,7 @@ function handleUpdateTargetModel(e) {
     .then(res => {
       showSuccessMessage('success', 'Successfully updated target model');
       modalStates.editModelModal.trigger = true;
-      // 여기에 targetmodellist update trigger
+      // targetmodellist update trigger goes here
     })
     .catch(e => {
       showErrorMessage('error', e.errorMsg);
@@ -194,16 +223,17 @@ function handleUpdateTargetModel(e) {
       />
     </div>
     <div class="relative z-70">
-              <workflow-editor
-          v-if="modalStates.workflowEditorModal.open"
-          :target-model-name="targetModelName"
-          tool-type="add"
-          wft-id=""
-          :target-model="targetModelForWorkflow"
-          :migration-type="migrationTypeForWorkflow"
-          :recommended-model="targetModelForWorkflow"
-          @update:close-modal="modalStates.workflowEditorModal.open = false"
-        />
+      <workflow-editor
+        v-if="modalStates.workflowEditorModal.open"
+        :target-model-name="targetModelName"
+        tool-type="add"
+        wft-id=""
+        :target-model="targetModelForWorkflow"
+        :migration-type="migrationTypeForWorkflow"
+        :recommended-model="targetModelForWorkflow"
+        @update:close-modal="modalStates.workflowEditorModal.open = false"
+        @update:saved="handleSavedWorkflow"
+      />
     </div>
   </div>
 </template>

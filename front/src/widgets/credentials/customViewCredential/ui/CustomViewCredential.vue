@@ -10,7 +10,11 @@ import { reactive, ref, watch } from 'vue';
 import { IGetCredentialListResponse } from '@/entities/credentials/model/types';
 import { useConfigStore } from '@/entities/credentials/model/stores';
 import { useCreateCredentials } from '@/entities/credentials/api/index';
-import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
+import {
+  toErrorMessage,
+  showErrorMessage,
+  showSuccessMessage,
+} from '@/shared/utils';
 import { storeToRefs } from 'pinia';
 
 interface iProps {
@@ -50,8 +54,9 @@ watch(
   () => props.data,
   () => {
     targetModel.value = configStore.getConfigByName(props.data);
+    // Old-style assertions (<string>expr) break because the SFC parser reads them as JSX tags.
     serverCode.value =
-      <string>targetModel.value?.onpremiseInfraModel.servers || '';
+      (targetModel.value?.onpremiseInfraModel?.nodes as string) || '';
   },
   { immediate: true },
 );
@@ -107,13 +112,15 @@ const handleConfirm = async () => {
       emit('update:isModalOpened', false);
     }
   } catch (error) {
-    if (
-      (error as any).errorMsg.value ===
-      'constraint failed: UNIQUE constraint failed: source_groups.name (2067)'
-    ) {
-      showErrorMessage('failed', 'Service Name Already Exists');
-    }
-    showErrorMessage('failed', 'Service Registering Failed');
+    // This path is credential registration. A branch that caught duplicate source
+    // group name errors had been copied here, but it could never occur here, and the
+    // notice after the conditional ran unconditionally, so the notice showed twice.
+    // The value extraction had no guard either, so if a different kind of error came
+    // in, it blew up again inside the error handling.
+    showErrorMessage(
+      'failed',
+      toErrorMessage(error, 'Credential Registering Failed'),
+    );
   }
 };
 </script>
@@ -124,6 +131,7 @@ const handleConfirm = async () => {
       :visible="true"
       header-title="Add Credential"
       size="md"
+      data-testid="credential-modal"
       :loading="resCreateCredential.isLoading.value"
       @close="handleCancel"
       @cancel="handleCancel"
@@ -152,7 +160,9 @@ const handleConfirm = async () => {
         <span>{{ i18n.t('COMPONENT.BUTTON_MODAL.CANCEL') }}</span>
       </template>
       <template #confirm-button>
-        <span>{{ i18n.t('COMPONENT.BUTTON_MODAL.ADD') }}</span>
+        <span data-testid="credential-modal-confirm">{{
+          i18n.t('COMPONENT.BUTTON_MODAL.ADD')
+        }}</span>
       </template>
     </p-button-modal>
   </div>

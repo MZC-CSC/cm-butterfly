@@ -91,12 +91,21 @@ export function useVmInformationModel() {
     }
   }
 
+  // Map the load-test run status (cm-ant) to user-friendly labels — running/collecting/done/failed at a glance.
+  const LOADTEST_STATUS_LABEL: Record<string, string> = {
+    on_processing: 'Running',
+    on_fetching: 'Collecting results',
+    successed: 'Completed',
+    test_failed: 'Failed',
+  };
+
   function mappdingLoadConfigStatus(executionStatus: string) {
     if (targetVmId.value) {
       detailTableModel.tableState.loading = true;
       detailTableModel.tableState.data = setDefineTableData(targetVmId.value);
       detailTableModel.tableState.loading = false;
-      detailTableModel.tableState.data.loadStatus = executionStatus;
+      detailTableModel.tableState.data.loadStatus =
+        LOADTEST_STATUS_LABEL[executionStatus] ?? executionStatus;
     }
   }
 

@@ -38,7 +38,7 @@ export default {
       return this.field.context?.values?.length > 0 && 
              this.field.context.values[0].content?.[0]?.context?.title === 'value';
     },
-    // depth 5가 object이고 depth 6이 string인 경우 감지
+    // Detect the case where depth 5 is an object and depth 6 is a string
     isObjectWithStringChildren() {
       return this.currentDepth === 5 && 
              this.field.type === 'nestedObject' &&
@@ -54,7 +54,7 @@ export default {
 
 <template>
   <div class="field-group-vertical">
-    <!-- InputContext인 경우 -->
+    <!-- InputContext case -->
     <div v-if="field.type === 'input'" class="field-group flex">
       <div class="field-row">
         <div class="field-title-box">
@@ -74,7 +74,7 @@ export default {
       </div>
     </div>
     
-    <!-- ArrayContext인 경우 -->
+    <!-- ArrayContext case -->
     <div v-else-if="field.type === 'array'" class="field-group-vertical">
       <div class="field-title-box">
         {{ field.context.subject }}
@@ -94,13 +94,13 @@ export default {
       </div>
     </div>
     
-    <!-- NestedObjectContext인 경우 -->
+    <!-- NestedObjectContext case -->
     <div v-else-if="field.type === 'nestedObject'" class="field-group-vertical">
       <div class="field-title-box">
         {{ field.context.subject }}
       </div>
       <div class="field-content-box">
-        <!-- depth 5가 object이고 depth 6이 string인 경우 Accordion 사용 -->
+        <!-- Use Accordion when depth 5 is an object and depth 6 is a string -->
         <div v-if="isObjectWithStringChildren" class="accordion-container">
           <ObjectAccordion
             :items="[{
@@ -113,7 +113,7 @@ export default {
             class="accordion-box"
           />
         </div>
-        <!-- 일반적인 경우 DepthField 재귀 호출 -->
+        <!-- General case: recursive DepthField call -->
         <div v-else>
           <div 
             v-for="(nestedField, nestedIndex) of field.context.values" 
@@ -130,25 +130,25 @@ export default {
       </div>
     </div>
     
-    <!-- AccordionContext인 경우 (depth 5 배열) -->
+    <!-- AccordionContext case (depth 5 array) -->
     <div v-else-if="field.type === 'accordion'" class="field-group-vertical">
       <div class="field-title-box">
         {{ field.context.subject }}
       </div>
       <div class="field-content-box">
-        <!-- 배열의 첫 번째 요소가 객체인 경우 ObjectArrayAccordion 사용 -->
+        <!-- Use ObjectArrayAccordion when the array's first element is an object -->
         <ObjectArrayAccordion
           v-if="isObjectArray"
           :items="field.context.values"
           class="accordion-box"
         />
-        <!-- 배열의 첫 번째 요소가 문자열인 경우 StringArrayAccordion 사용 -->
+        <!-- Use StringArrayAccordion when the array's first element is a string -->
         <StringArrayAccordion
           v-else-if="isStringArray"
           :items="field.context.values"
           class="accordion-box"
         />
-        <!-- 기본적으로 ObjectAccordion 사용 -->
+        <!-- Use ObjectAccordion by default -->
         <ObjectAccordion
           v-else
           :items="field.context.values"

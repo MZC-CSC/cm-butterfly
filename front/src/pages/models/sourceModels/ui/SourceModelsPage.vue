@@ -14,7 +14,7 @@ const pageName = 'Source Models';
 
 const selectedSourceModelId = ref<string>('');
 const sourceModelName = ref<string>('');
-const recommendedModelList = ref<string>('infra'); // 추가: recommended model list type
+const recommendedModelList = ref<string>('infra'); // added: recommended model list type
 const sourceModelStore = useSourceModelStore();
 const resUpdateSourceModel = useUpdateSourceModel(null, null);
 const sourceModel = computed(() =>

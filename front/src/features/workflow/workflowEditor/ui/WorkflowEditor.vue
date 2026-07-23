@@ -4,6 +4,7 @@ import {
   PButton,
   PFieldGroup,
   PSelectDropdown,
+  PSpinner,
   PTextInput,
 } from '@cloudforet-test/mirinae';
 import { useWorkflowToolModel } from '@/features/workflow/workflowEditor/model/workflowEditorModel';
@@ -19,7 +20,13 @@ import {
   useUpdateWorkflowV2,
 } from '@/entities';
 import { Designer } from 'sequential-workflow-designer';
-import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
+import { DOC_LINKS, openDocLink } from '@/shared/constants/docLinks';
+import {
+  showErrorMessage,
+  showInfoMessage,
+  showSuccessMessage,
+  toErrorMessage,
+} from '@/shared/utils';
 import {
   getTaskComponentList,
   ITaskComponentInfoResponse,
@@ -29,6 +36,7 @@ import { parseRequestBody } from '@/shared/utils/stringToObject';
 import SequentialDesigner from '@/features/sequential/designer/ui/SequentialDesigner.vue';
 import { DEFAULT_NAMESPACE } from '@/shared/constants/namespace';
 import { normalizeTaskComponentList } from '@/entities/workflow/lib/schemaAdapter';
+import { hasWorkflowRunHistory } from '@/entities/workflow/lib/workflowRunHistory';
 import { useTaskSchemaLoader } from '@/features/sequential/designer/editor/composables/useTaskSchemaLoader';
 
 interface IProps {
@@ -40,7 +48,11 @@ interface IProps {
 }
 
 const props = defineProps<IProps>();
-const emit = defineEmits(['update:close-modal', 'update:trigger']);
+const emit = defineEmits([
+  'update:close-modal',
+  'update:trigger',
+  'update:saved',
+]);
 
 const workflowToolModel = useWorkflowToolModel();
 const workflowName = useInputModel<string>('');
@@ -49,8 +61,8 @@ const workflowData = ref<IWorkflow>();
 const sequentialSequence: Ref<Step[]> = ref<Step[]>([]);
 
 // Task schema loader
-const { loadTaskSchemasFromResponse, loadAllTaskSchemas, isSchemaLoaded } = useTaskSchemaLoader();
-
+const { loadTaskSchemasFromResponse, loadAllTaskSchemas, isSchemaLoaded } =
+  useTaskSchemaLoader();
 
 const resWorkflowTemplateData = useGetWorkflowTemplateList();
 const resTaskComponentList = getTaskComponentList();
@@ -59,6 +71,54 @@ const resAddWorkFlow = useCreateWorkflow(null);
 const loading = ref<boolean>(true);
 
 const trigger = reactive({ value: false });
+/**
+ * On when the editor cannot draw this workflow's execution graph as-is.
+ * In that case, instead of showing a blank screen, it records the reason and blocks saving —
+ * because saving something it could not draw would change the execution order.
+ */
+const isUneditable = ref(false);
+const loadWarnings = ref<string[]>([]);
+
+/**
+ * On when this workflow has been run before and therefore cannot be edited.
+ *
+ * The normal path never reaches here — the detail screen and the run viewer look at the run
+ * history and send it to the run state. This is a **safety net that stays intact even if some
+ * other entry path is added later**, and when it does open, it shows the workflow but prevents edits.
+ */
+const isRunLocked = ref(false);
+
+/**
+ * State where the workflow has not been read yet.
+ *
+ * A freshly created workflow has a brief window where the engine cannot read it from Airflow
+ * (about 5s measured on the dev server, `get-workflow` returns 400). During that window the query
+ * comes back empty, and **left as-is a blank canvas appears silently** — it looks like a workflow
+ * with no tasks, and saving in that state wipes the content.
+ *
+ * So we wait until it can be read before drawing, and note on screen what we are waiting for.
+ * (The path that comes to the editor right after cloning draws immediately because the clone
+ * response is already in the cache.)
+ */
+const workflowLoadState = ref<'ok' | 'waiting' | 'failed'>('ok');
+
+const WORKFLOW_READY_INTERVAL_MS = 2000;
+const WORKFLOW_READY_TIMEOUT_MS = 60000;
+
+async function fetchWorkflowForEdit() {
+  const deadline = Date.now() + WORKFLOW_READY_TIMEOUT_MS;
+  for (;;) {
+    const found = await workflowToolModel.workflowStore.ensureWorkflowById(
+      props.wftId,
+    );
+    if (found) return found;
+    if (Date.now() + WORKFLOW_READY_INTERVAL_MS > deadline) return undefined;
+    workflowLoadState.value = 'waiting';
+    await new Promise(resolve =>
+      setTimeout(resolve, WORKFLOW_READY_INTERVAL_MS),
+    );
+  }
+}
 
 console.log(props);
 
@@ -67,8 +127,8 @@ onBeforeMount(function () {
     resWorkflowTemplateData.execute(),
     resTaskComponentList.execute(),
   ]).then(res => {
-    // cm-cicada Type/Spec 응답을 디자이너가 소비하는 legacy 형태로 정규화 (in place).
-    // 팔레트/캔버스/템플릿 로드가 모두 이 배열을 참조하므로 여기서 한 번 변환한다.
+    // Normalize the cm-cicada Type/Spec response into the legacy shape the designer consumes (in place).
+    // Palette/canvas/template loading all reference this array, so convert it once here.
     normalizeTaskComponentList(res[1].data.responseData);
 
     workflowToolModel.workflowStore.setWorkflowTemplates(
@@ -76,12 +136,11 @@ onBeforeMount(function () {
     );
 
     // cicada_task_run_script is now included in API response
-    // cicada_task_run_script는 이제 API 응답에 포함됨
     workflowToolModel.setTaskComponent(res[1].data.responseData);
     workflowToolModel.setDropDownData(
       workflowToolModel.workflowStore.workflowTemplates,
     );
-    
+
     if (props.targetModel) {
       console.log('TargetModel received:', props.targetModel);
       console.log('TargetModel type check:', {
@@ -90,116 +149,96 @@ onBeforeMount(function () {
         isCloudModel: props.targetModel.isCloudModel,
         csp: props.targetModel.csp,
         region: props.targetModel.region,
-        zone: props.targetModel.zone
+        zone: props.targetModel.zone,
       });
-      
-      // Determine if this is infra or software model based on migrationType
-      // Note: migrationType should be passed from the parent component
-      // For now, fallback to the existing logic if migrationType is not available
-      let isInfraModel = false;
-      let isSoftwareModel = false;
-      
-      // Check if migrationType is available (this should be passed from parent)
-      if (props.targetModel.migrationType) {
-        isInfraModel = props.targetModel.migrationType === 'infra';
-        isSoftwareModel = props.targetModel.migrationType === 'software';
-        console.log('Using migrationType for classification:', {
-          migrationType: props.targetModel.migrationType,
-          isInfraModel,
-          isSoftwareModel
-        });
+
+      // ── Target model flow: load the template, but fill the migration task body with the target
+      // model's literal value and put the selected target model id into the preceding lookup task (P0) ──
+      //
+      // The cm-cicada v0.5.1 migration template splits into two migration tasks:
+      //   ① damselfly lookup task (looks up the target model at run time via path_params.id)
+      //   ② migration task (beetle/grasshopper) — whose body is a "①.result" reference.
+      // The console already holds a completed target model, and the user needs to edit values in the
+      // right-hand table, so we fill ②'s body directly with the target model's literal value rather
+      // than a reference (the engine's literal mode sends it straight to the target API —
+      // docs/task-response-passing.md). We put the selected target model id into ① so it succeeds as-is
+      // (since ② is literal, ①'s result is not used, but the template structure requires ① to succeed
+      // for the run to complete). The actual injection happens at the end of loadSequence() right after
+      // the sequence is built.
+      //
+      // Previously this built a 'single literal task' via mapTargetModelToTaskComponent() while at the
+      // same time async-loading the template via load(), so load() later overwrote that single task (a race).
+      // The result was a saved multi-task template with the reference body intact, which the console
+      // collapsed to {}/a skeleton.
+      const migrationType =
+        props.targetModel.migrationType ||
+        (props.targetModel.cloudInfraModel ? 'infra' : 'software');
+      const templateName =
+        migrationType === 'software'
+          ? 'migrate_software_workflow'
+          : 'migrate_infra_workflow';
+      const migrationTemplate =
+        workflowToolModel.workflowStore.workflowTemplates.find(
+          template => template.name === templateName,
+        );
+      if (migrationTemplate) {
+        workflowToolModel.dropDownModel.selectedItemId = migrationTemplate.id;
       } else {
-        // Fallback to existing logic based on cloudInfraModel
-        isInfraModel = !!props.targetModel.cloudInfraModel && props.targetModel.isCloudModel;
-        isSoftwareModel = !props.targetModel.cloudInfraModel && props.targetModel.isCloudModel;
-        console.log('Using fallback logic (cloudInfraModel) for classification:', {
-          isInfraModel,
-          isSoftwareModel
-        });
+        console.warn(`${templateName} template not found`);
       }
-      
-      console.log('Final model classification:', {
-        isInfraModel,
-        isSoftwareModel
-      });
-      
-      if (isInfraModel) {
-        // Select migrate_infra_workflow template
-        const infraTemplate = workflowToolModel.workflowStore.workflowTemplates.find(
-          template => template.name === 'migrate_infra_workflow'
-        );
-        if (infraTemplate) {
-          workflowToolModel.dropDownModel.selectedItemId = infraTemplate.id;
-          console.log('Selected infra workflow template:', infraTemplate);
-        } else {
-          console.warn('migrate_infra_workflow template not found');
-        }
-      } else if (isSoftwareModel) {
-        // Select migrate_software_workflow template
-        const softwareTemplate = workflowToolModel.workflowStore.workflowTemplates.find(
-          template => template.name === 'migrate_software_workflow'
-        );
-        if (softwareTemplate) {
-          workflowToolModel.dropDownModel.selectedItemId = softwareTemplate.id;
-          console.log('Selected software workflow template:', softwareTemplate);
-        } else {
-          console.warn('migrate_software_workflow template not found');
-        }
-      }
-      
-      // Load workflow after template selection
+      // Load template → build sequence → (at the end of loadSequence) inject the target model.
       load();
-      
-      mapTargetModelToTaskComponent(
-        props.targetModel,
-        workflowToolModel.taskComponentList,
-      );
     } else if (props.toolType === 'add') {
       // For add mode, use recommendedModel from props
       console.log('Add mode detected, using recommendedModel from props...');
-      
+
       // Determine migrationType from props or default to 'infra'
       const migrationType = props.migrationType || 'infra';
-      
+
       // Select appropriate workflow template based on migrationType
       if (migrationType === 'infra') {
-        const infraTemplate = workflowToolModel.workflowStore.workflowTemplates.find(
-          template => template.name === 'migrate_infra_workflow'
-        );
+        const infraTemplate =
+          workflowToolModel.workflowStore.workflowTemplates.find(
+            template => template.name === 'migrate_infra_workflow',
+          );
         if (infraTemplate) {
           workflowToolModel.dropDownModel.selectedItemId = infraTemplate.id;
           console.log('Selected infra workflow template:', infraTemplate);
         }
       } else if (migrationType === 'software') {
-        const softwareTemplate = workflowToolModel.workflowStore.workflowTemplates.find(
-          template => template.name === 'migrate_software_workflow'
-        );
+        const softwareTemplate =
+          workflowToolModel.workflowStore.workflowTemplates.find(
+            template => template.name === 'migrate_software_workflow',
+          );
         if (softwareTemplate) {
           workflowToolModel.dropDownModel.selectedItemId = softwareTemplate.id;
           console.log('Selected software workflow template:', softwareTemplate);
         }
       }
-      
+
       if (props.recommendedModel) {
         console.log('RecommendedModel received:', props.recommendedModel);
-        
+
         // Add migrationType to the recommended model
         const modelWithMigrationType = {
           ...props.recommendedModel,
-          migrationType: migrationType
+          migrationType: migrationType,
         };
-        
+
         console.log('Using recommended model with migrationType:', {
           recommendedModel: modelWithMigrationType,
-          migrationType
+          migrationType,
         });
-        
+
         // Create task based on migrationType
-        createTaskForModel(modelWithMigrationType, workflowToolModel.taskComponentList);
+        createTaskForModel(
+          modelWithMigrationType,
+          workflowToolModel.taskComponentList,
+        );
       } else {
         console.warn('No recommendedModel provided for add mode');
       }
-      
+
       // Load workflow after template selection
       load();
     } else {
@@ -208,34 +247,38 @@ onBeforeMount(function () {
     }
   });
 });
-// resTaskComponentList가 로드된 후 task schema 로드
-watch(() => resTaskComponentList.data, async (newData) => {
-  if (!isSchemaLoaded.value && newData) {
-    try {
-      console.log('Loading task schemas from resTaskComponentList data...');
-      console.log('resTaskComponentList.data:', newData);
-      
-      // API 응답 구조 확인
-      if ((newData as any).responseData) {
-        console.log('Using resTaskComponentList.data.responseData');
-        loadTaskSchemasFromResponse(newData as any);
-      } else if ((newData as any).value?.responseData) {
-        console.log('Using resTaskComponentList.data.value.responseData');
-        loadTaskSchemasFromResponse((newData as any).value);
-      } else {
-        console.log('Unexpected data structure, calling API...');
-        await loadAllTaskSchemas();
+// Load task schemas after resTaskComponentList has loaded
+watch(
+  () => resTaskComponentList.data,
+  async newData => {
+    if (!isSchemaLoaded.value && newData) {
+      try {
+        console.log('Loading task schemas from resTaskComponentList data...');
+        console.log('resTaskComponentList.data:', newData);
+
+        // Check the API response structure
+        if ((newData as any).responseData) {
+          console.log('Using resTaskComponentList.data.responseData');
+          loadTaskSchemasFromResponse(newData as any);
+        } else if ((newData as any).value?.responseData) {
+          console.log('Using resTaskComponentList.data.value.responseData');
+          loadTaskSchemasFromResponse((newData as any).value);
+        } else {
+          console.log('Unexpected data structure, calling API...');
+          await loadAllTaskSchemas();
+        }
+
+        console.log('Task schemas loaded successfully in WorkflowEditor');
+      } catch (error) {
+        console.error('Failed to load task schemas in WorkflowEditor:', error);
       }
-      
-      console.log('Task schemas loaded successfully in WorkflowEditor');
-    } catch (error) {
-      console.error('Failed to load task schemas in WorkflowEditor:', error);
     }
-  }
-}, { immediate: true });
+  },
+  { immediate: true },
+);
 
 onMounted(async () => {
-  // Task schema가 아직 로드되지 않았다면 API 호출
+  // If the task schema has not been loaded yet, call the API
   if (!isSchemaLoaded.value) {
     try {
       console.log('No existing data, calling API...');
@@ -247,21 +290,19 @@ onMounted(async () => {
   }
 });
 
-function load() {
+async function load() {
   loading.value = true;
-  
+
   // Only load workflow if no targetModel or if targetModel template selection is already done
   if (!props.targetModel || workflowToolModel.dropDownModel.selectedItemId) {
-    loadWorkflow();
+    await loadWorkflow();
     loadSequence();
-    // reorderingSequence();  // Temporarily disabled - TaskGroups should stay flat
-    console.log('⚠️  Reordering skipped - TaskGroups loaded as flat structure');
   }
-  
+
   loading.value = false;
 }
 
-/** targetModel에서 진입시 targetModel의 특정 정보를 가지고 있어야한다는 요구사항에 의한 함수 */
+/** Function driven by the requirement that entering from a targetModel must carry specific targetModel information */
 function mapTargetModelToTaskComponent(
   targetModel: ITargetModelResponse,
   taskComponentList: Array<ITaskComponentInfoResponse>,
@@ -269,7 +310,7 @@ function mapTargetModelToTaskComponent(
   // Determine if this is infra or software model based on migrationType
   let isInfraModel = false;
   let isSoftwareModel = false;
-  
+
   // Check if migrationType is available
   if (targetModel.migrationType) {
     isInfraModel = targetModel.migrationType === 'infra';
@@ -277,7 +318,7 @@ function mapTargetModelToTaskComponent(
     console.log('mapTargetModelToTaskComponent - Using migrationType:', {
       migrationType: targetModel.migrationType,
       isInfraModel,
-      isSoftwareModel
+      isSoftwareModel,
     });
   } else {
     // Fallback to existing logic based on cloudInfraModel
@@ -285,19 +326,19 @@ function mapTargetModelToTaskComponent(
     isSoftwareModel = !targetModel.cloudInfraModel && targetModel.isCloudModel;
     console.log('mapTargetModelToTaskComponent - Using fallback logic:', {
       isInfraModel,
-      isSoftwareModel
+      isSoftwareModel,
     });
   }
-  
+
   console.log('mapTargetModelToTaskComponent - Final model type:', {
     isInfraModel,
     isSoftwareModel,
-    targetModel
+    targetModel,
   });
-  
+
   let taskComponentName = '';
   let taskComponent: ITaskComponentInfoResponse | undefined = undefined;
-  
+
   if (isInfraModel) {
     // Use infra migration task for infra models
     taskComponentName = 'beetle_task_infra_migration';
@@ -330,18 +371,22 @@ function mapTargetModelToTaskComponent(
     .defineTaskGroupStep(getRandomId(), 'TaskGroup', 'MCI', { model: {} });
 
   const parseString = parseRequestBody(taskComponent.data.options.request_body);
-  
-  if (isInfraModel && targetModel?.cloudInfraModel?.targetVmInfra) {
-    // Handle infra model data - use targetVmInfra from cloudInfraModel
-    console.log('Processing infra model with targetVmInfra:', targetModel.cloudInfraModel.targetVmInfra);
-    
+
+  if (isInfraModel && targetModel?.cloudInfraModel?.targetInfra) {
+    // Handle infra model data - use targetInfra from cloudInfraModel
+    console.log(
+      'Processing infra model with targetInfra:',
+      targetModel.cloudInfraModel.targetInfra,
+    );
+
     if (parseString) {
-      // Set the targetVmInfra data directly
-      parseString['targetVmInfra'] = targetModel.cloudInfraModel.targetVmInfra;
-      
+      // Set the targetInfra data directly
+      parseString['targetInfra'] = targetModel.cloudInfraModel.targetInfra;
+
       // Also set other related infra data if available
       if (targetModel.cloudInfraModel.targetSecurityGroupList) {
-        parseString['targetSecurityGroupList'] = targetModel.cloudInfraModel.targetSecurityGroupList;
+        parseString['targetSecurityGroupList'] =
+          targetModel.cloudInfraModel.targetSecurityGroupList;
       }
       if (targetModel.cloudInfraModel.targetSshKey) {
         parseString['targetSshKey'] = targetModel.cloudInfraModel.targetSshKey;
@@ -349,35 +394,42 @@ function mapTargetModelToTaskComponent(
       if (targetModel.cloudInfraModel.targetVNet) {
         parseString['targetVNet'] = targetModel.cloudInfraModel.targetVNet;
       }
-      if (targetModel.cloudInfraModel.targetVmOsImageList) {
-        parseString['targetVmOsImageList'] = targetModel.cloudInfraModel.targetVmOsImageList;
+      if (targetModel.cloudInfraModel.targetOsImageList) {
+        parseString['targetOsImageList'] =
+          targetModel.cloudInfraModel.targetOsImageList;
       }
-      if (targetModel.cloudInfraModel.targetVmSpecList) {
-        parseString['targetVmSpecList'] = targetModel.cloudInfraModel.targetVmSpecList;
+      if (targetModel.cloudInfraModel.targetSpecList) {
+        parseString['targetSpecList'] =
+          targetModel.cloudInfraModel.targetSpecList;
       }
     }
     console.log('Processed infra model data:', parseString);
   } else if (isSoftwareModel && (targetModel as any)?.targetSoftwareModel) {
     // Handle software model data - use targetSoftwareModel
     const targetSoftwareModel = (targetModel as any).targetSoftwareModel;
-    console.log('Processing software model with targetSoftwareModel:', targetSoftwareModel);
-    
+    console.log(
+      'Processing software model with targetSoftwareModel:',
+      targetSoftwareModel,
+    );
+
     if (parseString) {
       // Set the targetSoftwareModel data directly
       parseString['targetSoftwareModel'] = targetSoftwareModel;
-      
+
       // Also set other related software data if available
       if (targetSoftwareModel.softwareList) {
         parseString['softwareList'] = targetSoftwareModel.softwareList;
       }
-      if (targetSoftwareModel.targetVmSpecList) {
-        parseString['targetVmSpecList'] = targetSoftwareModel.targetVmSpecList;
+      if (targetSoftwareModel.targetSpecList) {
+        parseString['targetSpecList'] = targetSoftwareModel.targetSpecList;
       }
-      if (targetSoftwareModel.targetVmOsImageList) {
-        parseString['targetVmOsImageList'] = targetSoftwareModel.targetVmOsImageList;
+      if (targetSoftwareModel.targetOsImageList) {
+        parseString['targetOsImageList'] =
+          targetSoftwareModel.targetOsImageList;
       }
       if (targetSoftwareModel.targetSecurityGroupList) {
-        parseString['targetSecurityGroupList'] = targetSoftwareModel.targetSecurityGroupList;
+        parseString['targetSecurityGroupList'] =
+          targetSoftwareModel.targetSecurityGroupList;
       }
       if (targetSoftwareModel.targetSshKey) {
         parseString['targetSshKey'] = targetSoftwareModel.targetSshKey;
@@ -385,7 +437,7 @@ function mapTargetModelToTaskComponent(
       if (targetSoftwareModel.targetVNet) {
         parseString['targetVNet'] = targetSoftwareModel.targetVNet;
       }
-      
+
       // Set basic model information
       parseString['softwareModel'] = {
         id: targetModel.id,
@@ -393,18 +445,21 @@ function mapTargetModelToTaskComponent(
         description: targetModel.description,
         csp: targetModel.csp,
         region: targetModel.region,
-        zone: targetModel.zone
+        zone: targetModel.zone,
       };
     }
     console.log('Processed software model data:', parseString);
   }
 
-  // Set path_params and query_params from task component with nsId default value
-  // Extract actual values from task component properties (similar to getFixedModel in toolboxModel.ts)
+  // Set path_params and query_params from task component with nsId default value.
+  // ★ A schema property's description is *explanatory text (a placeholder)*, not a value. Leave the
+  //   value empty so the auto-generated task uses the backend default (for optional params) or the
+  //   user fills it in. (Previously the description was put in as the value, e.g. cm-beetle migration
+  //   ending up with nameSeed=<explanatory text>, which caused a 400.)
   const pathParamsKeyValue = taskComponent?.data.path_params?.properties
     ? Object.entries(taskComponent.data.path_params.properties).reduce(
-        (acc, [key, value]) => {
-          acc[key] = value.description;
+        (acc, [key]) => {
+          acc[key] = '';
           return acc;
         },
         {} as Record<string, string>,
@@ -413,8 +468,8 @@ function mapTargetModelToTaskComponent(
 
   const queryParamsKeyValue = taskComponent?.data.query_params?.properties
     ? Object.entries(taskComponent.data.query_params.properties).reduce(
-        (acc, [key, value]) => {
-          acc[key] = value.description;
+        (acc, [key]) => {
+          acc[key] = '';
           return acc;
         },
         {} as Record<string, string>,
@@ -422,16 +477,18 @@ function mapTargetModelToTaskComponent(
     : {};
 
   // Set nsId to DEFAULT_NAMESPACE if it exists in path_params or query_params
-  let pathParams = Object.keys(pathParamsKeyValue).length > 0 ? pathParamsKeyValue : null;
-  let queryParams = Object.keys(queryParamsKeyValue).length > 0 ? queryParamsKeyValue : null;
-  
+  let pathParams =
+    Object.keys(pathParamsKeyValue).length > 0 ? pathParamsKeyValue : null;
+  let queryParams =
+    Object.keys(queryParamsKeyValue).length > 0 ? queryParamsKeyValue : null;
+
   if (pathParams && 'nsId' in pathParams) {
     pathParams = { ...pathParams, nsId: DEFAULT_NAMESPACE };
   }
   if (queryParams && 'nsId' in queryParams) {
     queryParams = { ...queryParams, nsId: DEFAULT_NAMESPACE };
   }
-  
+
   const task: ITaskResponse = {
     dependencies: [],
     name: taskComponentName,
@@ -443,32 +500,32 @@ function mapTargetModelToTaskComponent(
   };
 
   const step = workflowToolModel.convertToDesignerTask(task, task.request_body);
-  
+
   // ❌ CRITICAL FIX: Do NOT overwrite step.properties.model with schema!
   // step.properties.model should contain actual DATA (from parseString), not SCHEMA
   // TaskComponentEditor will get schema from step.properties.taskComponentData (set in editorProviders)
-  // 
+  //
   // Previously this was causing schema to be saved in request_body instead of actual data:
   // if (taskComponent.data.body_params && Object.keys(taskComponent.data.body_params).length > 0) {
   //   step.properties.model = taskComponent.data.body_params;  // ❌ This overwrites DATA with SCHEMA!
   // }
-  
+
   console.log('✅ step.properties.model contains actual data (not schema):', {
     modelKeys: Object.keys(step.properties.model || {}),
-    modelSample: JSON.stringify(step.properties.model).substring(0, 200)
+    modelSample: JSON.stringify(step.properties.model).substring(0, 200),
   });
-  
+
   taskGroup.sequence?.push(step);
   sequentialSequence.value = [taskGroup];
-  
+
   console.log('Created workflow sequence with task:', {
     taskGroup,
     step,
-    sequence: sequentialSequence.value
+    sequence: sequentialSequence.value,
   });
 }
 
-/** Add 모드에서 GetModels API 결과를 사용하여 task를 생성하는 함수 */
+/** Function that creates a task using the GetModels API result in Add mode */
 function createTaskForModel(
   targetModel: ITargetModelResponse,
   taskComponentList: Array<ITaskComponentInfoResponse>,
@@ -476,7 +533,7 @@ function createTaskForModel(
   // Determine if this is infra or software model based on migrationType
   let isInfraModel = false;
   let isSoftwareModel = false;
-  
+
   // Check if migrationType is available
   if (targetModel.migrationType) {
     isInfraModel = targetModel.migrationType === 'infra';
@@ -484,7 +541,7 @@ function createTaskForModel(
     console.log('createTaskForModel - Using migrationType:', {
       migrationType: targetModel.migrationType,
       isInfraModel,
-      isSoftwareModel
+      isSoftwareModel,
     });
   } else {
     // Fallback to existing logic based on cloudInfraModel
@@ -492,19 +549,19 @@ function createTaskForModel(
     isSoftwareModel = !targetModel.cloudInfraModel && targetModel.isCloudModel;
     console.log('createTaskForModel - Using fallback logic:', {
       isInfraModel,
-      isSoftwareModel
+      isSoftwareModel,
     });
   }
-  
+
   console.log('createTaskForModel - Final model type:', {
     isInfraModel,
     isSoftwareModel,
-    targetModel
+    targetModel,
   });
-  
+
   let taskComponentName = '';
   let taskComponent: ITaskComponentInfoResponse | undefined = undefined;
-  
+
   if (isInfraModel) {
     // Use infra migration task for infra models
     taskComponentName = 'beetle_task_infra_migration';
@@ -537,18 +594,22 @@ function createTaskForModel(
     .defineTaskGroupStep(getRandomId(), 'TaskGroup', 'MCI', { model: {} });
 
   const parseString = parseRequestBody(taskComponent.data.options.request_body);
-  
-  if (isInfraModel && targetModel?.cloudInfraModel?.targetVmInfra) {
-    // Handle infra model data - use targetVmInfra from cloudInfraModel
-    console.log('Processing infra model with targetVmInfra:', targetModel.cloudInfraModel.targetVmInfra);
-    
+
+  if (isInfraModel && targetModel?.cloudInfraModel?.targetInfra) {
+    // Handle infra model data - use targetInfra from cloudInfraModel
+    console.log(
+      'Processing infra model with targetInfra:',
+      targetModel.cloudInfraModel.targetInfra,
+    );
+
     if (parseString) {
-      // Set the targetVmInfra data directly
-      parseString['targetVmInfra'] = targetModel.cloudInfraModel.targetVmInfra;
-      
+      // Set the targetInfra data directly
+      parseString['targetInfra'] = targetModel.cloudInfraModel.targetInfra;
+
       // Also set other related infra data if available
       if (targetModel.cloudInfraModel.targetSecurityGroupList) {
-        parseString['targetSecurityGroupList'] = targetModel.cloudInfraModel.targetSecurityGroupList;
+        parseString['targetSecurityGroupList'] =
+          targetModel.cloudInfraModel.targetSecurityGroupList;
       }
       if (targetModel.cloudInfraModel.targetSshKey) {
         parseString['targetSshKey'] = targetModel.cloudInfraModel.targetSshKey;
@@ -556,35 +617,42 @@ function createTaskForModel(
       if (targetModel.cloudInfraModel.targetVNet) {
         parseString['targetVNet'] = targetModel.cloudInfraModel.targetVNet;
       }
-      if (targetModel.cloudInfraModel.targetVmOsImageList) {
-        parseString['targetVmOsImageList'] = targetModel.cloudInfraModel.targetVmOsImageList;
+      if (targetModel.cloudInfraModel.targetOsImageList) {
+        parseString['targetOsImageList'] =
+          targetModel.cloudInfraModel.targetOsImageList;
       }
-      if (targetModel.cloudInfraModel.targetVmSpecList) {
-        parseString['targetVmSpecList'] = targetModel.cloudInfraModel.targetVmSpecList;
+      if (targetModel.cloudInfraModel.targetSpecList) {
+        parseString['targetSpecList'] =
+          targetModel.cloudInfraModel.targetSpecList;
       }
     }
     console.log('Processed infra model data:', parseString);
   } else if (isSoftwareModel && (targetModel as any)?.targetSoftwareModel) {
     // Handle software model data - use targetSoftwareModel
     const targetSoftwareModel = (targetModel as any).targetSoftwareModel;
-    console.log('Processing software model with targetSoftwareModel:', targetSoftwareModel);
-    
+    console.log(
+      'Processing software model with targetSoftwareModel:',
+      targetSoftwareModel,
+    );
+
     if (parseString) {
       // Set the targetSoftwareModel data directly
       parseString['targetSoftwareModel'] = targetSoftwareModel;
-      
+
       // Also set other related software data if available
       if (targetSoftwareModel.softwareList) {
         parseString['softwareList'] = targetSoftwareModel.softwareList;
       }
-      if (targetSoftwareModel.targetVmSpecList) {
-        parseString['targetVmSpecList'] = targetSoftwareModel.targetVmSpecList;
+      if (targetSoftwareModel.targetSpecList) {
+        parseString['targetSpecList'] = targetSoftwareModel.targetSpecList;
       }
-      if (targetSoftwareModel.targetVmOsImageList) {
-        parseString['targetVmOsImageList'] = targetSoftwareModel.targetVmOsImageList;
+      if (targetSoftwareModel.targetOsImageList) {
+        parseString['targetOsImageList'] =
+          targetSoftwareModel.targetOsImageList;
       }
       if (targetSoftwareModel.targetSecurityGroupList) {
-        parseString['targetSecurityGroupList'] = targetSoftwareModel.targetSecurityGroupList;
+        parseString['targetSecurityGroupList'] =
+          targetSoftwareModel.targetSecurityGroupList;
       }
       if (targetSoftwareModel.targetSshKey) {
         parseString['targetSshKey'] = targetSoftwareModel.targetSshKey;
@@ -592,7 +660,7 @@ function createTaskForModel(
       if (targetSoftwareModel.targetVNet) {
         parseString['targetVNet'] = targetSoftwareModel.targetVNet;
       }
-      
+
       // Set basic model information
       parseString['softwareModel'] = {
         id: targetModel.id,
@@ -600,18 +668,21 @@ function createTaskForModel(
         description: targetModel.description,
         csp: targetModel.csp,
         region: targetModel.region,
-        zone: targetModel.zone
+        zone: targetModel.zone,
       };
     }
     console.log('Processed software model data:', parseString);
   }
 
-  // Set path_params and query_params from task component with nsId default value
-  // Extract actual values from task component properties (similar to getFixedModel in toolboxModel.ts)
+  // Set path_params and query_params from task component with nsId default value.
+  // ★ A schema property's description is *explanatory text (a placeholder)*, not a value. Leave the
+  //   value empty so the auto-generated task uses the backend default (for optional params) or the
+  //   user fills it in. (Previously the description was put in as the value, e.g. cm-beetle migration
+  //   ending up with nameSeed=<explanatory text>, which caused a 400.)
   const pathParamsKeyValue = taskComponent?.data.path_params?.properties
     ? Object.entries(taskComponent.data.path_params.properties).reduce(
-        (acc, [key, value]) => {
-          acc[key] = value.description;
+        (acc, [key]) => {
+          acc[key] = '';
           return acc;
         },
         {} as Record<string, string>,
@@ -620,8 +691,8 @@ function createTaskForModel(
 
   const queryParamsKeyValue = taskComponent?.data.query_params?.properties
     ? Object.entries(taskComponent.data.query_params.properties).reduce(
-        (acc, [key, value]) => {
-          acc[key] = value.description;
+        (acc, [key]) => {
+          acc[key] = '';
           return acc;
         },
         {} as Record<string, string>,
@@ -629,16 +700,18 @@ function createTaskForModel(
     : {};
 
   // Set nsId to DEFAULT_NAMESPACE if it exists in path_params or query_params
-  let pathParams = Object.keys(pathParamsKeyValue).length > 0 ? pathParamsKeyValue : null;
-  let queryParams = Object.keys(queryParamsKeyValue).length > 0 ? queryParamsKeyValue : null;
-  
+  let pathParams =
+    Object.keys(pathParamsKeyValue).length > 0 ? pathParamsKeyValue : null;
+  let queryParams =
+    Object.keys(queryParamsKeyValue).length > 0 ? queryParamsKeyValue : null;
+
   if (pathParams && 'nsId' in pathParams) {
     pathParams = { ...pathParams, nsId: DEFAULT_NAMESPACE };
   }
   if (queryParams && 'nsId' in queryParams) {
     queryParams = { ...queryParams, nsId: DEFAULT_NAMESPACE };
   }
-  
+
   const task: ITaskResponse = {
     dependencies: [],
     name: taskComponentName,
@@ -650,34 +723,56 @@ function createTaskForModel(
   };
 
   const step = workflowToolModel.convertToDesignerTask(task, task.request_body);
-  
+
   // ❌ CRITICAL FIX: Do NOT overwrite step.properties.model with schema!
   // step.properties.model should contain actual DATA (from parseString), not SCHEMA
   // TaskComponentEditor will get schema from step.properties.taskComponentData (set in editorProviders)
-  // 
+  //
   // Previously this was causing schema to be saved in request_body instead of actual data:
   // if (taskComponent.data.body_params && Object.keys(taskComponent.data.body_params).length > 0) {
   //   step.properties.model = taskComponent.data.body_params;  // ❌ This overwrites DATA with SCHEMA!
   // }
-  
+
   console.log('✅ step.properties.model contains actual data (not schema):', {
     modelKeys: Object.keys(step.properties.model || {}),
-    modelSample: JSON.stringify(step.properties.model).substring(0, 200)
+    modelSample: JSON.stringify(step.properties.model).substring(0, 200),
   });
-  
+
   taskGroup.sequence?.push(step);
   sequentialSequence.value = [taskGroup];
-  
+
   console.log('Created workflow sequence with task:', {
     taskGroup,
     step,
-    sequence: sequentialSequence.value
+    sequence: sequentialSequence.value,
   });
 }
 
-function loadWorkflow() {
+/*
+  The paths into this editor, and whether **the workflow must be read from the engine** at that point
+
+  | Entry path | toolType | Drawn from | Wait |
+  |---|---|---|---|
+  | Run state → Edit (unexecuted original) | edit | store (already received from the list) → engine if absent | needed |
+  | Run state → Clone & Edit | edit | store (the clone response is placed in immediately) | effectively instant |
+  | Open a JSON-created workflow later | edit | store → engine if absent | needed |
+  | Entering from a target model | add | template | not needed |
+  | Create new from the list (currently blocked) | add | template | not needed |
+
+  The only one that needs to wait is **`edit`** — `add` does not read an existing workflow but draws
+  from a template, so it is independent of engine state. That is why the wait lives only in this branch.
+*/
+async function loadWorkflow() {
   if (props.toolType === 'edit') {
-    workflowData.value = workflowToolModel.getWorkflowData(props.wftId);
+    // If not in the cache, the store fetches and fills it. A workflow opened without going through
+    // the list screen (e.g. a just-created clone) also loads correctly via this path.
+    workflowData.value = await fetchWorkflowForEdit();
+    workflowLoadState.value = workflowData.value ? 'ok' : 'failed';
+    if (!workflowData.value) return;
+    // If there is run history, only display it. The normal path (the run state screen) never sends a
+    // workflow with history here in the first place, so this is a safety net that stays intact even if
+    // some other entry path is added later.
+    isRunLocked.value = await hasWorkflowRunHistory(props.wftId);
   } else if (props.toolType === 'add') {
     workflowData.value = workflowToolModel.getWorkflowTemplateData(
       workflowToolModel.dropDownModel.selectedItemId,
@@ -687,38 +782,105 @@ function loadWorkflow() {
   // Set workflow name and description
   if (props.toolType === 'add') {
     // For add mode, set default name based on migrationType
-    const defaultName = props.migrationType === 'infra' 
-      ? 'Infra Migration Workflow' 
-      : 'Software Migration Workflow';
+    const defaultName =
+      props.migrationType === 'infra'
+        ? 'Infra Migration Workflow'
+        : 'Software Migration Workflow';
     workflowName.value.value = workflowData.value?.name || defaultName;
   } else {
     workflowName.value.value = workflowData.value?.name || '';
   }
-  
+
   workflowDescription.value.value = workflowData.value?.description || '';
-  
+
   console.log('loadWorkflow - Set workflow name:', {
     toolType: props.toolType,
     migrationType: props.migrationType,
     workflowName: workflowName.value.value,
-    workflowDataName: workflowData.value?.name
+    workflowDataName: workflowData.value?.name,
   });
 }
 
 function loadSequence() {
   if (workflowData.value) {
-    sequentialSequence.value =
-      workflowToolModel.convertCicadaToDesignerFormData(
-        workflowData.value,
-        resTaskComponentList.data.value?.responseData!,
-      ).sequence;
+    const loaded = workflowToolModel.convertCicadaToDesignerFormData(
+      workflowData.value,
+      resTaskComponentList.data.value?.responseData!,
+    );
+    sequentialSequence.value = loaded.sequence;
+    // If the shape cannot be drawn, surface the reason instead of a blank screen. Forcibly flattening
+    // it to display would, on save, create dependencies that did not exist and silently change the workflow.
+    isUneditable.value = loaded.representable === false;
+    loadWarnings.value = loaded.warnings ?? [];
+    // When entering from a target model, inject the target model id into the lookup task and the literal
+    // body into the migration task. Injected right after the sequence is built (before designer render),
+    // so it is reflected as-is on save.
+    if (props.targetModel) {
+      injectTargetModelIntoSequence();
+    }
   }
 }
 
-function reorderingSequence() {
-  sequentialSequence.value = workflowToolModel.designerFormDataReordering(
-    sequentialSequence.value,
-  );
+/**
+ * Injection specific to the target model flow — in the loaded template sequence:
+ *  ① fill the lookup task (damselfly_task_get_cloud_infra_model / _get_target_software_model)'s
+ *     path_params.id with the selected target model id, and
+ *  ② overwrite the migration task (beetle_task_infra_migration / grasshopper_task_software_migration)'s
+ *     body (model) with the target model's literal value, so the actual value is saved rather than a reference.
+ * The remaining tasks (sleep/install_docker/email, etc.) are left as the template.
+ *
+ * Since ② is literal, ①'s lookup result is not actually used, but the template structure requires ① to
+ * succeed for the run to complete, so we put in a valid target model id (this also resolves the issue
+ * where a hardcoded example id was being saved as-is).
+ */
+function injectTargetModelIntoSequence() {
+  const tm = props.targetModel;
+  if (!tm) return;
+  const isInfra =
+    tm.migrationType === 'infra' ||
+    (!!tm.cloudInfraModel && tm.migrationType !== 'software');
+  const lookupComponent = isInfra
+    ? 'damselfly_task_get_cloud_infra_model'
+    : 'damselfly_task_get_target_software_model';
+  const migrationComponent = isInfra
+    ? 'beetle_task_infra_migration'
+    : 'grasshopper_task_software_migration';
+  /*
+    The two migrations have different body shapes — they must not be filled in the same way.
+     - Infra (beetle): the *contents* of cloudInfraModel (targetInfra/targetVNet, etc.) are the body itself.
+     - Software (grasshopper): the body is received *wrapped* one level in `targetSoftwareModel`
+       (smdl `TargetSoftwareModel{ TargetSoftwareModel ... json:"targetSoftwareModel" }`).
+    Putting in only the inner object ({servers:[...]}) makes grasshopper bind servers to an empty value
+    and return 200 + execution_id without processing any software. The task then looks successful while
+    the result (target_mappings) is empty, making the cause hard to find.
+  */
+  const softwareModel = (tm as any).targetSoftwareModel;
+  const literalBody = isInfra
+    ? tm.cloudInfraModel
+    : softwareModel
+      ? { targetSoftwareModel: softwareModel }
+      : undefined;
+
+  const visit = (steps: any[] | undefined) => {
+    for (const step of steps ?? []) {
+      const component = step?.properties?.originalData?.task_component;
+      if (component === lookupComponent) {
+        step.properties.fixedModel = step.properties.fixedModel ?? {
+          path_params: {},
+          query_params: {},
+        };
+        step.properties.fixedModel.path_params = {
+          ...(step.properties.fixedModel.path_params ?? {}),
+          id: tm.id,
+        };
+      } else if (component === migrationComponent && literalBody) {
+        // Put in the target model's literal value instead of a reference body (the right-hand table is filled with this value too).
+        step.properties.model = { ...literalBody };
+      }
+      if (step?.sequence) visit(step.sequence);
+    }
+  };
+  visit(sequentialSequence.value);
 }
 
 function getCicadaData(designer: Designer | null): IWorkflow {
@@ -736,7 +898,7 @@ function getCicadaData(designer: Designer | null): IWorkflow {
       console.log('=== getCicadaData Debug ===');
       console.log('Definition sequence:', definition.sequence);
       console.log('Sequence length:', definition.sequence.length);
-      
+
       // Detailed step analysis
       definition.sequence.forEach((step: any, index: number) => {
         console.log(`Step ${index}:`, {
@@ -745,9 +907,9 @@ function getCicadaData(designer: Designer | null): IWorkflow {
           properties: step.properties,
           'properties.model': step.properties?.model,
           'properties.fixedModel': step.properties?.fixedModel,
-          'properties.originalData': step.properties?.originalData
+          'properties.originalData': step.properties?.originalData,
         });
-        
+
         // Check nested sequences (like TaskGroup)
         if (step.sequence && step.sequence.length > 0) {
           console.log(`  Nested sequence (${step.sequence.length} items):`);
@@ -758,25 +920,31 @@ function getCicadaData(designer: Designer | null): IWorkflow {
               'properties.model': nestedStep.properties?.model,
               'properties.fixedModel': nestedStep.properties?.fixedModel,
               'properties.originalData': nestedStep.properties?.originalData,
-              'fixedModel.request_body': nestedStep.properties?.fixedModel?.request_body
+              'fixedModel.request_body':
+                nestedStep.properties?.fixedModel?.request_body,
             });
-            
+
             // Log request_body if exists
             if (nestedStep.properties?.fixedModel?.request_body) {
               try {
-                const requestBody = typeof nestedStep.properties.fixedModel.request_body === 'string'
-                  ? JSON.parse(nestedStep.properties.fixedModel.request_body)
-                  : nestedStep.properties.fixedModel.request_body;
+                const requestBody =
+                  typeof nestedStep.properties.fixedModel.request_body ===
+                  'string'
+                    ? JSON.parse(nestedStep.properties.fixedModel.request_body)
+                    : nestedStep.properties.fixedModel.request_body;
                 console.log('    Request body parsed:', requestBody);
                 console.log('    Request body keys:', Object.keys(requestBody));
               } catch (e) {
-                console.log('    Request body (raw):', nestedStep.properties.fixedModel.request_body);
+                console.log(
+                  '    Request body (raw):',
+                  nestedStep.properties.fixedModel.request_body,
+                );
               }
             }
           });
         }
       });
-      
+
       Object.assign(workflow, {
         data: {
           description: '',
@@ -788,7 +956,7 @@ function getCicadaData(designer: Designer | null): IWorkflow {
         id: '',
         name: workflowName.value.value,
       });
-      
+
       console.log('Converted workflow data:', workflow.data);
       console.log('Task groups:', workflow.data.task_groups);
       console.log('===========================');
@@ -804,9 +972,9 @@ function postWorkflow(workflow: IWorkflow) {
     toolType: props.toolType,
     workflowName: workflow.name,
     workflowData: workflow.data,
-    workflowDescription: workflow.description
+    workflowDescription: workflow.description,
   });
-  
+
   if (props.toolType === 'edit') {
     resUpdateWorkflow
       .execute({
@@ -823,10 +991,16 @@ function postWorkflow(workflow: IWorkflow) {
       .then(res => {
         showSuccessMessage('Success', 'Success');
         emit('update:trigger');
-        emit('update:close-modal', false); // 저장 성공 후 모달 닫기
+        emit('update:close-modal', false); // close the modal after a successful save
+        // What usually happens after saving is running it. Tell it which workflow was saved so the
+        // screen can move to that workflow's run state.
+        emit('update:saved', props.wftId);
       })
       .catch(err => {
-        showErrorMessage('Error', err.errorMsg.value);
+        showErrorMessage(
+          'Error',
+          toErrorMessage(err, 'Failed to process the workflow.'),
+        );
       });
   } else if (props.toolType === 'add') {
     resAddWorkFlow
@@ -841,10 +1015,18 @@ function postWorkflow(workflow: IWorkflow) {
       .then(res => {
         showSuccessMessage('Success', 'Success');
         emit('update:trigger');
-        emit('update:close-modal', false); // 저장 성공 후 모달 닫기
+        emit('update:close-modal', false); // close the modal after a successful save
+        // The id of a newly created workflow can only be learned from the response. It returns the whole
+        // workflow in the same shape as the clone API. **If there is no id, do not move** — it is better to
+        // stay on the current screen than to show the run state of the wrong workflow.
+        const createdId = res?.data?.responseData?.id;
+        if (createdId) emit('update:saved', createdId);
       })
       .catch(err => {
-        showErrorMessage('Error', err.errorMsg.value);
+        showErrorMessage(
+          'Error',
+          toErrorMessage(err, 'Failed to process the workflow.'),
+        );
       });
   }
 }
@@ -852,6 +1034,24 @@ function postWorkflow(workflow: IWorkflow) {
 function handleSaveCallback(designer: Designer | null) {
   trigger.value = false;
   try {
+    const definition = designer?.getDefinition();
+    const problems = workflowToolModel.validateDesignerSequence(
+      (definition?.sequence ?? []) as Step[],
+    );
+    if (problems.length) {
+      showErrorMessage('Cannot save', problems.join('\n'));
+      return;
+    }
+
+    // A state that is not wrong but looks half-finished is still saved, with a note. Because once the
+    // screen is closed the diagram is gone and only the saved connections remain.
+    const notices = workflowToolModel.reviewDesignerSequence(
+      (definition?.sequence ?? []) as Step[],
+    );
+    if (notices.length) {
+      showInfoMessage('Check the parallel steps', notices.join('\n'));
+    }
+
     const cicadaData = getCicadaData(designer);
     postWorkflow(cicadaData);
   } catch (e) {
@@ -865,6 +1065,9 @@ function handleCancel() {
 }
 
 function handleSave() {
+  if (isUneditable.value || isRunLocked.value) return;
+  // Saving while it has not been read would overwrite with an empty definition
+  if (workflowLoadState.value !== 'ok') return;
   trigger.value = true;
 }
 
@@ -889,31 +1092,118 @@ function handleSelectTemplate(e) {
             <PFieldGroup class="flex-1" :label="'Workflow Name'" required>
               <p-text-input
                 v-model="workflowName.value.value"
+                data-testid="workflow-name-input"
                 block
-              ></p-text-input>
+              />
             </PFieldGroup>
             <PFieldGroup class="flex-1" :label="'Description'">
-              <p-text-input
-                v-model="workflowDescription.value.value"
-                block
-              ></p-text-input>
+              <p-text-input v-model="workflowDescription.value.value" block />
             </PFieldGroup>
+            <!--
+              Parallelism must be pulled explicitly from the palette, and side-by-side placement only
+              works inside a parallel box. A first-time user has no way to learn that rule from the
+              screen, so we link to the guide.
+            -->
             <PFieldGroup class="flex-1" :label="'Workflow Template'" required>
               <p-select-dropdown
                 class="w-full"
+                data-testid="workflow-template-select"
                 :menu="workflowToolModel.dropDownModel.data"
                 :disabled="props.toolType !== 'add'"
                 @select="handleSelectTemplate"
-              ></p-select-dropdown>
+              />
             </PFieldGroup>
+            <button
+              type="button"
+              class="workflow-tool-help"
+              data-testid="workflow-parallel-guide-link"
+              @click="openDocLink(DOC_LINKS.workflowParallelSteps)"
+            >
+              How to run tasks in parallel
+            </button>
           </header>
-          <section class="workflow-tool-body">
+          <div
+            v-if="loadWarnings.length"
+            class="workflow-tool-notice mb-[12px]"
+          >
+            <p class="workflow-tool-notice__title">
+              {{
+                isUneditable
+                  ? 'This workflow cannot be opened in the graphical editor'
+                  : 'Check this workflow'
+              }}
+            </p>
+            <ul>
+              <li v-for="(warning, i) in loadWarnings" :key="i">
+                {{ warning }}
+              </li>
+            </ul>
+          </div>
+          <!--
+            When a workflow that has been run is opened via any path. Tells the user both that it
+            cannot be edited and what to do instead.
+          -->
+          <div
+            v-if="isRunLocked"
+            class="workflow-tool-notice workflow-tool-notice--locked mb-[12px]"
+            data-testid="workflow-run-locked-notice"
+          >
+            <p class="workflow-tool-notice__title">
+              View only — this workflow has been run
+            </p>
+            <ul>
+              <li>
+                Editing it in place would change what its past runs appear to
+                have used, and that cannot be undone.
+              </li>
+              <li>
+                To work on it, go to Run Status and use Clone &amp; Edit. The
+                copy keeps a link back to this workflow.
+              </li>
+            </ul>
+          </div>
+          <!--
+            State where it has not been read yet. **We do not state why it is slow** — there are many
+            paths to get here (clone, target model, create new, opening a JSON-created one), so the
+            screen cannot pin down the cause. It only says it is waiting, and draws once it is ready.
+          -->
+          <div
+            v-if="workflowLoadState === 'waiting'"
+            class="workflow-tool-loading"
+            data-testid="workflow-load-notice"
+          >
+            <p-spinner size="md" />
+            <p>Getting this workflow ready…</p>
+          </div>
+          <div
+            v-else-if="workflowLoadState === 'failed'"
+            class="workflow-tool-notice mb-[12px]"
+            data-testid="workflow-load-notice"
+          >
+            <p class="workflow-tool-notice__title">
+              This workflow could not be read
+            </p>
+            <ul>
+              <li>
+                Nothing is shown rather than an empty canvas, because saving an
+                empty canvas would wipe the workflow. Close this and open it
+                again in a moment.
+              </li>
+            </ul>
+          </div>
+          <section
+            v-if="!isUneditable && workflowLoadState === 'ok'"
+            class="workflow-tool-body"
+          >
             <SequentialDesigner
               :sequence="sequentialSequence"
+              :readonly="isRunLocked"
               :trigger="trigger.value"
-              :taskComponentList="resTaskComponentList.data.value?.responseData"
+              :task-component-list="
+                resTaskComponentList.data.value?.responseData
+              "
               @getDesigner="handleSaveCallback"
-            ></SequentialDesigner>
+            />
           </section>
         </div>
       </template>
@@ -925,9 +1215,12 @@ function handleSelectTemplate(e) {
           Cancel
         </p-button>
         <p-button
+          data-testid="workflow-designer-save"
           :loading="resUpdateWorkflow.isLoading.value"
+          :disabled="isUneditable || isRunLocked || workflowLoadState !== 'ok'"
           @click="handleSave"
-          >Save
+        >
+          Save
         </p-button>
       </template>
     </create-form>
@@ -935,6 +1228,46 @@ function handleSelectTemplate(e) {
 </template>
 
 <style scoped lang="postcss">
+.workflow-tool-help {
+  align-self: center;
+  white-space: nowrap;
+  text-decoration: underline;
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+.workflow-tool-help:hover {
+  color: #1f2937;
+}
+.workflow-tool-notice {
+  border-left: 4px solid #f0a020;
+  background: #fff8e6;
+  padding: 12px 16px;
+  border-radius: 4px;
+}
+/* Being uneditable is a state, not a warning — use a different color from the yellow warning */
+.workflow-tool-notice--locked {
+  border-left-color: #6b7280;
+  background: #f3f4f6;
+}
+.workflow-tool-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 240px;
+  color: #4b5563;
+  font-size: 0.875rem;
+}
+.workflow-tool-notice__title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.workflow-tool-notice ul {
+  list-style: disc;
+  padding-left: 20px;
+}
+
 :deep(.workflow-tool-modal-page) {
   height: calc(100% - 7.4rem);
   max-height: calc(100% - 7.4rem);

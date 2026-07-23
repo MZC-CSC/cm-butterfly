@@ -6,7 +6,7 @@ import { showSuccessMessage, showErrorMessage } from '@/shared/utils';
 import JwtTokenProvider from '@/shared/libs/token';
 import { DEFAULT_NAMESPACE } from '@/shared/constants/namespace';
 
-// API 테스트 관련 상태
+// API test related state
 const apiTestState = reactive({
   operationId: '',
   serviceName: '',
@@ -19,13 +19,13 @@ const apiTestState = reactive({
   isLoading: false,
 });
 
-// 새로운 쿼리 파라미터 추가용
+// For adding a new query parameter
 const newQueryParam = reactive({
   key: '',
   value: '',
 });
 
-// API 목록 상태
+// API list state
 const apiListState = reactive({
   services: [] as Array<{
     serviceName: string;
@@ -54,16 +54,16 @@ const apiListState = reactive({
   }>,
 });
 
-// API 목록 로드
+// Load the API list
 const loadApiList = async () => {
   try {
-    // 인증 토큰 가져오기
+    // Get the auth token
     const tokenProvider = JwtTokenProvider.getProvider();
     const tokens = tokenProvider.getTokens();
     
     const headers: Record<string, string> = {};
     
-    // 인증 토큰이 있으면 Authorization 헤더 추가
+    // If an auth token exists, add the Authorization header
     if (tokens.access_token) {
       headers['Authorization'] = `Bearer ${tokens.access_token}`;
     }
@@ -80,12 +80,12 @@ const loadApiList = async () => {
     }
     
   } catch (error) {
-    console.error('API 목록 로드 실패:', error);
+    console.error('Failed to load API list:', error);
     showErrorMessage('Error', `Failed to load API list: ${(error as Error).message}`);
   }
 };
 
-// 서비스 선택 핸들러
+// Service selection handler
 const handleServiceSelect = (serviceName: string) => {
   apiListState.selectedService = serviceName;
   const selectedService = apiListState.services.find(s => s.serviceName === serviceName);
@@ -98,7 +98,7 @@ const handleServiceSelect = (serviceName: string) => {
   apiListState.filteredSuggestions = [];
 };
 
-// 액션 선택 핸들러
+// Action selection handler
 const handleActionSelect = (actionName: string) => {
   apiListState.selectedAction = actionName;
   apiListState.operationIdInput = actionName;
@@ -109,22 +109,22 @@ const handleActionSelect = (actionName: string) => {
     apiTestState.method = selectedAction.method;
     apiTestState.resourcePath = selectedAction.resourcePath;
     
-    // pathParams 추출
+    // Extract pathParams
     const pathParamMatches = selectedAction.resourcePath.match(/\{([^}]+)\}/g);
     if (pathParamMatches) {
       apiTestState.pathParams = {};
       pathParamMatches.forEach(match => {
         const paramName = match.slice(1, -1);
-        // nsId 파라미터인 경우 DEFAULT_NAMESPACE로 기본값 설정
+        // For the nsId parameter, default to DEFAULT_NAMESPACE
         apiTestState.pathParams[paramName] = paramName === 'nsId' ? DEFAULT_NAMESPACE : '';
       });
     }
   }
 };
 
-// API 호출 실행
+// Execute the API call
 const executeApiCall = async () => {
-  // operationId가 없으면 입력 필드에서 가져오기
+  // If there's no operationId, take it from the input field
   if (!apiTestState.operationId && apiListState.operationIdInput) {
     apiTestState.operationId = apiListState.operationIdInput.trim();
   }
@@ -137,20 +137,20 @@ const executeApiCall = async () => {
   apiTestState.isLoading = true;
   
   try {
-    // 인증 토큰 가져오기
+    // Get the auth token
     const tokenProvider = JwtTokenProvider.getProvider();
     const tokens = tokenProvider.getTokens();
-    
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
     
-    // 인증 토큰이 있으면 Authorization 헤더 추가
+    // If an auth token exists, add the Authorization header
     if (tokens.access_token) {
       headers['Authorization'] = `Bearer ${tokens.access_token}`;
     }
     
-    // CommonRequest 형태로 데이터 구성
+    // Build the data as a CommonRequest
     const commonRequest = {
       pathParams: apiTestState.pathParams,
       queryParams: apiTestState.queryParams,
@@ -159,7 +159,7 @@ const executeApiCall = async () => {
 
     let response: Response;
     
-    // 서비스가 있는 경우: /{subsystemName}/{operationId} 방식 사용
+    // When a service exists: use the /{subsystemName}/{operationId} form
     if (apiTestState.serviceName) {
       const url = `/api/${apiTestState.serviceName}/${apiTestState.operationId}`;
       response = await fetch(url, {
@@ -168,7 +168,7 @@ const executeApiCall = async () => {
         body: JSON.stringify(commonRequest),
       });
     } else {
-      // 서비스가 없는 경우: /{operationId} 방식 사용
+      // When no service exists: use the /{operationId} form
       const url = `/api/${apiTestState.operationId}`;
       response = await fetch(url, {
         method: 'POST',
@@ -179,7 +179,7 @@ const executeApiCall = async () => {
     
     const result = await response.json();
     
-    // 기존 API 응답 형태로 변환
+    // Convert to the existing API response shape
     apiTestState.response = {
       success: response.ok && result.status?.statusCode < 400,
       data: result,
@@ -193,7 +193,7 @@ const executeApiCall = async () => {
     }
     
   } catch (error) {
-    console.error('API 호출 실패:', error);
+    console.error('Failed to execute API call:', error);
     showErrorMessage('Error', 'Failed to execute API call');
     apiTestState.response = { 
       success: false, 
@@ -205,7 +205,7 @@ const executeApiCall = async () => {
   }
 };
 
-// 쿼리 파라미터 추가
+// Add a query parameter
 const addQueryParam = () => {
   if (newQueryParam.key && newQueryParam.value) {
     apiTestState.queryParams[newQueryParam.key] = newQueryParam.value;
@@ -214,18 +214,18 @@ const addQueryParam = () => {
   }
 };
 
-// 쿼리 파라미터 제거
+// Remove a query parameter
 const removeQueryParam = (key: string) => {
   delete apiTestState.queryParams[key];
 };
 
-// Operation ID 입력 핸들러
+// Operation ID input handler
 const handleOperationIdInput = (event: Event) => {
   const value = (event.target as HTMLInputElement).value;
   apiListState.operationIdInput = value;
   
   if (value.length > 0) {
-    // 입력된 텍스트로 필터링된 제안 목록 생성
+    // Build the suggestion list filtered by the entered text
     apiListState.filteredSuggestions = apiListState.filteredActions.filter(action =>
       action.name.toLowerCase().includes(value.toLowerCase())
     );
@@ -236,33 +236,33 @@ const handleOperationIdInput = (event: Event) => {
   }
 };
 
-// 제안 항목 선택 핸들러
+// Suggestion item selection handler
 const selectSuggestion = (action: any) => {
   apiListState.operationIdInput = action.name;
   apiListState.showSuggestions = false;
   handleActionSelect(action.name);
 };
 
-// Operation ID 입력 필드 포커스 핸들러
+// Operation ID input field focus handler
 const handleOperationIdFocus = () => {
   if (apiListState.operationIdInput.length > 0) {
     apiListState.showSuggestions = true;
   }
 };
 
-// Operation ID 입력 필드 블러 핸들러
+// Operation ID input field blur handler
 const handleOperationIdBlur = () => {
-  // 약간의 지연을 두어 클릭 이벤트가 먼저 처리되도록 함
+  // Delay slightly so the click event is processed first
   setTimeout(() => {
     apiListState.showSuggestions = false;
   }, 200);
 };
 
-// Operation ID 직접 입력 처리
+// Handle direct Operation ID entry
 const handleOperationIdDirectInput = () => {
   const inputValue = apiListState.operationIdInput.trim();
   if (inputValue) {
-    // 입력된 값이 필터된 액션 목록에 있는지 확인
+    // Check whether the entered value is in the filtered action list
     const foundAction = apiListState.filteredActions.find(action => 
       action.name.toLowerCase() === inputValue.toLowerCase()
     );
@@ -270,7 +270,7 @@ const handleOperationIdDirectInput = () => {
     if (foundAction) {
       handleActionSelect(foundAction.name);
     } else {
-      // 직접 입력된 operationId로 API 테스트 상태 업데이트
+      // Update the API test state with the directly entered operationId
       apiTestState.operationId = inputValue;
       apiTestState.serviceName = apiListState.selectedService;
       apiTestState.method = '';
@@ -280,7 +280,7 @@ const handleOperationIdDirectInput = () => {
   }
 };
 
-// 초기화
+// Initialize
 loadApiList();
 </script>
 
@@ -292,7 +292,7 @@ loadApiList();
     </div>
 
     <div class="api-test-container">
-      <!-- API 선택 섹션 -->
+      <!-- API selection section -->
       <div class="api-selection-section">
         <h2>API Selection</h2>
         
@@ -347,7 +347,7 @@ loadApiList();
           </div>
         </div>
 
-        <!-- 선택된 API 정보 -->
+        <!-- Selected API information -->
         <div v-if="apiTestState.operationId" class="selected-api-info">
           <h3>Selected API Information</h3>
           <div class="info-grid">
@@ -373,7 +373,7 @@ loadApiList();
         </div>
       </div>
 
-      <!-- API 테스트 섹션 -->
+      <!-- API test section -->
       <div v-if="apiTestState.operationId" class="api-test-section">
         <h2>API Test Configuration</h2>
         

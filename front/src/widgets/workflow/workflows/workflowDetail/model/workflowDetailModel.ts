@@ -22,8 +22,12 @@ export function useWorkflowDetailModel() {
       { label: 'Description', name: 'description', disableCopy: true },
       { label: 'Created Date Time', name: 'created_at' },
       { label: 'Updated Date Time', name: 'updated_at' },
-      { label: 'Workflow Tool', name: 'workflowTool', disableCopy: true },
-      { label: 'Workflow JSON', name: 'workflowJSON', disableCopy: true },
+      // The 'Workflow Tool' and 'Workflow JSON' links were removed here. Whether to edit or run is
+      // decided **in one place, the run-status screen** — only there can we look at the run history and
+      // split between editing the original, editing a clone, and editing the JSON. Opening straight from
+      // the detail view skips that decision, and duplicating the same logic in the detail view to prevent
+      // that would let the two places drift apart. The detail view only states *what this workflow is*;
+      // the things you can do are gathered on the run-status screen.
     ];
   }
 
@@ -38,8 +42,6 @@ export function useWorkflowDetailModel() {
         description: '-',
         created_at: workflow.created_at,
         updated_at: workflow.updated_at,
-        workflowTool: {},
-        workflowJSON: {},
       };
     }
     return data;

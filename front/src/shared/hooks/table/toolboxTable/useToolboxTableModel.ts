@@ -88,20 +88,30 @@ export const useToolboxTableModel = <T>() => {
     }
   };
 
+  const matches = (haystack: unknown, needle: string): boolean =>
+    typeof haystack === 'string' &&
+    haystack.toLowerCase().includes(needle.toLowerCase());
+
   const applyQueryTags = (e: ChangeEvent) => {
     if (e?.queryTags?.length) {
+      // When a search term is entered, show filtered results from page 1. Leaving the previous
+      // page position (startPage) as-is produces an empty screen when the filtered item count is
+      // smaller than that page.
+      tableState.currentPage = 1;
+      tableState.startPage = 1;
+
+      // Case-insensitive substring matching. We avoid regex because: (1) characters the user
+      // types like '.' or '(' would be interpreted as regex metacharacters and break, and (2)
+      // .test() on a regex with the /g flag is stateful and accumulates lastIndex, so iterating
+      // over a row's values gives inconsistent results. This was the actual cause of search not
+      // filtering correctly.
       tableState.sortedItems = tableState.items.filter((row: any) =>
         e.queryTags!.every(queryTag => {
-          const regex = new RegExp(queryTag.value.name, 'gi');
-
+          const needle = queryTag.value.name;
           if (queryTag.key === null) {
-            return Object.values(row).some(
-              value => typeof value === 'string' && regex.test(value),
-            );
+            return Object.values(row).some(value => matches(value, needle));
           }
-
-          const fieldValue = row[queryTag.key.name];
-          return typeof fieldValue === 'string' && regex.test(fieldValue);
+          return matches(row[queryTag.key.name], needle);
         }),
       );
     } else if (e?.queryTags?.length === 0) {
@@ -130,8 +140,11 @@ export const useToolboxTableModel = <T>() => {
     applyQueryTags(e);
     applySorting(e);
 
+    // Slice out the current page window. The old endIdx added pageSize to startPage (an item
+    // offset), mixing meaning with startIdx (page-number based), which left each page one item
+    // short or sliced the wrong range after a search. Base everything consistently on startIdx.
     const startIdx = tableOptions.pageSize * (tableState.currentPage - 1);
-    const endIdx = tableState.startPage + tableOptions.pageSize - 1;
+    const endIdx = startIdx + tableOptions.pageSize;
 
     tableState.displayItems = tableState.sortedItems.slice(startIdx, endIdx);
 

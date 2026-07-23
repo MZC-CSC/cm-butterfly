@@ -6,6 +6,7 @@ import axios, {
 import { McmpRouter } from '@/app/providers/router';
 import { AUTH_ROUTE } from '@/pages/auth/auth.route';
 import JwtTokenProvider from '@/shared/libs/token';
+import { clearSession, handleSessionExpired } from '@/shared/libs/auth/session';
 
 const url = import.meta.env.VITE_BACKEND_ENDPOINT;
 const createInstance = () => {
@@ -52,6 +53,10 @@ axiosInstance.interceptors.response.use(
       const { refresh_token } = jwtTokenProvider.getTokens();
 
       if (!refresh_token) {
+        // There's no token to restore — either before login or the session is already gone. Stop polling (clearSession)
+        // and just do an SPA navigation to the login screen. Showing an expiry popup or a full reload here would make the
+        // login screen's unauthenticated request 401 again → reload, looping forever. Show the expiry notice only on a real expiry (refresh failure/403).
+        clearSession();
         McmpRouter.getRouter()
           .replace({ name: AUTH_ROUTE.LOGIN._NAME })
           .catch(() => {});
@@ -79,10 +84,7 @@ axiosInstance.interceptors.response.use(
         }
       }
     } else if (error.response?.status === 403) {
-      alert('User Session Expired.\n Pleas login again');
-      McmpRouter.getRouter()
-        .replace({ name: AUTH_ROUTE.LOGIN._NAME })
-        .catch(() => {});
+      handleSessionExpired();
     }
     return Promise.reject(error);
   },

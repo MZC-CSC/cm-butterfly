@@ -22,9 +22,17 @@ export interface Step extends _Step {
     taskType?: string;
     // Normalized task component (`data` + `type`/`spec`) for schema-driven UI.
     taskComponentData?: any;
+    // When the original request_body was a cm-cicada runtime reference, this value is kept
+    // alongside so that on save we restore the reference as-is instead of overwriting it with the skeleton.
+    referenceRequestBody?: string;
+    referenceSkeletonModel?: any;
   };
 }
 
 export interface IWorkFlowDesignerFormData {
   sequence: Step[];
+  /** Flaws in the definition / reasons it can't be drawn. Surface them on screen, don't hide them */
+  warnings?: string[];
+  /** Whether the editor can draw this workflow's execution graph as-is */
+  representable?: boolean;
 }

@@ -105,77 +105,45 @@ func InitAPISpec() error {
 	return nil
 }
 
-// AnyCaller routes requests to subsystems based on operationId
+// AnyCaller — proxy call without a specified subsystem.
+//
+// This no longer relays actual calls. An operationId alone cannot pin down
+// which subsystem's API is meant — the same name exists in multiple subsystems
+// (e.g. getinfra is defined by both cb-tumblebug and cm-beetle). It used to scan
+// everything and use the first match, but Go's map iteration order is random, so
+// the same call could reach a different service on each run.
+//
+// Calls must go through POST /api/{subsystem}/{operationId} (SubsystemAnyCaller).
+// cm-butterfly's own APIs are registered as separate native routes and do not
+// take this path.
 func AnyCaller(c echo.Context, operationId string, commonRequest *CommonRequest, auth bool) (*response.CommonResponse, error) {
-	log.Printf("DEBUG: AnyCaller called with operationId: %s", operationId)
-	log.Printf("DEBUG: - commonRequest: %+v", commonRequest)
-	log.Printf("DEBUG: - auth: %v", auth)
-
-	_, targetFrameworkInfo, targetApiSpec, err := GetApiSpec(strings.ToLower(operationId))
-
-	if err != nil {
-		log.Printf("ERROR: GetApiSpec failed: %v", err)
-		return response.CommonResponseStatusNotFound(operationId + "-" + err.Error()), err
-	}
-
-	log.Printf("DEBUG: GetApiSpec succeeded")
-	log.Printf("DEBUG: - targetFrameworkInfo: %+v", targetFrameworkInfo)
-	log.Printf("DEBUG: - targetApiSpec: %+v", targetApiSpec)
-
-	if targetFrameworkInfo == (Service{}) {
-		log.Printf("ERROR: targetFrameworkInfo is empty Service{}")
-		return response.CommonResponseStatusNotFound(operationId + "-" + "targetFrameworkInfo is empty"), fmt.Errorf("targetFrameworkInfo is empty")
-	}
-
-	if targetApiSpec == (Spec{}) {
-		log.Printf("ERROR: targetApiSpec is empty Spec{}")
-		return response.CommonResponseStatusNotFound(operationId + "-" + "targetApiSpec is empty"), fmt.Errorf("targetApiSpec is empty")
-	}
-
-	var authString string
-	if auth {
-		log.Printf("DEBUG: About to call getAuth")
-		authString, err = getAuth(c, targetFrameworkInfo)
-		if err != nil {
-			log.Printf("ERROR: getAuth failed: %v", err)
-			return response.CommonResponseStatusBadRequest(err.Error()), err
-		}
-		log.Printf("DEBUG: getAuth succeeded: %s", authString)
-	} else {
-		authString = ""
-		log.Printf("DEBUG: No auth required, authString: %s", authString)
-	}
-
-	log.Printf("DEBUG: About to call CommonCaller")
-	log.Printf("DEBUG: - method: %s", strings.ToUpper(targetApiSpec.Method))
-	log.Printf("DEBUG: - baseURL: %s", targetFrameworkInfo.BaseURL)
-	log.Printf("DEBUG: - resourcePath: %s", targetApiSpec.ResourcePath)
-
-	commonResponse, err := CommonCaller(strings.ToUpper(targetApiSpec.Method), targetFrameworkInfo.BaseURL, targetApiSpec.ResourcePath, commonRequest, authString)
-	if err != nil {
-		log.Printf("ERROR: CommonCaller failed: %v", err)
-		return commonResponse, err
-	}
-
-	log.Printf("DEBUG: CommonCaller succeeded")
-	return commonResponse, err
+	err := fmt.Errorf("operationId %q must be called as {subsystem}/%s", operationId, operationId)
+	log.Printf("ERROR: AnyCaller rejected a call without a subsystem: %v", err)
+	return response.CommonResponseStatusNotFound(err.Error()), err
 }
 
-// GetApiSpec returns the API spec for a given operationId
-func GetApiSpec(requestOpertinoId string) (string, Service, Spec, error) {
-	log.Printf("DEBUG: GetApiSpec called with requestOpertinoId: %s", requestOpertinoId)
-
-	for framework, api := range ApiYamlSet.ServiceActions {
-		for opertinoId, spec := range api {
-			if opertinoId == strings.ToLower(requestOpertinoId) {
-				return framework, ApiYamlSet.Services[framework], spec, nil
-			}
-		}
-	}
-
-	log.Printf("ERROR: No matching API spec found for operationId: %s", requestOpertinoId)
-	return "", Service{}, Spec{}, fmt.Errorf("getApiSpec not found")
-}
+// GetApiSpec — no longer used.
+//
+// An operationId is unique only within a subsystem. The same name exists in
+// multiple subsystems (e.g. get-infra-info is defined by cm-honeybee, while
+// getinfra is defined by both cb-tumblebug and cm-beetle), so name collisions
+// are unavoidable when looking across all of them. This function scanned every
+// subsystem's map and returned the first match, but Go's map iteration order is
+// random, so the same call could reach a different service on each run.
+//
+// Therefore calls must specify the subsystem — POST /api/{subsystem}/{operationId}.
+// The front-end's operationId constants are all declared in that form too.
+//
+// func GetApiSpec(requestOpertinoId string) (string, Service, Spec, error) {
+// 	for framework, api := range ApiYamlSet.ServiceActions {
+// 		for opertinoId, spec := range api {
+// 			if opertinoId == strings.ToLower(requestOpertinoId) {
+// 				return framework, ApiYamlSet.Services[framework], spec, nil
+// 			}
+// 		}
+// 	}
+// 	return "", Service{}, Spec{}, fmt.Errorf("getApiSpec not found")
+// }
 
 // SubsystemAnyCaller routes requests to a specific subsystem
 func SubsystemAnyCaller(c echo.Context, subsystemName, operationId string, commonRequest *CommonRequest, auth bool) (*response.CommonResponse, error) {
@@ -194,7 +162,14 @@ func SubsystemAnyCaller(c echo.Context, subsystemName, operationId string, commo
 		authString = ""
 	}
 
-	commonResponse, err := CommonCaller(strings.ToUpper(targetApiSpec.Method), targetFrameworkInfo.BaseURL, targetApiSpec.ResourcePath, commonRequest, authString)
+	// Pass the incoming X-Request-Id straight through to the subsystem. cm-beetle
+	// tracks the request by this id (Handling before the handler runs, then
+	// Success/Error when it finishes), so even if the front-end times out waiting
+	// on a long delete, it can poll progress via GET /request/{id}. If absent it's
+	// an empty string and simply ignored.
+	reqID := c.Request().Header.Get(echo.HeaderXRequestID)
+
+	commonResponse, err := CommonCaller(strings.ToUpper(targetApiSpec.Method), targetFrameworkInfo.BaseURL, targetApiSpec.ResourcePath, commonRequest, authString, reqID)
 	if err != nil {
 		return commonResponse, err
 	}
@@ -239,7 +214,7 @@ func getAuth(c echo.Context, service Service) (string, error) {
 }
 
 // CommonCaller makes HTTP calls to subsystems
-func CommonCaller(callMethod string, targetFwUrl string, endPoint string, commonRequest *CommonRequest, auth string) (*response.CommonResponse, error) {
+func CommonCaller(callMethod string, targetFwUrl string, endPoint string, commonRequest *CommonRequest, auth string, reqID string) (*response.CommonResponse, error) {
 	log.Printf("DEBUG: CommonCaller called")
 	log.Printf("DEBUG: - callMethod: %s", callMethod)
 	log.Printf("DEBUG: - targetFwUrl: %s", targetFwUrl)
@@ -257,7 +232,7 @@ func CommonCaller(callMethod string, targetFwUrl string, endPoint string, common
 	log.Printf("DEBUG: - final requestUrl: %s", requestUrl)
 
 	log.Printf("DEBUG: About to call CommonHttpToCommonResponse")
-	commonResponse, err := CommonHttpToCommonResponse(requestUrl, commonRequest.Request, callMethod, auth)
+	commonResponse, err := CommonHttpToCommonResponse(requestUrl, commonRequest.Request, callMethod, auth, reqID)
 
 	if err != nil {
 		log.Printf("ERROR: CommonHttpToCommonResponse failed: %v", err)
@@ -276,7 +251,7 @@ func CommonCallerWithoutToken(callMethod string, targetFwUrl string, endPoint st
 	pathParamsUrl := mappingUrlPathParams(endPoint, commonRequest)
 	queryParamsUrl := mappingQueryParams(pathParamsUrl, commonRequest)
 	requestUrl := targetFwUrl + queryParamsUrl
-	commonResponse, err := CommonHttpToCommonResponse(requestUrl, commonRequest.Request, callMethod, "")
+	commonResponse, err := CommonHttpToCommonResponse(requestUrl, commonRequest.Request, callMethod, "", "")
 	return commonResponse, err
 }
 
@@ -302,7 +277,7 @@ func mappingQueryParams(targeturl string, commonRequest *CommonRequest) string {
 }
 
 // CommonHttpToCommonResponse makes HTTP request and converts response
-func CommonHttpToCommonResponse(url string, s interface{}, httpMethod string, auth string) (*response.CommonResponse, error) {
+func CommonHttpToCommonResponse(url string, s interface{}, httpMethod string, auth string, reqID string) (*response.CommonResponse, error) {
 	log.Printf("DEBUG: CommonHttpToCommonResponse called")
 	log.Printf("DEBUG: - METHOD: %s", httpMethod)
 	log.Printf("DEBUG: - URL: %s", url)
@@ -326,6 +301,10 @@ func CommonHttpToCommonResponse(url string, s interface{}, httpMethod string, au
 	if auth != "" {
 		req.Header.Add("Authorization", auth)
 		log.Printf("DEBUG: - Authorization header added: %s", auth)
+	}
+	if reqID != "" {
+		req.Header.Set(echo.HeaderXRequestID, reqID)
+		log.Printf("DEBUG: - X-Request-Id forwarded: %s", reqID)
 	}
 
 	log.Printf("DEBUG: - Request Headers:")

@@ -10,7 +10,7 @@ import { showSuccessMessage } from '@/shared/utils';
 const selectedCredentialName = ref<{ id: string } | null>(null);
 const pageName = 'Cloud Credentials';
 
-// 메인 탭 상태
+// Main tab state
 const mainTabState = ref({
   activeTab: 'details',
   tabs: [
@@ -19,7 +19,7 @@ const mainTabState = ref({
   ],
 });
 
-// Credential Detail 탭 상태 (필요 시)
+// Credential Detail tab state (if needed)
 const credentialDetailTabState = ref({
   activeTab: 'information',
   tabs: [
@@ -28,7 +28,7 @@ const credentialDetailTabState = ref({
   ],
 });
 
-// 모달 상태
+// Modal state
 const modalStates = reactive({
   addCredentialGroup: {
     open: false,
@@ -43,11 +43,11 @@ const modalStates = reactive({
   },
 });
 
-// 모달 핸들러
+// Modal handlers
 function handleCredentialEdit() {
   showSuccessMessage('Info', 'Edit functionality is currently disabled.');
 }
-// Add Credential 핸들러
+// Add Credential handler
 function handleAddCredential() {
   modalStates.addCredentialGroup.open = true;
   getCredentialList();
@@ -57,40 +57,40 @@ function handleAddCredential() {
   // isGnbToolboxShown.value = !value;
 }
 
-// // Edit Credential 핸들러
+// // Edit Credential handler
 // function handleCredentialEdit() {
 //   if (selectedCredentialName.value) {
 //     modalStates.editCredentialGroup.open = true;
 //   } else {
-//     showErrorMessage('Error', '편집할 Credential을 선택해주세요.');
+//     showErrorMessage('Error', 'Please select a Credential to edit.');
 //   }
 // }
 
 // let data = computed(() => selectedCredentialName.value?.id);
-// Credential 선택 핸들러
+// Credential selection handler
 // function handleClickCredentialName(credential: { id: string }) {
 //   selectedCredentialName.value = credential;
 //   data = selectedCredentialName.value?.id;
-//   console.log('추출된 id 값:', data);
-//   console.log('추출된 id 값:', typeof data);
-//   console.log('선택된 Credential Name:', credential);
+//   console.log('extracted id value:', data);
+//   console.log('extracted id value:', typeof data);
+//   console.log('selected Credential Name:', credential);
 //   console.log('selectedCredentialName:', selectedCredentialName.value);
 
-//   // data를 필요한 곳에 사용
+//   // use data wherever it's needed
 // }
 
 // function handleClickCredentialName(credential: { id: string }) {
 //   selectedCredentialName.value = credential;
-//   console.log('선택된 Credential Name:', credential.id);
+//   console.log('selected Credential Name:', credential.id);
 // }
 function handleClickCredentialName(credential: { id: string }) {
   selectedCredentialName.value = credential;
 }
 
-// 모달 관련 핸들러 (필요 시 구현)
-// 모달에서 트리거된 이벤트 처리
+// Modal-related handlers (implement as needed)
+// Handle events triggered from the modal
 function handleAddCredentialTrigger() {
-  showSuccessMessage('Success', 'Credential이 성공적으로 추가되었습니다.');
+  showSuccessMessage('Success', 'Credential added successfully.');
   modalStates.addCredentialGroup.trigger = true;
 }
 </script>
@@ -155,7 +155,7 @@ function handleAddCredentialTrigger() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  /* 추가 스타일 */
+  /* Additional styles */
 }
 
 .no-selection-message {
