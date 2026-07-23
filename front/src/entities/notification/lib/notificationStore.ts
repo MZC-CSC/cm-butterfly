@@ -8,7 +8,6 @@ import {
   type NotificationLevel,
   type NotificationCategory,
 } from '@/entities/notification/api';
-import { showNotificationToast } from '@/shared/utils';
 
 /**
  * Notification badge
@@ -52,6 +51,16 @@ export function setNotificationPopupEnabled(on: boolean): void {
   localStorage.setItem(POPUP_KEY, String(on));
 }
 
+/**
+ * Arrival pulse (BAR-1579).
+ *
+ * Bumped once whenever a poll brings a *genuinely new* notification (not the login backlog).
+ * The topbar watches this and plays the arrival cue — an envelope flying into the badge — so
+ * the store stays free of any DOM/animation concern. One bump per poll however many arrived;
+ * the badge count already says how many wait.
+ */
+export const arrivalSeq = ref(0);
+
 // Ids seen on the previous poll, so a poll can tell which notifications are new and only toast
 // those. `primed` guards the first load — logging in must not flash the whole backlog as if it
 // had just arrived.
@@ -79,14 +88,11 @@ export async function loadNotifications(): Promise<void> {
   try {
     const res = await useListNotifications().execute();
     const items = res.data.responseData ?? [];
-    // Flash the ones that were not here last time. Only after the first load (so a login does
-    // not replay the backlog), and only when the popup is on.
-    if (primed && notificationPopupEnabled.value) {
-      for (const n of items) {
-        if (!knownIds.has(n.id)) {
-          showNotificationToast(n.category ?? 'Notification', n.message, n.level);
-        }
-      }
+    // Signal the ones that were not here last time. Only after the first load (so a login does
+    // not replay the backlog as if it just arrived). The topbar owns the popup setting and the
+    // animation; here we only say "something new came in".
+    if (primed && items.some(n => !knownIds.has(n.id))) {
+      arrivalSeq.value += 1;
     }
     knownIds = new Set(items.map(n => n.id));
     primed = true;
