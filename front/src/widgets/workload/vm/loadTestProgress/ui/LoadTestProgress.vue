@@ -534,7 +534,7 @@ const hasSteps = computed(() => steps.value.length > 0);
    fixed width, so a narrower browser shrinks the whole row with the panel. */
 .lt-bar-row.is-full {
   width: 100%;
-  max-width: 640px;
+  max-width: 480px;
 }
 
 .lt-bar {
