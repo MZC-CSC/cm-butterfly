@@ -16,6 +16,20 @@ import { MENU_ID } from '@/entities';
  *
  * Built with plain markup on purpose — new screens should not widen the mirinae surface
  * (see DESIGN-MIRINAE "inventory": do not pull mirinae into new screens).
+ *
+ * ── Known limits of this first version, to be closed next ──────────────────────────
+ * The guide link opens GitHub in a new tab, so the reader leaves the console. That
+ * breaks the round trip this page is meant to provide:
+ *
+ *   1. Reading the guide loses the "which step am I on?" context.
+ *   2. `activeRouteName` below reads `?from=`, but nothing sets that query yet — no
+ *      screen offers a way back here — so the highlight never actually lights up.
+ *   3. Without a return path, the router-links only lead outward.
+ *
+ * Closing it means embedding the step text here (so the reader stays in the console),
+ * deriving the current step from the *actual* route instead of a hand-passed query,
+ * and giving each step screen a way back. Kept out of this change on purpose: the
+ * written guide had to be verified against the real screens first.
  */
 
 type Step = {
