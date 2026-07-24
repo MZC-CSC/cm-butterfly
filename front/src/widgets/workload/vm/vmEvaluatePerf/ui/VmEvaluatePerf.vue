@@ -49,6 +49,26 @@ function handleOpenLoadconfig() {
 const isLoadTestRunning = computed(() =>
   ['Running', 'Collecting results'].includes(props.loadTestStatus ?? ''),
 );
+
+// Stopping a run means killing the JMeter process on the load generator, so there is nothing to
+// stop until the generator is installed — cm-ant answers a stop request before that point with
+// "load install info: record not found". The phases before it (pre-check, generator install) are
+// short and end on their own, so the button waits for the generator instead of failing.
+//
+// An older cm-ant reports no steps at all; there is nothing to base the decision on, so the
+// button stays available rather than being permanently disabled.
+const canStopLoadTest = computed(() => {
+  const steps = props.loadTestSteps ?? [];
+  if (!steps.length) return true;
+  return steps.some(s => s.name === 'generator_install' && s.status === 'ok');
+});
+
+// Same guard as Load Config: mirinae's disabled is a class only and the click still reaches the
+// element (DESIGN-MIRINAE §1.6), so the handler has to hold the rule too.
+function handleStopLoadTest() {
+  if (!canStopLoadTest.value) return;
+  emit('stopLoadTest');
+}
 const hasLoadTest = computed(() => !!props.loadTestStatus);
 const isLoadTestFailed = computed(() => props.loadTestStatus === 'Failed');
 // Results (charts / aggregation) show only on success. Nothing is fetched while running/failed.
@@ -97,7 +117,13 @@ const isLoadTestCompleted = computed(() => props.loadTestStatus === 'Completed')
           data-testid="vm-load-stop"
           style-type="negative-secondary"
           icon-left="ic_close"
-          @click="emit('stopLoadTest')"
+          :disabled="!canStopLoadTest"
+          :title="
+            canStopLoadTest
+              ? undefined
+              : 'Available once the load generator is installed'
+          "
+          @click="handleStopLoadTest"
         >
           Stop
         </p-button>
