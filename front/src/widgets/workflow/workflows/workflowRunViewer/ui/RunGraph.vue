@@ -37,9 +37,19 @@ const emit = defineEmits<{ (e: 'select', taskId: string): void }>();
 const NAME_PADDING_X = 14;
 const NAME_CHAR_WIDTH = 7.1; // average glyph width for 13px semibold
 
+/*
+  The running spinner sits in the node's top-right corner. Its slot is reserved for *every*
+  node, not only the running one — if the name budget changed with the state, a name would
+  grow and shrink again as the task started and finished.
+*/
+const SPINNER_RADIUS = 7;
+const SPINNER_INSET_X = 20;
+const SPINNER_INSET_Y = 18;
+const NAME_RESERVED_X = SPINNER_INSET_X + SPINNER_RADIUS;
+
 function fitName(name: string): string {
   const max = Math.floor(
-    (GRAPH_NODE_WIDTH - NAME_PADDING_X * 2) / NAME_CHAR_WIDTH,
+    (GRAPH_NODE_WIDTH - NAME_PADDING_X - NAME_RESERVED_X) / NAME_CHAR_WIDTH,
   );
   return name.length <= max ? name : `${name.slice(0, max - 1)}…`;
 }
@@ -213,6 +223,26 @@ const edgePaths = computed(() =>
             · try {{ item.tryNumber }}
           </template>
         </text>
+
+        <!--
+          A task that takes a long time keeps the same box and the same "Running" text for
+          minutes on end, so nothing on screen moves and it reads as frozen. This spinner is
+          the one thing that keeps moving, and it says *which* task the run is sitting on.
+
+          The wrapper only positions it; the rotation is applied to the arc, whose local
+          origin (0 0) is the circle's own center after that translate.
+        -->
+        <g
+          v-if="item.kind === 'running'"
+          class="run-graph__spinner"
+          data-testid="workflow-run-node-spinner"
+          :transform="`translate(${item.x + NODE_WIDTH - SPINNER_INSET_X}, ${
+            item.y + SPINNER_INSET_Y
+          })`"
+        >
+          <circle :r="SPINNER_RADIUS" class="run-graph__spinner-track" />
+          <circle :r="SPINNER_RADIUS" class="run-graph__spinner-arc" />
+        </g>
       </g>
     </svg>
   </div>
@@ -306,6 +336,30 @@ const edgePaths = computed(() =>
   animation: run-graph-pulse 1.2s ease-in-out infinite;
 }
 
+/* Running spinner — circumference at r=7 is ~44, so 33/11 leaves a quarter open */
+.run-graph__spinner-track {
+  fill: none;
+  stroke: #c7d4f7;
+  stroke-width: 2;
+}
+
+.run-graph__spinner-arc {
+  fill: none;
+  stroke: #3e6ee8;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 33 11;
+  /* the arc's own center — the parent <g> already translated it into place */
+  transform-origin: 0 0;
+  animation: run-graph-spin 0.9s linear infinite;
+}
+
+@keyframes run-graph-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @keyframes run-graph-pulse {
   0%,
   100% {
@@ -316,8 +370,13 @@ const edgePaths = computed(() =>
   }
 }
 
+/*
+  With motion turned off the ring stays put. It is still an open ring only running tasks
+  carry, so "which task is running" survives — only the movement goes away.
+*/
 @media (prefers-reduced-motion: reduce) {
-  .run-graph__node--running .run-graph__box {
+  .run-graph__node--running .run-graph__box,
+  .run-graph__spinner-arc {
     animation: none;
   }
 }

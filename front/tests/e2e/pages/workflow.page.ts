@@ -212,6 +212,43 @@ export class WorkflowPage {
     return this.page.getByTestId('workflow-run-progress-count');
   }
 
+  /**
+   * "Still running" indicators. The progress bar only moves when a task finishes, so during a
+   * long task these are the only things that keep moving — which task is being waited on, and
+   * how long it has been.
+   *
+   * Only present while the run is in flight, so assert on them *during* a run, not after.
+   */
+  get runningIndicator(): Locator {
+    return this.page.getByTestId('workflow-run-running');
+  }
+
+  /**
+   * The layer shown from the moment Run is pressed until the new run can be drawn. It covers
+   * the graph, which still shows the *previous* run until then.
+   */
+  get runStarting(): Locator {
+    return this.page.getByTestId('workflow-run-starting');
+  }
+
+  /** "Running: <task>" or "Waiting for the next task to start" */
+  get runningTasksText(): Locator {
+    return this.page.getByTestId('workflow-run-running-tasks');
+  }
+
+  /** The elapsed counter. It must actually change — a frozen one proves nothing */
+  get runElapsed(): Locator {
+    return this.page.getByTestId('workflow-run-elapsed');
+  }
+
+  /**
+   * Spinners drawn on running task nodes. Count them rather than checking a style —
+   * the rotation is CSS, which tells you nothing about which task is running.
+   */
+  get runNodeSpinners(): Locator {
+    return this.page.getByTestId('workflow-run-node-spinner');
+  }
+
   /** Which run is currently being viewed */
   get runMeta() {
     return this.page.getByTestId('workflow-run-meta');
