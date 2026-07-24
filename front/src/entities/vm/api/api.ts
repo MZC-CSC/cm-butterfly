@@ -54,19 +54,28 @@ export function useRunLoadTest(requestPayload: IRunLoadTestRequest | null) {
   >(RUN_LOAD_TEST, requestBodyWrapper);
 }
 
-// Stop a running load test (StopLoadTest). Identified by loadTestKey.
-export function useStopLoadTest(loadTestKey: string | null) {
+// Stop a running load test (StopLoadTest).
+//
+// cm-ant identifies the run by its key *and* by the node it belongs to, and rejects the request
+// before looking anything up unless nsId, infraId and nodeId are all present. Sending the key
+// alone always comes back 400 "load test stop info is not correct."
+export interface IStopLoadTestRequest {
+  loadTestKey: string;
+  nsId: string;
+  infraId: string;
+  nodeId: string;
+}
+
+export function useStopLoadTest(request: IStopLoadTestRequest | null) {
   const requestBodyWrapper: Required<
-    Pick<RequestBodyWrapper<{ loadTestKey: string } | null>, 'request'>
+    Pick<RequestBodyWrapper<IStopLoadTestRequest | null>, 'request'>
   > = {
-    request: loadTestKey ? { loadTestKey } : null,
+    request,
   };
 
   return useAxiosPost<
     IAxiosResponse<unknown>,
-    Required<
-      Pick<RequestBodyWrapper<{ loadTestKey: string } | null>, 'request'>
-    >
+    Required<Pick<RequestBodyWrapper<IStopLoadTestRequest | null>, 'request'>>
   >(STOP_LOAD_TEST, requestBodyWrapper);
 }
 
