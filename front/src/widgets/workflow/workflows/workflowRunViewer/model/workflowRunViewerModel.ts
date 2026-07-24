@@ -214,7 +214,7 @@ export function useWorkflowRunViewerModel() {
       // red error we show an empty state that invites the user to run it.
       // We do not clear the list here: `open()` clears it before calling, and the run-wait loop
       // must not wipe the run it is still showing just because one query failed.
-      return e?.message ?? 'Failed to load the run history.';
+      return e?.message ?? 'Failed to load the run information.';
     }
   }
 
