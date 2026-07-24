@@ -38,7 +38,22 @@ type Step = {
   detail: string;
   routeName: string;
   testId: string;
+  /**
+   * A written guide that goes deeper than this step's one line, when one exists.
+   *
+   * Rendered *outside* the step's link — a link inside a link is not valid markup and the
+   * inner one stops working.
+   */
+  guide?: { title: string; file: string };
 };
+
+/** The guides live with the source, so they move with it and cannot drift into a stale copy */
+const GUIDE_BASE =
+  'https://github.com/cloud-barista/cm-butterfly/blob/main/docs/guide/';
+
+function guideUrlFor(file: string): string {
+  return GUIDE_BASE + file;
+}
 
 const steps: Step[] = [
   {
@@ -48,6 +63,10 @@ const steps: Step[] = [
       'Register the servers you want to migrate. Each connection is one source server, and the collection agent is installed when you add it.',
     routeName: MENU_ID.SOURCE_SERVICES,
     testId: 'migration-guide-step-source-service',
+    guide: {
+      title: 'Bulk import of source connections',
+      file: 'source-connection-bulk-import.md',
+    },
   },
   {
     no: 2,
@@ -72,6 +91,10 @@ const steps: Step[] = [
       'From the target model, generate the migration workflow. This is the entry point — workflows are created from a target model.',
     routeName: MENU_ID.WORKFLOWS,
     testId: 'migration-guide-step-create-workflow',
+    guide: {
+      title: 'Running workflow tasks in parallel',
+      file: 'workflow-parallel-steps.md',
+    },
   },
   {
     no: 5,
@@ -80,6 +103,10 @@ const steps: Step[] = [
       'Review the values carried over from the target model, adjust what you need, then run it. The migration actually happens here.',
     routeName: MENU_ID.WORKFLOWS,
     testId: 'migration-guide-step-run-workflow',
+    guide: {
+      title: 'Reading the run status screen',
+      file: 'workflow-run-status.md',
+    },
   },
 ];
 
@@ -97,8 +124,7 @@ function isActive(step: Step): boolean {
   );
 }
 
-const guideUrl =
-  'https://github.com/cloud-barista/cm-butterfly/blob/main/docs/guide/quick-start-migration.md';
+const guideUrl = guideUrlFor('quick-start-migration.md');
 </script>
 
 <template>
@@ -145,6 +171,22 @@ const guideUrl =
             >&rsaquo;</span
           >
         </router-link>
+
+        <!--
+          Sits under the step rather than inside it: the step itself is a link, and a link
+          inside a link does not work. This is also the hook for "help for this screen" —
+          each step points at the guide for the screen it opens.
+        -->
+        <a
+          v-if="step.guide"
+          :href="guideUrlFor(step.guide.file)"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="mt-1 self-start pl-12 text-xs text-blue-600 underline"
+          :data-testid="`${step.testId}-guide`"
+        >
+          {{ step.guide.title }}
+        </a>
 
         <span
           v-if="index < steps.length - 1"
