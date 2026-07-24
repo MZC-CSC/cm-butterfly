@@ -1,4 +1,5 @@
 import { createBdd } from 'playwright-bdd';
+import { expect } from '@playwright/test';
 import { test } from '../support/fixtures';
 import { SourceServicesPage, Connection } from '../pages/sourceServices.page';
 import { sourceServer } from '../fixtures/test-data';
@@ -136,6 +137,147 @@ Given('{string} 소스그룹을 선택한다', async ({ page }, name: string) =>
 /** "그리고 \"e2e-conn\" 연결정보를 선택한다" (연결 탭 진입 포함) */
 Given('{string} 연결정보를 선택한다', async ({ page }, connName: string) => {
   await new SourceServicesPage(page).openConnection(uniqueName(connName));
+});
+
+// ───────────────────────── 연결정보 익스포트 ─────────────────────────
+
+/** "만약 \"e2e-group\" 소스그룹에 \"a\",\"b\" 연결정보를 대량 등록하면" (CSV 대량 임포트로 여러 건) */
+When(
+  '{string} 소스그룹에 {string} 연결정보를 대량 등록하면',
+  async ({ page }, groupName: string, connCsv: string) => {
+    const names = connCsv.split(',').map(n => uniqueName(n.trim()));
+    await new SourceServicesPage(page).createSourceGroupWithBulkImport(
+      uniqueName(groupName),
+      names,
+    );
+  },
+);
+
+/** "그리고 \"e2e-conn\" 연결정보를 체크한다" (목록 체크박스 선택) */
+Given('{string} 연결정보를 체크한다', async ({ page }, connName: string) => {
+  await new SourceServicesPage(page).checkConnection(uniqueName(connName));
+});
+
+/** "그리고 익스포트 형식을 \"엑셀\"로 고른다" (기본 CSV, 엑셀만 명시) */
+When('익스포트 형식을 {string} 로 고른다', async ({ page }, label: string) => {
+  const format = /엑셀|excel|xlsx/i.test(label) ? 'xlsx' : 'csv';
+  await new SourceServicesPage(page).selectExportFormat(format);
+});
+
+/** "그러면 익스포트 버튼이 비활성이다" */
+Then('익스포트 버튼이 비활성이다', async ({ page }) => {
+  await new SourceServicesPage(page).expectExportDisabled();
+});
+
+/** "그러면 익스포트 버튼이 활성이다" */
+Then('익스포트 버튼이 활성이다', async ({ page }) => {
+  await new SourceServicesPage(page).expectExportEnabled();
+});
+
+/** "만약 익스포트를 누르면" — 확인 모달이 열리는 데까지 */
+When('익스포트를 누르면', async ({ page }) => {
+  await new SourceServicesPage(page).openExportConfirm();
+});
+
+/** "그러면 암호화 컬럼 안내가 보인다" — 모달 열림은 내용물로 판정한다 */
+Then('암호화 컬럼 안내가 보인다', async ({ page }) => {
+  await new SourceServicesPage(page).expectExportNoticeVisible();
+});
+
+/** "만약 익스포트를 확인하면" — 실제 다운로드까지 받아 파일명·내용을 기억해 둔다 */
+When('익스포트를 확인하면', async ({ page }) => {
+  const { fileName, content } = await new SourceServicesPage(
+    page,
+  ).confirmExportAndDownload();
+  scenarioState.exportedFileName = fileName;
+  scenarioState.exportedFileContent = content;
+});
+
+/** "만약 익스포트를 취소하면" */
+When('익스포트를 취소하면', async ({ page }) => {
+  await new SourceServicesPage(page).cancelExport();
+});
+
+/** "그러면 \"e2e-conn\" 이름으로 시작하는 파일이 내려받아진다" */
+Then(
+  '{string} 이름으로 시작하는 파일이 내려받아진다',
+  async ({ page: _page }, baseName: string) => {
+    const fileName = scenarioState.exportedFileName ?? '';
+    expect(fileName).toContain(uniqueName(baseName));
+    // 같은 대상을 다시 내보내도 겹치지 않도록 타임스탬프가 붙는다(형식은 csv·xlsx 공통).
+    expect(fileName).toMatch(/-\d{8}-\d{6}\.(csv|xlsx)$/);
+  },
+);
+
+/** "그러면 내려받은 파일 확장자가 \"xlsx\"다" */
+Then(
+  '내려받은 파일 확장자가 {string} 다',
+  async ({ page: _page }, ext: string) => {
+    const fileName = scenarioState.exportedFileName ?? '';
+    expect(fileName.endsWith(`.${ext}`)).toBe(true);
+  },
+);
+
+/** "그러면 익스포트 파일에 데이터가 2행 있다" (CSV 내용 기준 — 여러 건이 다 담겼는지) */
+Then(
+  '익스포트 파일에 데이터가 {int} 행 있다',
+  async ({ page: _page }, count: number) => {
+    const content = scenarioState.exportedFileContent ?? '';
+    const lines = content.trim().split(/\r?\n/);
+    // 헤더 한 줄을 뺀 나머지가 데이터 행이다.
+    expect(lines.length - 1).toBe(count);
+  },
+);
+
+/** "그러면 익스포트 파일에 \"conn-1,conn-3,conn-5\" 가 담겨 있다"
+ *  비연속 선택(예: 5개 중 1·3·5)이 *고른 것만* 정확히 반영되는지 — 이름으로 확인한다. */
+Then(
+  '익스포트 파일에 {string} 가 담겨 있다',
+  async ({ page: _page }, csvNames: string) => {
+    const content = scenarioState.exportedFileContent ?? '';
+    for (const base of csvNames.split(',').map(n => n.trim())) {
+      expect(content).toContain(uniqueName(base));
+    }
+  },
+);
+
+/** "그리고 익스포트 파일에 \"conn-2,conn-4\" 는 담겨 있지 않다"
+ *  고르지 않은 것은 빠져야 한다(선택→익스포트 매핑이 어긋나면 여기서 걸린다). */
+Then(
+  '익스포트 파일에 {string} 는 담겨 있지 않다',
+  async ({ page: _page }, csvNames: string) => {
+    const content = scenarioState.exportedFileContent ?? '';
+    for (const base of csvNames.split(',').map(n => n.trim())) {
+      expect(content).not.toContain(uniqueName(base));
+    }
+  },
+);
+
+/** "그러면 익스포트 파일이 임포트 양식과 같고 암호화 컬럼이 비어 있다"
+ *  이 기능의 핵심 약속 두 가지 — 임포트 양식 그대로일 것, 암호화 값은 나가지 않을 것. */
+Then('익스포트 파일이 임포트 양식과 같고 암호화 컬럼이 비어 있다', async () => {
+  const content = scenarioState.exportedFileContent ?? '';
+  const lines = content.trim().split(/\r?\n/);
+
+  const headers = lines[0].split(',');
+  expect(headers).toEqual([
+    'name',
+    'description',
+    'ip_address',
+    'ssh_port',
+    'user',
+    'password',
+    'private_key',
+  ]);
+
+  // 데이터가 최소 한 행 있어야 검증이 의미를 갖는다.
+  expect(lines.length).toBeGreaterThan(1);
+
+  // user·password·private_key는 마지막 세 컬럼이고 항상 비어 있어야 한다.
+  for (const line of lines.slice(1)) {
+    const cells = line.split(',');
+    expect(cells.slice(-3)).toEqual(['', '', '']);
+  }
 });
 
 /** "만약 인프라 수집을 실행하면" (현재 선택된 연결정보 기준) */

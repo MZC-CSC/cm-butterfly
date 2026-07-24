@@ -185,6 +185,22 @@ export class SourceServicesPage {
   private connectionRow(name: string): Locator {
     return this.page.getByRole('row', { name: new RegExp(name) });
   }
+  /** 연결 목록의 "Export" 버튼 — 선택한 연결이 없으면 비활성 */
+  private get exportConnectionButton(): Locator {
+    return this.page.getByTestId('source-connection-export');
+  }
+  /** 익스포트 확인 모달의 안내 문구.
+   *  ★ 모달 래퍼의 testid는 가시 요소로 잡히지 않으므로(mirinae PButtonModal)
+   *    모달이 열렸는지는 이 *내용물*로 판정한다. */
+  private get exportNotice(): Locator {
+    return this.page.getByTestId('source-connection-export-notice');
+  }
+  private get exportConfirmButton(): Locator {
+    return this.page.getByTestId('source-connection-export-confirm');
+  }
+  private get exportCancelButton(): Locator {
+    return this.page.getByTestId('source-connection-export-cancel');
+  }
   private get infoTab(): Locator {
     return this.tab(/Information/i);
   }
@@ -294,6 +310,38 @@ export class SourceServicesPage {
     await this.expectGroupListed(name);
   }
 
+  /** 소스그룹을 만들되 연결정보 여러 건을 CSV 대량 임포트로 한 번에 넣는다.
+   *  익스포트가 *여러 건 선택*을 제대로 담는지 확인하려면 한 그룹에 연결이 둘 이상 있어야 한다. */
+  async createSourceGroupWithBulkImport(
+    name: string,
+    connNames: string[],
+  ): Promise<void> {
+    const header =
+      'name,description,ip_address,ssh_port,user,password,private_key';
+    // A password is needed so honeybee accepts the connection (user + one auth
+    // method). The export blanks it back out regardless, which is what we check.
+    const rows = connNames.map(n => `${n},,10.0.0.1,22,ubuntu,e2e-dummy-pass,`);
+    const csv = '\uFEFF' + [header, ...rows].join('\n') + '\n';
+
+    await this.addGroupButton.click();
+    await this.serviceNameInput.fill(name);
+    await this.withConnectionToggle.click();
+
+    await this.page.getByTestId('source-import-input').setInputFiles({
+      name: 'bulk.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(csv, 'utf-8'),
+    });
+
+    // 서버 파싱 후 미리보기에 건수가 뜬 뒤 등록한다.
+    await expect(this.page.getByTestId('source-import-count')).toContainText(
+      String(connNames.length),
+      { timeout: 15_000 },
+    );
+    await this.groupConfirmButton.click();
+    await this.expectGroupListed(name);
+  }
+
   /** 이름으로 소스그룹 선택(상세 진입) */
   async selectGroup(name: string): Promise<void> {
     await this.revealGroup(name);
@@ -304,6 +352,104 @@ export class SourceServicesPage {
   async openConnection(connName: string): Promise<void> {
     await this.connectionsTab.click();
     await this.connectionRow(connName).first().click();
+  }
+
+  // ───────────────────────── 연결정보 익스포트 ─────────────────────────
+
+  /** 연결 목록에서 체크박스로 연결을 고른다.
+   *  ★ mirinae 선택 체크박스는 실제 <input>이 아니라 커스텀 요소라
+   *    isChecked()가 항상 false를 돌려준다. 선택이 됐는지는 뒤따르는 동작
+   *    (Export 버튼 활성화)으로 판정한다. */
+  async checkConnection(connName: string): Promise<void> {
+    await this.openConnectionsTab();
+    await this.connectionRow(connName)
+      .first()
+      .locator('td.select-checkbox .p-checkbox, input[type="checkbox"]')
+      .first()
+      .click();
+  }
+
+  /** ★ mirinae PButton은 비활성을 class로만 표현한다(표준 disabled 속성이 붙지 않는다).
+   *  toBeDisabled()·isEnabled()는 항상 "활성"으로 답하므로 클래스로 판정한다. */
+  private async isMirinaeButtonDisabled(locator: Locator): Promise<boolean> {
+    return locator.evaluate(el => {
+      const button = (el.closest('button') ?? el) as HTMLElement;
+      return button.className.split(/\s+/).includes('disabled');
+    });
+  }
+
+  /** 그룹을 고른 직후에는 Detail 탭이 열려 있어 연결 목록이 아직 없다.
+   *  버튼 상태를 보려면 Connections 탭을 먼저 열어야 한다.
+   *  이미 열려 있으면(=Export 버튼이 보이면) 다시 클릭하지 않는다 — 행 선택 뒤
+   *  탭을 재클릭하면 레이아웃이 바뀌어 클릭이 막힐 수 있다. */
+  private async openConnectionsTab(): Promise<void> {
+    if (await this.exportConnectionButton.isVisible().catch(() => false))
+      return;
+    await this.connectionsTab.click();
+    await expect(this.exportConnectionButton).toBeVisible({ timeout: 15_000 });
+  }
+
+  async expectExportDisabled(): Promise<void> {
+    await this.openConnectionsTab();
+    expect(
+      await this.isMirinaeButtonDisabled(this.exportConnectionButton),
+    ).toBe(true);
+  }
+
+  async expectExportEnabled(): Promise<void> {
+    await this.openConnectionsTab();
+    expect(
+      await this.isMirinaeButtonDisabled(this.exportConnectionButton),
+    ).toBe(false);
+  }
+
+  /** Export 클릭 → 확인 모달이 열린다(안내 문구로 판정). */
+  async openExportConfirm(): Promise<void> {
+    await this.exportConnectionButton.click();
+    await expect(this.exportNotice).toBeVisible({ timeout: 10_000 });
+  }
+
+  /** 확인 모달에서 파일 형식을 고른다(기본은 CSV). */
+  async selectExportFormat(format: 'csv' | 'xlsx'): Promise<void> {
+    await this.page
+      .getByTestId(`source-connection-export-format-${format}`)
+      .click();
+  }
+
+  /** 암호화 컬럼이 빠진다는 안내가 실제로 보이는지. */
+  async expectExportNoticeVisible(): Promise<void> {
+    await expect(this.exportNotice).toBeVisible({ timeout: 10_000 });
+  }
+
+  /** 확인을 눌러 실제 다운로드까지 받고, 파일명과 내용을 함께 돌려준다.
+   *  내용까지 읽는 이유는 암호화 컬럼이 정말 비어 있는지가 이 기능의 핵심 약속이라서다. */
+  async confirmExportAndDownload(): Promise<{
+    fileName: string;
+    content: string;
+  }> {
+    const downloadEvent = this.page.waitForEvent('download', {
+      timeout: 30_000,
+    });
+    await this.exportConfirmButton.click();
+    const download = await downloadEvent;
+
+    const stream = await download.createReadStream();
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+
+    return {
+      fileName: download.suggestedFilename(),
+      // utf-8 BOM은 벗겨서 헤더 비교가 첫 컬럼에서 어긋나지 않게 한다.
+      content: Buffer.concat(chunks)
+        .toString('utf-8')
+        .replace(/^\uFEFF/, ''),
+    };
+  }
+
+  /** 취소를 누르면 아무 일도 일어나지 않는다(안내 문구가 사라진다). */
+  async cancelExport(): Promise<void> {
+    await this.exportCancelButton.click();
+    await expect(this.exportNotice).toBeHidden({ timeout: 10_000 });
   }
 
   /** 연결 상태 점검(Refresh) — 정상이어야 Collect 버튼 활성화. 상세가 열린 상태에서 호출. */
