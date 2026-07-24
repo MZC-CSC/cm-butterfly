@@ -147,6 +147,10 @@ Migration normally runs at the **Source Service level**, so every server in it m
 
 *After a run, **Start new run**, **Clone & Edit**, and **Re-run failed tasks** become available.*
 
+> For what the screen shows at each moment — while a task is running, right after you
+> press Run, and when the run cannot be found — see
+> [Reading the Run Status Screen](workflow-run-status.md).
+
 ![Infra Workloads](images/13-infra-workloads.png)
 
 ![Server list](images/14-server-list.png)
