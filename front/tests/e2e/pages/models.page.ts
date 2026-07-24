@@ -142,14 +142,9 @@ export class ModelsPage {
     return this.page.getByTestId('recommend-match-rate-help');
   }
 
-  /** Minimum Match Rate — always-visible hint under the field */
+  /** Minimum Match Rate — hint line, shown only while a rate is set */
   private get matchRateHint(): Locator {
     return this.page.getByTestId('recommend-match-rate-hint');
-  }
-
-  /** Minimum Match Rate — "Use default" (clears the field so the parameter is omitted) */
-  private get matchRateResetButton(): Locator {
-    return this.page.getByTestId('recommend-match-rate-reset');
   }
 
   /** Recommendation result table rows */
@@ -287,8 +282,13 @@ export class ModelsPage {
   }
 
   /** Clear the Minimum Match Rate so the server default applies again */
-  async useDefaultMinimumMatchRate(): Promise<void> {
-    await humanClick(this.matchRateResetButton);
+  async clearMinimumMatchRate(): Promise<void> {
+    await this.matchRateInput.fill('');
+  }
+
+  /** Is the hint line under the field showing? (it only appears once a rate is set) */
+  async isMinimumMatchRateHintVisible(): Promise<boolean> {
+    return this.matchRateHint.isVisible();
   }
 
   /** What the number field currently holds ('' when not set) */

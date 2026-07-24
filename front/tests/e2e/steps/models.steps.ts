@@ -273,9 +273,9 @@ When('최소 매치율을 그대로 두고 추천을 실행하면', async ({ pag
   lastRecommendQuery = await new ModelsPage(page).runRecommendCapturingQuery();
 });
 
-When('최소 매치율을 기본값으로 되돌리고 추천을 실행하면', async ({ page }) => {
+When('최소 매치율을 비우고 추천을 실행하면', async ({ page }) => {
   const models = new ModelsPage(page);
-  await models.useDefaultMinimumMatchRate();
+  await models.clearMinimumMatchRate();
   lastRecommendQuery = await models.runRecommendCapturingQuery();
 });
 
@@ -337,6 +337,12 @@ Then(
     );
   },
 );
+
+Then('최소 매치율 안내 문구가 보이지 않는다', async ({ page }) => {
+  expect(await new ModelsPage(page).isMinimumMatchRateHintVisible()).toBe(
+    false,
+  );
+});
 
 // ───────────────────────────────────────────────────────────────────────
 // Internal helpers

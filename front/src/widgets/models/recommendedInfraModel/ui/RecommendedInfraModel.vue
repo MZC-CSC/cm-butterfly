@@ -194,11 +194,6 @@ function handleMatchRateSlider(event: Event) {
   matchRateInput.value = String(clampMatchRate(Number(el.value)));
 }
 
-/** Back to "not specified" so the server default is used again. */
-function resetMatchRate() {
-  matchRateInput.value = '';
-}
-
 const modalState = reactive({
   targetModal: false,
   checkModal: false,
@@ -569,10 +564,14 @@ function handleSave(e: { name: string; description: string }) {
               Search
             </p-button>
           </section>
-          <!-- Lay out the Query Parameters horizontally -->
-          <section class="select-service-box flex w-full items-start gap-6">
-            <!-- Candidate Limit with tooltip -->
-            <div class="param-field">
+          <!--
+            Query parameters — one row, with the Minimum Match Rate hint on a full-width line
+            underneath. Both are kept compact so the row does not wrap while the modal still has
+            horizontal room to spare.
+          -->
+          <section class="params-section">
+            <div class="params-section__row">
+              <!-- Candidate Limit with tooltip -->
               <p
                 class="text-label-lg font-bold"
                 title="Maximum number of recommended infrastructures to return (default: 3)"
@@ -585,22 +584,18 @@ function handleSave(e: { name: string; description: string }) {
                 type="number"
                 :min="1"
                 :max="10"
-                class="p-2 border rounded"
-                style="width: 80px"
+                class="param-input"
                 placeholder="3"
                 title="Maximum number of recommended infrastructures to return (default: 3)"
               />
-            </div>
 
-            <!--
-              Minimum Match Rate — one value only. cm-beetle exposes a single `minMatchRate`
-              (0-100, default 90) and answers anything it cannot parse by silently using 90,
-              so the screen must not invent a range. The '?' badge sits at the label's
-              bottom-right and opens the detailed explanation on hover/focus; the line under
-              the field repeats the essentials for anyone who never hovers. (BAR-1634)
-            -->
-            <div class="match-rate-field">
-              <div class="match-rate-field__label">
+              <!--
+                Minimum Match Rate — one value only. cm-beetle exposes a single `minMatchRate`
+                (0-100, default 90) and answers anything it cannot parse by silently using 90,
+                so the screen must not invent a range. The '?' badge sits at the label's
+                bottom-right and opens the detailed explanation on hover/focus. (BAR-1634)
+              -->
+              <span class="match-rate-label">
                 <span class="text-label-lg font-bold"
                   >Minimum Match Rate (%)</span
                 >
@@ -610,65 +605,52 @@ function handleSave(e: { name: string; description: string }) {
                   :options="{ classes: ['p-tooltip', 'match-rate-tooltip'] }"
                 >
                   <span
-                    class="match-rate-field__help"
+                    class="match-rate-label__help"
                     data-testid="recommend-match-rate-help"
                     tabindex="0"
                     aria-label="What Minimum Match Rate means"
                     >?</span
                   >
                 </p-tooltip>
-              </div>
-
-              <div class="match-rate-field__control">
-                <input
-                  data-testid="recommend-match-rate-slider"
-                  type="range"
-                  :min="MATCH_RATE_MIN"
-                  :max="MATCH_RATE_MAX"
-                  step="1"
-                  class="match-rate-field__slider"
-                  :value="matchRateSliderValue"
-                  :aria-valuenow="matchRateSliderValue"
-                  @input="handleMatchRateSlider"
-                />
-                <input
-                  data-testid="recommend-match-rate"
-                  type="number"
-                  :min="MATCH_RATE_MIN"
-                  :max="MATCH_RATE_MAX"
-                  step="1"
-                  class="p-2 border rounded"
-                  style="width: 80px"
-                  :placeholder="String(MATCH_RATE_DEFAULT)"
-                  :value="matchRateInput"
-                  @input="handleMatchRateInput"
-                />
-                <p-button
-                  size="sm"
-                  style-type="tertiary"
-                  data-testid="recommend-match-rate-reset"
-                  :disabled="matchRateInput === ''"
-                  @click="resetMatchRate"
-                >
-                  Use default
-                </p-button>
-              </div>
-
-              <p
-                class="match-rate-field__hint"
-                data-testid="recommend-match-rate-hint"
-              >
-                <template v-if="matchRate === null">
-                  Not set — the server default ({{ MATCH_RATE_DEFAULT }}%) is
-                  used.
-                </template>
-                <template v-else>
-                  Candidates at {{ matchRate }}% or above are shown as
-                  highly-matched.
-                </template>
-                This only classifies the results; nothing is filtered out.
-              </p>
+              </span>
+              <input
+                data-testid="recommend-match-rate-slider"
+                type="range"
+                :min="MATCH_RATE_MIN"
+                :max="MATCH_RATE_MAX"
+                step="1"
+                class="match-rate-slider"
+                :value="matchRateSliderValue"
+                :aria-valuenow="matchRateSliderValue"
+                @input="handleMatchRateSlider"
+              />
+              <input
+                data-testid="recommend-match-rate"
+                type="number"
+                :min="MATCH_RATE_MIN"
+                :max="MATCH_RATE_MAX"
+                step="1"
+                class="param-input"
+                :placeholder="String(MATCH_RATE_DEFAULT)"
+                :value="matchRateInput"
+                @input="handleMatchRateInput"
+              />
             </div>
+
+            <!--
+              Shown only once a rate is actually set. While the field is empty the server default
+              applies and there is nothing worth saying, so a permanent line would just be noise.
+            -->
+            <p
+              v-if="matchRate !== null"
+              class="match-rate-hint"
+              data-testid="recommend-match-rate-hint"
+            >
+              Candidates at {{ matchRate }}% or above are shown as
+              highly-matched. This only classifies the results; nothing is
+              filtered out. Clear the field to fall back to the server default
+              ({{ MATCH_RATE_DEFAULT }}%).
+            </p>
           </section>
           <p-toolbox-table
             ref="toolboxTable"
@@ -824,27 +806,54 @@ function handleSave(e: { name: string; description: string }) {
   margin-right: 2px;
 }
 
-/* Query parameter fields — label on top, control underneath. */
-.param-field {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.match-rate-field {
+/* Query parameters — one row, hint on its own full-width line below. */
+.params-section {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  width: 100%;
+}
+
+.params-section__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+}
+
+.params-section__row > p {
+  white-space: nowrap;
+}
+
+/* Compact number fields. The spinner arrows force a taller box than the row needs, and the
+   slider already covers stepping through values, so they are dropped. */
+.param-input {
+  width: 60px;
+  height: 28px;
+  padding: 0 0.375rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  line-height: 1.2;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.param-input::-webkit-outer-spin-button,
+.param-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 /* The '?' sits at the bottom-right of the label, like a footnote marker. */
-.match-rate-field__label {
-  display: flex;
+.match-rate-label {
+  display: inline-flex;
   align-items: flex-end;
   gap: 0.25rem;
+  margin-left: 1rem;
+  white-space: nowrap;
 }
 
-.match-rate-field__help {
+.match-rate-label__help {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -860,31 +869,24 @@ function handleSave(e: { name: string; description: string }) {
   user-select: none;
 }
 
-.match-rate-field__help:hover,
-.match-rate-field__help:focus {
+.match-rate-label__help:hover,
+.match-rate-label__help:focus {
   border-color: #1971c2;
   color: #1971c2;
   outline: none;
 }
 
-.match-rate-field__control {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.match-rate-field__slider {
-  width: 160px;
+.match-rate-slider {
+  width: 110px;
+  height: 28px;
   cursor: pointer;
 }
 
-/* Kept deliberately visible — the tooltip explains the rest, but this line is what a user
-   who never hovers still needs to read. */
-.match-rate-field__hint {
+/* Its own line, so it gets the full width and does not wrap early. */
+.match-rate-hint {
   color: #1971c2;
   font-size: 12px;
   line-height: 1.4;
-  max-width: 460px;
 }
 </style>
 

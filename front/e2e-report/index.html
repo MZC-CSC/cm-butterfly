@@ -32,16 +32,38 @@
 </style></head>
 <body>
   <h1>cm-butterfly E2E 시나리오 보고서</h1>
-  <div class="muted">2026. 7. 12. 오후 2:32:53 · 총 0초 · 전체 결과: passed</div>
+  <div class="muted">2026. 7. 24. PM 3:56:12 · 총 24초 · 전체 결과: failed</div>
 
   <div class="sum">
-    <div><b>0</b>시나리오</div>
+    <div><b>1</b>시나리오</div>
     <div><b style="color:var(--ok)">0</b>성공</div>
-    <div><b style="color:var(--ng)">0</b>실패</div>
+    <div><b style="color:var(--ng)">1</b>실패</div>
   </div>
 
   <h2 style="margin-top:0">목차</h2>
-  <nav><ul></ul></nav>
+  <nav><ul><li><a href="#models-추천-타깃모델"><b>models/추천-타깃모델</b></a> <span class="b ng">1 실패</span><ul><li><a href="#models-추천-타깃모델-0">지정한 최소 매치율이 그대로 전송된다</a> <span class="b ng">실패</span></li></ul></li></ul></nav>
 
-  
+  <section id="models-추천-타깃모델"><h2>models/추천-타깃모델</h2>
+      <article id="models-추천-타깃모델-0" class="sc failed">
+        <h3><span class="b ng">실패</span> 지정한 최소 매치율이 그대로 전송된다</h3>
+        <div class="meta">functional · 22초</div>
+        <pre class="err">TimeoutError: locator.fill: Timeout 15000ms exceeded.
+Call log:
+  - waiting for locator('input[data-testid="recommend-match-rate"]')
+</pre>
+        
+        <div class="shots">
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-d60d8-·타깃-모델-지정한-최소-매치율이-그대로-전송된다-functional/attachments/01-before-0c26bcda4ebf7a433e4cefa0eddc73eb4c9687b9.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-d60d8-·타깃-모델-지정한-최소-매치율이-그대로-전송된다-functional/attachments/01-before-0c26bcda4ebf7a433e4cefa0eddc73eb4c9687b9.png" alt="01-before"></a>
+          <figcaption>01-before</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-d60d8-·타깃-모델-지정한-최소-매치율이-그대로-전송된다-functional/attachments/99-after-29e6a49e34a35a9c22c7f7569140e85e3baa5472.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-d60d8-·타깃-모델-지정한-최소-매치율이-그대로-전송된다-functional/attachments/99-after-29e6a49e34a35a9c22c7f7569140e85e3baa5472.png" alt="99-after"></a>
+          <figcaption>99-after</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-d60d8-·타깃-모델-지정한-최소-매치율이-그대로-전송된다-functional/test-failed-1.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-d60d8-·타깃-모델-지정한-최소-매치율이-그대로-전송된다-functional/test-failed-1.png" alt="screenshot"></a>
+          <figcaption>screenshot</figcaption>
+        </figure></div>
+      </article></section>
 </body></html>
