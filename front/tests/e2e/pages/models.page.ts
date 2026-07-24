@@ -125,6 +125,28 @@ export class ModelsPage {
       .or(this.recommendModal.getByPlaceholder('3'));
   }
 
+  /** Minimum Match Rate — number input (§1.3: narrow to the real input, the testid is on the wrapper too) */
+  private get matchRateInput(): Locator {
+    return this.page.locator('input[data-testid="recommend-match-rate"]');
+  }
+
+  /** Minimum Match Rate — slider */
+  private get matchRateSlider(): Locator {
+    return this.page.locator(
+      'input[data-testid="recommend-match-rate-slider"]',
+    );
+  }
+
+  /** Minimum Match Rate — the '?' badge that opens the explanation */
+  private get matchRateHelpBadge(): Locator {
+    return this.page.getByTestId('recommend-match-rate-help');
+  }
+
+  /** Minimum Match Rate — hint line, shown only while a rate is set */
+  private get matchRateHint(): Locator {
+    return this.page.getByTestId('recommend-match-rate-hint');
+  }
+
   /** Recommendation result table rows */
   private get recommendRows(): Locator {
     return this.page.getByTestId('recommend-result-table').locator('tbody tr');
@@ -170,6 +192,30 @@ export class ModelsPage {
     await expect(first).toBeVisible({ timeout: 15_000 });
     const name = (await first.innerText()).trim().split(/\s+/)[0] ?? '';
     await first.click();
+    return name;
+  }
+
+  /**
+   * Select the first *infrastructure* source model (Migration Type `OnPremiseModel`).
+   *
+   * The list mixes infra and software sources, and their details offer different entries —
+   * infra has "View Recommended List" (the recommend modal), software has "Get Migration List"
+   * (a full-page software recommendation). Taking whatever row is first lands on the software
+   * screen when a software source happens to sort first, and the modal never appears.
+   */
+  async selectFirstInfraModel(): Promise<string> {
+    const row = this.listTable
+      .locator('tbody tr')
+      .filter({ hasText: 'OnPremiseModel' })
+      .first();
+    await expect(
+      row,
+      '인프라 소스 모델(OnPremiseModel) 행이 목록에 없다',
+    ).toBeVisible({
+      timeout: 15_000,
+    });
+    const name = (await row.innerText()).trim().split(/\s+/)[0] ?? '';
+    await row.click();
     return name;
   }
 
@@ -223,6 +269,115 @@ export class ModelsPage {
   /** Set the candidate count (optional) */
   async setCandidateLimit(limit: number): Promise<void> {
     await this.candidateLimitInput.fill(String(limit));
+  }
+
+  /** Put focus on the Minimum Match Rate number field (without changing the value) */
+  async focusMinimumMatchRate(): Promise<void> {
+    await this.matchRateInput.focus();
+  }
+
+  /** Put focus on the Minimum Match Rate slider (without changing the value) */
+  async focusMinimumMatchRateSlider(): Promise<void> {
+    await this.matchRateSlider.focus();
+  }
+
+  /** Type a Minimum Match Rate (the screen clamps it to 0-100) */
+  async setMinimumMatchRate(rate: number | string): Promise<void> {
+    await this.matchRateInput.fill(String(rate));
+  }
+
+  /** Drag the Minimum Match Rate slider to a value */
+  async slideMinimumMatchRate(rate: number): Promise<void> {
+    await this.matchRateSlider.fill(String(rate));
+  }
+
+  /** Clear the Minimum Match Rate so the server default applies again */
+  async clearMinimumMatchRate(): Promise<void> {
+    await this.matchRateInput.fill('');
+  }
+
+  /** Is the hint line under the field showing? (only while a rate is set and the control is active) */
+  async isMinimumMatchRateHintVisible(): Promise<boolean> {
+    return this.matchRateHint.isVisible();
+  }
+
+  /** Move focus off the Minimum Match Rate controls (onto another field on the same row) */
+  async moveAwayFromMinimumMatchRate(): Promise<void> {
+    await this.candidateLimitInput.first().focus();
+    await this.page.waitForTimeout(200);
+  }
+
+  /**
+   * Vertical position of the results table — used to prove the hint does not shove the table
+   * around as focus comes and goes. The hint keeps its line while hidden precisely so this
+   * stays put.
+   */
+  async recommendTableTop(): Promise<number> {
+    const table = this.page.getByTestId('recommend-result-table');
+    const box = await table.boundingBox();
+    if (!box) throw new Error('추천 결과 표의 위치를 읽지 못했다');
+    return box.y;
+  }
+
+  /**
+   * Left edge of a recommendation-condition label, for column alignment checks.
+   *
+   * The two condition rows read as a table, so their second labels ("Region" above,
+   * "Minimum Match Rate (%)" below) must start at the same x. That alignment depends on a fixed
+   * cell width in the front, which nothing else would catch if it drifted.
+   */
+  async labelLeftEdge(text: string): Promise<number> {
+    const label = this.recommendModal.getByText(text, { exact: true }).first();
+    await expect(label).toBeVisible({ timeout: 15_000 });
+    const box = await label.boundingBox();
+    if (!box) throw new Error(`"${text}" 라벨의 위치를 읽지 못했다`);
+    return box.x;
+  }
+
+  /** What the number field currently holds ('' when not set) */
+  async readMinimumMatchRate(): Promise<string> {
+    return this.matchRateInput.inputValue();
+  }
+
+  /** Where the slider currently sits */
+  async readMinimumMatchRateSlider(): Promise<string> {
+    return this.matchRateSlider.inputValue();
+  }
+
+  /** The always-visible hint under the field */
+  async readMinimumMatchRateHint(): Promise<string> {
+    return (await this.matchRateHint.textContent())?.trim() ?? '';
+  }
+
+  /**
+   * Hover the '?' badge and read the explanation it opens.
+   * The tooltip is rendered outside the modal (v-tooltip appends to body), so it is looked up
+   * globally rather than inside the recommend modal.
+   */
+  async readMatchRateHelpTooltip(): Promise<string> {
+    await this.matchRateHelpBadge.hover();
+    const tooltip = this.page.locator('.match-rate-tooltip .tooltip-inner');
+    await expect(tooltip).toBeVisible({ timeout: 5_000 });
+    return (await tooltip.textContent())?.trim() ?? '';
+  }
+
+  /**
+   * Run the recommendation and hand back the query parameters the front actually sent.
+   *
+   * ★ Why the request and not the screen: the whole point of BAR-1634 is that a wrong value
+   *   reached the server and the server quietly fell back to its default — the results looked
+   *   fine either way. Only the outgoing request tells the two apart.
+   */
+  async runRecommendCapturingQuery(): Promise<Record<string, string>> {
+    const requestPromise = this.page.waitForRequest(
+      req =>
+        req.url().includes('cm-beetle/RecommendVmInfraCandidates') &&
+        req.method() === 'POST',
+      { timeout: 30_000 },
+    );
+    await humanClick(this.searchButton);
+    const request = await requestPromise;
+    return request.postDataJSON()?.queryParams ?? {};
   }
 
   /** Run recommendation — wait until result rows appear */
