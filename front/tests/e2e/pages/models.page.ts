@@ -125,6 +125,33 @@ export class ModelsPage {
       .or(this.recommendModal.getByPlaceholder('3'));
   }
 
+  /** Minimum Match Rate — number input (§1.3: narrow to the real input, the testid is on the wrapper too) */
+  private get matchRateInput(): Locator {
+    return this.page.locator('input[data-testid="recommend-match-rate"]');
+  }
+
+  /** Minimum Match Rate — slider */
+  private get matchRateSlider(): Locator {
+    return this.page.locator(
+      'input[data-testid="recommend-match-rate-slider"]',
+    );
+  }
+
+  /** Minimum Match Rate — the '?' badge that opens the explanation */
+  private get matchRateHelpBadge(): Locator {
+    return this.page.getByTestId('recommend-match-rate-help');
+  }
+
+  /** Minimum Match Rate — always-visible hint under the field */
+  private get matchRateHint(): Locator {
+    return this.page.getByTestId('recommend-match-rate-hint');
+  }
+
+  /** Minimum Match Rate — "Use default" (clears the field so the parameter is omitted) */
+  private get matchRateResetButton(): Locator {
+    return this.page.getByTestId('recommend-match-rate-reset');
+  }
+
   /** Recommendation result table rows */
   private get recommendRows(): Locator {
     return this.page.getByTestId('recommend-result-table').locator('tbody tr');
@@ -223,6 +250,67 @@ export class ModelsPage {
   /** Set the candidate count (optional) */
   async setCandidateLimit(limit: number): Promise<void> {
     await this.candidateLimitInput.fill(String(limit));
+  }
+
+  /** Type a Minimum Match Rate (the screen clamps it to 0-100) */
+  async setMinimumMatchRate(rate: number | string): Promise<void> {
+    await this.matchRateInput.fill(String(rate));
+  }
+
+  /** Drag the Minimum Match Rate slider to a value */
+  async slideMinimumMatchRate(rate: number): Promise<void> {
+    await this.matchRateSlider.fill(String(rate));
+  }
+
+  /** Clear the Minimum Match Rate so the server default applies again */
+  async useDefaultMinimumMatchRate(): Promise<void> {
+    await humanClick(this.matchRateResetButton);
+  }
+
+  /** What the number field currently holds ('' when not set) */
+  async readMinimumMatchRate(): Promise<string> {
+    return this.matchRateInput.inputValue();
+  }
+
+  /** Where the slider currently sits */
+  async readMinimumMatchRateSlider(): Promise<string> {
+    return this.matchRateSlider.inputValue();
+  }
+
+  /** The always-visible hint under the field */
+  async readMinimumMatchRateHint(): Promise<string> {
+    return (await this.matchRateHint.textContent())?.trim() ?? '';
+  }
+
+  /**
+   * Hover the '?' badge and read the explanation it opens.
+   * The tooltip is rendered outside the modal (v-tooltip appends to body), so it is looked up
+   * globally rather than inside the recommend modal.
+   */
+  async readMatchRateHelpTooltip(): Promise<string> {
+    await this.matchRateHelpBadge.hover();
+    const tooltip = this.page.locator('.match-rate-tooltip .tooltip-inner');
+    await expect(tooltip).toBeVisible({ timeout: 5_000 });
+    return (await tooltip.textContent())?.trim() ?? '';
+  }
+
+  /**
+   * Run the recommendation and hand back the query parameters the front actually sent.
+   *
+   * ★ Why the request and not the screen: the whole point of BAR-1634 is that a wrong value
+   *   reached the server and the server quietly fell back to its default — the results looked
+   *   fine either way. Only the outgoing request tells the two apart.
+   */
+  async runRecommendCapturingQuery(): Promise<Record<string, string>> {
+    const requestPromise = this.page.waitForRequest(
+      req =>
+        req.url().includes('cm-beetle/RecommendVmInfraCandidates') &&
+        req.method() === 'POST',
+      { timeout: 30_000 },
+    );
+    await humanClick(this.searchButton);
+    const request = await requestPromise;
+    return request.postDataJSON()?.queryParams ?? {};
   }
 
   /** Run recommendation — wait until result rows appear */

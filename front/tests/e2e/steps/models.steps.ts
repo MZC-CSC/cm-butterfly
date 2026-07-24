@@ -210,6 +210,125 @@ When(
 );
 
 // ───────────────────────────────────────────────────────────────────────
+// Minimum Match Rate (recommendation condition) — BAR-1634
+//
+// The screen sends `minMatchRate` to cm-beetle. cm-beetle answers a value it cannot parse, or one
+// outside 0-100, by quietly using its own default (90) — the result list looks the same either way.
+// So these steps assert on the *outgoing request*, not on what the results look like.
+// ───────────────────────────────────────────────────────────────────────
+
+/** Query parameters of the last recommendation request (module-local, like lastRecommendedSpec) */
+let lastRecommendQuery: Record<string, string> = {};
+
+/** Text of the explanation the '?' badge opened */
+let lastMatchRateHelp = '';
+
+/** Open the recommend modal and pick CSP/Region so Search becomes clickable */
+Given('타깃 인프라 추천 조건 화면을 연다', async ({ page }) => {
+  const models = new ModelsPage(page);
+  await models.openRecommend();
+  await models.selectProvider(targetSpec.csp);
+  await models.selectRegion(targetSpec.region);
+});
+
+Given('최소 매치율에 {string} 을 입력한다', async ({ page }, rate: string) => {
+  await new ModelsPage(page).setMinimumMatchRate(rate);
+});
+
+When('최소 매치율에 {string} 을 입력하면', async ({ page }, rate: string) => {
+  await new ModelsPage(page).setMinimumMatchRate(rate);
+});
+
+Given(
+  '최소 매치율 슬라이더를 {string} 으로 옮긴다',
+  async ({ page }, rate: string) => {
+    await new ModelsPage(page).slideMinimumMatchRate(Number(rate));
+  },
+);
+
+When(
+  '최소 매치율을 {string} 로 지정하고 추천을 실행하면',
+  async ({ page }, rate: string) => {
+    const models = new ModelsPage(page);
+    await models.setMinimumMatchRate(rate);
+    lastRecommendQuery = await models.runRecommendCapturingQuery();
+  },
+);
+
+When('최소 매치율을 지정하지 않고 추천을 실행하면', async ({ page }) => {
+  lastRecommendQuery = await new ModelsPage(page).runRecommendCapturingQuery();
+});
+
+When('최소 매치율을 그대로 두고 추천을 실행하면', async ({ page }) => {
+  lastRecommendQuery = await new ModelsPage(page).runRecommendCapturingQuery();
+});
+
+When('최소 매치율을 기본값으로 되돌리고 추천을 실행하면', async ({ page }) => {
+  const models = new ModelsPage(page);
+  await models.useDefaultMinimumMatchRate();
+  lastRecommendQuery = await models.runRecommendCapturingQuery();
+});
+
+Then(
+  '추천 요청의 최소 매치율이 {string} 이다',
+  // eslint-disable-next-line no-empty-pattern
+  async ({}, expected: string) => {
+    expect(
+      lastRecommendQuery.minMatchRate,
+      `추천 요청 쿼리: ${JSON.stringify(lastRecommendQuery)}`,
+    ).toBe(expected);
+  },
+);
+
+Then(
+  '추천 요청에 최소 매치율이 없다',
+  // eslint-disable-next-line no-empty-pattern
+  async ({}) => {
+    expect(
+      lastRecommendQuery.minMatchRate,
+      `추천 요청 쿼리: ${JSON.stringify(lastRecommendQuery)}`,
+    ).toBeUndefined();
+  },
+);
+
+Then(
+  '최소 매치율 입력값이 {string} 이다',
+  async ({ page }, expected: string) => {
+    expect(await new ModelsPage(page).readMinimumMatchRate()).toBe(expected);
+  },
+);
+
+Then(
+  '최소 매치율 슬라이더 위치가 {string} 이다',
+  async ({ page }, expected: string) => {
+    expect(await new ModelsPage(page).readMinimumMatchRateSlider()).toBe(
+      expected,
+    );
+  },
+);
+
+When('최소 매치율 물음표에 마우스를 올리면', async ({ page }) => {
+  lastMatchRateHelp = await new ModelsPage(page).readMatchRateHelpTooltip();
+});
+
+Then(
+  '최소 매치율 설명에 {string} 가 포함된다',
+  // eslint-disable-next-line no-empty-pattern
+  async ({}, fragment: string) => {
+    expect(lastMatchRateHelp).toContain(fragment);
+  },
+);
+
+Then(
+  '최소 매치율 안내 문구에 {string} 가 포함된다',
+  async ({ page }, fragment: string) => {
+    expect(await new ModelsPage(page).readMinimumMatchRateHint()).toContain(
+      fragment,
+    );
+  },
+);
+
+// ───────────────────────────────────────────────────────────────────────
 // Internal helpers
 // ───────────────────────────────────────────────────────────────────────
 

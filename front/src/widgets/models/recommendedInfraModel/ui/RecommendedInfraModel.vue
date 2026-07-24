@@ -4,6 +4,7 @@ import {
   PIconModal,
   PToolboxTable,
   PSelectDropdown,
+  PTooltip,
 } from '@cloudforet-test/mirinae';
 import { CreateForm } from '@/widgets/layout';
 import { TargetModelNameSave } from '@/features/models';
@@ -120,8 +121,83 @@ const targetSourceModel = computed(() =>
 
 // Query parameter inputs
 const candidateLimit = ref<number>(3);
-const minimumMatchRateMin = ref<number | null>(null);
-const minimumMatchRateMax = ref<number>(100); // default 100
+
+/*
+ * Minimum Match Rate — cm-beetle takes ONE number (query `minMatchRate`, 0-100, default 90.0).
+ * There is no "max" counterpart, so this is a single field: a range string such as "90-100"
+ * fails ParseFloat on the server, which then silently falls back to 90.0 (BAR-1634).
+ *
+ * Empty means "send nothing" so the server default applies. The slider therefore rests at
+ * MATCH_RATE_DEFAULT while the field is empty, and the hint under the field says which one is in effect.
+ */
+const MATCH_RATE_MIN = 0;
+const MATCH_RATE_MAX = 100;
+const MATCH_RATE_DEFAULT = 90;
+
+/** Raw text of the number field. '' means "not specified" (parameter is omitted). */
+const matchRateInput = ref<string>('');
+
+/** Parsed value, or null when the field is empty / unparsable. */
+const matchRate = computed<number | null>(() => {
+  const raw = matchRateInput.value.trim();
+  if (raw === '') return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+});
+
+/** Where the slider sits: the entered value, or the server default while the field is empty. */
+const matchRateSliderValue = computed<number>(
+  () => matchRate.value ?? MATCH_RATE_DEFAULT,
+);
+
+const matchRateHelp = `<strong>Minimum Match Rate</strong><br/>
+The threshold that <em>classifies</em> the recommended candidates (0-100%, default ${MATCH_RATE_DEFAULT}%).<br/><br/>
+&#8226; A VM counts as <b>matched</b> only when its CPU, memory and OS image all reach this rate.<br/>
+&#8226; A candidate is <b>highly-matched</b> only when <b>every</b> VM is matched; otherwise it is <b>partially-matched</b>.<br/>
+&#8226; This does <b>not</b> filter the results &mdash; both kinds stay in the list. Use <b>Candidate Limit</b> to change how many candidates come back.<br/>
+&#8226; Leave it empty to let the server apply its default (${MATCH_RATE_DEFAULT}%).`;
+
+function clampMatchRate(value: number): number {
+  return Math.min(MATCH_RATE_MAX, Math.max(MATCH_RATE_MIN, value));
+}
+
+/*
+ * Keep the field inside 0-100 while it is being typed. Out-of-range values are not merely
+ * ugly: cm-beetle answers them by reverting to 90.0 without telling anyone, so a user who
+ * typed 150 would silently get the default. The DOM value is written back explicitly because
+ * clamping can leave the bound string unchanged (150 -> 100, then 1500 -> 100), and Vue skips
+ * the DOM update when the value it holds did not change.
+ */
+function handleMatchRateInput(event: Event) {
+  const el = event.target as HTMLInputElement;
+  const raw = el.value.trim();
+
+  if (raw === '') {
+    matchRateInput.value = '';
+    return;
+  }
+
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    // Not a number yet (e.g. a lone '-'); drop it rather than sending garbage.
+    matchRateInput.value = '';
+    el.value = '';
+    return;
+  }
+
+  matchRateInput.value = String(clampMatchRate(parsed));
+  if (el.value !== matchRateInput.value) el.value = matchRateInput.value;
+}
+
+function handleMatchRateSlider(event: Event) {
+  const el = event.target as HTMLInputElement;
+  matchRateInput.value = String(clampMatchRate(Number(el.value)));
+}
+
+/** Back to "not specified" so the server default is used again. */
+function resetMatchRate() {
+  matchRateInput.value = '';
+}
 
 const modalState = reactive({
   targetModal: false,
@@ -137,18 +213,9 @@ async function getRecommendModelList() {
   recommendInfraModel.initToolBoxTableModel();
 
   try {
-    // Assemble the minimumMatchRate parameter
-    let minimumMatchRateParam: string | number | null = null;
-    if (
-      minimumMatchRateMin.value !== null &&
-      minimumMatchRateMax.value !== null
-    ) {
-      minimumMatchRateParam = `${minimumMatchRateMin.value}-${minimumMatchRateMax.value}`;
-    } else if (minimumMatchRateMin.value !== null) {
-      minimumMatchRateParam = minimumMatchRateMin.value;
-    } else if (minimumMatchRateMax.value !== null) {
-      minimumMatchRateParam = minimumMatchRateMax.value;
-    }
+    // Send a single number, or nothing at all when the field is empty (server default applies).
+    const minimumMatchRateParam =
+      matchRate.value === null ? null : clampMatchRate(matchRate.value);
 
     // Call the Candidates API (fetch multiple candidates)
     const getRecommendCandidates = useGetRecommendModelCandidates(
@@ -503,56 +570,105 @@ function handleSave(e: { name: string; description: string }) {
             </p-button>
           </section>
           <!-- Lay out the Query Parameters horizontally -->
-          <section class="select-service-box flex w-full items-center gap-4">
+          <section class="select-service-box flex w-full items-start gap-6">
             <!-- Candidate Limit with tooltip -->
-            <p
-              class="text-label-lg font-bold"
-              title="Maximum number of recommended infrastructures to return (default: 3)"
-            >
-              Candidate Limit
-            </p>
-            <input
-              v-model.number="candidateLimit"
-              data-testid="recommend-candidate-limit"
-              type="number"
-              :min="1"
-              :max="10"
-              class="p-2 border rounded"
-              style="width: 80px"
-              placeholder="3"
-              title="Maximum number of recommended infrastructures to return (default: 3)"
-            />
+            <div class="param-field">
+              <p
+                class="text-label-lg font-bold"
+                title="Maximum number of recommended infrastructures to return (default: 3)"
+              >
+                Candidate Limit
+              </p>
+              <input
+                v-model.number="candidateLimit"
+                data-testid="recommend-candidate-limit"
+                type="number"
+                :min="1"
+                :max="10"
+                class="p-2 border rounded"
+                style="width: 80px"
+                placeholder="3"
+                title="Maximum number of recommended infrastructures to return (default: 3)"
+              />
+            </div>
 
-            <!-- Minimum Match Rate with tooltip -->
-            <p
-              class="text-label-lg font-bold"
-              title="Minimum match rate threshold for highly-matched classification (default: 90.0, range: 0-100)"
-            >
-              Minimum Match Rate(%)
-            </p>
-            <input
-              v-model.number="minimumMatchRateMin"
-              type="number"
-              :min="1"
-              :max="100"
-              step="1"
-              class="p-2 border rounded"
-              style="width: 80px"
-              placeholder="Min"
-              title="Minimum match rate threshold for highly-matched classification (default: 90.0, range: 0-100)"
-            />
-            <span class="text-label-lg">~</span>
-            <input
-              v-model.number="minimumMatchRateMax"
-              type="number"
-              :min="1"
-              :max="100"
-              step="1"
-              class="p-2 border rounded"
-              style="width: 80px"
-              placeholder="Max"
-              title="Maximum match rate threshold for highly-matched classification (default: 100, range: 0-100)"
-            />
+            <!--
+              Minimum Match Rate — one value only. cm-beetle exposes a single `minMatchRate`
+              (0-100, default 90) and answers anything it cannot parse by silently using 90,
+              so the screen must not invent a range. The '?' badge sits at the label's
+              bottom-right and opens the detailed explanation on hover/focus; the line under
+              the field repeats the essentials for anyone who never hovers. (BAR-1634)
+            -->
+            <div class="match-rate-field">
+              <div class="match-rate-field__label">
+                <span class="text-label-lg font-bold"
+                  >Minimum Match Rate (%)</span
+                >
+                <p-tooltip
+                  :contents="matchRateHelp"
+                  position="bottom"
+                  :options="{ classes: ['p-tooltip', 'match-rate-tooltip'] }"
+                >
+                  <span
+                    class="match-rate-field__help"
+                    data-testid="recommend-match-rate-help"
+                    tabindex="0"
+                    aria-label="What Minimum Match Rate means"
+                    >?</span
+                  >
+                </p-tooltip>
+              </div>
+
+              <div class="match-rate-field__control">
+                <input
+                  data-testid="recommend-match-rate-slider"
+                  type="range"
+                  :min="MATCH_RATE_MIN"
+                  :max="MATCH_RATE_MAX"
+                  step="1"
+                  class="match-rate-field__slider"
+                  :value="matchRateSliderValue"
+                  :aria-valuenow="matchRateSliderValue"
+                  @input="handleMatchRateSlider"
+                />
+                <input
+                  data-testid="recommend-match-rate"
+                  type="number"
+                  :min="MATCH_RATE_MIN"
+                  :max="MATCH_RATE_MAX"
+                  step="1"
+                  class="p-2 border rounded"
+                  style="width: 80px"
+                  :placeholder="String(MATCH_RATE_DEFAULT)"
+                  :value="matchRateInput"
+                  @input="handleMatchRateInput"
+                />
+                <p-button
+                  size="sm"
+                  style-type="tertiary"
+                  data-testid="recommend-match-rate-reset"
+                  :disabled="matchRateInput === ''"
+                  @click="resetMatchRate"
+                >
+                  Use default
+                </p-button>
+              </div>
+
+              <p
+                class="match-rate-field__hint"
+                data-testid="recommend-match-rate-hint"
+              >
+                <template v-if="matchRate === null">
+                  Not set — the server default ({{ MATCH_RATE_DEFAULT }}%) is
+                  used.
+                </template>
+                <template v-else>
+                  Candidates at {{ matchRate }}% or above are shown as
+                  highly-matched.
+                </template>
+                This only classifies the results; nothing is filtered out.
+              </p>
+            </div>
           </section>
           <p-toolbox-table
             ref="toolboxTable"
@@ -706,5 +822,80 @@ function handleSave(e: { name: string; description: string }) {
 
 .recommend-candidate__flag {
   margin-right: 2px;
+}
+
+/* Query parameter fields — label on top, control underneath. */
+.param-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.match-rate-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* The '?' sits at the bottom-right of the label, like a footnote marker. */
+.match-rate-field__label {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.25rem;
+}
+
+.match-rate-field__help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border: 1px solid #6b7280;
+  border-radius: 50%;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  user-select: none;
+}
+
+.match-rate-field__help:hover,
+.match-rate-field__help:focus {
+  border-color: #1971c2;
+  color: #1971c2;
+  outline: none;
+}
+
+.match-rate-field__control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.match-rate-field__slider {
+  width: 160px;
+  cursor: pointer;
+}
+
+/* Kept deliberately visible — the tooltip explains the rest, but this line is what a user
+   who never hovers still needs to read. */
+.match-rate-field__hint {
+  color: #1971c2;
+  font-size: 12px;
+  line-height: 1.4;
+  max-width: 460px;
+}
+</style>
+
+<!-- global: the tooltip renders outside this component's DOM, so a scoped rule cannot reach it.
+     .tooltip-inner defaults to white-space:pre and a narrow box, which clips the explanation. -->
+<style lang="postcss">
+.p-tooltip.match-rate-tooltip .tooltip-inner {
+  max-width: 460px;
+  white-space: normal;
+  word-break: break-word;
+  text-align: left;
+  line-height: 1.45;
 }
 </style>
