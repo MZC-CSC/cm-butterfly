@@ -7,6 +7,12 @@ const { Given, When, Then } = createBdd(test);
 
 /** Step "log in as {string}" — go to the login screen, log in, and verify entry into main */
 Given('{string}로 로그인한다', async ({ page }, id: string) => {
+  // This is the first step of every scenario that logs in, including the long
+  // migration flow (infra migration + SW migration + load test in one scenario).
+  // Set a single generous total budget here so the whole flow fits — mid-scenario
+  // steps must not cap it lower than the time already spent on earlier apiWaits.
+  // Short scenarios never approach this ceiling, so it is harmless for them.
+  test.setTimeout(40 * 60_000);
   const login = new LoginPage(page);
   const u = getUser(id);
   await login.goto();

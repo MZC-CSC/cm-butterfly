@@ -38,11 +38,13 @@ const auth = useAuth();
 
 // Helper to validate VM data
 function isValidVmData(vm: any): boolean {
-  return vm && 
-         vm.specId && 
-         vm.specId.trim() !== '' && 
-         vm.imageId && 
-         vm.imageId.trim() !== '';
+  return (
+    vm &&
+    vm.specId &&
+    vm.specId.trim() !== '' &&
+    vm.imageId &&
+    vm.imageId.trim() !== ''
+  );
 }
 
 // Helper to render the "empty" text in red
@@ -50,7 +52,10 @@ function formatEmptyValue(value: string): string {
   if (!value) return '';
 
   // Turn the "empty" string red (replace on a whole-word basis)
-  return value.replace(/\bempty\b/g, '<span style="color: red; font-weight: bold;">empty</span>');
+  return value.replace(
+    /\bempty\b/g,
+    '<span style="color: red; font-weight: bold;">empty</span>',
+  );
 }
 const recommendInfraModel = useRecommendedInfraModel();
 
@@ -116,7 +121,7 @@ const targetSourceModel = computed(() =>
 // Query parameter inputs
 const candidateLimit = ref<number>(3);
 const minimumMatchRateMin = ref<number | null>(null);
-const minimumMatchRateMax = ref<number>(100);  // default 100
+const minimumMatchRateMax = ref<number>(100); // default 100
 
 const modalState = reactive({
   targetModal: false,
@@ -134,14 +139,17 @@ async function getRecommendModelList() {
   try {
     // Assemble the minimumMatchRate parameter
     let minimumMatchRateParam: string | number | null = null;
-    if (minimumMatchRateMin.value !== null && minimumMatchRateMax.value !== null) {
+    if (
+      minimumMatchRateMin.value !== null &&
+      minimumMatchRateMax.value !== null
+    ) {
       minimumMatchRateParam = `${minimumMatchRateMin.value}-${minimumMatchRateMax.value}`;
     } else if (minimumMatchRateMin.value !== null) {
       minimumMatchRateParam = minimumMatchRateMin.value;
     } else if (minimumMatchRateMax.value !== null) {
       minimumMatchRateParam = minimumMatchRateMax.value;
     }
-    
+
     // Call the Candidates API (fetch multiple candidates)
     const getRecommendCandidates = useGetRecommendModelCandidates(
       targetSourceModel.value?.onpremiseInfraModel || null,
@@ -152,75 +160,105 @@ async function getRecommendModelList() {
     );
 
     const res = await getRecommendCandidates.execute();
-    
+
     console.log('=== Recommend Candidates Response ===');
     console.log('Type of res:', typeof res);
     console.log('Keys of res:', Object.keys(res));
     console.log('res.data type:', typeof res.data);
     console.log('res.data keys:', res.data ? Object.keys(res.data) : 'null');
-    
+
     // API response shape: { responseData: { data: [...] } }
-    if (res.data?.responseData?.data && Array.isArray(res.data.responseData.data)) {
+    if (
+      res.data?.responseData?.data &&
+      Array.isArray(res.data.responseData.data)
+    ) {
       const candidates = res.data.responseData.data;
       console.log(`Found ${candidates.length} candidate(s)`);
-      
+
       // Compute cost and clean up data for each candidate
       const processedCandidates = candidates.map((candidate, index) => {
-        console.log(`Processing candidate ${index + 1}:`, JSON.stringify(candidate, null, 2));
-        
+        console.log(
+          `Processing candidate ${index + 1}:`,
+          JSON.stringify(candidate, null, 2),
+        );
+
         // Validate and clean up the API response data
         if (candidate.targetInfra?.nodeGroups) {
           const originalLength = candidate.targetInfra.nodeGroups.length;
-          
+
           // Log invalid data
-          const invalidVms = candidate.targetInfra.nodeGroups.filter(vm => 
-            !vm || !vm.specId || vm.specId.trim() === '' || !vm.imageId || vm.imageId.trim() === ''
+          const invalidVms = candidate.targetInfra.nodeGroups.filter(
+            vm =>
+              !vm ||
+              !vm.specId ||
+              vm.specId.trim() === '' ||
+              !vm.imageId ||
+              vm.imageId.trim() === '',
           );
-          
+
           if (invalidVms.length > 0) {
-            console.warn(`Candidate ${index + 1}: Found ${invalidVms.length} invalid VMs`);
+            console.warn(
+              `Candidate ${index + 1}: Found ${invalidVms.length} invalid VMs`,
+            );
           }
-          
+
           // Replace empty fields of invalid data with "empty"
-          candidate.targetInfra.nodeGroups = candidate.targetInfra.nodeGroups.map(vm => {
-            const updatedVm = { ...vm };
-            if (!vm.specId || vm.specId.trim() === '') {
-              updatedVm.specId = 'empty';
-            }
-            if (!vm.imageId || vm.imageId.trim() === '') {
-              updatedVm.imageId = 'empty';
-            }
-            return updatedVm;
-          });
+          candidate.targetInfra.nodeGroups =
+            candidate.targetInfra.nodeGroups.map(vm => {
+              const updatedVm = { ...vm };
+              if (!vm.specId || vm.specId.trim() === '') {
+                updatedVm.specId = 'empty';
+              }
+              if (!vm.imageId || vm.imageId.trim() === '') {
+                updatedVm.imageId = 'empty';
+              }
+              return updatedVm;
+            });
         }
 
         // Cost calculation (based on targetSpecList)
         try {
           let totalCostPerHour = 0;
           let currency = '';
-          let skippedVms: Array<{ vmName: string; specId: string; costPerHour: number }> = [];
-          
+          let skippedVms: Array<{
+            vmName: string;
+            specId: string;
+            costPerHour: number;
+          }> = [];
+
           candidate.targetInfra.nodeGroups?.forEach(vm => {
-            const matchingSpec = candidate.targetSpecList?.find(spec => spec.id === vm.specId);
-            if (matchingSpec && matchingSpec.costPerHour !== undefined && matchingSpec.costPerHour !== null) {
+            const matchingSpec = candidate.targetSpecList?.find(
+              spec => spec.id === vm.specId,
+            );
+            if (
+              matchingSpec &&
+              matchingSpec.costPerHour !== undefined &&
+              matchingSpec.costPerHour !== null
+            ) {
               if (matchingSpec.costPerHour < 0) {
                 skippedVms.push({
                   vmName: vm.name,
                   specId: vm.specId,
-                  costPerHour: matchingSpec.costPerHour
+                  costPerHour: matchingSpec.costPerHour,
                 });
-                console.warn(`Skipping VM with negative cost: ${vm.name} (${vm.specId})`);
+                console.warn(
+                  `Skipping VM with negative cost: ${vm.name} (${vm.specId})`,
+                );
               } else {
                 totalCostPerHour += matchingSpec.costPerHour;
                 currency = matchingSpec.currency || 'USD';
               }
             } else {
-              console.warn(`No cost information found for VM: ${vm.name} (${vm.specId})`);
+              console.warn(
+                `No cost information found for VM: ${vm.name} (${vm.specId})`,
+              );
             }
           });
-          
+
           if (skippedVms.length > 0) {
-            console.warn(`Candidate ${index + 1}: Skipped ${skippedVms.length} VMs due to invalid cost`);
+            console.warn(
+              `Candidate ${index + 1}: Skipped ${skippedVms.length} VMs due to invalid cost`,
+            );
           }
 
           const totalCostPerMonth = totalCostPerHour * 24 * 30;
@@ -229,31 +267,42 @@ async function getRecommendModelList() {
             ...candidate,
             estimateResponse: {
               result: {
-                esimateCostSpecResults: [{
-                  estimateForecastCostSpecDetailResults: [{
-                    calculatedMonthlyPrice: totalCostPerMonth,
-                    calculatedHourlyPrice: totalCostPerHour,
-                    currency: currency
-                  }]
-                }]
-              }
-            }
+                esimateCostSpecResults: [
+                  {
+                    estimateForecastCostSpecDetailResults: [
+                      {
+                        calculatedMonthlyPrice: totalCostPerMonth,
+                        calculatedHourlyPrice: totalCostPerHour,
+                        currency: currency,
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
           };
         } catch (e) {
-          console.error(`Error calculating cost for candidate ${index + 1}:`, e);
+          console.error(
+            `Error calculating cost for candidate ${index + 1}:`,
+            e,
+          );
           return {
             ...candidate,
             estimateResponse: {
               result: {
-                esimateCostSpecResults: [{
-                  estimateForecastCostSpecDetailResults: [{
-                    calculatedMonthlyPrice: 0,
-                    calculatedHourlyPrice: 0,
-                    currency: 'USD'
-                  }]
-                }]
-              }
-            }
+                esimateCostSpecResults: [
+                  {
+                    estimateForecastCostSpecDetailResults: [
+                      {
+                        calculatedMonthlyPrice: 0,
+                        calculatedHourlyPrice: 0,
+                        currency: 'USD',
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
           };
         }
       });
@@ -265,12 +314,13 @@ async function getRecommendModelList() {
       try {
         const tableItems = processedCandidates.map((candidate, index) => {
           console.log(`Organizing table item ${index + 1}:`, candidate);
-          const item = recommendInfraModel.organizeRecommendedModelTableItem(candidate);
+          const item =
+            recommendInfraModel.organizeRecommendedModelTableItem(candidate);
           item.index = index + 1; // add the sequence number
           console.log(`Organized item ${index + 1}:`, item);
           return item;
         });
-        
+
         console.log('Setting table items:', tableItems);
         recommendInfraModel.tableModel.tableState.items = tableItems;
         console.log('Table items set successfully');
@@ -278,7 +328,6 @@ async function getRecommendModelList() {
         console.error('Error organizing table items:', tableError);
         throw tableError;
       }
-      
     } else {
       // No matching candidate is a normal outcome — it happens whenever the spec filter is narrow.
       // Leave the table empty and just inform. A red error here makes a 200 OK look like a failure.
@@ -316,16 +365,22 @@ function handleSave(e: { name: string; description: string }) {
   try {
     // selectIndex is stored as an array ([0], [1], [2], ...), so extract the first element
     const selectIndex = recommendInfraModel.tableModel.tableState.selectIndex;
-    const rowIndex = Array.isArray(selectIndex) ? selectIndex[0] : selectIndex as number;
+    const rowIndex = Array.isArray(selectIndex)
+      ? selectIndex[0]
+      : (selectIndex as number);
 
-    const displayItem = recommendInfraModel.tableModel.tableState.displayItems[rowIndex];
+    const displayItem =
+      recommendInfraModel.tableModel.tableState.displayItems[rowIndex];
     if (!displayItem) {
       throw new Error(`No display item found at index ${rowIndex}`);
     }
 
     let selectedModel: IRecommendModelResponse = displayItem.originalData;
 
-    if (!selectedModel?.targetInfra?.nodeGroups || selectedModel.targetInfra.nodeGroups.length === 0) {
+    if (
+      !selectedModel?.targetInfra?.nodeGroups ||
+      selectedModel.targetInfra.nodeGroups.length === 0
+    ) {
       throw new Error('Selected model has no VM nodeGroups');
     }
 
@@ -337,7 +392,7 @@ function handleSave(e: { name: string; description: string }) {
 
     // Use the existing targetInfra as-is (no processing)
     const modifiedTargetVmInfra = {
-      ...selectedModel.targetInfra
+      ...selectedModel.targetInfra,
       // Keep nodeGroups exactly as the original
     };
 
@@ -350,14 +405,18 @@ function handleSave(e: { name: string; description: string }) {
       targetVNet: selectedModel.targetVNet || {},
       targetInfra: modifiedTargetVmInfra, // use the unprocessed targetInfra
       targetOsImageList: selectedModel.targetOsImageList || [],
-      targetSpecList: selectedModel.targetSpecList || []
+      targetSpecList: selectedModel.targetSpecList || [],
     };
 
     // Use defaults if specId is an empty string or has no +
     let csp = 'default-csp';
     let region = 'default-region';
-    
-    if (selectedVm.specId && selectedVm.specId !== 'empty' && selectedVm.specId.includes('+')) {
+
+    if (
+      selectedVm.specId &&
+      selectedVm.specId !== 'empty' &&
+      selectedVm.specId.includes('+')
+    ) {
       const commonSpecSplitData = selectedVm.specId.split('+');
       csp = commonSpecSplitData[0];
       region = commonSpecSplitData[1];
@@ -418,7 +477,7 @@ function handleSave(e: { name: string; description: string }) {
                   handleRegionMenuClick(true);
                 }
               "
-            ></p-select-dropdown>
+            />
             <p class="text-label-lg font-bold">Region</p>
             <p-select-dropdown
               data-testid="recommend-region-select"
@@ -431,10 +490,10 @@ function handleSave(e: { name: string; description: string }) {
                   region.selected = e;
                 }
               "
-            ></p-select-dropdown>
-            
+            />
+
             <!-- Push the Search button to the far right -->
-            <div class="flex-grow"></div>
+            <div class="flex-grow" />
             <p-button
               data-testid="recommend-search"
               :disabled="!provider.selected || !region.selected"
@@ -446,7 +505,12 @@ function handleSave(e: { name: string; description: string }) {
           <!-- Lay out the Query Parameters horizontally -->
           <section class="select-service-box flex w-full items-center gap-4">
             <!-- Candidate Limit with tooltip -->
-            <p class="text-label-lg font-bold" title="Maximum number of recommended infrastructures to return (default: 3)">Candidate Limit</p>
+            <p
+              class="text-label-lg font-bold"
+              title="Maximum number of recommended infrastructures to return (default: 3)"
+            >
+              Candidate Limit
+            </p>
             <input
               v-model.number="candidateLimit"
               data-testid="recommend-candidate-limit"
@@ -458,9 +522,14 @@ function handleSave(e: { name: string; description: string }) {
               placeholder="3"
               title="Maximum number of recommended infrastructures to return (default: 3)"
             />
-            
+
             <!-- Minimum Match Rate with tooltip -->
-            <p class="text-label-lg font-bold" title="Minimum match rate threshold for highly-matched classification (default: 90.0, range: 0-100)">Minimum Match Rate(%)</p>
+            <p
+              class="text-label-lg font-bold"
+              title="Minimum match rate threshold for highly-matched classification (default: 90.0, range: 0-100)"
+            >
+              Minimum Match Rate(%)
+            </p>
             <input
               v-model.number="minimumMatchRateMin"
               type="number"
@@ -494,9 +563,7 @@ function handleSave(e: { name: string; description: string }) {
             :style="{ height: '500px' }"
             :sortable="recommendInfraModel.tableModel.tableOptions.sortable"
             :sort-by="recommendInfraModel.tableModel.tableOptions.sortBy"
-            :selectable="
-              recommendInfraModel.tableModel.tableOptions.selectable
-            "
+            :selectable="recommendInfraModel.tableModel.tableOptions.selectable"
             :loading="resGetRecommendCost.isLoading.value"
             :select-index.sync="
               recommendInfraModel.tableModel.tableState.selectIndex
@@ -538,10 +605,10 @@ function handleSave(e: { name: string; description: string }) {
               </span>
             </template>
             <template #col-spec-format="{ item }">
-              <span v-html="formatEmptyValue(item.spec)"></span>
+              <span v-html="formatEmptyValue(item.spec)" />
             </template>
             <template #col-image-format="{ item }">
-              <span v-html="formatEmptyValue(item.image)"></span>
+              <span v-html="formatEmptyValue(item.image)" />
             </template>
           </p-toolbox-table>
         </div>
@@ -575,6 +642,24 @@ function handleSave(e: { name: string; description: string }) {
     >
       <template #body>
         <target-model-name-save :model-name="modelName" />
+      </template>
+      <!--
+        Override mirinae's built-in confirm button only to attach an e2e testid
+        (model-save-confirm). mirinae renders that button from the `button-text` prop, so a
+        data-testid cannot reach it otherwise. The replacement mirrors the default exactly —
+        same style-type (tertiary), same label, and the `margin-top` the default carries via
+        PIconModal's scoped `.button` rule (which does not reach parent-provided slot content)
+        is restored inline so the render is unchanged. (BAR-1595 / CLAUDE.md §12)
+      -->
+      <template #custom-button>
+        <p-button
+          style-type="tertiary"
+          data-testid="model-save-confirm"
+          style="margin-top: 1.5rem"
+          @click="handleConfirm"
+        >
+          Confirm
+        </p-button>
       </template>
     </p-icon-modal>
   </div>

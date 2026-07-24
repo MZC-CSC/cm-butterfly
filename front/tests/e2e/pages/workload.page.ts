@@ -1,5 +1,6 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
+import { humanClick, humanFill } from '../support/humanize';
 
 /**
  * WorkloadPage — Page Object for the workload operations screen (infra MCI + node VM + load test).
@@ -80,25 +81,34 @@ export class WorkloadPage {
 
   /** Select an infra row (checkbox) — selecting it enables the detail/server tabs. Limited to the single checkbox in the row. */
   async selectMci(infraName: string): Promise<void> {
-    await this.mciRow(infraName)
-      .locator('td.select-checkbox .p-checkbox, input[type="checkbox"]')
-      .first()
-      .click();
+    await humanClick(
+      this.mciRow(infraName)
+        .locator('td.select-checkbox .p-checkbox, input[type="checkbox"]')
+        .first(),
+    );
   }
 
   // ─────────────────────────────────────────────────────────────
   // MCI detail — cm-beetle/GetInfra
   // ─────────────────────────────────────────────────────────────
 
+  // MciPage now carries per-tab e2e markers (mci-tab-detail / mci-tab-server) inside the mirinae
+  // PTab tab via its `extra` slot. mirinae renders each tab as a <li role="tab">, so we click the
+  // tab element that *contains* our marker (getByRole('tab') filtered by the testid), and keep the
+  // role/name match as a fallback for older builds without the marker.
   private get detailTab(): Locator {
     return this.page
-      .getByTestId('mci-tab-detail')
-      .or(this.page.getByRole('tab', { name: /detail/i }));
+      .getByRole('tab')
+      .filter({ has: this.page.getByTestId('mci-tab-detail') })
+      .or(this.page.getByRole('tab', { name: /detail/i }))
+      .first();
   }
   private get serverTab(): Locator {
     return this.page
-      .getByTestId('mci-tab-server')
-      .or(this.page.getByRole('tab', { name: /server/i }));
+      .getByRole('tab')
+      .filter({ has: this.page.getByTestId('mci-tab-server') })
+      .or(this.page.getByRole('tab', { name: /server/i }))
+      .first();
   }
   private get mciDetailTable(): Locator {
     return this.page.getByTestId('mci-detail-table');
@@ -106,13 +116,13 @@ export class WorkloadPage {
 
   /** Open the detail tab and verify the detail info table */
   async openDetailTab(): Promise<void> {
-    await this.detailTab.click();
+    await humanClick(this.detailTab);
     await expect(this.mciDetailTable).toBeVisible({ timeout: 15_000 });
   }
 
   /** Open the server (node) tab */
   async openServerTab(): Promise<void> {
-    await this.serverTab.click();
+    await humanClick(this.serverTab);
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -146,7 +156,7 @@ export class WorkloadPage {
 
   /** Select a node (click the card). If the card with the given name is absent, select the first node card. */
   async selectNode(nodeName: string): Promise<void> {
-    await this.nodeCard(nodeName).or(this.anyNodeCard).first().click();
+    await humanClick(this.nodeCard(nodeName).or(this.anyNodeCard).first());
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -225,8 +235,8 @@ export class WorkloadPage {
    * (this is the same trap already hit with the load-config modal and the model save form, so we handle it the same way).
    */
   async openDeleteModal(): Promise<void> {
-    await this.actionDropdown.click();
-    await this.deleteMenuItem.click();
+    await humanClick(this.actionDropdown);
+    await humanClick(this.deleteMenuItem);
     await expect(this.deleteConfirmInput.first()).toBeVisible({
       timeout: 15_000,
     });
@@ -244,10 +254,10 @@ export class WorkloadPage {
       const forceRadio = this.deleteModal.getByTestId(
         'mci-delete-method-force',
       );
-      await forceRadio.click();
+      await humanClick(forceRadio);
     }
-    await this.deleteConfirmInput.first().fill(infraName);
-    await this.deleteConfirmButton.first().click();
+    await humanFill(this.deleteConfirmInput.first(), infraName);
+    await humanClick(this.deleteConfirmButton.first());
   }
 
   /**
@@ -427,9 +437,20 @@ export class WorkloadPage {
   // ─────────────────────────────────────────────────────────────
 
   private get evaluatePerfTab(): Locator {
+    // ★ Scope to the node-detail tab strip (mirinae PButtonTab renders the tabs as
+    //   `.p-button-tab .button-group button`). A bare getByRole('button', {name:/evaluate perf/i})
+    //   also matches the *disabled placeholder* button of the same name on MciPage's Detail tab
+    //   (MciPage.vue:70-78), which would either wrong-match or trip strict mode. PButtonTab renders
+    //   its tabs from a prop with no slot, so a data-testid cannot be attached to the tab button
+    //   without modifying mirinae; scoping to the tab strip disambiguates it cleanly instead.
     return this.page
       .getByTestId('vm-tab-evaluatePerf')
-      .or(this.page.getByRole('button', { name: /evaluate perf/i }));
+      .or(
+        this.page
+          .locator('.p-button-tab .button-group button')
+          .filter({ hasText: /evaluate perf/i }),
+      )
+      .first();
   }
   private get loadConfigButton(): Locator {
     // Prefer the "Load Config" button (text button) on the node detail's default tab (Information); the Evaluate Perf tab button (testid) is also allowed.
@@ -447,7 +468,7 @@ export class WorkloadPage {
 
   /** Open the Evaluate Perf (load test) tab from the node detail */
   async openEvaluatePerfTab(): Promise<void> {
-    await this.evaluatePerfTab.click();
+    await humanClick(this.evaluatePerfTab);
   }
 
   /** The confirm (Confirm/Run) button of the load-config modal — PButtonModal's default confirm button (.confirm-button) */
@@ -457,7 +478,7 @@ export class WorkloadPage {
 
   /** Open the Load Config modal. The PButtonModal wrapper testid is not caught as a visible element, so verify via the first input field. */
   async openLoadConfig(): Promise<void> {
-    await this.loadConfigButton.click();
+    await humanClick(this.loadConfigButton);
     await expect(
       this.page.locator(
         'input[data-testid="load-config-scenario-name"], textarea[data-testid="load-config-scenario-name"]',
@@ -487,27 +508,27 @@ export class WorkloadPage {
         `input[data-testid="${testid}"], textarea[data-testid="${testid}"]`,
       );
 
-    await field('load-config-scenario-name').fill(cfg.scenarioName);
+    await humanFill(field('load-config-scenario-name'), cfg.scenarioName);
 
     // The target host is auto-filled with the selected node's IP. If an auto value is present we do not overwrite it,
     // and only fill it as a fallback when it is empty.
     const targetHost = field('load-config-target-host');
     const autoHost = await targetHost.inputValue().catch(() => '');
     if (!autoHost && cfg.targetHost) {
-      await targetHost.fill(cfg.targetHost);
+      await humanFill(targetHost, cfg.targetHost);
     }
 
-    await field('load-config-port').fill(cfg.port);
-    await field('load-config-path').fill(cfg.path);
-    await field('load-config-virtual-users').fill(cfg.virtualUsers);
-    await field('load-config-duration').fill(cfg.duration);
-    await field('load-config-rampup-time').fill(cfg.rampUpTime);
-    await field('load-config-rampup-steps').fill(cfg.rampUpSteps);
+    await humanFill(field('load-config-port'), cfg.port);
+    await humanFill(field('load-config-path'), cfg.path);
+    await humanFill(field('load-config-virtual-users'), cfg.virtualUsers);
+    await humanFill(field('load-config-duration'), cfg.duration);
+    await humanFill(field('load-config-rampup-time'), cfg.rampUpTime);
+    await humanFill(field('load-config-rampup-steps'), cfg.rampUpSteps);
   }
 
   /** Run the load test (Runloadtest) — click PButtonModal's default confirm button */
   async submitLoadConfig(): Promise<void> {
-    await this.loadConfigConfirmButton.last().click();
+    await humanClick(this.loadConfigConfirmButton.last());
   }
 
   /**
@@ -593,10 +614,16 @@ export class WorkloadPage {
       await this.openEvaluatePerfTab().catch(() => {});
     }
 
-    await expect(this.resultMetric, 'The load-test result chart is missing').toBeVisible({
+    await expect(
+      this.resultMetric,
+      'The load-test result chart is missing',
+    ).toBeVisible({
       timeout: 60_000,
     });
-    await expect(this.resourceMetric, 'The resource metric chart is missing').toBeVisible({
+    await expect(
+      this.resourceMetric,
+      'The resource metric chart is missing',
+    ).toBeVisible({
       timeout: 60_000,
     });
   }

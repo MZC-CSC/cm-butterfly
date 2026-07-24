@@ -1,5 +1,6 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
+import { humanClick, humanFill } from '../support/humanize';
 
 /**
  * ModelsPage — the Page Object that gathers the "where/how" of the model (source/target/recommend) domain.
@@ -181,10 +182,10 @@ export class ModelsPage {
    * save the collected on-prem info as a source model with the given name.
    */
   async saveAsSourceModel(name: string): Promise<void> {
-    await this.customViewSourceLink.click();
-    await this.createFormSaveButton.click();
-    await this.modelNameInput.fill(name);
-    await this.modelNameConfirmButton.click();
+    await humanClick(this.customViewSourceLink);
+    await humanClick(this.createFormSaveButton);
+    await humanFill(this.modelNameInput, name);
+    await humanClick(this.modelNameConfirmButton);
   }
 
   // ───────────────────────────────────────────────────────────────────
@@ -193,7 +194,7 @@ export class ModelsPage {
 
   /** Open the recommend modal from the selected source model's detail */
   async openRecommend(): Promise<void> {
-    await this.viewRecommendLink.click();
+    await humanClick(this.viewRecommendLink);
     await expect(this.recommendModal).toBeVisible({ timeout: 15_000 });
   }
 
@@ -226,7 +227,7 @@ export class ModelsPage {
 
   /** Run recommendation — wait until result rows appear */
   async runRecommend(): Promise<void> {
-    await this.searchButton.click();
+    await humanClick(this.searchButton);
     await expect(this.recommendRows.first()).toBeVisible({ timeout: 30_000 });
   }
 
@@ -439,11 +440,11 @@ export class ModelsPage {
 
   /** Save the recommendation result as a target model (cloud model) with the given name */
   async saveAsTargetModel(name: string): Promise<void> {
-    await this.saveAsTargetButton.click(); // → SimpleEditForm(Save Target Model)
-    await this.modelNameInput.fill(name);
-    await this.modelNameConfirmButton.click();
+    await humanClick(this.saveAsTargetButton); // → SimpleEditForm(Save Target Model)
+    await humanFill(this.modelNameInput, name);
+    await humanClick(this.modelNameConfirmButton);
     await expect(this.successConfirmButton).toBeVisible({ timeout: 15_000 });
-    await this.successConfirmButton.click();
+    await humanClick(this.successConfirmButton);
   }
 
   /** Open the workflow editor via "Make Workflow" on the target model detail (the workflow creation entry point).
@@ -451,7 +452,7 @@ export class ModelsPage {
   async openWorkflowEditorFromTarget(targetName: string): Promise<void> {
     await this.gotoTargetModels();
     await this.selectModel(targetName);
-    await this.page.getByTestId('target-make-workflow').click();
+    await humanClick(this.page.getByTestId('target-make-workflow'));
   }
 
   // ── SW (software) model recommendation (same process as infra: source SW model → recommend → save target SW model) ──
@@ -490,10 +491,10 @@ export class ModelsPage {
    * PButtonModal, the root of SimpleEditForm, doesn't help since it is a wrapper and isn't caught as a visible element (a trap already hit in the load-config modal).
    */
   async saveAsTargetSoftwareModel(name: string): Promise<void> {
-    await this.swSaveTargetButton.click(); // → SimpleEditForm(Save Software Migration as Target Model)
+    await humanClick(this.swSaveTargetButton); // → SimpleEditForm(Save Software Migration as Target Model)
     await expect(this.modelNameInput).toBeVisible({ timeout: 15_000 });
-    await this.modelNameInput.fill(name);
-    await this.modelNameConfirmButton.click();
+    await humanFill(this.modelNameInput, name);
+    await humanClick(this.modelNameConfirmButton);
     // Save success = the form closes (the name input disappears). On failure the form stays open and is caught here.
     await expect(this.modelNameInput).toBeHidden({ timeout: 20_000 });
   }

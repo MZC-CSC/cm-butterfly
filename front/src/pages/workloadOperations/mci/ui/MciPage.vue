@@ -57,6 +57,15 @@ function handleSelectVmListTableRow(id: string) {
       </p>
       <div v-if="selectedMciId">
         <p-tab v-model="tabState.activeTab" :tabs="tabState.tabs">
+          <!--
+            e2e anchor only. mirinae PTab renders each tab <li> from the :tabs prop, so a
+            data-testid cannot be attached to the tab element itself. The always-present
+            per-tab `extra` slot lets us drop an empty, zero-size marker (mci-tab-detail /
+            mci-tab-server) without changing what is rendered. (BAR-1595 / CLAUDE.md §12)
+          -->
+          <template #extra="{ name }">
+            <span :data-testid="`mci-tab-${name}`" class="e2e-tab-marker" />
+          </template>
           <template #detail>
             <div class="tab-section-header">
               <p>Workload Information</p>

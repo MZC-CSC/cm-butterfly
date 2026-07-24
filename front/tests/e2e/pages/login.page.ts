@@ -1,4 +1,5 @@
 import { Page, expect, Locator } from '@playwright/test';
+import { humanClick, humanFill } from '../support/humanize';
 
 /**
  * LoginPage — the layer where "where/how" is explicitly defined (Page Object).
@@ -44,9 +45,9 @@ export class LoginPage {
 
   /** enter credentials and log in. On success, navigate to /main */
   async login(id: string, password: string): Promise<void> {
-    await this.idInput.fill(id);
-    await this.passwordInput.fill(password);
-    await this.submitButton.click();
+    await humanFill(this.idInput, id);
+    await humanFill(this.passwordInput, password);
+    await humanClick(this.submitButton);
   }
 
   async expectLoggedIn(): Promise<void> {

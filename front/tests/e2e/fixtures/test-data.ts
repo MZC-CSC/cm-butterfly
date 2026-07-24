@@ -117,7 +117,15 @@ export const workload = {
   loadTest: {
     scenarioName: process.env.TEST_LOADTEST_NAME || 'e2e-smoke-load',
     targetHost: process.env.TEST_LOADTEST_HOST || '127.0.0.1',
-    port: process.env.TEST_LOADTEST_PORT || '80',
+    /**
+     * Port the load test targets on the migrated infra.
+     *
+     * ★ Default 5555 (not 80). The load-test nginx is installed on the *target* infra at test time
+     *   (perf.steps: 부하테스트 대상 웹서버를 준비한다) and configured to listen on this port, and the
+     *   same port is opened on the target's security group. It is *not* the source (sshtest) server —
+     *   nginx was removed from those for security. Override with TEST_LOADTEST_PORT if needed.
+     */
+    port: process.env.TEST_LOADTEST_PORT || '5555',
     path: process.env.TEST_LOADTEST_PATH || '/',
     virtualUsers: process.env.TEST_LOADTEST_VU || '1',
     duration: process.env.TEST_LOADTEST_DURATION || '10',

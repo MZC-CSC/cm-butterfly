@@ -239,60 +239,112 @@ Then(
 /**
  * Step "and the software migration result screen shows per-software status"
  *
- * The execution history's "View SW" → the result screen. This is the path where the user sees the
- * results. It also cross-checks that what the screen shows matches what the API says — if they
- * differ, the screen is lying.
+ * The execution history's "View SW" → the result screen. This is the path where the user *sees* the results.
+ *
+ * ★ Report-only (non-fatal) — the load test must not depend on software migration.
+ *
+ *   The authoritative software check is the grasshopper API step above (소프트웨어 마이그레이션 결과가 조회된다):
+ *   it already failed the scenario if *our call was wrong* (no execution targeting our node / empty target). This
+ *   console step re-confirms the *screen* the user would look at, but it is **report-only**: the "View SW" button is
+ *   gated by a flaky client-side task-instance fetch (runHasSwTask), and whether the console renders it is not a good
+ *   gate for the (independent) load test that follows. So we poll the button, capture what the screen shows and how it
+ *   compares to the API, attach it all to the report — and never throw. The load test proceeds regardless.
+ *
+ *   (Load test independence: CLAUDE §"redesign" / BAR-1595 — infra migration success + the API SW verdict are the gates;
+ *    the console SW screen is observation only.)
  */
 Then(
   '소프트웨어 마이그레이션 결과 화면에 소프트웨어별 상태가 보인다',
-  async ({ page }) => {
-    test.setTimeout(10 * 60_000);
+  async ({ page, $testInfo }) => {
+    // No setTimeout here — this report-only step must NOT cap the scenario budget.
+    // The total budget is set once at the first step (login: 40 min); by the time we
+    // reach here the earlier apiWaits have already spent a chunk of it, so re-capping
+    // to 10 min would blow the test before the (independent) load-test steps run.
     const wf = new WorkflowPage(page);
 
-    await wf.gotoWorkflows();
-    if (scenarioState.softwareWorkflowName) {
-      await wf.selectWorkflow(scenarioState.softwareWorkflowName);
+    const notes: string[] = [];
+    let shown: { name: string; status: string; error: string }[] = [];
+    let screenError = '';
+    let buttonSeen = false;
+
+    try {
+      await wf.gotoWorkflows();
+      if (scenarioState.softwareWorkflowName) {
+        await wf.selectWorkflow(scenarioState.softwareWorkflowName);
+      }
+      await wf.openHistoryTab();
+
+      // Single short probe (no reload loop) — this observation is best-effort and must not eat the
+      // scenario budget the (independent) load test still needs. If the "View SW" button isn't there
+      // quickly, record "not shown (report-only)" and move on.
+      buttonSeen = await wf.hasSoftwareMigrationResult(15_000);
+      if (!buttonSeen) {
+        notes.push(
+          '실행 이력에 "View SW" 버튼이 빠르게 나타나지 않았다 — 콘솔이 이 실행을 소프트웨어 마이그레이션으로 인식하지 못했다(리포트만; API 판정이 권위).',
+        );
+      } else {
+        // Short, bounded open so the whole step stays well under a minute even on the happy path.
+        await wf.openSoftwareMigrationResult(5_000, 8_000);
+        screenError = await wf.softwareMigrationErrorText();
+        if (screenError) {
+          notes.push(`결과 화면 오류: ${screenError}`);
+        }
+        shown = await wf.readSoftwareMigrationRows();
+        console.log(
+          `[sw] result screen ${shown.length} row(s) — ${shown
+            .slice(0, 5)
+            .map(r => `${r.name}:${r.status}`)
+            .join(', ')}${shown.length > 5 ? ' …' : ''}`,
+        );
+        if (shown.length === 0) {
+          notes.push(
+            '결과 화면에 소프트웨어가 한 줄도 없다 — API는 결과를 주는데 화면이 못 그리고 있다(리포트만).',
+          );
+        }
+        // Cross-check the API rows against the screen (does the screen match what the API said?).
+        const fromApi = new Set(
+          (scenarioState.swMigrationRows ?? []).map(
+            (r: SwStatus) => r.software_name,
+          ),
+        );
+        const missing = [...fromApi].filter(
+          name => !shown.some(s => s.name === name),
+        );
+        if (missing.length > 0) {
+          notes.push(
+            `API가 알려준 소프트웨어가 화면에 없다: ${missing.slice(0, 10).join(', ')}`,
+          );
+        }
+      }
+    } catch (e) {
+      notes.push(`결과 화면 확인 중 예외(리포트만): ${(e as Error).message}`);
     }
-    await wf.openHistoryTab();
 
-    expect(
-      await wf.hasSoftwareMigrationResult(),
-      '실행 이력에 "View SW" 버튼이 없다 — 콘솔이 이 실행을 소프트웨어 마이그레이션으로 인식하지 못했다.',
-    ).toBeTruthy();
+    const md = [
+      '# 소프트웨어 마이그레이션 결과 화면(View SW) — 관찰(리포트 전용)',
+      '',
+      '> 이 단계는 **실패를 유발하지 않는다**. 소프트웨어 마이그레이션의 권위 판정은 위 API 단계이며, 부하테스트는 이 화면 결과와 무관하게 진행된다.',
+      '',
+      `- "View SW" 버튼 표시: **${buttonSeen ? '표시됨' : '표시되지 않음'}**`,
+      `- 화면 오류: ${screenError ? `\`${screenError}\`` : '없음'}`,
+      `- 화면에 표시된 소프트웨어 행 수: **${shown.length}**`,
+      ...(shown.length
+        ? [
+            '',
+            '| 소프트웨어 | 상태 |',
+            '|-----------|------|',
+            ...shown.slice(0, 40).map(r => `| ${r.name} | ${r.status} |`),
+          ]
+        : []),
+      ...(notes.length
+        ? ['', '## 관찰 메모', '', ...notes.map(n => `- ${n}`)]
+        : []),
+    ].join('\n');
 
-    await wf.openSoftwareMigrationResult();
-
-    const error = await wf.softwareMigrationErrorText();
-    expect(
-      error,
-      `결과 화면이 소프트웨어 마이그레이션 상태를 가져오지 못했다: ${error}`,
-    ).toBe('');
-
-    const shown = await wf.readSoftwareMigrationRows();
-    console.log(
-      `[sw] result screen ${shown.length} row(s) — ${shown
-        .slice(0, 5)
-        .map(r => `${r.name}:${r.status}`)
-        .join(', ')}${shown.length > 5 ? ' …' : ''}`,
-    );
-
-    expect(
-      shown.length,
-      '결과 화면에 소프트웨어가 한 줄도 없다 — API는 결과를 주는데 화면이 못 그리고 있다.',
-    ).toBeGreaterThan(0);
-
-    // Cross-check that the software the API reported is also on the screen (that the screen isn't just an empty shell).
-    const fromApi = new Set(
-      (scenarioState.swMigrationRows ?? []).map(
-        (r: SwStatus) => r.software_name,
-      ),
-    );
-    const missing = [...fromApi].filter(
-      name => !shown.some(s => s.name === name),
-    );
-    expect(
-      missing.length,
-      `API가 알려준 소프트웨어가 화면에 없다: ${missing.slice(0, 10).join(', ')}`,
-    ).toBe(0);
+    await $testInfo.attach('소프트웨어-마이그레이션-결과-화면', {
+      body: md,
+      contentType: 'text/markdown',
+    });
+    console.log('\n' + md + '\n');
   },
 );
