@@ -105,6 +105,72 @@ func TestBuildConnectionCSVStartsWithBOM(t *testing.T) {
 	}
 }
 
+// The Excel path shares the column contract with CSV and must survive the same
+// round trip through the importer, which reads .xlsx as well.
+func TestBuildConnectionXLSXRoundTripsThroughTheImporter(t *testing.T) {
+	connections := []TabularExportConnection{
+		{Name: "web,01", Description: "has a comma", IPAddress: "10.0.0.1", SSHPort: "22"},
+		{Name: "app-01", Description: "line one\nline two", IPAddress: "10.0.0.3", SSHPort: "2222"},
+		{Name: "wéb-ürsprung-01", Description: "años de café", IPAddress: "10.0.0.4", SSHPort: "22"},
+	}
+
+	raw, err := buildConnectionXLSX(connections)
+	if err != nil {
+		t.Fatalf("buildConnectionXLSX returned an error: %v", err)
+	}
+
+	// The importer detects xlsx by extension, so name it accordingly.
+	res, err := parseTabular("export.xlsx", raw)
+	if err != nil {
+		t.Fatalf("the exported workbook could not be parsed back: %v", err)
+	}
+	if res.Format != "xlsx" {
+		t.Errorf("format = %q, want xlsx", res.Format)
+	}
+	if len(res.Headers) != len(exportColumns) {
+		t.Fatalf("header count = %d, want %d", len(res.Headers), len(exportColumns))
+	}
+	for i, want := range exportColumns {
+		if res.Headers[i] != want {
+			t.Errorf("header[%d] = %q, want %q", i, res.Headers[i], want)
+		}
+	}
+	if len(res.Rows) != len(connections) {
+		t.Fatalf("row count = %d, want %d", len(res.Rows), len(connections))
+	}
+	for i, want := range connections {
+		got := res.Rows[i].Data
+		if got["name"] != want.Name {
+			t.Errorf("row %d name = %q, want %q", i+1, got["name"], want.Name)
+		}
+		if got["ip_address"] != want.IPAddress {
+			t.Errorf("row %d ip_address = %q, want %q", i+1, got["ip_address"], want.IPAddress)
+		}
+		if got["ssh_port"] != want.SSHPort {
+			t.Errorf("row %d ssh_port = %q, want %q", i+1, got["ssh_port"], want.SSHPort)
+		}
+		for column := range encryptedColumns {
+			if got[column] != "" {
+				t.Errorf("row %d column %q = %q, want empty", i+1, column, got[column])
+			}
+		}
+	}
+}
+
+func TestBuildExportFileRejectsUnknownFormat(t *testing.T) {
+	// buildExportFile itself does not gate the format (the handler does), but the
+	// two known formats must each produce something parseable.
+	for _, format := range []string{"csv", "xlsx"} {
+		raw, err := buildExportFile(format, sampleConnections())
+		if err != nil {
+			t.Fatalf("buildExportFile(%q) error: %v", format, err)
+		}
+		if len(raw) == 0 {
+			t.Errorf("buildExportFile(%q) produced no bytes", format)
+		}
+	}
+}
+
 // A caller cannot smuggle credentials into the file: the request type has no
 // field for them, so the writer always emits empty values.
 func TestBuildConnectionCSVAlwaysEmitsEveryColumn(t *testing.T) {

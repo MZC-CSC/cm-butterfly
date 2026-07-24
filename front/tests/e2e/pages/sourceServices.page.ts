@@ -308,6 +308,44 @@ export class SourceServicesPage {
     await this.expectGroupListed(name);
   }
 
+  /** 소스그룹을 만들되 연결정보 여러 건을 CSV 대량 임포트로 한 번에 넣는다.
+   *  익스포트가 *여러 건 선택*을 제대로 담는지 확인하려면 한 그룹에 연결이 둘 이상 있어야 한다. */
+  async createSourceGroupWithBulkImport(
+    name: string,
+    connNames: string[],
+  ): Promise<void> {
+    const header = 'name,description,ip_address,ssh_port,user,password,private_key';
+    const rows = connNames.map(n => `${n},,10.0.0.1,22,ubuntu,,`);
+    const csv = '﻿' + [header, ...rows].join('\n') + '\n';
+
+    await this.addGroupButton.click();
+    await this.serviceNameInput.fill(name);
+    await this.withConnectionToggle.click();
+
+    await this.page.getByTestId('source-import-input').setInputFiles({
+      name: 'bulk.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(csv, 'utf-8'),
+    });
+
+    // 서버 파싱 후 미리보기에 건수가 뜬 뒤 등록한다.
+    await expect(this.page.getByTestId('source-import-count')).toContainText(
+      String(connNames.length),
+      { timeout: 15_000 },
+    );
+    await this.groupConfirmButton.click();
+    await this.expectGroupListed(name);
+  }
+
+  /** 목록에서 헤더 체크박스로 모든 행을 한 번에 고른다(여러 건 선택). */
+  async checkAllConnections(): Promise<void> {
+    await this.connectionsTab.click();
+    await this.page
+      .locator('thead th.select-checkbox .p-checkbox, thead input[type="checkbox"]')
+      .first()
+      .click();
+  }
+
   /** 이름으로 소스그룹 선택(상세 진입) */
   async selectGroup(name: string): Promise<void> {
     await this.revealGroup(name);
@@ -369,6 +407,13 @@ export class SourceServicesPage {
   async openExportConfirm(): Promise<void> {
     await this.exportConnectionButton.click();
     await expect(this.exportNotice).toBeVisible({ timeout: 10_000 });
+  }
+
+  /** 확인 모달에서 파일 형식을 고른다(기본은 CSV). */
+  async selectExportFormat(format: 'csv' | 'xlsx'): Promise<void> {
+    await this.page
+      .getByTestId(`source-connection-export-format-${format}`)
+      .click();
   }
 
   /** 암호화 컬럼이 빠진다는 안내가 실제로 보이는지. */

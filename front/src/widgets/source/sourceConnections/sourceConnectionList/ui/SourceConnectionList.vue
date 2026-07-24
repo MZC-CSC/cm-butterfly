@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { PToolboxTable, PButton, PButtonModal, PHorizontalLayout } from '@cloudforet-test/mirinae';
+import {
+  PToolboxTable,
+  PButton,
+  PButtonModal,
+  PHorizontalLayout,
+  PRadio,
+  PRadioGroup,
+} from '@cloudforet-test/mirinae';
 import {
   buildExportFileName,
   insertDynamicComponent,
@@ -62,6 +69,15 @@ const modals = reactive({
 const sourceServiceStore = useSourceServiceStore();
 const exportConnections = useExportTabularConnections();
 const isExporting = ref(false);
+
+// CSV opens everywhere but can be awkward to edit (encoding, auto-formatting);
+// Excel is offered as an alternative. CSV stays the default.
+type ExportFormat = 'csv' | 'xlsx';
+const exportFormat = ref<ExportFormat>('csv');
+const exportFormatOptions: { label: string; value: ExportFormat }[] = [
+  { label: 'CSV', value: 'csv' },
+  { label: 'Excel (.xlsx)', value: 'xlsx' },
+];
 
 // The table is a mirinae component whose selection is not a real checkbox, so
 // the selected row indexes are the only reliable signal here.
@@ -172,6 +188,7 @@ function handleExportClick() {
   // A mirinae button renders disabled as a class only, so the click still
   // reaches this handler. Stop here rather than trusting the attribute.
   if (!hasSelection.value || isExporting.value) return;
+  exportFormat.value = 'csv'; // reset to the default each time the dialog opens
   modals.exportModalState.open = true;
 }
 
@@ -183,10 +200,19 @@ function exportBaseName(rows: ReturnType<typeof selectedSourceConnections>) {
   return sourceServiceStore.getServiceById(props.selectedServiceId)?.name ?? '';
 }
 
-function downloadExportedFile(contentBase64: string, fileName: string) {
+const EXPORT_MIME: Record<ExportFormat, string> = {
+  csv: 'text/csv;charset=utf-8;',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+};
+
+function downloadExportedFile(
+  contentBase64: string,
+  fileName: string,
+  format: ExportFormat,
+) {
   const binary = atob(contentBase64);
   const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
-  const blob = new Blob([bytes], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob([bytes], { type: EXPORT_MIME[format] });
 
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -211,10 +237,11 @@ async function handleExportConfirm() {
     ssh_port: String(row.originalData?.ssh_port ?? ''),
   }));
 
+  const format = exportFormat.value;
   isExporting.value = true;
   try {
     const { data } = await exportConnections.execute({
-      format: 'csv',
+      format,
       connections,
     });
 
@@ -228,7 +255,8 @@ async function handleExportConfirm() {
 
     downloadExportedFile(
       data.responseData.contentBase64,
-      buildExportFileName(exportBaseName(rows), 'csv'),
+      buildExportFileName(exportBaseName(rows), format),
+      format,
     );
     showSuccessMessage('success', `Exported ${rows.length} connection(s).`);
   } catch (error) {
@@ -377,6 +405,20 @@ function handleSourceConnectionList() {
           in the export. Fill them in yourself before importing the file again.
         </p>
         <p class="mt-2">{{ selectedCount }} connection(s) will be exported.</p>
+        <div class="export-format mt-2">
+          <span class="export-format-label">File format</span>
+          <p-radio-group>
+            <p-radio
+              v-for="option in exportFormatOptions"
+              :key="option.value"
+              v-model="exportFormat"
+              :value="option.value"
+              :data-testid="`source-connection-export-format-${option.value}`"
+            >
+              <span>{{ option.label }}</span>
+            </p-radio>
+          </p-radio-group>
+        </div>
       </template>
       <template #confirm-button>
         <span data-testid="source-connection-export-confirm">Export</span>
@@ -388,4 +430,11 @@ function handleSourceConnectionList() {
   </div>
 </template>
 
-<style scoped lang="postcss"></style>
+<style scoped lang="postcss">
+.export-format {
+  @apply flex items-center gap-[0.75rem];
+}
+.export-format-label {
+  @apply text-[0.8125rem] text-gray-600;
+}
+</style>

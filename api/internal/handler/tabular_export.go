@@ -10,7 +10,11 @@ import (
 	"api/internal/util/response"
 
 	"github.com/labstack/echo/v4"
+	"github.com/xuri/excelize/v2"
 )
+
+// exportSheetName is the single sheet the Excel export writes into.
+const exportSheetName = "connections"
 
 // maxExportRows mirrors the import limit so both directions agree on how much
 // data is reasonable in one file.
@@ -52,8 +56,7 @@ type TabularExportConnection struct {
 
 // TabularExportRequest carries the connections the user selected.
 type TabularExportRequest struct {
-	// Format selects the output form. Only "csv" is supported today; an empty
-	// value means csv.
+	// Format selects the output form: "csv" or "xlsx". An empty value means csv.
 	Format      string                    `json:"format"`
 	Connections []TabularExportConnection `json:"connections"`
 }
@@ -80,7 +83,7 @@ func ExportTabularConnections(c echo.Context) error {
 	if format == "" {
 		format = "csv"
 	}
-	if format != "csv" {
+	if format != "csv" && format != "xlsx" {
 		return response.BadRequest(c, fmt.Sprintf("Unsupported export format: %s", req.Format))
 	}
 	if len(req.Connections) == 0 {
@@ -90,7 +93,7 @@ func ExportTabularConnections(c echo.Context) error {
 		return response.BadRequest(c, fmt.Sprintf("Too many connections to export. (limit: %d)", maxExportRows))
 	}
 
-	raw, err := buildConnectionCSV(req.Connections)
+	raw, err := buildExportFile(format, req.Connections)
 	if err != nil {
 		return response.InternalServerError(c, "Failed to build the export file.")
 	}
@@ -99,6 +102,15 @@ func ExportTabularConnections(c echo.Context) error {
 		Format:        format,
 		ContentBase64: base64.StdEncoding.EncodeToString(raw),
 	})
+}
+
+// buildExportFile writes the connections in the requested format. Both share
+// exportColumns and the empty-encrypted-column rule; only the container differs.
+func buildExportFile(format string, connections []TabularExportConnection) ([]byte, error) {
+	if format == "xlsx" {
+		return buildConnectionXLSX(connections)
+	}
+	return buildConnectionCSV(connections)
 }
 
 // buildConnectionCSV writes the header and one row per connection. encoding/csv
@@ -132,6 +144,54 @@ func buildConnectionCSV(connections []TabularExportConnection) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// buildConnectionXLSX writes the same header and rows into an Excel workbook.
+// Users who find CSV awkward to edit (encoding, auto-formatting) get a file
+// Excel opens cleanly. The column contract is identical to the CSV path.
+func buildConnectionXLSX(connections []TabularExportConnection) ([]byte, error) {
+	f := excelize.NewFile()
+	defer func() { _ = f.Close() }()
+
+	index, err := f.NewSheet(exportSheetName)
+	if err != nil {
+		return nil, err
+	}
+	f.SetActiveSheet(index)
+	// NewFile seeds a default "Sheet1"; drop it so the importer reads ours first.
+	_ = f.DeleteSheet("Sheet1")
+
+	if err := writeXLSXRow(f, 1, exportColumns); err != nil {
+		return nil, err
+	}
+	for i, conn := range connections {
+		record := make([]string, 0, len(exportColumns))
+		for _, column := range exportColumns {
+			record = append(record, exportValue(conn, column))
+		}
+		if err := writeXLSXRow(f, i+2, record); err != nil {
+			return nil, err
+		}
+	}
+
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func writeXLSXRow(f *excelize.File, row int, values []string) error {
+	for col, value := range values {
+		cell, err := excelize.CoordinatesToCellName(col+1, row)
+		if err != nil {
+			return err
+		}
+		if err := f.SetCellStr(exportSheetName, cell, value); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // exportValue maps a column name onto the connection. Encrypted columns always
