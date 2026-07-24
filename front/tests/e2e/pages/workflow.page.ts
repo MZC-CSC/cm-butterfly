@@ -223,6 +223,14 @@ export class WorkflowPage {
     return this.page.getByTestId('workflow-run-running');
   }
 
+  /**
+   * The layer shown from the moment Run is pressed until the new run can be drawn. It covers
+   * the graph, which still shows the *previous* run until then.
+   */
+  get runStarting(): Locator {
+    return this.page.getByTestId('workflow-run-starting');
+  }
+
   /** "Running: <task>" or "Waiting for the next task to start" */
   get runningTasksText(): Locator {
     return this.page.getByTestId('workflow-run-running-tasks');

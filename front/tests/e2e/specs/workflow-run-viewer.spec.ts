@@ -158,6 +158,48 @@ test.describe('워크플로우 실행 상태 뷰어', () => {
   });
 
   /**
+   * Pressing Run used to leave the screen untouched for three to five seconds, because the
+   * code slept a fixed 3s before re-reading. Now it says what it is waiting for and asks the
+   * engine until the new run actually exists.
+   *
+   * The run list answers in well under a second, so the layer would be gone before it could be
+   * asserted. We delay *that one response* — timing only, not content — which is also what
+   * makes this test deterministic rather than a race.
+   */
+  test('실행을 누르면 준비 중임을 바로 말하고, 준비되면 그때 그린다', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const workflow = new WorkflowPage(page);
+    await workflow.gotoWorkflows();
+    await workflow.openRunViewer(RUNNABLE_WORKFLOW);
+    await expect(workflow.runStarting).toBeHidden();
+    // An earlier test may have left a run in flight, and Run is locked while one is. Wait it
+    // out rather than clicking a disabled button and blaming the screen for not reacting.
+    await expect(workflow.runningIndicator).toBeHidden({ timeout: 120_000 });
+
+    let delayed = 0;
+    await page.route('**/api/cm-cicada/get-workflow-runs', async route => {
+      if (delayed < 3) {
+        delayed += 1;
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+      await route.continue();
+    });
+
+    await page.getByTestId('workflow-viewer-run-btn').click();
+    await page.getByTestId('workflow-run-confirm-ok').click();
+
+    // The screen must react to the click, not to the response
+    await expect(workflow.runStarting).toBeVisible({ timeout: 3000 });
+    await expect(workflow.runStarting).toContainText('Preparing run data');
+
+    // ...and it must not linger past readiness — a layer that never lifts is its own failure
+    await expect(workflow.runStarting).toBeHidden({ timeout: 60_000 });
+    await expect(workflow.runMeta).toContainText('Run ID');
+  });
+
+  /**
    * A long task leaves the progress bar at the same width and every number unchanged, so the
    * screen becomes indistinguishable from one that has died. What has to be proven is not
    * "an indicator exists" but that **something keeps changing while a task is running** —
@@ -174,8 +216,9 @@ test.describe('워크플로우 실행 상태 뷰어', () => {
     await workflow.gotoWorkflows();
     await workflow.openRunViewer(RUNNABLE_WORKFLOW);
 
-    // Nothing is running yet, so neither indicator may be present
-    await expect(workflow.runningIndicator).toBeHidden();
+    // Nothing is running yet, so neither indicator may be present. A run left over from an
+    // earlier test has to finish first — that is a stale screen, not this test's subject.
+    await expect(workflow.runningIndicator).toBeHidden({ timeout: 120_000 });
     expect(await workflow.runNodeSpinners.count()).toBe(0);
 
     await page.getByTestId('workflow-viewer-run-btn').click();
@@ -183,7 +226,16 @@ test.describe('워크플로우 실행 상태 뷰어', () => {
 
     const elapsedSeen = new Set<string>();
     let sawIndicator = false;
-    let sawNodeSpinner = false;
+    let sawRunningNode = false;
+    /*
+      The spinner's contract is *one spinner per running node* — checked on every sample, so a
+      spinner that stops appearing, or one left turning on a finished task, is caught either way.
+
+      We do not require "a running node was seen at least once": the screen re-reads status
+      every 3s while this sample workflow's tasks finish in one or two, so a task can start and
+      end between two reads. Demanding it would fail on timing, not on the product.
+    */
+    const mismatches: string[] = [];
 
     // Sample faster than the 1s tick so the change is actually observable
     for (let i = 0; i < 150; i++) {
@@ -194,22 +246,38 @@ test.describe('워크플로우 실행 상태 뷰어', () => {
         sawIndicator = true;
         const elapsed = await workflow.runElapsed.innerText().catch(() => '');
         if (elapsed) elapsedSeen.add(elapsed);
-        if ((await workflow.runNodeSpinners.count().catch(() => 0)) > 0) {
-          sawNodeSpinner = true;
-        }
       } else if (sawIndicator && i > 20) {
         break; // the run finished
       }
+
+      const runningNodes = await page
+        .locator('[data-testid="workflow-run-node"][data-state="running"]')
+        .count()
+        .catch(() => 0);
+      const spinners = await workflow.runNodeSpinners.count().catch(() => 0);
+      if (runningNodes > 0) sawRunningNode = true;
+      if (runningNodes !== spinners) {
+        mismatches.push(`t${i}: running=${runningNodes} spinner=${spinners}`);
+      }
+
       await page.waitForTimeout(600);
     }
+    console.log('running node observed during this run:', sawRunningNode);
 
     expect(sawIndicator, '실행 중 표시가 나타났다').toBe(true);
-    expect(sawNodeSpinner, '실행 중 태스크에 스피너가 붙었다').toBe(true);
+    expect(mismatches, '실행 중 노드마다 스피너가 정확히 하나씩').toEqual([]);
     expect(elapsedSeen.size, '경과 시간이 실제로 흘렀다').toBeGreaterThan(1);
+    // A queued run reports the engine's zero start time, and counting from it printed
+    // "17755691h 11m". A number that cannot be true discredits everything beside it.
+    expect(
+      [...elapsedSeen].filter(t => /\d{5,}h/.test(t)),
+      '말이 되는 경과 시간만 나왔다',
+    ).toEqual([]);
 
     // Once the run ends, the indicators must go away — a spinner left turning on a finished
     // run says "still working" when nothing is.
     await expect(workflow.runningIndicator).toBeHidden({ timeout: 30_000 });
     expect(await workflow.runNodeSpinners.count()).toBe(0);
+    expect(await workflow.runProgress.isVisible()).toBe(false);
   });
 });
