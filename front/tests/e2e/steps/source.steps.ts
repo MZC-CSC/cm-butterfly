@@ -229,6 +229,30 @@ Then(
   },
 );
 
+/** "그러면 익스포트 파일에 \"conn-1,conn-3,conn-5\" 가 담겨 있다"
+ *  비연속 선택(예: 5개 중 1·3·5)이 *고른 것만* 정확히 반영되는지 — 이름으로 확인한다. */
+Then(
+  '익스포트 파일에 {string} 가 담겨 있다',
+  async ({ page: _page }, csvNames: string) => {
+    const content = scenarioState.exportedFileContent ?? '';
+    for (const base of csvNames.split(',').map(n => n.trim())) {
+      expect(content).toContain(uniqueName(base));
+    }
+  },
+);
+
+/** "그리고 익스포트 파일에 \"conn-2,conn-4\" 는 담겨 있지 않다"
+ *  고르지 않은 것은 빠져야 한다(선택→익스포트 매핑이 어긋나면 여기서 걸린다). */
+Then(
+  '익스포트 파일에 {string} 는 담겨 있지 않다',
+  async ({ page: _page }, csvNames: string) => {
+    const content = scenarioState.exportedFileContent ?? '';
+    for (const base of csvNames.split(',').map(n => n.trim())) {
+      expect(content).not.toContain(uniqueName(base));
+    }
+  },
+);
+
 /** "그러면 익스포트 파일이 임포트 양식과 같고 암호화 컬럼이 비어 있다"
  *  이 기능의 핵심 약속 두 가지 — 임포트 양식 그대로일 것, 암호화 값은 나가지 않을 것. */
 Then('익스포트 파일이 임포트 양식과 같고 암호화 컬럼이 비어 있다', async () => {
