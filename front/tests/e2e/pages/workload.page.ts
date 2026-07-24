@@ -82,8 +82,8 @@ export class WorkloadPage {
   /**
    * How many infras the list is showing.
    *
-   * Counted by the row's select cell rather than `tbody tr`, because the table also renders
-   * header and no-data rows that would otherwise be counted as infras.
+   * Counted by the row's select cell — there is exactly one per infra, and an empty-state row
+   * carries none, so a list with nothing in it reads as 0 rather than 1.
    */
   async mciRowCount(): Promise<number> {
     await this.expectMciListLoaded();
