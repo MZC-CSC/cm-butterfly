@@ -50,17 +50,19 @@ const isLoadTestRunning = computed(() =>
   ['Running', 'Collecting results'].includes(props.loadTestStatus ?? ''),
 );
 
-// Stopping a run means killing the JMeter process on the load generator, so there is nothing to
-// stop until the generator is installed — cm-ant answers a stop request before that point with
-// "load install info: record not found". The phases before it (pre-check, generator install) are
-// short and end on their own, so the button waits for the generator instead of failing.
+// Stopping a run kills the JMeter process on the load generator, so it only means anything while
+// JMeter is actually running. Asked earlier, cm-ant fails in two different ways and both reached
+// the screen as a bare 400: before the generator exists it cannot find the install record, and
+// once it exists but the load has not started the kill command matches no process and comes back
+// with a non-zero exit. The phases before the load run — pre-check, generator install, agent
+// install, test plan — are short and end on their own, so the button waits for the load run.
 //
 // An older cm-ant reports no steps at all; there is nothing to base the decision on, so the
 // button stays available rather than being permanently disabled.
 const canStopLoadTest = computed(() => {
   const steps = props.loadTestSteps ?? [];
   if (!steps.length) return true;
-  return steps.some(s => s.name === 'generator_install' && s.status === 'ok');
+  return steps.some(s => s.name === 'jmeter_run' && s.status === 'running');
 });
 
 // Same guard as Load Config: mirinae's disabled is a class only and the click still reaches the
@@ -121,7 +123,7 @@ const isLoadTestCompleted = computed(() => props.loadTestStatus === 'Completed')
           :title="
             canStopLoadTest
               ? undefined
-              : 'Available once the load generator is installed'
+              : 'Available once the load run has started'
           "
           @click="handleStopLoadTest"
         >
