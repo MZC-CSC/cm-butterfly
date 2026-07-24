@@ -393,7 +393,7 @@ const hasSteps = computed(() => steps.value.length > 0);
       >
         {{ primaryLine }}
       </p>
-      <div class="lt-bar-row">
+      <div class="lt-bar-row" :class="{ 'is-full': variant === 'full' }">
         <div class="lt-bar" data-testid="load-test-progress-bar">
           <div
             class="lt-fill"
@@ -525,6 +525,16 @@ const hasSteps = computed(() => steps.value.length > 0);
   align-items: center;
   gap: 8px;
   height: 16px;
+}
+
+/* Full panel: cap the row at roughly the width of the step lines below it, so the percentage
+   and the polling spinner sit next to the bar instead of against the right edge of a wide
+   panel — far from the left-aligned step text the eye is already on. Only the full variant is
+   capped; the compact cell in the Information tab keeps filling its column. It is a cap, not a
+   fixed width, so a narrower browser shrinks the whole row with the panel. */
+.lt-bar-row.is-full {
+  width: 100%;
+  max-width: 480px;
 }
 
 .lt-bar {
