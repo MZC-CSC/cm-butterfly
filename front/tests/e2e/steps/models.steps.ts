@@ -223,6 +223,16 @@ let lastRecommendQuery: Record<string, string> = {};
 /** Text of the explanation the '?' badge opened */
 let lastMatchRateHelp = '';
 
+/**
+ * Any *infra* source model will do here — these scenarios check how the recommendation
+ * *condition input* behaves, not what the recommendation returns, so they don't need the model
+ * @seed creates. It has to be an infra one: a software source model's detail opens the software
+ * recommendation page instead of the recommend modal.
+ */
+Given('아무 소스 모델이나 선택한다', async ({ page }) => {
+  await new ModelsPage(page).selectFirstInfraModel();
+});
+
 /** Open the recommend modal and pick CSP/Region so Search becomes clickable */
 Given('타깃 인프라 추천 조건 화면을 연다', async ({ page }) => {
   const models = new ModelsPage(page);

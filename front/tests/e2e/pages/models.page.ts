@@ -200,6 +200,30 @@ export class ModelsPage {
     return name;
   }
 
+  /**
+   * Select the first *infrastructure* source model (Migration Type `OnPremiseModel`).
+   *
+   * The list mixes infra and software sources, and their details offer different entries —
+   * infra has "View Recommended List" (the recommend modal), software has "Get Migration List"
+   * (a full-page software recommendation). Taking whatever row is first lands on the software
+   * screen when a software source happens to sort first, and the modal never appears.
+   */
+  async selectFirstInfraModel(): Promise<string> {
+    const row = this.listTable
+      .locator('tbody tr')
+      .filter({ hasText: 'OnPremiseModel' })
+      .first();
+    await expect(
+      row,
+      '인프라 소스 모델(OnPremiseModel) 행이 목록에 없다',
+    ).toBeVisible({
+      timeout: 15_000,
+    });
+    const name = (await row.innerText()).trim().split(/\s+/)[0] ?? '';
+    await row.click();
+    return name;
+  }
+
   // ───────────────────────────────────────────────────────────────────
   // Save source (on-prem) model — CustomViewSourceModel (CreateOnPremModel)
   // ───────────────────────────────────────────────────────────────────
