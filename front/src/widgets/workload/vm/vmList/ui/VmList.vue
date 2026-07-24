@@ -154,9 +154,19 @@ async function handleReRun() {
 }
 function handleStopLoadTest() {
   const key = currentLoadTestKey.value;
-  if (!key) return;
+  const nodeId = selectedVm.value?.id;
+  if (!key || !nodeId) return;
+  // cm-ant needs the node the run belongs to, not just the key — without nsId/infraId/nodeId it
+  // rejects the request with 400 before it looks the run up.
   resStopLoadTest
-    .execute({ request: { loadTestKey: key } })
+    .execute({
+      request: {
+        loadTestKey: key,
+        nsId: props.nsId,
+        infraId: props.mciId,
+        nodeId,
+      },
+    })
     .then(() => setVmLoadTestResult())
     .catch(e => showErrorMessage('error', e.errorMsg?.value ?? 'Stop failed'));
 }
