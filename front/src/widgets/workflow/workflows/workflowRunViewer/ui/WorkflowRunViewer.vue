@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
+import { useIntervalFn } from '@vueuse/core';
 import {
   PBadge,
   PButton,
@@ -13,6 +14,7 @@ import { graphPixelWidth } from '@/entities/workflow/lib/runGraph';
 import { useWorkflowRunViewerModel } from '../model/workflowRunViewerModel';
 import {
   taskStateBadgeType,
+  taskStateKind,
   taskStateLabel,
 } from '@/entities/workflow/lib/taskState';
 
@@ -229,6 +231,84 @@ const runInProgress = computed(() =>
   ['running', 'queued'].includes(
     (selectedRun.value?.state ?? '').toLowerCase(),
   ),
+);
+
+/*
+  Which task the run is currently sitting on, and for how long.
+
+  The progress bar only moves when a task *finishes*. A task that takes ten minutes leaves
+  the bar at the same width and every number on screen unchanged for ten minutes, and the
+  screen becomes indistinguishable from one that has died. So we say the task's name out
+  loud and let the seconds tick — a number that keeps changing is the proof that the screen
+  is still alive, and the elapsed time is what tells you whether it is taking unusually long.
+*/
+const nodeNameById = computed(
+  () => new Map(graph.value.nodes.map(n => [n.id, n.name])),
+);
+
+const runningTasks = computed(() =>
+  instances.value
+    .filter(i => taskStateKind(i.state) === 'running')
+    .map(i => ({
+      name: nodeNameById.value.get(i.task_id) ?? i.task_name ?? i.task_id,
+      startDate: i.start_date,
+    })),
+);
+
+const runningTaskNames = computed(() => runningTasks.value.map(t => t.name));
+
+/** Ticks only while a run is in progress — a clock that runs on a finished run is pure waste */
+const now = ref(Date.now());
+const { pause: pauseClock, resume: resumeClock } = useIntervalFn(
+  () => {
+    now.value = Date.now();
+  },
+  1000,
+  { immediate: false },
+);
+
+/*
+  Where the elapsed time is counted from. While tasks are running it is the earliest of
+  them (that is the one the run is waiting on); between tasks there is nothing running, so
+  it falls back to the run's own start. The two mean different things, so the wording on
+  screen says which one is being shown.
+*/
+const elapsedFrom = computed(() => {
+  const starts = runningTasks.value
+    .map(t => t.startDate)
+    .filter(Boolean)
+    .sort();
+  return starts[0] ?? selectedRun.value?.start_date ?? null;
+});
+
+function formatElapsed(ms: number): string {
+  const total = Math.floor(ms / 1000);
+  if (total < 60) return `${total}s`;
+  const minutes = Math.floor(total / 60);
+  if (minutes < 60) return `${minutes}m ${total % 60}s`;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+const elapsedText = computed(() => {
+  if (!elapsedFrom.value) return '';
+  const ms = now.value - new Date(elapsedFrom.value).getTime();
+  // A clock skew between the engine and the browser can put the start in the future.
+  // Showing a negative or nonsensical duration is worse than showing none.
+  if (!Number.isFinite(ms) || ms < 0) return '';
+  return formatElapsed(ms);
+});
+
+watch(
+  runInProgress,
+  inProgress => {
+    if (!inProgress) {
+      pauseClock();
+      return;
+    }
+    now.value = Date.now();
+    resumeClock();
+  },
+  { immediate: true },
 );
 
 const hasFailedTask = computed(() =>
@@ -589,6 +669,52 @@ async function onRunChange(runId: string) {
             <template v-if="progress.failed">
               · {{ progress.failed }} failed
             </template>
+          </span>
+        </div>
+
+        <!--
+          The progress bar only moves when a task finishes, so during a long task nothing on
+          this screen changes and it reads as frozen. This sits in the gap between the bar and
+          the graph — the empty strip you look at while waiting — and keeps moving: a spinner,
+          the name of the task being waited on, and a second counter that ticks.
+        -->
+        <div
+          v-if="runInProgress && graph.nodes.length"
+          class="run-viewer__running"
+          data-testid="workflow-run-running"
+        >
+          <!--
+            Not PSpinner: it only comes in gray, and on this near-white panel a gray ring at
+            its 2s turn is easy to miss — which is the one thing this indicator must not be.
+            This is the same spinner the running node carries, so the two read as one signal.
+          -->
+          <span class="run-viewer__running-spinner" aria-hidden="true" />
+          <span
+            v-if="runningTaskNames.length"
+            class="run-viewer__running-text"
+            data-testid="workflow-run-running-tasks"
+          >
+            Running: {{ runningTaskNames.join(', ') }}
+            <span v-if="elapsedText" class="run-viewer__running-elapsed">
+              · elapsed
+              <b data-testid="workflow-run-elapsed">{{ elapsedText }}</b>
+            </span>
+          </span>
+          <!--
+            Between tasks nothing is running for a moment. Saying "Running: —" would be a lie,
+            so we name what is actually happening and count from the run's own start instead —
+            hence the different wording on the elapsed time, which now means something else.
+          -->
+          <span
+            v-else
+            class="run-viewer__running-text"
+            data-testid="workflow-run-running-tasks"
+          >
+            Waiting for the next task to start
+            <span v-if="elapsedText" class="run-viewer__running-elapsed">
+              · run elapsed
+              <b data-testid="workflow-run-elapsed">{{ elapsedText }}</b>
+            </span>
           </span>
         </div>
 
@@ -1485,6 +1611,73 @@ async function onRunChange(runId: string) {
 
 .run-viewer__progress-count {
   white-space: nowrap;
+}
+
+/*
+  Running strip — the gap between the progress bar and the first task box. Centered because
+  that empty middle is where the eye rests while waiting, and it is the same place no matter
+  how wide the graph is laid out.
+*/
+.run-viewer__running {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.375rem 0.5rem 0.125rem;
+  font-size: 0.75rem;
+  color: #374151;
+}
+
+.run-viewer__running-spinner {
+  flex: 0 0 auto;
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 2px solid #c7d4f7;
+  border-top-color: #2563eb;
+  border-radius: 9999px;
+  animation: run-viewer-spin 0.9s linear infinite;
+}
+
+@keyframes run-viewer-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+  Wrap at spaces, and break inside a word only when that single word is itself too wide for
+  the column — a task name can be long. With break-all the sentence split mid-word
+  ("...has been goi / ng for"), which reads as a rendering fault.
+*/
+.run-viewer__running-text {
+  min-width: 0;
+  text-align: center;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.run-viewer__running-elapsed {
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.run-viewer__running-elapsed b {
+  /* the one number that keeps changing — it should be the thing you can find at a glance */
+  color: #2563eb;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+  With motion turned off the ring stops, but the elapsed counter keeps ticking — the "this is
+  still alive" signal survives without anything spinning.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .run-viewer__running-spinner,
+  .run-viewer__progress-dot {
+    animation: none;
+  }
 }
 
 @keyframes run-viewer-blink {

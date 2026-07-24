@@ -18,6 +18,16 @@ import { WorkflowPage } from '../pages/workflow.page';
 const WORKFLOW =
   process.env.E2E_RUN_VIEWER_WORKFLOW ?? 'demo-runviewer-parallel';
 
+/**
+ * A workflow this spec is allowed to actually *run*. The "still running" indicators only
+ * exist while a run is in flight, so they cannot be checked on history alone.
+ *
+ * It must be a workflow whose tasks touch nothing outside themselves (the sample example
+ * tasks). Pointing this at a migration workflow would create real cloud resources.
+ */
+const RUNNABLE_WORKFLOW =
+  process.env.E2E_RUN_VIEWER_RUNNABLE_WORKFLOW ?? 'e2e-sample-bash-workflow';
+
 test.describe('워크플로우 실행 상태 뷰어', () => {
   test.beforeEach(async ({ page }) => {
     const user = getUser('cmiguser');
@@ -145,5 +155,61 @@ test.describe('워크플로우 실행 상태 뷰어', () => {
     // The dropdown collapses once you pick. What you are viewing must remain on screen
     await expect(workflow.runMeta).toContainText('Run ID');
     await expect(page.getByTestId('workflow-run-meta-id')).not.toBeEmpty();
+  });
+
+  /**
+   * A long task leaves the progress bar at the same width and every number unchanged, so the
+   * screen becomes indistinguishable from one that has died. What has to be proven is not
+   * "an indicator exists" but that **something keeps changing while a task is running** —
+   * hence the assertion on the counter *ticking*, not merely on it being visible.
+   *
+   * This one actually starts a run, so it points at a workflow that touches nothing outside
+   * itself. Do not aim it at a migration workflow.
+   */
+  test('오래 걸리는 태스크에서도 지금 무엇이 도는지·얼마나 됐는지가 계속 움직인다', async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    const workflow = new WorkflowPage(page);
+    await workflow.gotoWorkflows();
+    await workflow.openRunViewer(RUNNABLE_WORKFLOW);
+
+    // Nothing is running yet, so neither indicator may be present
+    await expect(workflow.runningIndicator).toBeHidden();
+    expect(await workflow.runNodeSpinners.count()).toBe(0);
+
+    await page.getByTestId('workflow-viewer-run-btn').click();
+    await page.getByTestId('workflow-run-confirm-ok').click();
+
+    const elapsedSeen = new Set<string>();
+    let sawIndicator = false;
+    let sawNodeSpinner = false;
+
+    // Sample faster than the 1s tick so the change is actually observable
+    for (let i = 0; i < 150; i++) {
+      const visible = await workflow.runningIndicator
+        .isVisible()
+        .catch(() => false);
+      if (visible) {
+        sawIndicator = true;
+        const elapsed = await workflow.runElapsed.innerText().catch(() => '');
+        if (elapsed) elapsedSeen.add(elapsed);
+        if ((await workflow.runNodeSpinners.count().catch(() => 0)) > 0) {
+          sawNodeSpinner = true;
+        }
+      } else if (sawIndicator && i > 20) {
+        break; // the run finished
+      }
+      await page.waitForTimeout(600);
+    }
+
+    expect(sawIndicator, '실행 중 표시가 나타났다').toBe(true);
+    expect(sawNodeSpinner, '실행 중 태스크에 스피너가 붙었다').toBe(true);
+    expect(elapsedSeen.size, '경과 시간이 실제로 흘렀다').toBeGreaterThan(1);
+
+    // Once the run ends, the indicators must go away — a spinner left turning on a finished
+    // run says "still working" when nothing is.
+    await expect(workflow.runningIndicator).toBeHidden({ timeout: 30_000 });
+    expect(await workflow.runNodeSpinners.count()).toBe(0);
   });
 });
