@@ -32,25 +32,22 @@
 </style></head>
 <body>
   <h1>cm-butterfly E2E 시나리오 보고서</h1>
-  <div class="muted">2026. 7. 24. PM 3:56:12 · 총 24초 · 전체 결과: failed</div>
+  <div class="muted">2026. 7. 24. PM 4:54:36 · 총 62초 · 전체 결과: failed</div>
 
   <div class="sum">
-    <div><b>1</b>시나리오</div>
-    <div><b style="color:var(--ok)">0</b>성공</div>
+    <div><b>10</b>시나리오</div>
+    <div><b style="color:var(--ok)">9</b>성공</div>
     <div><b style="color:var(--ng)">1</b>실패</div>
   </div>
 
   <h2 style="margin-top:0">목차</h2>
-  <nav><ul><li><a href="#models-추천-타깃모델"><b>models/추천-타깃모델</b></a> <span class="b ng">1 실패</span><ul><li><a href="#models-추천-타깃모델-0">지정한 최소 매치율이 그대로 전송된다</a> <span class="b ng">실패</span></li></ul></li></ul></nav>
+  <nav><ul><li><a href="#models-추천-타깃모델"><b>models/추천-타깃모델</b></a> <span class="b ng">1 실패</span><ul><li><a href="#models-추천-타깃모델-0">지정한 최소 매치율이 그대로 전송된다</a> <span class="b ok">성공</span></li><li><a href="#models-추천-타깃모델-1">최소 매치율을 비우면 파라미터를 보내지 않는다</a> <span class="b ok">성공</span></li><li><a href="#models-추천-타깃모델-2">슬라이더로 옮긴 값이 그대로 전송된다</a> <span class="b ok">성공</span></li><li><a href="#models-추천-타깃모델-3">슬라이더와 숫자 입력이 서로 연동된다</a> <span class="b ok">성공</span></li><li><a href="#models-추천-타깃모델-4">Example #1</a> <span class="b ok">성공</span></li><li><a href="#models-추천-타깃모델-5">Example #2</a> <span class="b ok">성공</span></li><li><a href="#models-추천-타깃모델-6">물음표에 마우스를 올리면 최소 매치율 설명이 나온다</a> <span class="b ok">성공</span></li><li><a href="#models-추천-타깃모델-7">조건 두 줄의 라벨이 같은 열에서 시작한다</a> <span class="b ng">실패</span></li><li><a href="#models-추천-타깃모델-8">안내 문구는 값을 지정하고 조작 중일 때만 보인다</a> <span class="b ok">성공</span></li><li><a href="#models-추천-타깃모델-9">조작을 마치고 다른 곳으로 옮기면 안내 문구가 사라진다</a> <span class="b ok">성공</span></li></ul></li></ul></nav>
 
   <section id="models-추천-타깃모델"><h2>models/추천-타깃모델</h2>
-      <article id="models-추천-타깃모델-0" class="sc failed">
-        <h3><span class="b ng">실패</span> 지정한 최소 매치율이 그대로 전송된다</h3>
-        <div class="meta">functional · 22초</div>
-        <pre class="err">TimeoutError: locator.fill: Timeout 15000ms exceeded.
-Call log:
-  - waiting for locator('input[data-testid="recommend-match-rate"]')
-</pre>
+      <article id="models-추천-타깃모델-0" class="sc passed">
+        <h3><span class="b ok">성공</span> 지정한 최소 매치율이 그대로 전송된다</h3>
+        <div class="meta">functional · 6초</div>
+        
         
         <div class="shots">
         <figure>
@@ -62,7 +59,183 @@ Call log:
           <figcaption>99-after</figcaption>
         </figure>
         <figure>
-          <a href="../test-results/features-models-추천-타깃모델.fe-d60d8-·타깃-모델-지정한-최소-매치율이-그대로-전송된다-functional/test-failed-1.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-d60d8-·타깃-모델-지정한-최소-매치율이-그대로-전송된다-functional/test-failed-1.png" alt="screenshot"></a>
+          <a href="../test-results/features-models-추천-타깃모델.fe-d60d8-·타깃-모델-지정한-최소-매치율이-그대로-전송된다-functional/test-finished-1.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-d60d8-·타깃-모델-지정한-최소-매치율이-그대로-전송된다-functional/test-finished-1.png" alt="screenshot"></a>
+          <figcaption>screenshot</figcaption>
+        </figure></div>
+      </article>
+      <article id="models-추천-타깃모델-1" class="sc passed">
+        <h3><span class="b ok">성공</span> 최소 매치율을 비우면 파라미터를 보내지 않는다</h3>
+        <div class="meta">functional · 5초</div>
+        
+        
+        <div class="shots">
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-a07c5-델-최소-매치율을-비우면-파라미터를-보내지-않는다-functional/attachments/01-before-b9ca0a71144c888ea6ef31e3127a6787a041f263.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-a07c5-델-최소-매치율을-비우면-파라미터를-보내지-않는다-functional/attachments/01-before-b9ca0a71144c888ea6ef31e3127a6787a041f263.png" alt="01-before"></a>
+          <figcaption>01-before</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-a07c5-델-최소-매치율을-비우면-파라미터를-보내지-않는다-functional/attachments/99-after-ab14bf74091d4e10608eae42e8ed500e79a1ceb1.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-a07c5-델-최소-매치율을-비우면-파라미터를-보내지-않는다-functional/attachments/99-after-ab14bf74091d4e10608eae42e8ed500e79a1ceb1.png" alt="99-after"></a>
+          <figcaption>99-after</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-a07c5-델-최소-매치율을-비우면-파라미터를-보내지-않는다-functional/test-finished-1.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-a07c5-델-최소-매치율을-비우면-파라미터를-보내지-않는다-functional/test-finished-1.png" alt="screenshot"></a>
+          <figcaption>screenshot</figcaption>
+        </figure></div>
+      </article>
+      <article id="models-추천-타깃모델-2" class="sc passed">
+        <h3><span class="b ok">성공</span> 슬라이더로 옮긴 값이 그대로 전송된다</h3>
+        <div class="meta">functional · 5초</div>
+        
+        
+        <div class="shots">
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-85929-·타깃-모델-슬라이더로-옮긴-값이-그대로-전송된다-functional/attachments/01-before-58d5fc48cb916e524fab2ea7c051ad58a08a59a7.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-85929-·타깃-모델-슬라이더로-옮긴-값이-그대로-전송된다-functional/attachments/01-before-58d5fc48cb916e524fab2ea7c051ad58a08a59a7.png" alt="01-before"></a>
+          <figcaption>01-before</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-85929-·타깃-모델-슬라이더로-옮긴-값이-그대로-전송된다-functional/attachments/99-after-da835704c527f874a34988475fc50449b0cb6130.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-85929-·타깃-모델-슬라이더로-옮긴-값이-그대로-전송된다-functional/attachments/99-after-da835704c527f874a34988475fc50449b0cb6130.png" alt="99-after"></a>
+          <figcaption>99-after</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-85929-·타깃-모델-슬라이더로-옮긴-값이-그대로-전송된다-functional/test-finished-1.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-85929-·타깃-모델-슬라이더로-옮긴-값이-그대로-전송된다-functional/test-finished-1.png" alt="screenshot"></a>
+          <figcaption>screenshot</figcaption>
+        </figure></div>
+      </article>
+      <article id="models-추천-타깃모델-3" class="sc passed">
+        <h3><span class="b ok">성공</span> 슬라이더와 숫자 입력이 서로 연동된다</h3>
+        <div class="meta">functional · 6초</div>
+        
+        
+        <div class="shots">
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-6e40e-·타깃-모델-슬라이더와-숫자-입력이-서로-연동된다-functional/attachments/01-before-af9a3bbefe5622bb404bc0609d31b2b63f612ef2.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-6e40e-·타깃-모델-슬라이더와-숫자-입력이-서로-연동된다-functional/attachments/01-before-af9a3bbefe5622bb404bc0609d31b2b63f612ef2.png" alt="01-before"></a>
+          <figcaption>01-before</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-6e40e-·타깃-모델-슬라이더와-숫자-입력이-서로-연동된다-functional/attachments/99-after-d0a96ea0aa3df22b5e82208152db8f3927813bfd.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-6e40e-·타깃-모델-슬라이더와-숫자-입력이-서로-연동된다-functional/attachments/99-after-d0a96ea0aa3df22b5e82208152db8f3927813bfd.png" alt="99-after"></a>
+          <figcaption>99-after</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-6e40e-·타깃-모델-슬라이더와-숫자-입력이-서로-연동된다-functional/test-finished-1.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-6e40e-·타깃-모델-슬라이더와-숫자-입력이-서로-연동된다-functional/test-finished-1.png" alt="screenshot"></a>
+          <figcaption>screenshot</figcaption>
+        </figure></div>
+      </article>
+      <article id="models-추천-타깃모델-4" class="sc passed">
+        <h3><span class="b ok">성공</span> Example #1</h3>
+        <div class="meta">functional · 6초</div>
+        
+        
+        <div class="shots">
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-2db74--매치율은-입력-단계에서-막힌다-Example-1-functional/attachments/01-before-bac736e032ee5b5767cda39874d342602bf7f2b8.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-2db74--매치율은-입력-단계에서-막힌다-Example-1-functional/attachments/01-before-bac736e032ee5b5767cda39874d342602bf7f2b8.png" alt="01-before"></a>
+          <figcaption>01-before</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-2db74--매치율은-입력-단계에서-막힌다-Example-1-functional/attachments/99-after-fb1051de3bf6411430d54874d83f30ad727c2be2.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-2db74--매치율은-입력-단계에서-막힌다-Example-1-functional/attachments/99-after-fb1051de3bf6411430d54874d83f30ad727c2be2.png" alt="99-after"></a>
+          <figcaption>99-after</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-2db74--매치율은-입력-단계에서-막힌다-Example-1-functional/test-finished-1.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-2db74--매치율은-입력-단계에서-막힌다-Example-1-functional/test-finished-1.png" alt="screenshot"></a>
+          <figcaption>screenshot</figcaption>
+        </figure></div>
+      </article>
+      <article id="models-추천-타깃모델-5" class="sc passed">
+        <h3><span class="b ok">성공</span> Example #2</h3>
+        <div class="meta">functional · 5초</div>
+        
+        
+        <div class="shots">
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-f1af6--매치율은-입력-단계에서-막힌다-Example-2-functional/attachments/01-before-f09428996f6dfc9f385fd43c05f2d761e7b900ba.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-f1af6--매치율은-입력-단계에서-막힌다-Example-2-functional/attachments/01-before-f09428996f6dfc9f385fd43c05f2d761e7b900ba.png" alt="01-before"></a>
+          <figcaption>01-before</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-f1af6--매치율은-입력-단계에서-막힌다-Example-2-functional/attachments/99-after-70d9b2b41260488623088628aee4953af2e5db93.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-f1af6--매치율은-입력-단계에서-막힌다-Example-2-functional/attachments/99-after-70d9b2b41260488623088628aee4953af2e5db93.png" alt="99-after"></a>
+          <figcaption>99-after</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-f1af6--매치율은-입력-단계에서-막힌다-Example-2-functional/test-finished-1.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-f1af6--매치율은-입력-단계에서-막힌다-Example-2-functional/test-finished-1.png" alt="screenshot"></a>
+          <figcaption>screenshot</figcaption>
+        </figure></div>
+      </article>
+      <article id="models-추천-타깃모델-6" class="sc passed">
+        <h3><span class="b ok">성공</span> 물음표에 마우스를 올리면 최소 매치율 설명이 나온다</h3>
+        <div class="meta">functional · 5초</div>
+        
+        
+        <div class="shots">
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-57039-음표에-마우스를-올리면-최소-매치율-설명이-나온다-functional/attachments/01-before-4892b685b7dc0903e44aa255b5739b5c1ca4e965.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-57039-음표에-마우스를-올리면-최소-매치율-설명이-나온다-functional/attachments/01-before-4892b685b7dc0903e44aa255b5739b5c1ca4e965.png" alt="01-before"></a>
+          <figcaption>01-before</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-57039-음표에-마우스를-올리면-최소-매치율-설명이-나온다-functional/attachments/99-after-c7dd1ce66040a0cc20b7201c4f32858f8e7e0f8b.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-57039-음표에-마우스를-올리면-최소-매치율-설명이-나온다-functional/attachments/99-after-c7dd1ce66040a0cc20b7201c4f32858f8e7e0f8b.png" alt="99-after"></a>
+          <figcaption>99-after</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-57039-음표에-마우스를-올리면-최소-매치율-설명이-나온다-functional/test-finished-1.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-57039-음표에-마우스를-올리면-최소-매치율-설명이-나온다-functional/test-finished-1.png" alt="screenshot"></a>
+          <figcaption>screenshot</figcaption>
+        </figure></div>
+      </article>
+      <article id="models-추천-타깃모델-7" class="sc failed">
+        <h3><span class="b ng">실패</span> 조건 두 줄의 라벨이 같은 열에서 시작한다</h3>
+        <div class="meta">functional · 5초</div>
+        <pre class="err">Error: "Region" x=244.921875 vs "Minimum Match Rate (%)" x=250
+
+expect(received).toBeLessThanOrEqual(expected)
+
+Expected: &lt;= 2
+Received:    5.078125</pre>
+        
+        <div class="shots">
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-5aaf3--모델-조건-두-줄의-라벨이-같은-열에서-시작한다-functional/attachments/01-before-860fa9cad654c95332deb207280b7ced1d8d9ce7.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-5aaf3--모델-조건-두-줄의-라벨이-같은-열에서-시작한다-functional/attachments/01-before-860fa9cad654c95332deb207280b7ced1d8d9ce7.png" alt="01-before"></a>
+          <figcaption>01-before</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-5aaf3--모델-조건-두-줄의-라벨이-같은-열에서-시작한다-functional/attachments/99-after-2b00e168185f88d27a341c14b3e67daca400f2b4.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-5aaf3--모델-조건-두-줄의-라벨이-같은-열에서-시작한다-functional/attachments/99-after-2b00e168185f88d27a341c14b3e67daca400f2b4.png" alt="99-after"></a>
+          <figcaption>99-after</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-5aaf3--모델-조건-두-줄의-라벨이-같은-열에서-시작한다-functional/test-failed-1.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-5aaf3--모델-조건-두-줄의-라벨이-같은-열에서-시작한다-functional/test-failed-1.png" alt="screenshot"></a>
+          <figcaption>screenshot</figcaption>
+        </figure></div>
+      </article>
+      <article id="models-추천-타깃모델-8" class="sc passed">
+        <h3><span class="b ok">성공</span> 안내 문구는 값을 지정하고 조작 중일 때만 보인다</h3>
+        <div class="meta">functional · 6초</div>
+        
+        
+        <div class="shots">
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-d52e5-안내-문구는-값을-지정하고-조작-중일-때만-보인다-functional/attachments/01-before-5e1d0eb19f414c12f8c4db30661d28a0c020691a.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-d52e5-안내-문구는-값을-지정하고-조작-중일-때만-보인다-functional/attachments/01-before-5e1d0eb19f414c12f8c4db30661d28a0c020691a.png" alt="01-before"></a>
+          <figcaption>01-before</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-d52e5-안내-문구는-값을-지정하고-조작-중일-때만-보인다-functional/attachments/99-after-70d9d96978da1cd03900100c9bd045459b84cae5.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-d52e5-안내-문구는-값을-지정하고-조작-중일-때만-보인다-functional/attachments/99-after-70d9d96978da1cd03900100c9bd045459b84cae5.png" alt="99-after"></a>
+          <figcaption>99-after</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-d52e5-안내-문구는-값을-지정하고-조작-중일-때만-보인다-functional/test-finished-1.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-d52e5-안내-문구는-값을-지정하고-조작-중일-때만-보인다-functional/test-finished-1.png" alt="screenshot"></a>
+          <figcaption>screenshot</figcaption>
+        </figure></div>
+      </article>
+      <article id="models-추천-타깃모델-9" class="sc passed">
+        <h3><span class="b ok">성공</span> 조작을 마치고 다른 곳으로 옮기면 안내 문구가 사라진다</h3>
+        <div class="meta">functional · 6초</div>
+        
+        
+        <div class="shots">
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-8d934--마치고-다른-곳으로-옮기면-안내-문구가-사라진다-functional/attachments/01-before-0027bac435e6c55edd032aacad321cff01a768e4.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-8d934--마치고-다른-곳으로-옮기면-안내-문구가-사라진다-functional/attachments/01-before-0027bac435e6c55edd032aacad321cff01a768e4.png" alt="01-before"></a>
+          <figcaption>01-before</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-8d934--마치고-다른-곳으로-옮기면-안내-문구가-사라진다-functional/attachments/99-after-0564c3f2ac62eb4bfe079136f8df83fcc1ed4c41.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-8d934--마치고-다른-곳으로-옮기면-안내-문구가-사라진다-functional/attachments/99-after-0564c3f2ac62eb4bfe079136f8df83fcc1ed4c41.png" alt="99-after"></a>
+          <figcaption>99-after</figcaption>
+        </figure>
+        <figure>
+          <a href="../test-results/features-models-추천-타깃모델.fe-8d934--마치고-다른-곳으로-옮기면-안내-문구가-사라진다-functional/test-finished-1.png" target="_blank"><img src="../test-results/features-models-추천-타깃모델.fe-8d934--마치고-다른-곳으로-옮기면-안내-문구가-사라진다-functional/test-finished-1.png" alt="screenshot"></a>
           <figcaption>screenshot</figcaption>
         </figure></div>
       </article></section>

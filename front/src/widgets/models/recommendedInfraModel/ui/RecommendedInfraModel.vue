@@ -546,21 +546,29 @@ function handleSave(e: { name: string; description: string }) {
     >
       <template #add-info>
         <div class="flex gap-4 flex-col w-full">
-          <!-- Place the Provider, Region and Search buttons on the same line -->
-          <section class="select-service-box flex w-full items-center gap-4">
-            <p class="text-label-lg font-bold">Provider</p>
-            <p-select-dropdown
-              data-testid="recommend-provider-select"
-              :menu="provider.menu"
-              :loading="provider.loading"
-              @update:visible-menu="handleProviderMenuClick"
-              @select="
-                e => {
-                  provider.selected = e;
-                  handleRegionMenuClick(true);
-                }
-              "
-            />
+          <!--
+            Place the Provider, Region and Search buttons on the same line.
+            Provider sits in the same fixed-width cell as Candidate Limit on the row below, so
+            "Region" and "Minimum Match Rate (%)" start at the same x. Aligning to whatever width
+            the Provider dropdown happens to take does not work — its width follows the selected
+            value, so the column shifts between runs. (BAR-1634)
+          -->
+          <section class="select-service-box params-section__row w-full">
+            <div class="param-group">
+              <p class="text-label-lg font-bold">Provider</p>
+              <p-select-dropdown
+                data-testid="recommend-provider-select"
+                :menu="provider.menu"
+                :loading="provider.loading"
+                @update:visible-menu="handleProviderMenuClick"
+                @select="
+                  e => {
+                    provider.selected = e;
+                    handleRegionMenuClick(true);
+                  }
+                "
+              />
+            </div>
             <p class="text-label-lg font-bold">Region</p>
             <p-select-dropdown
               data-testid="recommend-region-select"
@@ -593,10 +601,9 @@ function handleSave(e: { name: string; description: string }) {
           <section class="params-section">
             <div class="params-section__row">
               <!--
-                Candidate Limit occupies a fixed-width cell so that the label after it lines up
-                with "Region" on the row above. Without it the two rows start their second label
-                at different x, which reads as a crooked column. The e2e scenario asserts the
-                alignment so a width change here cannot drift unnoticed.
+                Candidate Limit uses the same fixed-width cell as Provider above, so both rows
+                start their second label at the same x instead of reading as a crooked column.
+                A scenario asserts the alignment, so the width cannot drift unnoticed.
               -->
               <div class="param-group">
                 <p
@@ -885,13 +892,14 @@ function handleSave(e: { name: string; description: string }) {
   margin: 0;
 }
 
-/* Fixed-width first cell — makes the second label of this row start at the same x as
-   "Region" on the row above (measured on the rendered screen; the e2e scenario guards it). */
+/* Fixed-width first cell, shared by both condition rows (Provider / Candidate Limit). Because
+   both rows use it, their second label starts at the same x whatever the dropdown contains. */
 .param-group {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   width: 198px;
+  flex: none;
 }
 
 /* The '?' sits at the bottom-right of the label, like a footnote marker. */
