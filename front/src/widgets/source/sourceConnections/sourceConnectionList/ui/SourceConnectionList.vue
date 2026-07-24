@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { PToolboxTable, PButton, PButtonModal, PHorizontalLayout } from '@cloudforet-test/mirinae';
 import {
+  buildExportFileName,
   insertDynamicComponent,
   showErrorMessage,
   showSuccessMessage,
@@ -10,6 +11,11 @@ import { onBeforeMount, onMounted, reactive, watch, computed, ref, nextTick } fr
 import TableLoadingSpinner from '@/shared/ui/LoadingSpinner/TableLoadingSpinner.vue';
 import { useSourceConnectionListModel } from '@/widgets/source/sourceConnections/sourceConnectionList/model/sourceConnectionListModel';
 import { useBulkDeleteSourceConnection } from '@/entities/sourceConnection/api';
+import {
+  ITabularExportConnection,
+  useExportTabularConnections,
+} from '@/entities/sourceConnection/api/tabularExport';
+import { useSourceServiceStore } from '@/entities/sourceService/model/stores';
 import DynamicTableIconButton from '@/shared/ui/Button/dynamicIconButton/DynamicTableIconButton.vue';
 import { useDynamicTableHeight } from '@/shared/hooks/table/useDynamicTableHeight';
 import { useToolboxTableHeight } from '@/shared/hooks/table/useToolboxTableHeight';
@@ -50,7 +56,17 @@ const tableKey = ref(0); // key for re-rendering the component
 
 const modals = reactive({
   alertModalState: { open: false },
+  exportModalState: { open: false },
 });
+
+const sourceServiceStore = useSourceServiceStore();
+const exportConnections = useExportTabularConnections();
+const isExporting = ref(false);
+
+// The table is a mirinae component whose selection is not a real checkbox, so
+// the selected row indexes are the only reliable signal here.
+const selectedCount = computed(() => tableModel.tableState.selectIndex.length);
+const hasSelection = computed(() => selectedCount.value > 0);
 
 watch(
   props,
@@ -145,6 +161,86 @@ function handleDeleteConnections() {
   }
 }
 
+// Read the checked rows the same way the delete flow does.
+function selectedSourceConnections() {
+  return tableModel.tableState.selectIndex
+    .map(selectIndex => tableModel.tableState.displayItems[selectIndex])
+    .filter(item => !!item);
+}
+
+function handleExportClick() {
+  // A mirinae button renders disabled as a class only, so the click still
+  // reaches this handler. Stop here rather than trusting the attribute.
+  if (!hasSelection.value || isExporting.value) return;
+  modals.exportModalState.open = true;
+}
+
+// The file name uses the connection name for a single row and the source group
+// name for several, and always carries a timestamp so exporting twice does not
+// overwrite the earlier file.
+function exportBaseName(rows: ReturnType<typeof selectedSourceConnections>) {
+  if (rows.length === 1) return rows[0].name;
+  return sourceServiceStore.getServiceById(props.selectedServiceId)?.name ?? '';
+}
+
+function downloadExportedFile(contentBase64: string, fileName: string) {
+  const binary = atob(contentBase64);
+  const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
+  const blob = new Blob([bytes], { type: 'text/csv;charset=utf-8;' });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+async function handleExportConfirm() {
+  modals.exportModalState.open = false;
+
+  const rows = selectedSourceConnections();
+  if (!rows.length) return;
+
+  // Only the columns the server writes out. Encrypted fields are never sent,
+  // so they cannot end up in the file.
+  const connections: ITabularExportConnection[] = rows.map(row => ({
+    name: row.originalData?.name ?? '',
+    description: row.originalData?.description ?? '',
+    ip_address: row.originalData?.ip_address ?? '',
+    ssh_port: String(row.originalData?.ssh_port ?? ''),
+  }));
+
+  isExporting.value = true;
+  try {
+    const { data } = await exportConnections.execute({
+      format: 'csv',
+      connections,
+    });
+
+    if (data?.status?.code !== 200 || !data?.responseData?.contentBase64) {
+      showErrorMessage(
+        'Export Failed',
+        data?.status?.message || 'The export file could not be created.',
+      );
+      return;
+    }
+
+    downloadExportedFile(
+      data.responseData.contentBase64,
+      buildExportFileName(exportBaseName(rows), 'csv'),
+    );
+    showSuccessMessage('success', `Exported ${rows.length} connection(s).`);
+  } catch (error) {
+    showErrorMessage(
+      'Export Failed',
+      toErrorMessage(error, 'The export file could not be created.'),
+    );
+  } finally {
+    isExporting.value = false;
+  }
+}
+
 function addDeleteIconAtTable() {
   const toolboxTable = this.$refs.toolboxTable.$el;
   const targetElement = toolboxTable.querySelector('.right-tool-group');
@@ -231,6 +327,16 @@ function handleSourceConnectionList() {
               >
                 Add / Edit
               </p-button>
+              <p-button
+                data-testid="source-connection-export"
+                class="ml-2"
+                style-type="secondary"
+                icon-left="ic_download"
+                :disabled="!hasSelection || isExporting"
+                @click="handleExportClick"
+              >
+                Export
+              </p-button>
             </template>
           </p-toolbox-table>
         </template>
@@ -255,6 +361,30 @@ function handleSourceConnectionList() {
         }
       "
     />
+    <!-- Asked before the download so nobody is surprised by the blank
+         credential columns after opening the file. -->
+    <p-button-modal
+      v-model="modals.exportModalState.open"
+      :visible="modals.exportModalState.open"
+      size="sm"
+      backdrop
+      header-title="Export connections"
+      @confirm="handleExportConfirm"
+    >
+      <template #body>
+        <p data-testid="source-connection-export-notice">
+          The encrypted columns (user, password, private key) are not included
+          in the export. Fill them in yourself before importing the file again.
+        </p>
+        <p class="mt-2">{{ selectedCount }} connection(s) will be exported.</p>
+      </template>
+      <template #confirm-button>
+        <span data-testid="source-connection-export-confirm">Export</span>
+      </template>
+      <template #close-button>
+        <span data-testid="source-connection-export-cancel">Cancel</span>
+      </template>
+    </p-button-modal>
   </div>
 </template>
 

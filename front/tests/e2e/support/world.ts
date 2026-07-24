@@ -42,6 +42,8 @@ export const scenarioState: {
   swMigrationRows?: any[];
   /** Whether the nginx targeted by the load test came up *via software migration* */
   nginxFromMigration?: boolean;
+  /** File name the browser was given for the last connection export (checked by the export step) */
+  exportedFileName?: string;
 } = {};
 
 export function resetScenarioState(): void {

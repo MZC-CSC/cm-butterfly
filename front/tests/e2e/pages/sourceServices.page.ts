@@ -184,6 +184,22 @@ export class SourceServicesPage {
   private connectionRow(name: string): Locator {
     return this.page.getByRole('row', { name: new RegExp(name) });
   }
+  /** 연결 목록의 "Export" 버튼 — 선택한 연결이 없으면 비활성 */
+  private get exportConnectionButton(): Locator {
+    return this.page.getByTestId('source-connection-export');
+  }
+  /** 익스포트 확인 모달의 안내 문구.
+   *  ★ 모달 래퍼의 testid는 가시 요소로 잡히지 않으므로(mirinae PButtonModal)
+   *    모달이 열렸는지는 이 *내용물*로 판정한다. */
+  private get exportNotice(): Locator {
+    return this.page.getByTestId('source-connection-export-notice');
+  }
+  private get exportConfirmButton(): Locator {
+    return this.page.getByTestId('source-connection-export-confirm');
+  }
+  private get exportCancelButton(): Locator {
+    return this.page.getByTestId('source-connection-export-cancel');
+  }
   private get infoTab(): Locator {
     return this.tab(/Information/i);
   }
@@ -302,6 +318,68 @@ export class SourceServicesPage {
   async openConnection(connName: string): Promise<void> {
     await this.connectionsTab.click();
     await this.connectionRow(connName).first().click();
+  }
+
+  // ───────────────────────── 연결정보 익스포트 ─────────────────────────
+
+  /** 연결 목록에서 체크박스로 연결을 고른다.
+   *  ★ mirinae 선택 체크박스는 실제 <input>이 아니라 커스텀 요소라
+   *    isChecked()가 항상 false를 돌려준다. 선택이 됐는지는 뒤따르는 동작
+   *    (Export 버튼 활성화)으로 판정한다. */
+  async checkConnection(connName: string): Promise<void> {
+    await this.connectionsTab.click();
+    await this.connectionRow(connName)
+      .first()
+      .locator('td.select-checkbox .p-checkbox, input[type="checkbox"]')
+      .first()
+      .click();
+  }
+
+  /** ★ mirinae PButton은 비활성을 class로만 표현한다(표준 disabled 속성이 붙지 않는다).
+   *  toBeDisabled()·isEnabled()는 항상 "활성"으로 답하므로 클래스로 판정한다. */
+  private async isMirinaeButtonDisabled(locator: Locator): Promise<boolean> {
+    return locator.evaluate(el => {
+      const button = (el.closest('button') ?? el) as HTMLElement;
+      return button.className.split(/\s+/).includes('disabled');
+    });
+  }
+
+  async expectExportDisabled(): Promise<void> {
+    await expect(this.exportConnectionButton).toBeVisible({ timeout: 15_000 });
+    expect(
+      await this.isMirinaeButtonDisabled(this.exportConnectionButton),
+    ).toBe(true);
+  }
+
+  async expectExportEnabled(): Promise<void> {
+    await expect(this.exportConnectionButton).toBeVisible({ timeout: 15_000 });
+    expect(
+      await this.isMirinaeButtonDisabled(this.exportConnectionButton),
+    ).toBe(false);
+  }
+
+  /** Export 클릭 → 확인 모달이 열린다(안내 문구로 판정). */
+  async openExportConfirm(): Promise<void> {
+    await this.exportConnectionButton.click();
+    await expect(this.exportNotice).toBeVisible({ timeout: 10_000 });
+  }
+
+  /** 암호화 컬럼이 빠진다는 안내가 실제로 보이는지. */
+  async expectExportNoticeVisible(): Promise<void> {
+    await expect(this.exportNotice).toBeVisible({ timeout: 10_000 });
+  }
+
+  /** 확인을 눌러 실제 다운로드까지 받고 파일명을 돌려준다. */
+  async confirmExportAndDownload(): Promise<string> {
+    const download = this.page.waitForEvent('download', { timeout: 30_000 });
+    await this.exportConfirmButton.click();
+    return (await download).suggestedFilename();
+  }
+
+  /** 취소를 누르면 아무 일도 일어나지 않는다(안내 문구가 사라진다). */
+  async cancelExport(): Promise<void> {
+    await this.exportCancelButton.click();
+    await expect(this.exportNotice).toBeHidden({ timeout: 10_000 });
   }
 
   /** 연결 상태 점검(Refresh) — 정상이어야 Collect 버튼 활성화. 상세가 열린 상태에서 호출. */

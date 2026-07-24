@@ -1,4 +1,5 @@
 import { createBdd } from 'playwright-bdd';
+import { expect } from '@playwright/test';
 import { test } from '../support/fixtures';
 import { SourceServicesPage, Connection } from '../pages/sourceServices.page';
 import { sourceServer } from '../fixtures/test-data';
@@ -137,6 +138,56 @@ Given('{string} 소스그룹을 선택한다', async ({ page }, name: string) =>
 Given('{string} 연결정보를 선택한다', async ({ page }, connName: string) => {
   await new SourceServicesPage(page).openConnection(uniqueName(connName));
 });
+
+// ───────────────────────── 연결정보 익스포트 ─────────────────────────
+
+/** "그리고 \"e2e-conn\" 연결정보를 체크한다" (목록 체크박스 선택) */
+Given('{string} 연결정보를 체크한다', async ({ page }, connName: string) => {
+  await new SourceServicesPage(page).checkConnection(uniqueName(connName));
+});
+
+/** "그러면 익스포트 버튼이 비활성이다" */
+Then('익스포트 버튼이 비활성이다', async ({ page }) => {
+  await new SourceServicesPage(page).expectExportDisabled();
+});
+
+/** "그러면 익스포트 버튼이 활성이다" */
+Then('익스포트 버튼이 활성이다', async ({ page }) => {
+  await new SourceServicesPage(page).expectExportEnabled();
+});
+
+/** "만약 익스포트를 누르면" — 확인 모달이 열리는 데까지 */
+When('익스포트를 누르면', async ({ page }) => {
+  await new SourceServicesPage(page).openExportConfirm();
+});
+
+/** "그러면 암호화 컬럼 안내가 보인다" — 모달 열림은 내용물로 판정한다 */
+Then('암호화 컬럼 안내가 보인다', async ({ page }) => {
+  await new SourceServicesPage(page).expectExportNoticeVisible();
+});
+
+/** "만약 익스포트를 확인하면" — 실제 다운로드까지 받아 파일명을 기억해 둔다 */
+When('익스포트를 확인하면', async ({ page }) => {
+  scenarioState.exportedFileName = await new SourceServicesPage(
+    page,
+  ).confirmExportAndDownload();
+});
+
+/** "만약 익스포트를 취소하면" */
+When('익스포트를 취소하면', async ({ page }) => {
+  await new SourceServicesPage(page).cancelExport();
+});
+
+/** "그러면 \"e2e-conn\" 이름으로 시작하는 파일이 내려받아진다" */
+Then(
+  '{string} 이름으로 시작하는 파일이 내려받아진다',
+  async ({}, baseName: string) => {
+    const fileName = scenarioState.exportedFileName ?? '';
+    expect(fileName).toContain(uniqueName(baseName));
+    // 같은 대상을 다시 내보내도 겹치지 않도록 타임스탬프가 붙는다.
+    expect(fileName).toMatch(/-\d{8}-\d{6}\.csv$/);
+  },
+);
 
 /** "만약 인프라 수집을 실행하면" (현재 선택된 연결정보 기준) */
 When('인프라 수집을 실행하면', async ({ page }) => {
