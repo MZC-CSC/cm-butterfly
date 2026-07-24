@@ -158,11 +158,6 @@ Given('{string} 연결정보를 체크한다', async ({ page }, connName: string
   await new SourceServicesPage(page).checkConnection(uniqueName(connName));
 });
 
-/** "그리고 연결정보를 모두 체크한다" (헤더 체크박스로 전체 선택) */
-Given('연결정보를 모두 체크한다', async ({ page }) => {
-  await new SourceServicesPage(page).checkAllConnections();
-});
-
 /** "그리고 익스포트 형식을 \"엑셀\"로 고른다" (기본 CSV, 엑셀만 명시) */
 When('익스포트 형식을 {string} 로 고른다', async ({ page }, label: string) => {
   const format = /엑셀|excel|xlsx/i.test(label) ? 'xlsx' : 'csv';
@@ -206,7 +201,7 @@ When('익스포트를 취소하면', async ({ page }) => {
 /** "그러면 \"e2e-conn\" 이름으로 시작하는 파일이 내려받아진다" */
 Then(
   '{string} 이름으로 시작하는 파일이 내려받아진다',
-  async ({}, baseName: string) => {
+  async ({ page: _page }, baseName: string) => {
     const fileName = scenarioState.exportedFileName ?? '';
     expect(fileName).toContain(uniqueName(baseName));
     // 같은 대상을 다시 내보내도 겹치지 않도록 타임스탬프가 붙는다(형식은 csv·xlsx 공통).
@@ -215,18 +210,24 @@ Then(
 );
 
 /** "그러면 내려받은 파일 확장자가 \"xlsx\"다" */
-Then('내려받은 파일 확장자가 {string} 다', async ({}, ext: string) => {
-  const fileName = scenarioState.exportedFileName ?? '';
-  expect(fileName.endsWith(`.${ext}`)).toBe(true);
-});
+Then(
+  '내려받은 파일 확장자가 {string} 다',
+  async ({ page: _page }, ext: string) => {
+    const fileName = scenarioState.exportedFileName ?? '';
+    expect(fileName.endsWith(`.${ext}`)).toBe(true);
+  },
+);
 
 /** "그러면 익스포트 파일에 데이터가 2행 있다" (CSV 내용 기준 — 여러 건이 다 담겼는지) */
-Then('익스포트 파일에 데이터가 {int} 행 있다', async ({}, count: number) => {
-  const content = scenarioState.exportedFileContent ?? '';
-  const lines = content.trim().split(/\r?\n/);
-  // 헤더 한 줄을 뺀 나머지가 데이터 행이다.
-  expect(lines.length - 1).toBe(count);
-});
+Then(
+  '익스포트 파일에 데이터가 {int} 행 있다',
+  async ({ page: _page }, count: number) => {
+    const content = scenarioState.exportedFileContent ?? '';
+    const lines = content.trim().split(/\r?\n/);
+    // 헤더 한 줄을 뺀 나머지가 데이터 행이다.
+    expect(lines.length - 1).toBe(count);
+  },
+);
 
 /** "그러면 익스포트 파일이 임포트 양식과 같고 암호화 컬럼이 비어 있다"
  *  이 기능의 핵심 약속 두 가지 — 임포트 양식 그대로일 것, 암호화 값은 나가지 않을 것. */

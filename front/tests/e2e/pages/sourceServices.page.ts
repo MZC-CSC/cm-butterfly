@@ -314,9 +314,12 @@ export class SourceServicesPage {
     name: string,
     connNames: string[],
   ): Promise<void> {
-    const header = 'name,description,ip_address,ssh_port,user,password,private_key';
-    const rows = connNames.map(n => `${n},,10.0.0.1,22,ubuntu,,`);
-    const csv = '﻿' + [header, ...rows].join('\n') + '\n';
+    const header =
+      'name,description,ip_address,ssh_port,user,password,private_key';
+    // A password is needed so honeybee accepts the connection (user + one auth
+    // method). The export blanks it back out regardless, which is what we check.
+    const rows = connNames.map(n => `${n},,10.0.0.1,22,ubuntu,e2e-dummy-pass,`);
+    const csv = '\uFEFF' + [header, ...rows].join('\n') + '\n';
 
     await this.addGroupButton.click();
     await this.serviceNameInput.fill(name);
@@ -335,15 +338,6 @@ export class SourceServicesPage {
     );
     await this.groupConfirmButton.click();
     await this.expectGroupListed(name);
-  }
-
-  /** 목록에서 헤더 체크박스로 모든 행을 한 번에 고른다(여러 건 선택). */
-  async checkAllConnections(): Promise<void> {
-    await this.connectionsTab.click();
-    await this.page
-      .locator('thead th.select-checkbox .p-checkbox, thead input[type="checkbox"]')
-      .first()
-      .click();
   }
 
   /** 이름으로 소스그룹 선택(상세 진입) */
@@ -365,7 +359,7 @@ export class SourceServicesPage {
    *    isChecked()가 항상 false를 돌려준다. 선택이 됐는지는 뒤따르는 동작
    *    (Export 버튼 활성화)으로 판정한다. */
   async checkConnection(connName: string): Promise<void> {
-    await this.connectionsTab.click();
+    await this.openConnectionsTab();
     await this.connectionRow(connName)
       .first()
       .locator('td.select-checkbox .p-checkbox, input[type="checkbox"]')
@@ -383,8 +377,12 @@ export class SourceServicesPage {
   }
 
   /** 그룹을 고른 직후에는 Detail 탭이 열려 있어 연결 목록이 아직 없다.
-   *  버튼 상태를 보려면 Connections 탭을 먼저 열어야 한다. 이미 열려 있으면 무해하다. */
+   *  버튼 상태를 보려면 Connections 탭을 먼저 열어야 한다.
+   *  이미 열려 있으면(=Export 버튼이 보이면) 다시 클릭하지 않는다 — 행 선택 뒤
+   *  탭을 재클릭하면 레이아웃이 바뀌어 클릭이 막힐 수 있다. */
   private async openConnectionsTab(): Promise<void> {
+    if (await this.exportConnectionButton.isVisible().catch(() => false))
+      return;
     await this.connectionsTab.click();
     await expect(this.exportConnectionButton).toBeVisible({ timeout: 15_000 });
   }
@@ -440,7 +438,9 @@ export class SourceServicesPage {
     return {
       fileName: download.suggestedFilename(),
       // utf-8 BOM은 벗겨서 헤더 비교가 첫 컬럼에서 어긋나지 않게 한다.
-      content: Buffer.concat(chunks).toString('utf-8').replace(/^﻿/, ''),
+      content: Buffer.concat(chunks)
+        .toString('utf-8')
+        .replace(/^\uFEFF/, ''),
     };
   }
 
