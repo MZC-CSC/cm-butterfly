@@ -79,6 +79,17 @@ export class WorkloadPage {
     await expect(this.mciRow(infraName)).toBeVisible({ timeout: 20_000 });
   }
 
+  /**
+   * How many infras the list is showing.
+   *
+   * Counted by the row's select cell — there is exactly one per infra, and an empty-state row
+   * carries none, so a list with nothing in it reads as 0 rather than 1.
+   */
+  async mciRowCount(): Promise<number> {
+    await this.expectMciListLoaded();
+    return this.mciTable.locator('td.select-checkbox').count();
+  }
+
   /** Select an infra row (checkbox) — selecting it enables the detail/server tabs. Limited to the single checkbox in the row. */
   async selectMci(infraName: string): Promise<void> {
     await humanClick(

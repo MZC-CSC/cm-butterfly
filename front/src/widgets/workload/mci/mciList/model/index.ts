@@ -2,14 +2,26 @@ import { ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useToolboxTableModel } from '@/shared/hooks/table/toolboxTable/useToolboxTableModel';
 import { IMci, McisTableType, useMCIStore } from '@/entities/mci/model';
-import { useGetMciInfo, useGetMciList } from '@/entities/mci/api';
+import { useGetMciList } from '@/entities/mci/api';
 import { getCloudProvidersInVms } from '@/shared/hooks/vm';
 import { showErrorMessage, toErrorMessage } from '@/shared/utils';
-import { AxiosResponse } from 'axios';
-import { IAxiosResponse } from '@/shared/libs';
 
 interface IProps {
   nsId: string;
+}
+
+/**
+ * Whether the lookup was turned away because too many arrived at once.
+ *
+ * cb-tumblebug caps the infra lookup at two in-flight requests and answers 429 beyond that.
+ * cm-beetle relays that as a 500 whose message still carries the original status, so the status
+ * code alone never says "rate limited" — the text is the only signal. Worth telling apart because
+ * the fix is simply to try again, which a generic failure message gives no hint of.
+ */
+function isRateLimited(e: any): boolean {
+  if (e?.error?.value?.response?.status === 429) return true;
+  const msg = toErrorMessage(e, '').toLowerCase();
+  return msg.includes('rate limit') || msg.includes('status: 429');
 }
 
 export function useMciListModel(props: IProps) {
@@ -85,47 +97,35 @@ export function useMciListModel(props: IProps) {
           // tumblebug response (responseData.infra) is also allowed as a fallback to read both
           // safely. (mci→infra key change + data wrapper applied)
           const infraList = res.data.responseData.data?.infra ?? [];
+
+          // The list is all the screen needs — do NOT follow up with a per-infra detail lookup.
+          //
+          // cb-tumblebug builds the list by walking the infra ids and calling the very same
+          // function the single lookup uses, so every field the detail would return is already
+          // here. Asking again once per infra therefore adds nothing, and it breaks the screen:
+          // the lookup allows only two in-flight requests, so from the third infra on the extra
+          // requests come back 429 and the whole list fails with a message about details.
           mciStore.setMcis(infraList);
-
-          const PromiseArr: any = [];
-          infraList.forEach(mci => {
-            PromiseArr.push(fetchMciById(mci.id)());
-          });
-
-          Promise.all<Promise<AxiosResponse<IAxiosResponse<any>>>>(PromiseArr)
-            .then(res => {
-              res.forEach(el => {
-                // Skip infras whose detail comes back empty (just deleted, or not ready yet).
-                const detail = el?.data?.responseData;
-                if (detail) mciStore.setMci(detail);
-              });
-            })
-            .catch(e => {
-              showErrorMessage(
-                'Error',
-                toErrorMessage(e, 'Failed to load infrastructure details.'),
-              );
-            });
         } else {
           // Having no infrastructure at all is not an error — leave the list empty.
           mciStore.setMcis([]);
         }
       })
       .catch(e => {
+        // The lookup is shared: the rate limit is counted per caller, and to cb-tumblebug the
+        // caller is always cm-beetle — so other users and other tabs draw from the same budget.
+        // Being turned away is not a broken list, and saying so keeps the user from hunting a
+        // problem that is not there.
         showErrorMessage(
           'Error',
-          toErrorMessage(e, 'Failed to load the infrastructure list.'),
+          isRateLimited(e)
+            ? 'The infrastructure list could not be loaded because too many lookups arrived at once. Please try again in a moment.'
+            : toErrorMessage(e, 'Failed to load the infrastructure list.'),
         );
       })
       .finally(() => {
         loading.value = false;
       });
-  }
-
-  function fetchMciById(mciId: string) {
-    const resGetMciById = useGetMciInfo({ nsId: props.nsId, infraId: mciId });
-
-    return resGetMciById.execute;
   }
 
   watch(
@@ -143,7 +143,6 @@ export function useMciListModel(props: IProps) {
     mciTableModel,
     initToolBoxTableModel,
     mciStore,
-    fetchMciById,
     fetchMciList,
     resMciList,
     loading,

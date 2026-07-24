@@ -1,5 +1,6 @@
 import { createBdd } from 'playwright-bdd';
-import { test, expect } from '../support/fixtures';
+import { test, expect, getMock } from '../support/fixtures';
+import type { ApiMock } from '../support/apiMock';
 import { WorkloadPage } from '../pages/workload.page';
 import { workload, testNamespace } from '../fixtures/test-data';
 import { scenarioState } from '../support/world';
@@ -44,6 +45,67 @@ Then('인프라 목록이 조회된다', async ({ page }) => {
 Then('{string} 인프라가 목록에 보인다', async ({ page }, infraName: string) => {
   await new WorkloadPage(page).expectMciVisible(infraName);
 });
+
+/**
+ * Step "at least three infras are in the list".
+ *
+ * The lookup limit only bites from the third infra on, so a check that runs against one or two
+ * rows proves nothing. This step makes the precondition explicit instead of trusting the mock.
+ */
+Then('목록에 인프라가 3개 이상 보인다', async ({ page }) => {
+  expect(await new WorkloadPage(page).mciRowCount()).toBeGreaterThanOrEqual(3);
+});
+
+/**
+ * Step "no per-infra detail lookup happened".
+ *
+ * Reads the recorded outbound calls, not the screen. The screen looked right even while the
+ * per-infra lookups were breaking it (BAR-1637), so the request count is the only honest witness.
+ */
+Then('인프라별 상세 조회가 발생하지 않았다', async () => {
+  const mock = getMock();
+  expect(
+    mock,
+    'this step needs the @mock tier — the call log lives on the mock',
+  ).not.toBeNull();
+  const detailCalls = (mock as ApiMock).calls.filter(
+    c => c.operationId === 'cm-beetle/GetInfra',
+  );
+  expect(
+    detailCalls.map(c => c.body?.pathParams?.infraId),
+    'entering the list must not look up each infra separately',
+  ).toEqual([]);
+});
+
+/** Step "the detail of {infra} was looked up once" — the server tab is where a detail lookup belongs. */
+Then(
+  '{string} 인프라의 상세 조회가 한 번 발생했다',
+  // playwright-bdd reads the fixtures it must inject from this destructuring pattern, so the
+  // first argument has to stay an object pattern even when the step needs no fixture — naming
+  // it `_` makes spec generation fail outright.
+  // eslint-disable-next-line no-empty-pattern
+  async ({}, infraName: string) => {
+    const mock = getMock();
+    expect(mock, 'this step needs the @mock tier').not.toBeNull();
+    await expect
+      .poll(
+        () =>
+          (mock as ApiMock).calls.filter(
+            c =>
+              c.operationId === 'cm-beetle/GetInfra' &&
+              c.body?.pathParams?.infraId === infraName,
+          ).length,
+        { timeout: 15_000 },
+      )
+      .toBe(1);
+    // Guard against looking up the wrong infra alongside the right one.
+    expect(
+      (mock as ApiMock).calls
+        .filter(c => c.operationId === 'cm-beetle/GetInfra')
+        .map(c => c.body?.pathParams?.infraId),
+    ).toEqual([infraName]);
+  },
+);
 
 /** Step "select the {infra} infra" */
 When('{string} 인프라를 선택한다', async ({ page }, infraName: string) => {
