@@ -471,22 +471,65 @@ export function useWorkflowRunViewerModel() {
     }
   }
 
+  /**
+   * Wait until the run we just started shows up.
+   *
+   * The engine accepts the request immediately but the new run does not appear in the run
+   * list right away, so reading the list at once picks up the *previous* run as the newest.
+   * This used to be handled by sleeping a fixed 3 seconds, which is wrong in both directions:
+   * if it is ready sooner we wait for nothing, and if 3 seconds is not enough we select the
+   * wrong run. And for those 3 seconds the screen did not change at all, so the click looked
+   * like it had done nothing.
+   *
+   * So we ask repeatedly instead, and the screen says it is starting the whole time.
+   */
+  const NEW_RUN_INTERVAL_MS = 1000;
+  const NEW_RUN_TIMEOUT_MS = 30000;
+
+  /** A run has been requested and we are waiting for it to appear — drives the screen's lock */
+  const runStarting = ref(false);
+
   /** Run directly from the viewer — no need to go to the list screen */
   async function runWorkflow() {
     const wfId = workflow.value?.id;
     if (!wfId) return;
-    const { execute } = useRunWorkflow(wfId);
-    await execute();
-    // Hand it to the app-wide checker so the outcome is caught after leaving this screen.
-    // The name has to be captured here — at completion there is only the run id.
-    void trackWorkflow({
-      wfId,
-      label: workflow.value?.name || wfId,
-      action: 'run',
-    });
-    // Right after DAG registration the run may not appear immediately, so reopen after a short delay
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    await open(wfId);
+
+    // Turn this on *before* the request. What the user is waiting on starts at the click,
+    // not at the response.
+    runStarting.value = true;
+    loadError.value = null;
+    try {
+      const known = new Set(runs.value.map(r => r.workflow_run_id));
+      const { execute } = useRunWorkflow(wfId);
+      await execute();
+      // Hand it to the app-wide checker so the outcome is caught after leaving this screen.
+      // The name has to be captured here — at completion there is only the run id.
+      void trackWorkflow({
+        wfId,
+        label: workflow.value?.name || wfId,
+        action: 'run',
+      });
+
+      const deadline = Date.now() + NEW_RUN_TIMEOUT_MS;
+      let started: IWorkflowRun | undefined;
+      for (;;) {
+        await loadRuns(wfId);
+        // Identify it by "a run id we had not seen", not by time — the engine's clock and
+        // ours are different clocks, and sorting by start_date would pick the previous run
+        // whenever they disagree.
+        started = runs.value.find(r => !known.has(r.workflow_run_id));
+        if (started) break;
+        if (Date.now() + NEW_RUN_INTERVAL_MS > deadline) break;
+        await new Promise(resolve => setTimeout(resolve, NEW_RUN_INTERVAL_MS));
+      }
+
+      // If it never showed up, do not leave the screen on the old run pretending nothing
+      // happened — reopen so at least what *is* readable is drawn, and the run list is fresh.
+      if (started) await selectRun(wfId, started.workflow_run_id);
+      else await open(wfId);
+    } finally {
+      runStarting.value = false;
+    }
   }
 
   // Ensure polling does not linger after leaving the screen
@@ -529,6 +572,7 @@ export function useWorkflowRunViewerModel() {
     cancelRerun,
     cloneForEdit,
     progress,
+    runStarting,
     runWorkflow,
     stopPolling,
   };
