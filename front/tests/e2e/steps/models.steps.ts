@@ -257,6 +257,13 @@ Given(
 );
 
 When(
+  '최소 매치율 슬라이더를 {string} 으로 옮기면',
+  async ({ page }, rate: string) => {
+    await new ModelsPage(page).slideMinimumMatchRate(Number(rate));
+  },
+);
+
+When(
   '최소 매치율을 {string} 로 지정하고 추천을 실행하면',
   async ({ page }, rate: string) => {
     const models = new ModelsPage(page);
@@ -338,11 +345,32 @@ Then(
   },
 );
 
+When(
+  '최소 매치율에서 포커스와 마우스를 다른 곳으로 옮기면',
+  async ({ page }) => {
+    await new ModelsPage(page).moveAwayFromMinimumMatchRate();
+  },
+);
+
 Then('최소 매치율 안내 문구가 보이지 않는다', async ({ page }) => {
   expect(await new ModelsPage(page).isMinimumMatchRateHintVisible()).toBe(
     false,
   );
 });
+
+Then(
+  '{string} 라벨과 {string} 라벨의 시작 위치가 같다',
+  async ({ page }, upper: string, lower: string) => {
+    const models = new ModelsPage(page);
+    const upperX = await models.labelLeftEdge(upper);
+    const lowerX = await models.labelLeftEdge(lower);
+    // 소수점 렌더 차이는 허용하되, 눈에 띄는 어긋남(2px 초과)은 잡는다.
+    expect(
+      Math.abs(upperX - lowerX),
+      `"${upper}" x=${upperX} vs "${lower}" x=${lowerX}`,
+    ).toBeLessThanOrEqual(2);
+  },
+);
 
 // ───────────────────────────────────────────────────────────────────────
 // Internal helpers

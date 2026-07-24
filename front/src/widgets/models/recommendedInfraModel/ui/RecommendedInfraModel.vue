@@ -145,6 +145,27 @@ const matchRate = computed<number | null>(() => {
   return Number.isFinite(parsed) ? parsed : null;
 });
 
+/*
+ * The hint under the row is transient: it belongs to the act of adjusting the rate, not to the
+ * screen. It shows while the pointer is over the control or either control holds focus, and goes
+ * away once attention moves elsewhere — otherwise it lingers on a screen the user has moved past.
+ */
+const matchRateHovered = ref(false);
+const matchRateFocused = ref(false);
+const matchRateHintVisible = computed(
+  () =>
+    matchRate.value !== null &&
+    (matchRateHovered.value || matchRateFocused.value),
+);
+
+function handleMatchRateFocusOut(event: FocusEvent) {
+  const wrapper = event.currentTarget as HTMLElement;
+  const next = event.relatedTarget as Node | null;
+  // Moving between the slider and the number field stays "focused" — only leaving the pair counts.
+  if (next && wrapper.contains(next)) return;
+  matchRateFocused.value = false;
+}
+
 /** Where the slider sits: the entered value, or the server default while the field is empty. */
 const matchRateSliderValue = computed<number>(
   () => matchRate.value ?? MATCH_RATE_DEFAULT,
@@ -571,23 +592,30 @@ function handleSave(e: { name: string; description: string }) {
           -->
           <section class="params-section">
             <div class="params-section__row">
-              <!-- Candidate Limit with tooltip -->
-              <p
-                class="text-label-lg font-bold"
-                title="Maximum number of recommended infrastructures to return (default: 3)"
-              >
-                Candidate Limit
-              </p>
-              <input
-                v-model.number="candidateLimit"
-                data-testid="recommend-candidate-limit"
-                type="number"
-                :min="1"
-                :max="10"
-                class="param-input"
-                placeholder="3"
-                title="Maximum number of recommended infrastructures to return (default: 3)"
-              />
+              <!--
+                Candidate Limit occupies a fixed-width cell so that the label after it lines up
+                with "Region" on the row above. Without it the two rows start their second label
+                at different x, which reads as a crooked column. The e2e scenario asserts the
+                alignment so a width change here cannot drift unnoticed.
+              -->
+              <div class="param-group">
+                <p
+                  class="text-label-lg font-bold"
+                  title="Maximum number of recommended infrastructures to return (default: 3)"
+                >
+                  Candidate Limit
+                </p>
+                <input
+                  v-model.number="candidateLimit"
+                  data-testid="recommend-candidate-limit"
+                  type="number"
+                  :min="1"
+                  :max="10"
+                  class="param-input"
+                  placeholder="3"
+                  title="Maximum number of recommended infrastructures to return (default: 3)"
+                />
+              </div>
 
               <!--
                 Minimum Match Rate — one value only. cm-beetle exposes a single `minMatchRate`
@@ -613,43 +641,56 @@ function handleSave(e: { name: string; description: string }) {
                   >
                 </p-tooltip>
               </span>
-              <input
-                data-testid="recommend-match-rate-slider"
-                type="range"
-                :min="MATCH_RATE_MIN"
-                :max="MATCH_RATE_MAX"
-                step="1"
-                class="match-rate-slider"
-                :value="matchRateSliderValue"
-                :aria-valuenow="matchRateSliderValue"
-                @input="handleMatchRateSlider"
-              />
-              <input
-                data-testid="recommend-match-rate"
-                type="number"
-                :min="MATCH_RATE_MIN"
-                :max="MATCH_RATE_MAX"
-                step="1"
-                class="param-input"
-                :placeholder="String(MATCH_RATE_DEFAULT)"
-                :value="matchRateInput"
-                @input="handleMatchRateInput"
-              />
+              <!--
+                Hover/focus on either control keeps the hint up; leaving the pair takes it down.
+                Both controls are wrapped so that moving focus between them does not count as
+                leaving.
+              -->
+              <span
+                class="match-rate-controls"
+                @mouseenter="matchRateHovered = true"
+                @mouseleave="matchRateHovered = false"
+                @focusin="matchRateFocused = true"
+                @focusout="handleMatchRateFocusOut"
+              >
+                <input
+                  data-testid="recommend-match-rate-slider"
+                  type="range"
+                  :min="MATCH_RATE_MIN"
+                  :max="MATCH_RATE_MAX"
+                  step="1"
+                  class="match-rate-slider"
+                  :value="matchRateSliderValue"
+                  :aria-valuenow="matchRateSliderValue"
+                  @input="handleMatchRateSlider"
+                />
+                <input
+                  data-testid="recommend-match-rate"
+                  type="number"
+                  :min="MATCH_RATE_MIN"
+                  :max="MATCH_RATE_MAX"
+                  step="1"
+                  class="param-input"
+                  :placeholder="String(MATCH_RATE_DEFAULT)"
+                  :value="matchRateInput"
+                  @input="handleMatchRateInput"
+                />
+              </span>
             </div>
 
             <!--
-              Shown only once a rate is actually set. While the field is empty the server default
-              applies and there is nothing worth saying, so a permanent line would just be noise.
+              Transient: only while a rate is set *and* the control has the pointer or focus.
+              A line that stays put after the user has moved on is just clutter.
             -->
             <p
-              v-if="matchRate !== null"
+              v-if="matchRateHintVisible"
               class="match-rate-hint"
               data-testid="recommend-match-rate-hint"
             >
               Candidates at {{ matchRate }}% or above are shown as
               highly-matched. This only classifies the results; nothing is
-              filtered out. Clear the field to fall back to the server default
-              ({{ MATCH_RATE_DEFAULT }}%).
+              filtered out. Clear the field, or drag the slider fully left, to
+              fall back to the server default ({{ MATCH_RATE_DEFAULT }}%).
             </p>
           </section>
           <p-toolbox-table
@@ -844,12 +885,20 @@ function handleSave(e: { name: string; description: string }) {
   margin: 0;
 }
 
+/* Fixed-width first cell — makes the second label of this row start at the same x as
+   "Region" on the row above (measured on the rendered screen; the e2e scenario guards it). */
+.param-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 198px;
+}
+
 /* The '?' sits at the bottom-right of the label, like a footnote marker. */
 .match-rate-label {
   display: inline-flex;
   align-items: flex-end;
   gap: 0.25rem;
-  margin-left: 1rem;
   white-space: nowrap;
 }
 
@@ -874,6 +923,12 @@ function handleSave(e: { name: string; description: string }) {
   border-color: #1971c2;
   color: #1971c2;
   outline: none;
+}
+
+.match-rate-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .match-rate-slider {

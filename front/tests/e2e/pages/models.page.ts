@@ -286,9 +286,36 @@ export class ModelsPage {
     await this.matchRateInput.fill('');
   }
 
-  /** Is the hint line under the field showing? (it only appears once a rate is set) */
+  /** Is the hint line under the field showing? (only while a rate is set and the control is active) */
   async isMinimumMatchRateHintVisible(): Promise<boolean> {
     return this.matchRateHint.isVisible();
+  }
+
+  /**
+   * Take both focus and the pointer off the Minimum Match Rate controls.
+   *
+   * The hint is transient — it belongs to the act of adjusting the rate. Blurring alone is not
+   * enough to prove it goes away, because a pointer left hovering keeps it up on purpose.
+   */
+  async moveAwayFromMinimumMatchRate(): Promise<void> {
+    await this.candidateLimitInput.first().click();
+    await this.page.mouse.move(5, 5);
+    await this.page.waitForTimeout(300);
+  }
+
+  /**
+   * Left edge of a recommendation-condition label, for column alignment checks.
+   *
+   * The two condition rows read as a table, so their second labels ("Region" above,
+   * "Minimum Match Rate (%)" below) must start at the same x. That alignment depends on a fixed
+   * cell width in the front, which nothing else would catch if it drifted.
+   */
+  async labelLeftEdge(text: string): Promise<number> {
+    const label = this.recommendModal.getByText(text, { exact: true }).first();
+    await expect(label).toBeVisible({ timeout: 15_000 });
+    const box = await label.boundingBox();
+    if (!box) throw new Error(`"${text}" 라벨의 위치를 읽지 못했다`);
+    return box.x;
   }
 
   /** What the number field currently holds ('' when not set) */
