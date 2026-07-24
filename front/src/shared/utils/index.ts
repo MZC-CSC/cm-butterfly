@@ -4,3 +4,4 @@ export * from '@/shared/utils/notice-alert-helper';
 export * from '@/shared/utils/dateformatter';
 export * from '@/shared/utils/isNullOrUndefined';
 export * from '@/shared/utils/connectionValidation';
+export * from '@/shared/utils/exportFileName';

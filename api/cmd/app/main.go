@@ -88,6 +88,10 @@ func main() {
 	// so the interactive form and the import path share one set of rules.
 	api.POST("/parsetabularimport", handler.ParseTabularImport)
 
+	// Tabular export — builds a file from the selected connections in the same
+	// layout the importer reads, so the column contract lives in one place.
+	api.POST("/exporttabularconnections", handler.ExportTabularConnections)
+
 	// Project management endpoints
 	api.POST("/createproject", workspaceHandler.CreateProject)
 	api.POST("/getprojectlist", workspaceHandler.GetProjectList)
