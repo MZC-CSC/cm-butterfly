@@ -146,17 +146,15 @@ const matchRate = computed<number | null>(() => {
 });
 
 /*
- * The hint under the row is transient: it belongs to the act of adjusting the rate, not to the
- * screen. It shows while the pointer is over the control or either control holds focus, and goes
- * away once attention moves elsewhere — otherwise it lingers on a screen the user has moved past.
+ * The hint under the row appears while either control holds focus, and goes away when focus
+ * leaves. It is tied to focus rather than to "a value was entered", because the moment a user
+ * needs to know what this field is, is *before* touching it — a hint that only shows up after
+ * you change the value explains it too late.
+ *
+ * Focus (not hover) drives it on purpose: hovering across the row on the way somewhere else
+ * would flash the line, and clicking or dragging either control focuses it anyway.
  */
-const matchRateHovered = ref(false);
 const matchRateFocused = ref(false);
-const matchRateHintVisible = computed(
-  () =>
-    matchRate.value !== null &&
-    (matchRateHovered.value || matchRateFocused.value),
-);
 
 function handleMatchRateFocusOut(event: FocusEvent) {
   const wrapper = event.currentTarget as HTMLElement;
@@ -649,14 +647,12 @@ function handleSave(e: { name: string; description: string }) {
                 </p-tooltip>
               </span>
               <!--
-                Hover/focus on either control keeps the hint up; leaving the pair takes it down.
-                Both controls are wrapped so that moving focus between them does not count as
+                Focus on either control shows the hint; leaving the pair hides it. Both are wrapped
+                so that moving focus between the slider and the number field does not count as
                 leaving.
               -->
               <span
                 class="match-rate-controls"
-                @mouseenter="matchRateHovered = true"
-                @mouseleave="matchRateHovered = false"
                 @focusin="matchRateFocused = true"
                 @focusout="handleMatchRateFocusOut"
               >
@@ -686,18 +682,27 @@ function handleSave(e: { name: string; description: string }) {
             </div>
 
             <!--
-              Transient: only while a rate is set *and* the control has the pointer or focus.
-              A line that stays put after the user has moved on is just clutter.
+              Shown while either control has focus, whatever the field holds — the explanation is
+              needed *before* touching the field, not after changing it.
+
+              The element is always in the layout and only its visibility flips, so the results
+              table below does not jump up and down as focus comes and goes.
             -->
             <p
-              v-if="matchRateHintVisible"
               class="match-rate-hint"
+              :class="{ 'match-rate-hint--hidden': !matchRateFocused }"
               data-testid="recommend-match-rate-hint"
             >
-              Candidates at {{ matchRate }}% or above are shown as
-              highly-matched. This only classifies the results; nothing is
-              filtered out. Clear the field, or drag the slider fully left, to
-              fall back to the server default ({{ MATCH_RATE_DEFAULT }}%).
+              <template v-if="matchRate === null">
+                Not set — the server default ({{ MATCH_RATE_DEFAULT }}%)
+                applies.
+              </template>
+              <template v-else>
+                Candidates at {{ matchRate }}% or above are shown as
+                highly-matched.
+              </template>
+              This only classifies the results; nothing is filtered out — use
+              Candidate Limit to change how many candidates come back.
             </p>
           </section>
           <p-toolbox-table
@@ -950,6 +955,12 @@ function handleSave(e: { name: string; description: string }) {
   color: #1971c2;
   font-size: 12px;
   line-height: 1.4;
+}
+
+/* Hidden but still occupying its line — flipping display here would shift the results table
+   every time focus enters or leaves the field. */
+.match-rate-hint--hidden {
+  visibility: hidden;
 }
 </style>
 

@@ -271,6 +271,16 @@ export class ModelsPage {
     await this.candidateLimitInput.fill(String(limit));
   }
 
+  /** Put focus on the Minimum Match Rate number field (without changing the value) */
+  async focusMinimumMatchRate(): Promise<void> {
+    await this.matchRateInput.focus();
+  }
+
+  /** Put focus on the Minimum Match Rate slider (without changing the value) */
+  async focusMinimumMatchRateSlider(): Promise<void> {
+    await this.matchRateSlider.focus();
+  }
+
   /** Type a Minimum Match Rate (the screen clamps it to 0-100) */
   async setMinimumMatchRate(rate: number | string): Promise<void> {
     await this.matchRateInput.fill(String(rate));
@@ -291,16 +301,22 @@ export class ModelsPage {
     return this.matchRateHint.isVisible();
   }
 
-  /**
-   * Take both focus and the pointer off the Minimum Match Rate controls.
-   *
-   * The hint is transient — it belongs to the act of adjusting the rate. Blurring alone is not
-   * enough to prove it goes away, because a pointer left hovering keeps it up on purpose.
-   */
+  /** Move focus off the Minimum Match Rate controls (onto another field on the same row) */
   async moveAwayFromMinimumMatchRate(): Promise<void> {
-    await this.candidateLimitInput.first().click();
-    await this.page.mouse.move(5, 5);
-    await this.page.waitForTimeout(300);
+    await this.candidateLimitInput.first().focus();
+    await this.page.waitForTimeout(200);
+  }
+
+  /**
+   * Vertical position of the results table — used to prove the hint does not shove the table
+   * around as focus comes and goes. The hint keeps its line while hidden precisely so this
+   * stays put.
+   */
+  async recommendTableTop(): Promise<number> {
+    const table = this.page.getByTestId('recommend-result-table');
+    const box = await table.boundingBox();
+    if (!box) throw new Error('추천 결과 표의 위치를 읽지 못했다');
+    return box.y;
   }
 
   /**

@@ -345,12 +345,35 @@ Then(
   },
 );
 
-When(
-  '최소 매치율에서 포커스와 마우스를 다른 곳으로 옮기면',
-  async ({ page }) => {
-    await new ModelsPage(page).moveAwayFromMinimumMatchRate();
-  },
-);
+When('최소 매치율 입력 칸에 포커스를 주면', async ({ page }) => {
+  await new ModelsPage(page).focusMinimumMatchRate();
+});
+
+When('최소 매치율 슬라이더에 포커스를 주면', async ({ page }) => {
+  await new ModelsPage(page).focusMinimumMatchRateSlider();
+});
+
+Given('최소 매치율 입력 칸에 포커스를 준다', async ({ page }) => {
+  await new ModelsPage(page).focusMinimumMatchRate();
+});
+
+When('최소 매치율에서 포커스를 다른 곳으로 옮기면', async ({ page }) => {
+  await new ModelsPage(page).moveAwayFromMinimumMatchRate();
+});
+
+/** 안내 문구가 나타나고 사라져도 결과 표가 위아래로 밀리지 않아야 한다. */
+Then('추천 결과 표의 위치가 그대로다', async ({ page }) => {
+  const models = new ModelsPage(page);
+  const before = await models.recommendTableTop();
+  await models.focusMinimumMatchRate();
+  const focused = await models.recommendTableTop();
+  await models.moveAwayFromMinimumMatchRate();
+  const after = await models.recommendTableTop();
+  expect(
+    Math.max(Math.abs(focused - before), Math.abs(after - before)),
+    `표 위치: 초기 ${before} / 포커스 ${focused} / 해제 ${after}`,
+  ).toBeLessThanOrEqual(1);
+});
 
 Then('최소 매치율 안내 문구가 보이지 않는다', async ({ page }) => {
   expect(await new ModelsPage(page).isMinimumMatchRateHintVisible()).toBe(
