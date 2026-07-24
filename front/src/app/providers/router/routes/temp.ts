@@ -3,14 +3,6 @@ import { RouteConfig } from 'vue-router';
 
 export const tempRoutes: RouteConfig[] = [
   {
-    path: 'migration-guide',
-    name: 'migrationguide',
-    component: NotFoundVue,
-    meta: {
-      menuId: 'migrationguide',
-    },
-  },
-  {
     path: 'source-metas',
     name: 'sourcemetas',
     component: NotFoundVue,
