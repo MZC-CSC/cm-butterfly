@@ -562,14 +562,24 @@ export function useWorkflowRunViewerModel() {
   }
 
   /**
-   * The user chose to stop waiting. We leave the screen exactly as it is — the run may still
-   * be going, and reopening would hide that by redrawing as if nothing had been asked.
+   * The user chose to stop waiting.
+   *
+   * **This does not cancel the run** — there is no path from here that stops it, and the engine
+   * may well be running it. It only stops us looking for it.
+   *
+   * We do refresh once on the way out, because after all that waiting the screen may no longer
+   * match reality. Reopening is safe in both directions: with no history at all the screen falls
+   * back to the un-run state, and after a re-run the latest run is picked up again. What was
+   * wrong before was reopening *silently at the timeout*, as if nothing had been asked — doing
+   * it because the user asked to stop is a different thing.
    */
-  function stopWaitingForRun(): void {
+  async function stopWaitingForRun(): Promise<void> {
+    const wfId = pendingRunWfId;
     runStarting.value = false;
     runStartTimedOut.value = false;
     runStartError.value = null;
     pendingRunWfId = null;
+    if (wfId) await open(wfId);
   }
 
   /** Run directly from the viewer — no need to go to the list screen */

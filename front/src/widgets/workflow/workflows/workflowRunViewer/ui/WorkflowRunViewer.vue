@@ -705,11 +705,12 @@ async function onRunChange(runId: string) {
               class="run-viewer__starting-title run-viewer__starting-title--warn"
               data-testid="workflow-run-start-timeout"
             >
-              The run has not shown up yet
+              The new run still cannot be found
             </p>
             <p class="run-viewer__starting-hint">
-              The run was requested, but it has not appeared in the run history.
-              It may still be starting, or the server may not be answering.
+              It has been a while, and the run you started has still not
+              appeared in the run history. Something may be wrong with the
+              server. What would you like to do?
             </p>
             <p
               v-if="runStartError"
@@ -733,12 +734,17 @@ async function onRunChange(runId: string) {
                 style-type="tertiary"
                 @click="stopWaitingForRun"
               >
-                Stop waiting
+                Cancel
               </p-button>
             </div>
+            <!--
+              "Cancel" is about *this wait*, not about the run. Nothing here stops a run, and a
+              user who reads it the other way would walk away believing they had stopped it.
+            -->
             <p class="run-viewer__starting-hint">
-              Stopping only stops looking. It does not cancel the run, and the
-              graph below stays on the run you were viewing.
+              Cancelling stops waiting only — it does not stop the run, which
+              may still be going. The screen is refreshed so it shows where
+              things actually stand.
             </p>
           </template>
         </div>
