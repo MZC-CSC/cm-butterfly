@@ -57,6 +57,10 @@ const {
   progress,
   isPolling,
   runStarting,
+  runStartTimedOut,
+  runStartError,
+  keepWaitingForRun,
+  stopWaitingForRun,
   cloning,
   loadError,
   logText,
@@ -678,12 +682,65 @@ async function onRunChange(runId: string) {
           class="run-viewer__starting"
           data-testid="workflow-run-starting"
         >
-          <span class="run-viewer__running-spinner" aria-hidden="true" />
-          <p class="run-viewer__starting-title">Preparing run data…</p>
-          <p class="run-viewer__starting-hint">
-            The run has been requested. Waiting until it appears in the run
-            history — the graph below still shows the previous run until then.
-          </p>
+          <!--
+            Still waiting. Nothing is wrong yet, so this says only what it is waiting for.
+          -->
+          <template v-if="!runStartTimedOut">
+            <span class="run-viewer__running-spinner" aria-hidden="true" />
+            <p class="run-viewer__starting-title">Preparing run data…</p>
+            <p class="run-viewer__starting-hint">
+              The run has been requested. Waiting until it appears in the run
+              history — the graph below still shows the previous run until then.
+            </p>
+          </template>
+
+          <!--
+            The wait ran out. **Do not say the run failed** — the engine took the request and
+            may be running it right now; what we know is that we could not confirm it. Saying
+            nothing and quietly redrawing (what this used to do) is worse: the screen comes
+            back looking normal while the run is nowhere to be seen.
+          -->
+          <template v-else>
+            <p
+              class="run-viewer__starting-title run-viewer__starting-title--warn"
+              data-testid="workflow-run-start-timeout"
+            >
+              The run has not shown up yet
+            </p>
+            <p class="run-viewer__starting-hint">
+              The run was requested, but it has not appeared in the run history.
+              It may still be starting, or the server may not be answering.
+            </p>
+            <p
+              v-if="runStartError"
+              class="run-viewer__starting-error"
+              data-testid="workflow-run-start-error"
+            >
+              {{ runStartError }}
+            </p>
+            <div class="run-viewer__starting-actions">
+              <p-button
+                data-testid="workflow-run-start-keep-waiting"
+                size="sm"
+                style-type="primary"
+                @click="keepWaitingForRun"
+              >
+                Keep waiting
+              </p-button>
+              <p-button
+                data-testid="workflow-run-start-stop-waiting"
+                size="sm"
+                style-type="tertiary"
+                @click="stopWaitingForRun"
+              >
+                Stop waiting
+              </p-button>
+            </div>
+            <p class="run-viewer__starting-hint">
+              Stopping only stops looking. It does not cancel the run, and the
+              graph below stays on the run you were viewing.
+            </p>
+          </template>
         </div>
 
         <!--
@@ -1374,7 +1431,27 @@ async function onRunChange(runId: string) {
 .run-viewer__starting-hint {
   font-size: 0.75rem;
   color: #6b6e78;
-  max-width: 20rem;
+  max-width: 22rem;
+}
+
+.run-viewer__starting-title--warn {
+  color: #8a5a17;
+}
+
+.run-viewer__starting-error {
+  max-width: 22rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.25rem;
+  background: #fdf3f3;
+  color: #b93c3c;
+  font-size: 0.75rem;
+  word-break: break-all;
+}
+
+.run-viewer__starting-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.25rem 0;
 }
 
 .run-viewer__graph {

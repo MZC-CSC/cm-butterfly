@@ -194,16 +194,27 @@ export function useWorkflowRunViewerModel() {
     }
   }
 
-  async function loadRuns(wfId: string) {
+  /**
+   * Returns the reason it failed, or null on success.
+   *
+   * The caller decides what a failure means. Opening a workflow treats it as "has never run"
+   * (see below), but while we are waiting for a run we just started, the same failure means
+   * *we could not check* — and the user has to be told that rather than left watching a
+   * spinner forever.
+   */
+  async function loadRuns(wfId: string): Promise<string | null> {
     try {
       const { data, execute } = useGetWorkflowRuns(wfId);
       await execute();
       runs.value = data.value?.responseData ?? [];
-    } catch {
+      return null;
+    } catch (e: any) {
       // A workflow that has never run fails to load from the engine — before Airflow has read the
       // new DAG, it appears not to exist. **This is not a failure but "not yet"**, so instead of a
       // red error we show an empty state that invites the user to run it.
-      runs.value = [];
+      // We do not clear the list here: `open()` clears it before calling, and the run-wait loop
+      // must not wipe the run it is still showing just because one query failed.
+      return e?.message ?? 'Failed to load the run history.';
     }
   }
 
@@ -488,6 +499,78 @@ export function useWorkflowRunViewerModel() {
 
   /** A run has been requested and we are waiting for it to appear — drives the screen's lock */
   const runStarting = ref(false);
+  /**
+   * The wait ran out without the run showing up. **This is not "the run failed"** — the engine
+   * accepted the request and may well be running it. What we know is only that we could not
+   * confirm it, so the screen says exactly that and lets the user decide whether to keep
+   * waiting or stop looking.
+   */
+  const runStartTimedOut = ref(false);
+  /** Why the last check failed, when it failed. Empty when the run simply did not appear. */
+  const runStartError = ref<string | null>(null);
+
+  /** What the pending wait is about, so "keep waiting" can resume it */
+  let pendingRunWfId: string | null = null;
+  let pendingKnownRunIds = new Set<string>();
+
+  /**
+   * Wait for the run we just requested to appear in the run history.
+   *
+   * On the way out this used to reopen the whole screen, which threw away what the user was
+   * looking at and *said nothing* — the screen came back looking normal while the run was
+   * nowhere to be seen. Now we stop, keep the screen as it is, and say what happened.
+   */
+  async function waitForNewRun(wfId: string): Promise<void> {
+    runStarting.value = true;
+    runStartTimedOut.value = false;
+    runStartError.value = null;
+
+    const deadline = Date.now() + NEW_RUN_TIMEOUT_MS;
+    let lastError: string | null = null;
+
+    for (;;) {
+      lastError = await loadRuns(wfId);
+      // Identify it by "a run id we had not seen", not by time — the engine's clock and
+      // ours are different clocks, and sorting by start_date would pick the previous run
+      // whenever they disagree.
+      const started = runs.value.find(
+        r => !pendingKnownRunIds.has(r.workflow_run_id),
+      );
+      if (started) {
+        await selectRun(wfId, started.workflow_run_id);
+        runStarting.value = false;
+        return;
+      }
+      if (Date.now() + NEW_RUN_INTERVAL_MS > deadline) break;
+      await new Promise(resolve => setTimeout(resolve, NEW_RUN_INTERVAL_MS));
+    }
+
+    /*
+      A single failed query is not reported: right after a workflow is created the engine
+      answers 404 until it has registered the DAG, and calling that an error would cry wolf on
+      a perfectly normal first run. What matters is whether it was *still* failing when the
+      wait ran out — that is the case where the user needs the reason, not just "not yet".
+    */
+    runStartError.value = lastError;
+    runStartTimedOut.value = true;
+  }
+
+  /** The user chose to wait longer — same wait again, from now */
+  async function keepWaitingForRun(): Promise<void> {
+    if (!pendingRunWfId) return;
+    await waitForNewRun(pendingRunWfId);
+  }
+
+  /**
+   * The user chose to stop waiting. We leave the screen exactly as it is — the run may still
+   * be going, and reopening would hide that by redrawing as if nothing had been asked.
+   */
+  function stopWaitingForRun(): void {
+    runStarting.value = false;
+    runStartTimedOut.value = false;
+    runStartError.value = null;
+    pendingRunWfId = null;
+  }
 
   /** Run directly from the viewer — no need to go to the list screen */
   async function runWorkflow() {
@@ -497,39 +580,33 @@ export function useWorkflowRunViewerModel() {
     // Turn this on *before* the request. What the user is waiting on starts at the click,
     // not at the response.
     runStarting.value = true;
+    runStartTimedOut.value = false;
+    runStartError.value = null;
     loadError.value = null;
+
+    pendingRunWfId = wfId;
+    pendingKnownRunIds = new Set(runs.value.map(r => r.workflow_run_id));
+
     try {
-      const known = new Set(runs.value.map(r => r.workflow_run_id));
       const { execute } = useRunWorkflow(wfId);
       await execute();
-      // Hand it to the app-wide checker so the outcome is caught after leaving this screen.
-      // The name has to be captured here — at completion there is only the run id.
-      void trackWorkflow({
-        wfId,
-        label: workflow.value?.name || wfId,
-        action: 'run',
-      });
-
-      const deadline = Date.now() + NEW_RUN_TIMEOUT_MS;
-      let started: IWorkflowRun | undefined;
-      for (;;) {
-        await loadRuns(wfId);
-        // Identify it by "a run id we had not seen", not by time — the engine's clock and
-        // ours are different clocks, and sorting by start_date would pick the previous run
-        // whenever they disagree.
-        started = runs.value.find(r => !known.has(r.workflow_run_id));
-        if (started) break;
-        if (Date.now() + NEW_RUN_INTERVAL_MS > deadline) break;
-        await new Promise(resolve => setTimeout(resolve, NEW_RUN_INTERVAL_MS));
-      }
-
-      // If it never showed up, do not leave the screen on the old run pretending nothing
-      // happened — reopen so at least what *is* readable is drawn, and the run list is fresh.
-      if (started) await selectRun(wfId, started.workflow_run_id);
-      else await open(wfId);
-    } finally {
-      runStarting.value = false;
+    } catch (e: any) {
+      // The request itself was refused — that *is* a failure, and it is a different one from
+      // "we cannot find the run". Say so and stop; there is nothing to wait for.
+      runStartError.value = e?.message ?? 'Failed to start this workflow.';
+      runStartTimedOut.value = true;
+      return;
     }
+
+    // Hand it to the app-wide checker so the outcome is caught after leaving this screen.
+    // The name has to be captured here — at completion there is only the run id.
+    void trackWorkflow({
+      wfId,
+      label: workflow.value?.name || wfId,
+      action: 'run',
+    });
+
+    await waitForNewRun(wfId);
   }
 
   // Ensure polling does not linger after leaving the screen
@@ -573,6 +650,10 @@ export function useWorkflowRunViewerModel() {
     cloneForEdit,
     progress,
     runStarting,
+    runStartTimedOut,
+    runStartError,
+    keepWaitingForRun,
+    stopWaitingForRun,
     runWorkflow,
     stopPolling,
   };
