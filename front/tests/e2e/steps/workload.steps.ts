@@ -80,7 +80,11 @@ Then('인프라별 상세 조회가 발생하지 않았다', async () => {
 /** Step "the detail of {infra} was looked up once" — the server tab is where a detail lookup belongs. */
 Then(
   '{string} 인프라의 상세 조회가 한 번 발생했다',
-  async (_, infraName: string) => {
+  // playwright-bdd reads the fixtures it must inject from this destructuring pattern, so the
+  // first argument has to stay an object pattern even when the step needs no fixture — naming
+  // it `_` makes spec generation fail outright.
+  // eslint-disable-next-line no-empty-pattern
+  async ({}, infraName: string) => {
     const mock = getMock();
     expect(mock, 'this step needs the @mock tier').not.toBeNull();
     await expect
