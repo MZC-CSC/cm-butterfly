@@ -5,7 +5,7 @@ import { ApiMock, ok } from '../apiMock';
  *
  * ★ What is mocked and what is not (BAR-1530)
  *
- *   mocked     — `ListInfra` (a minimal list to draw a row) · `DeleteInfra` (accept the request)
+ *   mocked     — `ListInfra` (a minimal list of rows) · `GetInfra` (echo the requested infra) · `DeleteInfra` (accept the request)
  *   not mocked — `GetRequest`
  *
  *   `GetRequest` is the basis for **transitioning** the delete status to `Success`/`Error`, and parsing its
@@ -59,14 +59,36 @@ function infraItem(id: string) {
 /** The infra name this mock emits to the list — the scenario and steps use the same value. */
 export const MOCK_INFRA_ID = 'mock-del-infra';
 
+/**
+ * Filler infras so the list holds more than two rows (BAR-1637).
+ *
+ * The count matters. cb-tumblebug lets only two infra lookups run at once and turns away the rest,
+ * so a screen that looks up each listed infra separately breaks from the third one on — and a list
+ * of one or two rows never shows it. Five rows keeps the regression check honest.
+ *
+ * The names deliberately share no substring with MOCK_INFRA_ID: rows are located by accessible name,
+ * which matches on substring, so `mock-del-infra-2` would resolve to two rows and fail strict mode.
+ */
+export const MOCK_LIST_INFRA_IDS = [
+  'mock-list-infra-1',
+  'mock-list-infra-2',
+  'mock-list-infra-3',
+  'mock-list-infra-4',
+];
+
+/** Every infra name this mock puts in the list. */
+export const MOCK_ALL_INFRA_IDS = [MOCK_INFRA_ID, ...MOCK_LIST_INFRA_IDS];
+
 export function registerMciMocks(mock: ApiMock): ApiMock {
   return mock.use({
-    // List — emit only the single deletion target.
+    // List — the deletion target plus fillers, so the row count is realistic.
     'cm-beetle/ListInfra': () =>
-      ok({ data: { infra: [infraItem(MOCK_INFRA_ID)] } }),
+      ok({ data: { infra: MOCK_ALL_INFRA_IDS.map(id => infraItem(id)) } }),
 
-    // Detail — may be called on row selection, so return the same item.
-    'cm-beetle/GetInfra': () => ok({ data: infraItem(MOCK_INFRA_ID) }),
+    // Detail — called when the server tab opens. Echo whichever infra was asked for; returning a
+    // fixed one would let a test that looks up the wrong infra pass.
+    'cm-beetle/GetInfra': ({ body }) =>
+      ok({ data: infraItem(body?.pathParams?.infraId ?? MOCK_INFRA_ID) }),
 
     // Delete request — **hold the response.**
     //
