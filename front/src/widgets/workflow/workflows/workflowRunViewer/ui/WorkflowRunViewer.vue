@@ -57,6 +57,10 @@ const {
   progress,
   isPolling,
   runStarting,
+  runStartTimedOut,
+  runStartError,
+  keepWaitingForRun,
+  stopWaitingForRun,
   cloning,
   loadError,
   logText,
@@ -678,12 +682,71 @@ async function onRunChange(runId: string) {
           class="run-viewer__starting"
           data-testid="workflow-run-starting"
         >
-          <span class="run-viewer__running-spinner" aria-hidden="true" />
-          <p class="run-viewer__starting-title">Preparing run data…</p>
-          <p class="run-viewer__starting-hint">
-            The run has been requested. Waiting until it appears in the run
-            history — the graph below still shows the previous run until then.
-          </p>
+          <!--
+            Still waiting. Nothing is wrong yet, so this says only what it is waiting for.
+          -->
+          <template v-if="!runStartTimedOut">
+            <span class="run-viewer__running-spinner" aria-hidden="true" />
+            <p class="run-viewer__starting-title">Preparing run data…</p>
+            <p class="run-viewer__starting-hint">
+              The run has been requested. Waiting until it appears in the run
+              history — the graph below still shows the previous run until then.
+            </p>
+          </template>
+
+          <!--
+            The wait ran out. **Do not say the run failed** — the engine took the request and
+            may be running it right now; what we know is that we could not confirm it. Saying
+            nothing and quietly redrawing (what this used to do) is worse: the screen comes
+            back looking normal while the run is nowhere to be seen.
+          -->
+          <template v-else>
+            <p
+              class="run-viewer__starting-title run-viewer__starting-title--warn"
+              data-testid="workflow-run-start-timeout"
+            >
+              The new run still cannot be found
+            </p>
+            <p class="run-viewer__starting-hint">
+              It has been a while, and the run you started has still not
+              appeared in the run history. Something may be wrong with the
+              server. What would you like to do?
+            </p>
+            <p
+              v-if="runStartError"
+              class="run-viewer__starting-error"
+              data-testid="workflow-run-start-error"
+            >
+              {{ runStartError }}
+            </p>
+            <div class="run-viewer__starting-actions">
+              <p-button
+                data-testid="workflow-run-start-keep-waiting"
+                size="sm"
+                style-type="primary"
+                @click="keepWaitingForRun"
+              >
+                Keep waiting
+              </p-button>
+              <p-button
+                data-testid="workflow-run-start-stop-waiting"
+                size="sm"
+                style-type="tertiary"
+                @click="stopWaitingForRun"
+              >
+                Cancel
+              </p-button>
+            </div>
+            <!--
+              "Cancel" is about *this wait*, not about the run. Nothing here stops a run, and a
+              user who reads it the other way would walk away believing they had stopped it.
+            -->
+            <p class="run-viewer__starting-hint">
+              Cancelling stops waiting only — it does not stop the run, which
+              may still be going. The screen is refreshed so it shows where
+              things actually stand.
+            </p>
+          </template>
         </div>
 
         <!--
@@ -1374,7 +1437,27 @@ async function onRunChange(runId: string) {
 .run-viewer__starting-hint {
   font-size: 0.75rem;
   color: #6b6e78;
-  max-width: 20rem;
+  max-width: 22rem;
+}
+
+.run-viewer__starting-title--warn {
+  color: #8a5a17;
+}
+
+.run-viewer__starting-error {
+  max-width: 22rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.25rem;
+  background: #fdf3f3;
+  color: #b93c3c;
+  font-size: 0.75rem;
+  word-break: break-all;
+}
+
+.run-viewer__starting-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.25rem 0;
 }
 
 .run-viewer__graph {
