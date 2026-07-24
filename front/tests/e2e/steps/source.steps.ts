@@ -166,11 +166,13 @@ Then('암호화 컬럼 안내가 보인다', async ({ page }) => {
   await new SourceServicesPage(page).expectExportNoticeVisible();
 });
 
-/** "만약 익스포트를 확인하면" — 실제 다운로드까지 받아 파일명을 기억해 둔다 */
+/** "만약 익스포트를 확인하면" — 실제 다운로드까지 받아 파일명·내용을 기억해 둔다 */
 When('익스포트를 확인하면', async ({ page }) => {
-  scenarioState.exportedFileName = await new SourceServicesPage(
+  const { fileName, content } = await new SourceServicesPage(
     page,
   ).confirmExportAndDownload();
+  scenarioState.exportedFileName = fileName;
+  scenarioState.exportedFileContent = content;
 });
 
 /** "만약 익스포트를 취소하면" */
@@ -188,6 +190,33 @@ Then(
     expect(fileName).toMatch(/-\d{8}-\d{6}\.csv$/);
   },
 );
+
+/** "그러면 익스포트 파일이 임포트 양식과 같고 암호화 컬럼이 비어 있다"
+ *  이 기능의 핵심 약속 두 가지 — 임포트 양식 그대로일 것, 암호화 값은 나가지 않을 것. */
+Then('익스포트 파일이 임포트 양식과 같고 암호화 컬럼이 비어 있다', async () => {
+  const content = scenarioState.exportedFileContent ?? '';
+  const lines = content.trim().split(/\r?\n/);
+
+  const headers = lines[0].split(',');
+  expect(headers).toEqual([
+    'name',
+    'description',
+    'ip_address',
+    'ssh_port',
+    'user',
+    'password',
+    'private_key',
+  ]);
+
+  // 데이터가 최소 한 행 있어야 검증이 의미를 갖는다.
+  expect(lines.length).toBeGreaterThan(1);
+
+  // user·password·private_key는 마지막 세 컬럼이고 항상 비어 있어야 한다.
+  for (const line of lines.slice(1)) {
+    const cells = line.split(',');
+    expect(cells.slice(-3)).toEqual(['', '', '']);
+  }
+});
 
 /** "만약 인프라 수집을 실행하면" (현재 선택된 연결정보 기준) */
 When('인프라 수집을 실행하면', async ({ page }) => {

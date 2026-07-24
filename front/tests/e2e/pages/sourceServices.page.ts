@@ -344,15 +344,22 @@ export class SourceServicesPage {
     });
   }
 
-  async expectExportDisabled(): Promise<void> {
+  /** 그룹을 고른 직후에는 Detail 탭이 열려 있어 연결 목록이 아직 없다.
+   *  버튼 상태를 보려면 Connections 탭을 먼저 열어야 한다. 이미 열려 있으면 무해하다. */
+  private async openConnectionsTab(): Promise<void> {
+    await this.connectionsTab.click();
     await expect(this.exportConnectionButton).toBeVisible({ timeout: 15_000 });
+  }
+
+  async expectExportDisabled(): Promise<void> {
+    await this.openConnectionsTab();
     expect(
       await this.isMirinaeButtonDisabled(this.exportConnectionButton),
     ).toBe(true);
   }
 
   async expectExportEnabled(): Promise<void> {
-    await expect(this.exportConnectionButton).toBeVisible({ timeout: 15_000 });
+    await this.openConnectionsTab();
     expect(
       await this.isMirinaeButtonDisabled(this.exportConnectionButton),
     ).toBe(false);
@@ -369,11 +376,27 @@ export class SourceServicesPage {
     await expect(this.exportNotice).toBeVisible({ timeout: 10_000 });
   }
 
-  /** 확인을 눌러 실제 다운로드까지 받고 파일명을 돌려준다. */
-  async confirmExportAndDownload(): Promise<string> {
-    const download = this.page.waitForEvent('download', { timeout: 30_000 });
+  /** 확인을 눌러 실제 다운로드까지 받고, 파일명과 내용을 함께 돌려준다.
+   *  내용까지 읽는 이유는 암호화 컬럼이 정말 비어 있는지가 이 기능의 핵심 약속이라서다. */
+  async confirmExportAndDownload(): Promise<{
+    fileName: string;
+    content: string;
+  }> {
+    const downloadEvent = this.page.waitForEvent('download', {
+      timeout: 30_000,
+    });
     await this.exportConfirmButton.click();
-    return (await download).suggestedFilename();
+    const download = await downloadEvent;
+
+    const stream = await download.createReadStream();
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+
+    return {
+      fileName: download.suggestedFilename(),
+      // utf-8 BOM은 벗겨서 헤더 비교가 첫 컬럼에서 어긋나지 않게 한다.
+      content: Buffer.concat(chunks).toString('utf-8').replace(/^﻿/, ''),
+    };
   }
 
   /** 취소를 누르면 아무 일도 일어나지 않는다(안내 문구가 사라진다). */

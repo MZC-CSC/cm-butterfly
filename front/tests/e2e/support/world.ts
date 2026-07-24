@@ -44,6 +44,8 @@ export const scenarioState: {
   nginxFromMigration?: boolean;
   /** File name the browser was given for the last connection export (checked by the export step) */
   exportedFileName?: string;
+  /** Contents of that exported file, so the step can check the columns actually written */
+  exportedFileContent?: string;
 } = {};
 
 export function resetScenarioState(): void {
