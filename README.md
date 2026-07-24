@@ -212,3 +212,4 @@ If you run it through docker compose, you can see the login page by accessing `h
 | [Quick Start: Running a Migration](docs/guide/quick-start-migration.md) | Walk through a migration end to end — register the source, build the models, run the workflow |
 | [Bulk Import of Source Connections](docs/guide/source-connection-bulk-import.md) | Register many source connections at once from a CSV or Excel file |
 | [Running Workflow Tasks in Parallel](docs/guide/workflow-parallel-steps.md) | Place workflow tasks side by side so they run at the same time |
+| [Reading the Run Status Screen](docs/guide/workflow-run-status.md) | What the run view shows at each moment — progress, waiting, failures, and running part of it again |

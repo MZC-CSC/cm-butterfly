@@ -680,6 +680,7 @@ async function onRunChange(runId: string) {
         <div
           v-if="runStarting"
           class="run-viewer__starting"
+          :class="{ 'run-viewer__starting--inflow': runStartTimedOut }"
           data-testid="workflow-run-starting"
         >
           <!--
@@ -705,13 +706,19 @@ async function onRunChange(runId: string) {
               class="run-viewer__starting-title run-viewer__starting-title--warn"
               data-testid="workflow-run-start-timeout"
             >
-              The new run still cannot be found
+              Cannot find the run information yet
+            </p>
+            <!--
+              One sentence per line. Run together as a single paragraph, the three things this
+              says — what happened, what it might mean, what we are asking — blur into one.
+            -->
+            <p class="run-viewer__starting-hint">
+              It has been a while, but the run you started has not appeared yet.
             </p>
             <p class="run-viewer__starting-hint">
-              It has been a while, and the run you started has still not
-              appeared in the run history. Something may be wrong with the
-              server. What would you like to do?
+              Something may be wrong with the server.
             </p>
+            <p class="run-viewer__starting-hint">What would you like to do?</p>
             <p
               v-if="runStartError"
               class="run-viewer__starting-error"
@@ -741,7 +748,12 @@ async function onRunChange(runId: string) {
               "Cancel" is about *this wait*, not about the run. Nothing here stops a run, and a
               user who reads it the other way would walk away believing they had stopped it.
             -->
-            <p class="run-viewer__starting-hint">
+            <!--
+              Sits apart from the buttons on purpose. Pressed up against them it reads as a
+              label *on* the buttons, and the error box above starts to look as though it
+              contained them too.
+            -->
+            <p class="run-viewer__starting-hint run-viewer__starting-note">
               Cancelling stops waiting only — it does not stop the run, which
               may still be going. The screen is refreshed so it shows where
               things actually stand.
@@ -1428,6 +1440,18 @@ async function onRunChange(runId: string) {
   text-align: center;
 }
 
+/*
+  While waiting it floats over the graph — it is two short lines and the graph underneath is
+  worth keeping in view. Once it turns into a message with buttons it no longer fits inside a
+  small graph box, and an overlay would simply clip the title off the top. So that state takes
+  its place in the flow and the box grows with it (the graph beneath stays dimmed either way).
+*/
+.run-viewer__starting--inflow {
+  position: static;
+  background: transparent;
+  padding: 1rem 0.75rem 0.5rem;
+}
+
 .run-viewer__starting-title {
   font-weight: 600;
   font-size: 0.8125rem;
@@ -1446,6 +1470,7 @@ async function onRunChange(runId: string) {
 
 .run-viewer__starting-error {
   max-width: 22rem;
+  margin-top: 0.5rem;
   padding: 0.375rem 0.5rem;
   border-radius: 0.25rem;
   background: #fdf3f3;
@@ -1457,7 +1482,12 @@ async function onRunChange(runId: string) {
 .run-viewer__starting-actions {
   display: flex;
   gap: 0.5rem;
-  margin: 0.25rem 0;
+  margin: 0.875rem 0 0;
+}
+
+/* keep the caveat off the buttons — see the template comment */
+.run-viewer__starting-note {
+  margin-top: 0.875rem;
 }
 
 .run-viewer__graph {
