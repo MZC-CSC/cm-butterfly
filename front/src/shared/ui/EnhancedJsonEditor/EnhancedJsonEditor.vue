@@ -14,6 +14,15 @@ interface Props {
   modelValue?: string | object;
   /** Editor mode: 'tree' | 'text' | 'table' */
   mode?: 'tree' | 'text' | 'table';
+  /**
+   * What the "table" mode shows.
+   * - 'native' (default): the library table mode, which edits an array as rows
+   *   (insert / duplicate / remove a row). Only an array can be opened this way;
+   *   for an object document the library offers its nested arrays to open.
+   * - 'grid': the Property Grid, a flat key/value view of the whole document
+   *   with search and depth expansion. It edits leaf values only - no rows.
+   */
+  tableView?: 'native' | 'grid';
   /** Read-only mode */
   readOnly?: boolean;
   /** Main menu bar visible */
@@ -37,6 +46,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   modelValue: () => ({}),
   mode: 'tree',
+  tableView: 'native',
   readOnly: false,
   mainMenuBar: true,
   navigationBar: true,
@@ -61,7 +71,13 @@ const editorRef = ref<HTMLElement | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 let editorInstance: JSONEditor | null = null;
 const currentMode = ref<Mode>(props.mode as Mode);
-const showPropertyGrid = ref(props.mode === 'table');
+// The Property Grid stands in for table mode only where it is asked for.
+const usePropertyGrid = computed(() => props.tableView === 'grid');
+const showPropertyGrid = ref(
+  props.mode === 'table' && props.tableView === 'grid',
+);
+// Mode to restore when the Property Grid closes.
+const modeBeforeGrid = ref<Mode>(Mode.tree);
 const hasError = ref(false);
 const errorMessage = ref('');
 
@@ -106,7 +122,14 @@ function contentToString(content: Content): string {
 // Import only in an editable editor (when readOnly, the button is not shown at all)
 const showImport = computed(() => props.allowImport && !props.readOnly);
 const showExport = computed(() => props.allowExport);
-const showToolbar = computed(() => showImport.value || showExport.value);
+// Where the menu's "table" button opens the library table mode, the Property Grid
+// needs its own way in - otherwise restoring table mode would take the grid away.
+const showGridButton = computed(
+  () => !usePropertyGrid.value && !showPropertyGrid.value,
+);
+const showToolbar = computed(
+  () => showImport.value || showExport.value || showGridButton.value,
+);
 
 function setError(message: string) {
   hasError.value = true;
@@ -223,7 +246,10 @@ function initEditor() {
 
   const editorProps: JSONEditorPropsOptional = {
     content: toContent(props.modelValue),
-    mode: currentMode.value === Mode.table ? Mode.tree : currentMode.value,
+    mode:
+      currentMode.value === Mode.table && usePropertyGrid.value
+        ? Mode.tree
+        : currentMode.value,
     readOnly: props.readOnly,
     // Force mainMenuBar to show even when readOnly is true
     mainMenuBar: props.mainMenuBar,
@@ -244,8 +270,9 @@ function initEditor() {
     },
     onChangeMode: (mode: Mode) => {
       currentMode.value = mode;
-      // When user clicks "table" in vanilla-jsoneditor menu, show Property Grid instead
-      if (mode === Mode.table) {
+      // Where the Property Grid stands in for table mode, take over the menu's
+      // "table" click. Otherwise let the library open its own table mode.
+      if (mode === Mode.table && usePropertyGrid.value) {
         showPropertyGrid.value = true;
         // Switch vanilla-jsoneditor back to tree (so it's ready when user switches back)
         nextTick(() => {
@@ -345,13 +372,26 @@ function handlePropertyGridUpdate(value: string) {
   }
 }
 
+// Open the Property Grid on top of the editor. Where the grid does not stand in
+// for table mode, this button is the only way in - remember the mode we came from
+// so leaving the grid puts the editor back where the user left it.
+function openPropertyGrid() {
+  modeBeforeGrid.value =
+    currentMode.value === Mode.table && usePropertyGrid.value
+      ? Mode.tree
+      : currentMode.value;
+  showPropertyGrid.value = true;
+}
+
 function switchToEditor() {
   showPropertyGrid.value = false;
-  currentMode.value = Mode.tree;
+  currentMode.value = modeBeforeGrid.value;
 
-  // Expand all when switching back to Tree mode
   nextTick(() => {
-    if (editorInstance) {
+    if (!editorInstance) return;
+    editorInstance.updateProps({ mode: modeBeforeGrid.value });
+    // Expand all when switching back to Tree mode
+    if (modeBeforeGrid.value === Mode.tree) {
       editorInstance.expand(() => true);
     }
   });
@@ -370,9 +410,13 @@ defineExpose({
     if (!editorInstance) return;
     try {
       // Property Grid is our custom mode
-      if (mode === 'table' || mode === Mode.table) {
+      if ((mode === 'table' || mode === Mode.table) && usePropertyGrid.value) {
         showPropertyGrid.value = true;
         editorInstance.updateProps({ mode: Mode.tree });
+      } else if (mode === 'table' || mode === Mode.table) {
+        showPropertyGrid.value = false;
+        editorInstance.updateProps({ mode: Mode.table });
+        currentMode.value = Mode.table;
       } else {
         showPropertyGrid.value = false;
         const editorMode = mode === 'tree' ? Mode.tree : Mode.text;
@@ -448,6 +492,16 @@ defineExpose({
         @click="handleExport"
       >
         ↓ Export
+      </button>
+      <button
+        v-if="showGridButton"
+        type="button"
+        class="file-btn"
+        data-testid="json-editor-grid-toggle"
+        title="Property Grid: flat key/value list of the whole document, with search and depth expansion"
+        @click="openPropertyGrid"
+      >
+        ⊞ Grid
       </button>
       <input
         ref="fileInputRef"
