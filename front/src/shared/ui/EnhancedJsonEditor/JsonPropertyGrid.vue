@@ -244,9 +244,17 @@ function copyOf(value: any): any {
   return JSON.parse(JSON.stringify(value ?? null));
 }
 
-// "One more like this" - only meaningful for an array or one of its entries.
-function canAdd(row: FlatRow): boolean {
-  return canEdit.value && (row.valueType === 'array' || row.isArrayItem);
+/*
+  Duplicate means one thing everywhere: copy this row, put the copy right below it.
+
+  It used to also sit on the list row itself, where clicking it appended a child
+  instead of copying the row - the same icon meaning two different things depending
+  on where it sat. On a list row people reasonably expect the list to be copied, so
+  the button is simply not offered there. A list is filled by duplicating one of its
+  entries, which is the case that matters.
+*/
+function canDuplicate(row: FlatRow): boolean {
+  return canEdit.value && row.isArrayItem;
 }
 
 function canRemove(row: FlatRow): boolean {
@@ -254,27 +262,17 @@ function canRemove(row: FlatRow): boolean {
 }
 
 /*
-  Add an entry carrying the same keys as the one it was copied from, so a new
-  firewall rule arrives with every column in place and only the values to change.
+  The copy carries the same keys as the entry it came from, so a new firewall rule
+  arrives with every column in place and only the values to change.
 */
-function addLike(row: FlatRow) {
-  if (!canAdd(row)) return;
+function duplicateRow(row: FlatRow) {
+  if (!canDuplicate(row)) return;
   const data = cloneData();
+  const container = containerOf(data, row.keys);
+  if (!Array.isArray(container)) return;
 
-  if (row.valueType === 'array') {
-    let target = data;
-    for (const key of row.keys) target = target[key];
-    if (!Array.isArray(target)) return;
-    target.push(copyOf(target.length ? target[target.length - 1] : ''));
-    // Show what was just added rather than leaving it folded away.
-    expandedPaths.value = new Set([...expandedPaths.value, row.path]);
-  } else {
-    const container = containerOf(data, row.keys);
-    if (!Array.isArray(container)) return;
-    const index = Number(row.keys[row.keys.length - 1]);
-    container.splice(index + 1, 0, copyOf(container[index]));
-  }
-
+  const index = Number(row.keys[row.keys.length - 1]);
+  container.splice(index + 1, 0, copyOf(container[index]));
   commit(data);
 }
 
@@ -289,39 +287,13 @@ function removeRow(row: FlatRow) {
   commit(data);
 }
 
-/*
-  Hover hint - a real layer rather than the browser's title attribute, so the
-  wording can explain what "+" does here. A plus usually means "a new empty row";
-  ours copies the entry it sits on, and that is worth saying in words.
-*/
-const hint = ref<{ x: number; y: number; text: string } | null>(null);
-
-function showHint(event: MouseEvent, text: string) {
-  const el = event.currentTarget as HTMLElement;
-  const box = el.getBoundingClientRect();
-  hint.value = { x: box.left + box.width / 2, y: box.top, text };
-}
-
-function hideHint() {
-  hint.value = null;
-}
-
-const removeHint =
-  'Remove this entry from the document. Nothing else is touched.';
-
-function addHint(row: FlatRow): string {
-  return row.valueType === 'array'
-    ? 'Duplicate the last entry of this list. The copy lands at the end with every field already in place - only the values need changing.'
-    : 'Duplicate this entry. The copy lands just below with every field already in place - only the values need changing.';
-}
-
 /* Right-click menu - the row buttons sit at the far right of a wide table, which
    is a long way to travel when the row you want is on the left. */
 const rowMenu = ref<{ x: number; y: number; row: FlatRow } | null>(null);
 
 function openRowMenu(event: MouseEvent, row: FlatRow) {
   if (!canEdit.value) return;
-  if (!canAdd(row) && !canRemove(row)) return;
+  if (!canDuplicate(row) && !canRemove(row)) return;
   event.preventDefault();
   rowMenu.value = { x: event.clientX, y: event.clientY, row };
 }
@@ -330,11 +302,11 @@ function closeRowMenu() {
   rowMenu.value = null;
 }
 
-function runFromMenu(action: 'add' | 'remove') {
+function runFromMenu(action: 'duplicate' | 'remove') {
   const row = rowMenu.value?.row;
   closeRowMenu();
   if (!row) return;
-  if (action === 'add') addLike(row);
+  if (action === 'duplicate') duplicateRow(row);
   else removeRow(row);
 }
 
@@ -482,13 +454,13 @@ function cancelEdit() {
             <!-- Row actions -->
             <td v-if="canEdit" class="pg-cell-actions">
               <button
-                v-if="canAdd(row)"
+                v-if="canDuplicate(row)"
                 class="pg-row-btn"
                 data-testid="json-grid-row-duplicate"
-                @click="addLike(row)"
-                @mouseenter="showHint($event, addHint(row))"
+                @click="duplicateRow(row)"
+                @mouseenter="showHint($event, duplicateHint)"
                 @mouseleave="hideHint"
-                @focus="showHint($event, addHint(row))"
+                @focus="showHint($event, duplicateHint)"
                 @blur="hideHint"
               >
                 <svg class="pg-row-icon" viewBox="0 0 16 16" aria-hidden="true">
@@ -546,10 +518,10 @@ function cancelEdit() {
       @click.stop
     >
       <button
-        v-if="canAdd(rowMenu.row)"
+        v-if="canDuplicate(rowMenu.row)"
         class="pg-menu-item"
         data-testid="json-grid-menu-duplicate"
-        @click="runFromMenu('add')"
+        @click="runFromMenu('duplicate')"
       >
         Duplicate this entry
       </button>

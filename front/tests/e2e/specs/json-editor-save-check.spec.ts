@@ -101,7 +101,8 @@ test.describe('JSON 에디터 — 편집·가져오기 결과가 저장되는지
     await openGrid();
 
     const edited = `e2e-save-${STAMP}`;
-    await rowOf('nodeGroups')
+    // Duplicate an entry of the list, not the list row - the button only sits on entries.
+    await rowOf('[0]')
       .locator('[data-testid="json-grid-row-duplicate"]')
       .click({ force: true });
     await page.waitForTimeout(1_200);
