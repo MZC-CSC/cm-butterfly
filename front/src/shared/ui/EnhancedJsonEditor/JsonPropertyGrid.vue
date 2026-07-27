@@ -335,6 +335,26 @@ function removeRow(row: FlatRow) {
   commit(data);
 }
 
+/*
+  Hover hint - a real layer rather than the browser's tooltip, so the wording can
+  say what the duplicate button does: it copies the entry it sits on rather than
+  adding an empty one, and the copy lands right below.
+*/
+const hint = ref<{ x: number; y: number; text: string } | null>(null);
+const duplicateHint =
+  'Duplicate this entry. The copy lands just below it with every field already in place - only the values need changing.';
+const removeHint =
+  'Remove this entry from the document. Nothing else is touched.';
+
+function showHint(event: MouseEvent | FocusEvent, text: string) {
+  const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  hint.value = { x: box.left + box.width / 2, y: box.top, text };
+}
+
+function hideHint() {
+  hint.value = null;
+}
+
 /* Right-click menu - the row buttons sit at the far right of a wide table, which
    is a long way to travel when the row you want is on the left. */
 const rowMenu = ref<{ x: number; y: number; row: FlatRow } | null>(null);
