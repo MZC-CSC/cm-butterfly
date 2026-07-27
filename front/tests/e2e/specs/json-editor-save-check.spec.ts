@@ -54,7 +54,7 @@ test.describe('JSON 에디터 — 편집·가져오기 결과가 저장되는지
     const openGrid = async () => {
       await page.locator('.jse-menu button[title*="table" i]').first().click();
       await page.waitForTimeout(1_500);
-      await page.getByTitle('Expand All').first().click();
+      await page.getByTitle('Expand all').first().click();
       await page.waitForTimeout(1_500);
     };
 

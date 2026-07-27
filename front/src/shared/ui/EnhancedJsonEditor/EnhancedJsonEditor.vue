@@ -77,8 +77,6 @@ const currentMode = ref<Mode>(props.mode as Mode);
   and the grid, which flattens any document to key/value rows, takes its place.
 */
 const showPropertyGrid = ref(props.mode === 'table');
-// Mode to restore when the Property Grid closes.
-const modeBeforeGrid = ref<Mode>(Mode.tree);
 const hasError = ref(false);
 const errorMessage = ref('');
 
@@ -246,7 +244,7 @@ function initEditor() {
 
   const editorProps: JSONEditorPropsOptional = {
     content: toContent(props.modelValue),
-    mode: currentMode.value === Mode.table ? Mode.tree : currentMode.value,
+    mode: currentMode.value,
     readOnly: props.readOnly,
     // Force mainMenuBar to show even when readOnly is true
     mainMenuBar: props.mainMenuBar,
@@ -266,22 +264,9 @@ function initEditor() {
       emit('change', { content, previousContent, changeStatus });
     },
     onChangeMode: (mode: Mode) => {
-      const previous = currentMode.value;
       currentMode.value = mode;
-      // Take over the menu's "table" click - see the note by showPropertyGrid.
-      if (mode === Mode.table) {
-        // The editor underneath drops back to tree, so remember where to return.
-        modeBeforeGrid.value = previous === Mode.table ? Mode.tree : previous;
-        showPropertyGrid.value = true;
-        // Switch vanilla-jsoneditor back to tree (so it's ready when user switches back)
-        nextTick(() => {
-          if (editorInstance) {
-            editorInstance.updateProps({ mode: Mode.tree });
-          }
-        });
-      } else {
-        showPropertyGrid.value = false;
-      }
+      // The grid stands in for table mode - see the note by showPropertyGrid.
+      showPropertyGrid.value = mode === Mode.table;
       emit('update:mode', mode);
     },
     onError: (err: Error) => {
@@ -371,20 +356,6 @@ function handlePropertyGridUpdate(value: string) {
   }
 }
 
-function switchToEditor() {
-  showPropertyGrid.value = false;
-  currentMode.value = modeBeforeGrid.value;
-
-  nextTick(() => {
-    if (!editorInstance) return;
-    editorInstance.updateProps({ mode: modeBeforeGrid.value });
-    // Expand all when switching back to Tree mode
-    if (modeBeforeGrid.value === Mode.tree) {
-      editorInstance.expand(() => true);
-    }
-  });
-}
-
 // Expose methods for parent component
 defineExpose({
   getEditor: () => editorInstance,
@@ -397,10 +368,10 @@ defineExpose({
   setMode: (mode: 'tree' | 'text' | 'table') => {
     if (!editorInstance) return;
     try {
-      // Property Grid is our custom mode
       if (mode === 'table' || mode === Mode.table) {
         showPropertyGrid.value = true;
-        editorInstance.updateProps({ mode: Mode.tree });
+        editorInstance.updateProps({ mode: Mode.table });
+        currentMode.value = Mode.table;
       } else {
         showPropertyGrid.value = false;
         const editorMode = mode === 'tree' ? Mode.tree : Mode.text;
@@ -488,12 +459,6 @@ defineExpose({
 
     <!-- Property Grid view (replaces vanilla-jsoneditor table mode) -->
     <div v-if="showPropertyGrid" class="property-grid-wrapper">
-      <div class="pg-header">
-        <span class="pg-header-title">Property Grid</span>
-        <button class="pg-back-btn" @click="switchToEditor">
-          ← Back to Tree / Code
-        </button>
-      </div>
       <JsonPropertyGrid
         :data="modelValue"
         :read-only="readOnly"
@@ -502,7 +467,11 @@ defineExpose({
     </div>
 
     <!-- vanilla-jsoneditor (tree / text modes) -->
-    <div v-show="!showPropertyGrid" ref="editorRef" class="editor-container" />
+    <div
+      ref="editorRef"
+      class="editor-container"
+      :class="{ 'menu-only': showPropertyGrid }"
+    />
 
     <!-- Error indicator - also carries Import/Export failures, so it must show in Property Grid mode as well -->
     <div v-if="hasError" class="error-bar">
@@ -601,33 +570,22 @@ defineExpose({
   overflow: hidden;
 }
 
-.pg-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 12px;
-  background: #f3f4f6;
-  border-bottom: 1px solid #e5e7eb;
-  flex-shrink: 0;
-}
+/*
+  While the grid is showing, the library keeps its menu bar - that bar is how the
+  user moves between text, tree and table, and it marks which one they are on. Only
+  the editor's own content is hidden, and the grid takes that space.
+*/
+.editor-container.menu-only {
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
 
-.pg-header-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: #4b5563;
-}
+  :deep(.jse-main) {
+    min-height: 0 !important;
+  }
 
-.pg-back-btn {
-  padding: 3px 10px;
-  font-size: 11px;
-  color: #6366f1;
-  background: #ffffff;
-  border: 1px solid #c7d2fe;
-  border-radius: 3px;
-  cursor: pointer;
-
-  &:hover {
-    background: #eef2ff;
+  :deep(.jse-main > *:not(.jse-menu)) {
+    display: none !important;
   }
 }
 
