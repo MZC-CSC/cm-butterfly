@@ -465,10 +465,16 @@ defineExpose({
     />
 
     <!-- Property Grid view (replaces vanilla-jsoneditor table mode) -->
-    <div v-if="showPropertyGrid" class="property-grid-wrapper">
+    <!--
+      Kept mounted and merely hidden. Tearing it down on every mode change threw
+      inside Vue's own teardown and left the editor unable to open the grid again;
+      keeping it also preserves what the user had expanded and their undo history.
+    -->
+    <div v-show="showPropertyGrid" class="property-grid-wrapper">
       <JsonPropertyGrid
         :data="modelValue"
         :read-only="readOnly"
+        :active="showPropertyGrid"
         @update:data="handlePropertyGridUpdate"
       />
     </div>

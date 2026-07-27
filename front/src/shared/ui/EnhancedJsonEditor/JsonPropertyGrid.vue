@@ -4,10 +4,13 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 interface Props {
   data: any;
   readOnly?: boolean;
+  /** False while another view is on screen - keyboard shortcuts stay out of the way. */
+  active?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   readOnly: false,
+  active: true,
 });
 
 const emit = defineEmits<{
@@ -337,7 +340,7 @@ function removeRow(row: FlatRow) {
 const rowMenu = ref<{ x: number; y: number; row: FlatRow } | null>(null);
 
 function openRowMenu(event: MouseEvent, row: FlatRow) {
-  if (!canEdit.value) return;
+  if (!canEdit.value || !props.active) return;
   if (!canDuplicate(row) && !canRemove(row)) return;
   event.preventDefault();
   rowMenu.value = { x: event.clientX, y: event.clientY, row };
@@ -364,6 +367,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKeydown);
 });
 function onKeydown(e: KeyboardEvent) {
+  if (!props.active) return;
   if (e.key === 'Escape') {
     closeRowMenu();
     return;
