@@ -311,8 +311,8 @@ const removeHint =
 
 function addHint(row: FlatRow): string {
   return row.valueType === 'array'
-    ? 'Add an entry to this list. It is copied from the last entry, so it arrives with every field already in place - only the values need changing.'
-    : 'Add an entry just below this one, copied from it. Every field comes along, so only the values need changing.';
+    ? 'Duplicate the last entry of this list. The copy lands at the end with every field already in place - only the values need changing.'
+    : 'Duplicate this entry. The copy lands just below with every field already in place - only the values need changing.';
 }
 
 /* Right-click menu - the row buttons sit at the far right of a wide table, which
@@ -484,14 +484,21 @@ function cancelEdit() {
               <button
                 v-if="canAdd(row)"
                 class="pg-row-btn"
-                data-testid="json-grid-row-add"
+                data-testid="json-grid-row-duplicate"
                 @click="addLike(row)"
                 @mouseenter="showHint($event, addHint(row))"
                 @mouseleave="hideHint"
                 @focus="showHint($event, addHint(row))"
                 @blur="hideHint"
               >
-                +
+                <svg class="pg-row-icon" viewBox="0 0 16 16" aria-hidden="true">
+                  <path
+                    d="M10.5 1.5h-6a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-7a1 1 0 0 0-1-1Zm-6-1h6a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z"
+                  />
+                  <path
+                    d="M13.5 4.5a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-6a2 2 0 0 1-2-2v-.5h1v.5a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-7a1 1 0 0 0-1-1H13v-1h.5Z"
+                  />
+                </svg>
               </button>
               <button
                 v-if="canRemove(row)"
@@ -503,11 +510,7 @@ function cancelEdit() {
                 @focus="showHint($event, removeHint)"
                 @blur="hideHint"
               >
-                <svg
-                  class="pg-icon-trash"
-                  viewBox="0 0 16 16"
-                  aria-hidden="true"
-                >
+                <svg class="pg-row-icon" viewBox="0 0 16 16" aria-hidden="true">
                   <path
                     d="M6.5 1.5h3a.5.5 0 0 1 .5.5v.5h3a.5.5 0 0 1 0 1h-.554l-.7 9.1a1.5 1.5 0 0 1-1.496 1.4H5.75a1.5 1.5 0 0 1-1.496-1.4l-.7-9.1H3a.5.5 0 0 1 0-1h3V2a.5.5 0 0 1 .5-.5Zm-1.94 2 .69 9.024a.5.5 0 0 0 .5.476h4.5a.5.5 0 0 0 .5-.476l.69-9.024H4.56ZM7 5.5a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm2 0a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Z"
                   />
@@ -545,10 +548,10 @@ function cancelEdit() {
       <button
         v-if="canAdd(rowMenu.row)"
         class="pg-menu-item"
-        data-testid="json-grid-menu-add"
+        data-testid="json-grid-menu-duplicate"
         @click="runFromMenu('add')"
       >
-        + Add a copy of this entry
+        Duplicate this entry
       </button>
       <button
         v-if="canRemove(rowMenu.row)"
@@ -673,7 +676,12 @@ function cancelEdit() {
 }
 
 .pg-row-btn {
-  padding: 1px 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 20px;
+  padding: 0;
   margin-left: 2px;
   font-size: 12px;
   line-height: 1.4;
@@ -718,11 +726,12 @@ function cancelEdit() {
   pointer-events: none;
 }
 
-.pg-icon-trash {
-  width: 12px;
-  height: 12px;
+/* Both row icons share one box so they line up on the same baseline. */
+.pg-row-icon {
+  display: block;
+  width: 13px;
+  height: 13px;
   fill: currentcolor;
-  vertical-align: -1px;
 }
 
 .pg-menu {
