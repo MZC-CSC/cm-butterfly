@@ -457,6 +457,13 @@ defineExpose({
       />
     </div>
 
+    <!-- vanilla-jsoneditor - keeps the menu bar visible in every mode -->
+    <div
+      ref="editorRef"
+      class="editor-container"
+      :class="{ 'menu-only': showPropertyGrid }"
+    />
+
     <!-- Property Grid view (replaces vanilla-jsoneditor table mode) -->
     <div v-if="showPropertyGrid" class="property-grid-wrapper">
       <JsonPropertyGrid
@@ -465,13 +472,6 @@ defineExpose({
         @update:data="handlePropertyGridUpdate"
       />
     </div>
-
-    <!-- vanilla-jsoneditor (tree / text modes) -->
-    <div
-      ref="editorRef"
-      class="editor-container"
-      :class="{ 'menu-only': showPropertyGrid }"
-    />
 
     <!-- Error indicator - also carries Import/Export failures, so it must show in Property Grid mode as well -->
     <div v-if="hasError" class="error-bar">
