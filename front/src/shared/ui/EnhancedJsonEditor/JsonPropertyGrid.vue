@@ -346,6 +346,14 @@ function openRowMenu(event: MouseEvent, row: FlatRow) {
   rowMenu.value = { x: event.clientX, y: event.clientY, row };
 }
 
+/*
+  A click inside the menu must not reach the document listener that closes it.
+  The modifier alone would do, but Vue 2 then registers a listener with no
+  handler and throws while removing it - which corrupts the patch and, among
+  other things, stops cell edits from being applied.
+*/
+function keepMenuOpen() {}
+
 function closeRowMenu() {
   rowMenu.value = null;
 }
@@ -610,7 +618,7 @@ function cancelEdit() {
       class="pg-menu"
       data-testid="json-grid-row-menu"
       :style="{ left: rowMenu.x + 'px', top: rowMenu.y + 'px' }"
-      @click.stop
+      @click.stop="keepMenuOpen"
     >
       <button
         v-if="canDuplicate(rowMenu.row)"

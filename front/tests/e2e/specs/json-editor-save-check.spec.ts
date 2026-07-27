@@ -54,13 +54,14 @@ test.describe('JSON 에디터 — 편집·가져오기 결과가 저장되는지
     const openGrid = async () => {
       await page.locator('.jse-menu button[title*="table" i]').first().click();
       await page.waitForTimeout(1_500);
-      await page.getByTitle('Expand all').first().click();
+      // The library menu is on screen too and has a button by the same name.
+      await page.locator('.property-grid').getByTitle('Expand all').click();
       await page.waitForTimeout(1_500);
     };
 
     const rowOf = (key: string) =>
       page
-        .locator('.pg-row')
+        .locator('.property-grid .pg-row')
         .filter({ has: page.getByText(key, { exact: true }) })
         .first();
 
@@ -69,7 +70,7 @@ test.describe('JSON 에디터 — 편집·가져오기 결과가 저장되는지
 
     const editValue = async (key: string, text: string) => {
       await rowOf(key).locator('.pg-cell-value').dblclick();
-      const input = page.locator('.pg-edit-input');
+      const input = page.locator('.property-grid .pg-edit-input');
       await input.fill(text);
       await input.press('Enter');
       await page.waitForTimeout(800);
