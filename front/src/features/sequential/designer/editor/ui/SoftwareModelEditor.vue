@@ -292,7 +292,6 @@ function getFieldModel(field: any) {
             ref="jsonEditorRef"
             :model-value="softwareModelString"
             :mode="'tree'"
-            table-view="grid"
             :read-only="false"
             :main-menu-bar="true"
             :navigation-bar="true"

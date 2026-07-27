@@ -183,7 +183,6 @@ function encodeTaskGroups(taskGroups: any[]) {
           ref="jsonEditorRef"
           :model-value="updatedDataString"
           :mode="'tree'"
-          table-view="grid"
           :read-only="readOnly"
           :main-menu-bar="true"
           :navigation-bar="true"

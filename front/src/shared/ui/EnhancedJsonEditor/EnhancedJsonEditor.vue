@@ -15,12 +15,14 @@ interface Props {
   /** Editor mode: 'tree' | 'text' | 'table' */
   mode?: 'tree' | 'text' | 'table';
   /**
-   * What the "table" mode shows.
-   * - 'native' (default): the library table mode, which edits an array as rows
-   *   (insert / duplicate / remove a row). Only an array can be opened this way;
-   *   for an object document the library offers its nested arrays to open.
-   * - 'grid': the Property Grid, a flat key/value view of the whole document
-   *   with search and depth expansion. It edits leaf values only - no rows.
+   * What the menu's "table" button shows.
+   * - 'grid' (default): the Property Grid, a flat key/value view of the whole
+   *   document with search, depth expansion and row editing. It works on any
+   *   document, which is why it is the default - our models are objects at the
+   *   root, and the library table mode only opens arrays.
+   * - 'native': the library table mode, one row per array entry.
+   *
+   * Whichever is not the menu's target stays reachable from the toolbar.
    */
   tableView?: 'native' | 'grid';
   /** Read-only mode */
@@ -46,7 +48,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   modelValue: () => ({}),
   mode: 'tree',
-  tableView: 'native',
+  tableView: 'grid',
   readOnly: false,
   mainMenuBar: true,
   navigationBar: true,
@@ -73,6 +75,10 @@ let editorInstance: JSONEditor | null = null;
 const currentMode = ref<Mode>(props.mode as Mode);
 // The Property Grid stands in for table mode only where it is asked for.
 const usePropertyGrid = computed(() => props.tableView === 'grid');
+// Set while the user is in the library table mode on an editor whose menu
+// "table" button belongs to the grid - without it the interception below would
+// bounce them straight back to the grid.
+const forceNativeTable = ref(false);
 const showPropertyGrid = ref(
   props.mode === 'table' && props.tableView === 'grid',
 );
@@ -122,13 +128,20 @@ function contentToString(content: Content): string {
 // Import only in an editable editor (when readOnly, the button is not shown at all)
 const showImport = computed(() => props.allowImport && !props.readOnly);
 const showExport = computed(() => props.allowExport);
-// Where the menu's "table" button opens the library table mode, the Property Grid
-// needs its own way in - otherwise restoring table mode would take the grid away.
+// Whichever view the menu's "table" button does not open gets a toolbar button,
+// so both stay one click away on every editor.
 const showGridButton = computed(
   () => !usePropertyGrid.value && !showPropertyGrid.value,
 );
+const showTableButton = computed(
+  () => usePropertyGrid.value && !showPropertyGrid.value,
+);
 const showToolbar = computed(
-  () => showImport.value || showExport.value || showGridButton.value,
+  () =>
+    showImport.value ||
+    showExport.value ||
+    showGridButton.value ||
+    showTableButton.value,
 );
 
 function setError(message: string) {
@@ -272,7 +285,11 @@ function initEditor() {
       currentMode.value = mode;
       // Where the Property Grid stands in for table mode, take over the menu's
       // "table" click. Otherwise let the library open its own table mode.
-      if (mode === Mode.table && usePropertyGrid.value) {
+      if (
+        mode === Mode.table &&
+        usePropertyGrid.value &&
+        !forceNativeTable.value
+      ) {
         showPropertyGrid.value = true;
         // Switch vanilla-jsoneditor back to tree (so it's ready when user switches back)
         nextTick(() => {
@@ -282,6 +299,7 @@ function initEditor() {
         });
       } else {
         showPropertyGrid.value = false;
+        if (mode !== Mode.table) forceNativeTable.value = false;
       }
       emit('update:mode', mode);
     },
@@ -375,6 +393,16 @@ function handlePropertyGridUpdate(value: string) {
 // Open the Property Grid on top of the editor. Where the grid does not stand in
 // for table mode, this button is the only way in - remember the mode we came from
 // so leaving the grid puts the editor back where the user left it.
+// Open the library table mode where the menu's "table" button belongs to the grid.
+function openNativeTable() {
+  forceNativeTable.value = true;
+  showPropertyGrid.value = false;
+  currentMode.value = Mode.table;
+  nextTick(() => {
+    editorInstance?.updateProps({ mode: Mode.table });
+  });
+}
+
 function openPropertyGrid() {
   modeBeforeGrid.value =
     currentMode.value === Mode.table && usePropertyGrid.value
@@ -502,6 +530,16 @@ defineExpose({
         @click="openPropertyGrid"
       >
         ⊞ Grid
+      </button>
+      <button
+        v-if="showTableButton"
+        type="button"
+        class="file-btn"
+        data-testid="json-editor-table-toggle"
+        title="Table mode: one row per array entry. Opens arrays only - an object document offers its nested arrays"
+        @click="openNativeTable"
+      >
+        ▤ Table
       </button>
       <input
         ref="fileInputRef"

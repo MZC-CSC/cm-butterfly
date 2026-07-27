@@ -26,6 +26,8 @@ interface FlatRow {
   value: any;
   depth: number;
   path: string;
+  /** Path as segments. Used for every write - a key containing "." breaks a string path. */
+  keys: string[];
   isExpandable: boolean;
   isExpanded: boolean;
   valueType: string;
@@ -49,7 +51,13 @@ function getValueDisplay(row: FlatRow): string {
   return String(v);
 }
 
-function flattenJson(data: any, parentPath: string, depth: number, isArrayParent: boolean): FlatRow[] {
+function flattenJson(
+  data: any,
+  parentPath: string,
+  depth: number,
+  isArrayParent: boolean,
+  parentKeys: string[] = [],
+): FlatRow[] {
   const rows: FlatRow[] = [];
   if (data === null || data === undefined || typeof data !== 'object') return rows;
 
@@ -59,6 +67,7 @@ function flattenJson(data: any, parentPath: string, depth: number, isArrayParent
 
   for (const [key, value] of entries) {
     const path = `${parentPath}.${key}`;
+    const keys = [...parentKeys, key];
     const isExpandable = value !== null && typeof value === 'object';
     const isExpanded = expandedPaths.value.has(path);
 
@@ -68,6 +77,7 @@ function flattenJson(data: any, parentPath: string, depth: number, isArrayParent
       value,
       depth,
       path,
+      keys,
       isExpandable,
       isExpanded,
       valueType: getValueType(value),
@@ -78,7 +88,9 @@ function flattenJson(data: any, parentPath: string, depth: number, isArrayParent
     });
 
     if (isExpandable && isExpanded) {
-      rows.push(...flattenJson(value, path, depth + 1, Array.isArray(value)));
+      rows.push(
+        ...flattenJson(value, path, depth + 1, Array.isArray(value), keys),
+      );
     }
   }
 
@@ -190,6 +202,84 @@ function startEdit(row: FlatRow) {
   editValue.value = row.valueType === 'string' ? row.value : String(row.value);
 }
 
+/* Row operations
+   ------------------------------------------------------------------
+   The grid is the view people actually use on these documents, because the
+   library table mode only opens arrays and our models are objects at the root.
+   So adding a row has to work here: keep the keys of the row we copy from, and
+   the new entry arrives with every column already in place. */
+
+function cloneData(): any {
+  return JSON.parse(JSON.stringify(parsedData.value));
+}
+
+// Walk to the container that holds the row, so the last key can be written.
+function containerOf(data: any, keys: string[]): any {
+  let current = data;
+  for (const key of keys.slice(0, -1)) current = current[key];
+  return current;
+}
+
+function commit(data: any) {
+  emit('update:data', JSON.stringify(data, null, 2));
+}
+
+const canEdit = computed(() => !props.readOnly);
+
+// Only entries of an array or an object can be duplicated or removed.
+function isRemovable(row: FlatRow): boolean {
+  return canEdit.value && row.keys.length > 0;
+}
+
+function duplicateRow(row: FlatRow) {
+  if (!isRemovable(row)) return;
+  const data = cloneData();
+  const container = containerOf(data, row.keys);
+  const key = row.keys[row.keys.length - 1];
+
+  if (Array.isArray(container)) {
+    const index = Number(key);
+    container.splice(
+      index + 1,
+      0,
+      JSON.parse(JSON.stringify(container[index])),
+    );
+  } else {
+    let name = `${key}_copy`;
+    let n = 2;
+    while (name in container) name = `${key}_copy${n++}`;
+    container[name] = JSON.parse(JSON.stringify(container[key]));
+  }
+  commit(data);
+}
+
+function removeRow(row: FlatRow) {
+  if (!isRemovable(row)) return;
+  const data = cloneData();
+  const container = containerOf(data, row.keys);
+  const key = row.keys[row.keys.length - 1];
+
+  if (Array.isArray(container)) container.splice(Number(key), 1);
+  else delete container[key];
+  commit(data);
+}
+
+// Add an entry to the array on this row, shaped like the entry already there.
+function addArrayItem(row: FlatRow) {
+  if (!canEdit.value || row.valueType !== 'array') return;
+  const data = cloneData();
+  let target = data;
+  for (const key of row.keys) target = target[key];
+  if (!Array.isArray(target)) return;
+
+  const last = target.length ? target[target.length - 1] : '';
+  target.push(JSON.parse(JSON.stringify(last)));
+
+  // Show what was just added rather than leaving it folded away.
+  expandedPaths.value = new Set([...expandedPaths.value, row.path]);
+  commit(data);
+}
+
 function confirmEdit(row: FlatRow) {
   if (!editingPath.value) return;
 
@@ -205,15 +295,10 @@ function confirmEdit(row: FlatRow) {
   }
 
   // Apply change to data
-  const pathParts = row.path.replace('$.', '').split('.');
-  const newData = JSON.parse(JSON.stringify(parsedData.value));
-  let current: any = newData;
-  for (let i = 0; i < pathParts.length - 1; i++) {
-    current = current[pathParts[i]];
-  }
-  current[pathParts[pathParts.length - 1]] = newValue;
+  const newData = cloneData();
+  containerOf(newData, row.keys)[row.keys[row.keys.length - 1]] = newValue;
 
-  emit('update:data', JSON.stringify(newData, null, 2));
+  commit(newData);
   editingPath.value = null;
 }
 
@@ -263,6 +348,7 @@ function cancelEdit() {
           <tr>
             <th class="pg-th-key">Property</th>
             <th class="pg-th-value">Value</th>
+            <th v-if="canEdit" class="pg-th-actions">Row</th>
           </tr>
         </thead>
         <tbody>
@@ -321,9 +407,40 @@ function cancelEdit() {
                 </template>
               </template>
             </td>
+
+            <!-- Row actions -->
+            <td v-if="canEdit" class="pg-cell-actions">
+              <button
+                v-if="row.valueType === 'array'"
+                class="pg-row-btn"
+                data-testid="json-grid-array-add"
+                title="Add an entry shaped like the last one"
+                @click="addArrayItem(row)"
+              >
+                +
+              </button>
+              <button
+                v-if="isRemovable(row)"
+                class="pg-row-btn"
+                data-testid="json-grid-row-duplicate"
+                title="Duplicate this entry"
+                @click="duplicateRow(row)"
+              >
+                &#10697;
+              </button>
+              <button
+                v-if="isRemovable(row)"
+                class="pg-row-btn pg-row-btn-danger"
+                data-testid="json-grid-row-remove"
+                title="Remove this entry"
+                @click="removeRow(row)"
+              >
+                &#10005;
+              </button>
+            </td>
           </tr>
           <tr v-if="filteredRows.length === 0">
-            <td colspan="2" class="pg-empty">
+            <td :colspan="canEdit ? 3 : 2" class="pg-empty">
               {{ searchQuery ? 'No matching results' : 'Empty data' }}
             </td>
           </tr>
@@ -407,7 +524,8 @@ function cancelEdit() {
 }
 
 .pg-th-key,
-.pg-th-value {
+.pg-th-value,
+.pg-th-actions {
   position: sticky;
   top: 0;
   padding: 6px 8px;
@@ -428,6 +546,49 @@ function cancelEdit() {
 
 .pg-th-value {
   width: 55%;
+}
+
+.pg-th-actions {
+  width: 92px;
+  text-align: right;
+}
+
+.pg-cell-actions {
+  padding: 3px 6px;
+  text-align: right;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.pg-row-btn {
+  padding: 1px 6px;
+  margin-left: 2px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #4b5563;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 3px;
+  cursor: pointer;
+  opacity: 0;
+
+  &:hover {
+    background: #eef2ff;
+    border-color: #c7d2fe;
+    color: #4f46e5;
+  }
+}
+
+.pg-row-btn-danger:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+/* Keep the row quiet until it is the one being worked on. */
+.pg-row:hover .pg-row-btn,
+.pg-row-btn:focus {
+  opacity: 1;
 }
 
 .pg-row {
