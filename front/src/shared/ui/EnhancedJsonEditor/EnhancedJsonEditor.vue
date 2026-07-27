@@ -584,7 +584,12 @@ defineExpose({
     min-height: 0 !important;
   }
 
-  :deep(.jse-main > *:not(.jse-menu)) {
+  /*
+    The menu bar is not a direct child of .jse-main - it sits inside the wrapper
+    for the current mode (.jse-table-mode and friends). Hiding that wrapper takes
+    the menu with it, so hide what is beside the menu instead.
+  */
+  :deep(.jse-main > * > *:not(.jse-menu)) {
     display: none !important;
   }
 }
