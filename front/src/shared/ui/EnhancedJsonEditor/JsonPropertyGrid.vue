@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 
 interface Props {
   data: any;
@@ -175,10 +175,23 @@ function expandToDepth(maxDepth: number) {
   expandedPaths.value = paths;
 }
 
-// Default: expand first 2 levels
-watch(parsedData, () => {
-  expandToDepth(2);
-}, { immediate: true });
+/*
+  Default: expand first 2 levels.
+  Our own edits come back through props, and collapsing the tree back to depth 2
+  on every one of them would hide the entry the user just added.
+*/
+const selfEdit = ref(false);
+watch(
+  parsedData,
+  () => {
+    if (selfEdit.value) {
+      selfEdit.value = false;
+      return;
+    }
+    expandToDepth(2);
+  },
+  { immediate: true },
+);
 
 function getTypeClass(type: string): string {
   const map: Record<string, string> = {
@@ -221,40 +234,52 @@ function containerOf(data: any, keys: string[]): any {
 }
 
 function commit(data: any) {
+  selfEdit.value = true;
   emit('update:data', JSON.stringify(data, null, 2));
 }
 
 const canEdit = computed(() => !props.readOnly);
 
-// Only entries of an array or an object can be duplicated or removed.
-function isRemovable(row: FlatRow): boolean {
+function copyOf(value: any): any {
+  return JSON.parse(JSON.stringify(value ?? null));
+}
+
+// "One more like this" - only meaningful for an array or one of its entries.
+function canAdd(row: FlatRow): boolean {
+  return canEdit.value && (row.valueType === 'array' || row.isArrayItem);
+}
+
+function canRemove(row: FlatRow): boolean {
   return canEdit.value && row.keys.length > 0;
 }
 
-function duplicateRow(row: FlatRow) {
-  if (!isRemovable(row)) return;
+/*
+  Add an entry carrying the same keys as the one it was copied from, so a new
+  firewall rule arrives with every column in place and only the values to change.
+*/
+function addLike(row: FlatRow) {
+  if (!canAdd(row)) return;
   const data = cloneData();
-  const container = containerOf(data, row.keys);
-  const key = row.keys[row.keys.length - 1];
 
-  if (Array.isArray(container)) {
-    const index = Number(key);
-    container.splice(
-      index + 1,
-      0,
-      JSON.parse(JSON.stringify(container[index])),
-    );
+  if (row.valueType === 'array') {
+    let target = data;
+    for (const key of row.keys) target = target[key];
+    if (!Array.isArray(target)) return;
+    target.push(copyOf(target.length ? target[target.length - 1] : ''));
+    // Show what was just added rather than leaving it folded away.
+    expandedPaths.value = new Set([...expandedPaths.value, row.path]);
   } else {
-    let name = `${key}_copy`;
-    let n = 2;
-    while (name in container) name = `${key}_copy${n++}`;
-    container[name] = JSON.parse(JSON.stringify(container[key]));
+    const container = containerOf(data, row.keys);
+    if (!Array.isArray(container)) return;
+    const index = Number(row.keys[row.keys.length - 1]);
+    container.splice(index + 1, 0, copyOf(container[index]));
   }
+
   commit(data);
 }
 
 function removeRow(row: FlatRow) {
-  if (!isRemovable(row)) return;
+  if (!canRemove(row)) return;
   const data = cloneData();
   const container = containerOf(data, row.keys);
   const key = row.keys[row.keys.length - 1];
@@ -264,20 +289,65 @@ function removeRow(row: FlatRow) {
   commit(data);
 }
 
-// Add an entry to the array on this row, shaped like the entry already there.
-function addArrayItem(row: FlatRow) {
-  if (!canEdit.value || row.valueType !== 'array') return;
-  const data = cloneData();
-  let target = data;
-  for (const key of row.keys) target = target[key];
-  if (!Array.isArray(target)) return;
+/*
+  Hover hint - a real layer rather than the browser's title attribute, so the
+  wording can explain what "+" does here. A plus usually means "a new empty row";
+  ours copies the entry it sits on, and that is worth saying in words.
+*/
+const hint = ref<{ x: number; y: number; text: string } | null>(null);
 
-  const last = target.length ? target[target.length - 1] : '';
-  target.push(JSON.parse(JSON.stringify(last)));
+function showHint(event: MouseEvent, text: string) {
+  const el = event.currentTarget as HTMLElement;
+  const box = el.getBoundingClientRect();
+  hint.value = { x: box.left + box.width / 2, y: box.top, text };
+}
 
-  // Show what was just added rather than leaving it folded away.
-  expandedPaths.value = new Set([...expandedPaths.value, row.path]);
-  commit(data);
+function hideHint() {
+  hint.value = null;
+}
+
+const removeHint =
+  'Remove this entry from the document. Nothing else is touched.';
+
+function addHint(row: FlatRow): string {
+  return row.valueType === 'array'
+    ? 'Add an entry to this list. It is copied from the last entry, so it arrives with every field already in place - only the values need changing.'
+    : 'Add an entry just below this one, copied from it. Every field comes along, so only the values need changing.';
+}
+
+/* Right-click menu - the row buttons sit at the far right of a wide table, which
+   is a long way to travel when the row you want is on the left. */
+const rowMenu = ref<{ x: number; y: number; row: FlatRow } | null>(null);
+
+function openRowMenu(event: MouseEvent, row: FlatRow) {
+  if (!canEdit.value) return;
+  if (!canAdd(row) && !canRemove(row)) return;
+  event.preventDefault();
+  rowMenu.value = { x: event.clientX, y: event.clientY, row };
+}
+
+function closeRowMenu() {
+  rowMenu.value = null;
+}
+
+function runFromMenu(action: 'add' | 'remove') {
+  const row = rowMenu.value?.row;
+  closeRowMenu();
+  if (!row) return;
+  if (action === 'add') addLike(row);
+  else removeRow(row);
+}
+
+onMounted(() => {
+  document.addEventListener('click', closeRowMenu);
+  document.addEventListener('keydown', onEscape);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener('click', closeRowMenu);
+  document.removeEventListener('keydown', onEscape);
+});
+function onEscape(e: KeyboardEvent) {
+  if (e.key === 'Escape') closeRowMenu();
 }
 
 function confirmEdit(row: FlatRow) {
@@ -356,6 +426,7 @@ function cancelEdit() {
             v-for="row in filteredRows"
             :key="row.path"
             :class="['pg-row', `depth-${Math.min(row.depth, 8)}`]"
+            @contextmenu="openRowMenu($event, row)"
           >
             <!-- Key column -->
             <td
@@ -411,31 +482,36 @@ function cancelEdit() {
             <!-- Row actions -->
             <td v-if="canEdit" class="pg-cell-actions">
               <button
-                v-if="row.valueType === 'array'"
+                v-if="canAdd(row)"
                 class="pg-row-btn"
-                data-testid="json-grid-array-add"
-                title="Add an entry shaped like the last one"
-                @click="addArrayItem(row)"
+                data-testid="json-grid-row-add"
+                @click="addLike(row)"
+                @mouseenter="showHint($event, addHint(row))"
+                @mouseleave="hideHint"
+                @focus="showHint($event, addHint(row))"
+                @blur="hideHint"
               >
                 +
               </button>
               <button
-                v-if="isRemovable(row)"
-                class="pg-row-btn"
-                data-testid="json-grid-row-duplicate"
-                title="Duplicate this entry"
-                @click="duplicateRow(row)"
-              >
-                &#10697;
-              </button>
-              <button
-                v-if="isRemovable(row)"
+                v-if="canRemove(row)"
                 class="pg-row-btn pg-row-btn-danger"
                 data-testid="json-grid-row-remove"
-                title="Remove this entry"
                 @click="removeRow(row)"
+                @mouseenter="showHint($event, removeHint)"
+                @mouseleave="hideHint"
+                @focus="showHint($event, removeHint)"
+                @blur="hideHint"
               >
-                &#10005;
+                <svg
+                  class="pg-icon-trash"
+                  viewBox="0 0 16 16"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M6.5 1.5h3a.5.5 0 0 1 .5.5v.5h3a.5.5 0 0 1 0 1h-.554l-.7 9.1a1.5 1.5 0 0 1-1.496 1.4H5.75a1.5 1.5 0 0 1-1.496-1.4l-.7-9.1H3a.5.5 0 0 1 0-1h3V2a.5.5 0 0 1 .5-.5Zm-1.94 2 .69 9.024a.5.5 0 0 0 .5.476h4.5a.5.5 0 0 0 .5-.476l.69-9.024H4.56ZM7 5.5a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm2 0a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Z"
+                  />
+                </svg>
               </button>
             </td>
           </tr>
@@ -446,6 +522,42 @@ function cancelEdit() {
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <!-- Hover hint -->
+    <div
+      v-if="hint"
+      class="pg-hint"
+      data-testid="json-grid-hint"
+      :style="{ left: hint.x + 'px', top: hint.y + 'px' }"
+    >
+      {{ hint.text }}
+    </div>
+
+    <!-- Right-click menu -->
+    <div
+      v-if="rowMenu"
+      class="pg-menu"
+      data-testid="json-grid-row-menu"
+      :style="{ left: rowMenu.x + 'px', top: rowMenu.y + 'px' }"
+      @click.stop
+    >
+      <button
+        v-if="canAdd(rowMenu.row)"
+        class="pg-menu-item"
+        data-testid="json-grid-menu-add"
+        @click="runFromMenu('add')"
+      >
+        + Add a copy of this entry
+      </button>
+      <button
+        v-if="canRemove(rowMenu.row)"
+        class="pg-menu-item pg-menu-item-danger"
+        data-testid="json-grid-menu-remove"
+        @click="runFromMenu('remove')"
+      >
+        Remove this entry
+      </button>
     </div>
   </div>
 </template>
@@ -589,6 +701,62 @@ function cancelEdit() {
 .pg-row:hover .pg-row-btn,
 .pg-row-btn:focus {
   opacity: 1;
+}
+
+.pg-hint {
+  position: fixed;
+  z-index: 60;
+  max-width: 260px;
+  padding: 6px 9px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #f9fafb;
+  background: #111827;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+  transform: translate(-50%, calc(-100% - 8px));
+  pointer-events: none;
+}
+
+.pg-icon-trash {
+  width: 12px;
+  height: 12px;
+  fill: currentcolor;
+  vertical-align: -1px;
+}
+
+.pg-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 148px;
+  padding: 4px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 12%);
+}
+
+.pg-menu-item {
+  display: block;
+  width: 100%;
+  padding: 5px 10px;
+  font-size: 12px;
+  color: #374151;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+
+  &:hover {
+    background: #eef2ff;
+    color: #4f46e5;
+  }
+}
+
+.pg-menu-item-danger:hover {
+  background: #fef2f2;
+  color: #dc2626;
 }
 
 .pg-row {

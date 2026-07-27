@@ -50,6 +50,14 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void;
+  /*
+    Vue 2 matches event names literally, so a parent listening on the hyphenated
+    "@update:model-value" never hears "update:modelValue". Three screens were
+    written that way and silently dropped every edit made in this editor. They
+    are fixed, and this alias is emitted alongside so the next one cannot break
+    the same way without anyone noticing.
+  */
+  (e: 'update:model-value', value: string): void;
   (e: 'update:mode', value: string): void;
   (e: 'change', value: { content: Content; previousContent: Content; changeStatus: OnChangeStatus }): void;
   (e: 'error', value: Error): void;
@@ -116,6 +124,12 @@ function contentToString(content: Content): string {
 const showImport = computed(() => props.allowImport && !props.readOnly);
 const showExport = computed(() => props.allowExport);
 const showToolbar = computed(() => showImport.value || showExport.value);
+
+// Emit both spellings - see the note on the alias in defineEmits.
+function emitModelValue(value: string) {
+  emit('update:modelValue', value);
+  emit('update:model-value', value);
+}
 
 function setError(message: string) {
   hasError.value = true;
@@ -199,7 +213,7 @@ function applyImportedText(text: string, sourceName: string) {
   if (editorInstance) {
     editorInstance.update({ json } as Content);
   }
-  emit('update:modelValue', JSON.stringify(json, null, 2));
+  emitModelValue(JSON.stringify(json, null, 2));
   emit('import', { fileName: sourceName, json });
 }
 
@@ -248,7 +262,7 @@ function initEditor() {
       errorMessage.value = '';
       const strValue = contentToString(content);
       console.log('[EnhancedJsonEditor] Emitting update:modelValue:', JSON.stringify(strValue).substring(0, 100), 'type:', typeof strValue);
-      emit('update:modelValue', strValue);
+      emitModelValue(strValue);
       emit('change', { content, previousContent, changeStatus });
     },
     onChangeMode: (mode: Mode) => {
@@ -346,7 +360,7 @@ watch(
 );
 
 function handlePropertyGridUpdate(value: string) {
-  emit('update:modelValue', value);
+  emitModelValue(value);
   // Also sync to vanilla-jsoneditor
   if (editorInstance) {
     try {
