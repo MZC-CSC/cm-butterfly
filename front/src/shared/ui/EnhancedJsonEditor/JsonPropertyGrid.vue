@@ -20,6 +20,18 @@ const expandedPaths = ref<Set<string>>(new Set());
 // Search
 const searchQuery = ref('');
 
+/*
+  Undo / redo state, and the flag that marks a change as our own.
+  Declared here because the watcher below runs immediately during setup and reads
+  them - declaring them further down left that first run reaching for bindings
+  that did not exist yet, which took the whole grid down on its second open.
+*/
+const selfEdit = ref(false);
+const undoStack = ref<string[]>([]);
+const redoStack = ref<string[]>([]);
+const canUndo = computed(() => undoStack.value.length > 0);
+const canRedo = computed(() => redoStack.value.length > 0);
+
 interface FlatRow {
   key: string;
   displayKey: string;
@@ -180,7 +192,6 @@ function expandToDepth(maxDepth: number) {
   Our own edits come back through props, and collapsing the tree back to depth 2
   on every one of them would hide the entry the user just added.
 */
-const selfEdit = ref(false);
 watch(
   parsedData,
   () => {
@@ -243,11 +254,6 @@ function containerOf(data: any, keys: string[]): any {
   with the parent. An edit arriving from anywhere else clears it, since the history
   belongs to the document we were handed.
 */
-const undoStack = ref<string[]>([]);
-const redoStack = ref<string[]>([]);
-const canUndo = computed(() => undoStack.value.length > 0);
-const canRedo = computed(() => redoStack.value.length > 0);
-
 function currentText(): string {
   return JSON.stringify(parsedData.value, null, 2);
 }
