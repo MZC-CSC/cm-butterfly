@@ -188,6 +188,8 @@ watch(
       selfEdit.value = false;
       return;
     }
+    undoStack.value = [];
+    redoStack.value = [];
     expandToDepth(2);
   },
   { immediate: true },
@@ -233,9 +235,46 @@ function containerOf(data: any, keys: string[]): any {
   return current;
 }
 
-function commit(data: any) {
+/*
+  Undo / redo.
+  The tree and text views have it, and this is the third view of the same document
+  - having it only there makes the table feel like someone else's screen. The stack
+  holds whole documents, which is cheap enough here and cannot drift out of step
+  with the parent. An edit arriving from anywhere else clears it, since the history
+  belongs to the document we were handed.
+*/
+const undoStack = ref<string[]>([]);
+const redoStack = ref<string[]>([]);
+const canUndo = computed(() => undoStack.value.length > 0);
+const canRedo = computed(() => redoStack.value.length > 0);
+
+function currentText(): string {
+  return JSON.stringify(parsedData.value, null, 2);
+}
+
+function apply(text: string) {
   selfEdit.value = true;
-  emit('update:data', JSON.stringify(data, null, 2));
+  emit('update:data', text);
+}
+
+function commit(data: any) {
+  undoStack.value.push(currentText());
+  redoStack.value = [];
+  apply(JSON.stringify(data, null, 2));
+}
+
+function undo() {
+  const previous = undoStack.value.pop();
+  if (previous === undefined) return;
+  redoStack.value.push(currentText());
+  apply(previous);
+}
+
+function redo() {
+  const next = redoStack.value.pop();
+  if (next === undefined) return;
+  undoStack.value.push(currentText());
+  apply(next);
 }
 
 const canEdit = computed(() => !props.readOnly);
@@ -312,14 +351,24 @@ function runFromMenu(action: 'duplicate' | 'remove') {
 
 onMounted(() => {
   document.addEventListener('click', closeRowMenu);
-  document.addEventListener('keydown', onEscape);
+  document.addEventListener('keydown', onKeydown);
 });
 onBeforeUnmount(() => {
   document.removeEventListener('click', closeRowMenu);
-  document.removeEventListener('keydown', onEscape);
+  document.removeEventListener('keydown', onKeydown);
 });
-function onEscape(e: KeyboardEvent) {
-  if (e.key === 'Escape') closeRowMenu();
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    closeRowMenu();
+    return;
+  }
+  // While a cell is open for editing, the input owns undo.
+  if (editingPath.value !== null || props.readOnly) return;
+  const key = e.key.toLowerCase();
+  if (!(e.ctrlKey || e.metaKey) || key !== 'z') return;
+  e.preventDefault();
+  if (e.shiftKey) redo();
+  else undo();
 }
 
 function confirmEdit(row: FlatRow) {
@@ -354,22 +403,58 @@ function cancelEdit() {
     <!-- Toolbar -->
     <div class="pg-toolbar">
       <div class="pg-toolbar-left">
-        <button class="pg-btn" @click="expandAll" title="Expand All">
-          <span class="pg-icon">&#9660;</span> Expand All
+        <button
+          class="pg-btn pg-btn-icon"
+          data-testid="json-grid-undo"
+          title="Undo (Ctrl+Z)"
+          :disabled="!canUndo"
+          @click="undo"
+        >
+          &#8630;
         </button>
-        <button class="pg-btn" @click="collapseAll" title="Collapse All">
-          <span class="pg-icon">&#9654;</span> Collapse All
+        <button
+          class="pg-btn pg-btn-icon"
+          data-testid="json-grid-redo"
+          title="Redo (Ctrl+Shift+Z)"
+          :disabled="!canRedo"
+          @click="redo"
+        >
+          &#8631;
         </button>
-        <button class="pg-btn" @click="expandToDepth(2)" title="Depth 2">
+        <span class="pg-toolbar-sep" />
+        <button class="pg-btn" title="Expand all" @click="expandAll">
+          <span class="pg-icon">&#9660;</span> Expand all
+        </button>
+        <button class="pg-btn" title="Collapse all" @click="collapseAll">
+          <span class="pg-icon">&#9654;</span> Collapse all
+        </button>
+        <span class="pg-toolbar-sep" />
+        <button
+          class="pg-btn"
+          title="Expand 2 levels"
+          @click="expandToDepth(2)"
+        >
           D2
         </button>
-        <button class="pg-btn" @click="expandToDepth(3)" title="Depth 3">
+        <button
+          class="pg-btn"
+          title="Expand 3 levels"
+          @click="expandToDepth(3)"
+        >
           D3
         </button>
-        <button class="pg-btn" @click="expandToDepth(5)" title="Depth 5">
+        <button
+          class="pg-btn"
+          title="Expand 5 levels"
+          @click="expandToDepth(5)"
+        >
           D5
         </button>
-        <button class="pg-btn" @click="expandToDepth(7)" title="Depth 7">
+        <button
+          class="pg-btn"
+          title="Expand 7 levels"
+          @click="expandToDepth(7)"
+        >
           D7
         </button>
       </div>
@@ -547,15 +632,23 @@ function cancelEdit() {
 }
 
 /* Toolbar */
+/* Matches the library menu bar, so the three views read as one screen. */
 .pg-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 8px;
-  background: #f8f9fa;
+  padding: 3px 6px;
+  background: #f9fafb;
   border-bottom: 1px solid #e5e7eb;
   flex-shrink: 0;
   gap: 8px;
+}
+
+.pg-toolbar-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: #e5e7eb;
 }
 
 .pg-toolbar-left {
@@ -564,19 +657,34 @@ function cancelEdit() {
 }
 
 .pg-btn {
-  padding: 3px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+  padding: 0 8px;
   font-size: 11px;
-  color: #4b5563;
-  background: #ffffff;
-  border: 1px solid #d1d5db;
+  color: #374151;
+  background: transparent;
+  border: 0;
   border-radius: 3px;
   cursor: pointer;
   white-space: nowrap;
 
-  &:hover {
-    background: #f3f4f6;
-    color: #1f2937;
+  &:hover:not(:disabled) {
+    background: #e5e7eb;
   }
+
+  &:disabled {
+    color: #d1d5db;
+    cursor: default;
+  }
+}
+
+.pg-btn-icon {
+  justify-content: center;
+  width: 26px;
+  padding: 0;
+  font-size: 14px;
 }
 
 .pg-icon {
