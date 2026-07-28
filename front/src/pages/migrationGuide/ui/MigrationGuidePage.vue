@@ -144,7 +144,8 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
       <h1 class="text-2xl font-semibold text-gray-900">Migration Guide</h1>
       <p class="mt-2 text-sm text-gray-600">
         A migration runs through the five steps below, in order. Select a step
-        to open the screen where it happens.
+        to open the screen where it happens. The help icon at the top right
+        shows help for whichever screen you are on.
       </p>
     </header>
 
