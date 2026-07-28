@@ -62,7 +62,7 @@ const steps: Step[] = [
     title: 'Register Source Service',
     detail: [
       'Register the servers you want to migrate.',
-      'Each connection is one source server, and the collection agent is installed when you add it.',
+      'Each connection is one source server, reached over SSH.',
     ],
     routeName: MENU_ID.SOURCE_SERVICES,
     testId: 'migration-guide-step-source-service',

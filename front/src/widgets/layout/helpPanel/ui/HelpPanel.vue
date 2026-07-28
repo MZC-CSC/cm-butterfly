@@ -33,25 +33,35 @@ const HELP: Array<{ path: string; help: Help }> = [
     help: {
       title: 'Migration Guide',
       paragraphs: [
-        'The five steps a migration runs through, in order. Selecting a step opens the screen where it happens.',
-        'Infrastructure and software migration follow the same five steps; where they differ, the help on each screen says so.',
-        'The help icon at the top right shows help for whichever screen you are on.',
+        'A migration goes from the servers you have, through a model of them, to a workflow that creates the result.',
+        'Infrastructure and software migration follow the same five steps. Where they differ - a cost estimate for infrastructure, an install target for software - the help on each screen says so.',
+        'The words below are the ones the steps use.',
       ],
       terms: [
         {
           term: 'Source service',
           meaning:
-            'A group of the servers you are migrating from - on-premises machines or ones already on a cloud. Each connection under it is one server.',
+            'A group of the servers you are migrating from - on-premises machines or ones already running on a cloud. Each connection under it is one server.',
         },
         {
-          term: 'Source model',
+          term: 'Model',
           meaning:
-            'What was found on those servers, written down. It stays close to the original machines.',
+            'What a machine or its software actually is, written in the shape this system works with. Collecting reads the raw facts; a model is those facts turned into something the migration can act on.',
         },
         {
-          term: 'Target model',
+          term: 'Source model / target model',
           meaning:
-            'The same workload described the way the destination expects it - usually a cloud. This is what a workflow is built from.',
+            'Both are models - they differ in which side they describe. A source model describes the origin, the servers you are migrating from. A target model describes the same workload for the destination, usually a cloud. A workflow is built from a target model.',
+        },
+        {
+          term: 'Custom model',
+          meaning:
+            'Either kind, once you have changed its values and saved it under a new name. The original is left as it was.',
+        },
+        {
+          term: 'Workflow',
+          meaning:
+            'The steps that carry the migration out, generated from a target model. It is the last place values can be changed before anything is created, and it is what you run, watch and re-run.',
         },
         {
           term: 'Where to make changes',
@@ -122,17 +132,27 @@ const HELP: Array<{ path: string; help: Help }> = [
         {
           term: 'Source service',
           meaning:
-            'A group of the servers you are migrating from - on-premises machines or ones already on a cloud. Each connection under it is one server.',
+            'A group of the servers you are migrating from - on-premises machines or ones already running on a cloud. Each connection under it is one server.',
         },
         {
-          term: 'Source model',
+          term: 'Model',
           meaning:
-            'What was found on those servers, written down. It stays close to the original machines.',
+            'What a machine or its software actually is, written in the shape this system works with. Collecting reads the raw facts; a model is those facts turned into something the migration can act on.',
         },
         {
-          term: 'Target model',
+          term: 'Source model / target model',
           meaning:
-            'The same workload described the way the destination expects it - usually a cloud. This is what a workflow is built from.',
+            'Both are models - they differ in which side they describe. A source model describes the origin, the servers you are migrating from. A target model describes the same workload for the destination, usually a cloud. A workflow is built from a target model.',
+        },
+        {
+          term: 'Custom model',
+          meaning:
+            'Either kind, once you have changed its values and saved it under a new name. The original is left as it was.',
+        },
+        {
+          term: 'Workflow',
+          meaning:
+            'The steps that carry the migration out, generated from a target model. It is the last place values can be changed before anything is created, and it is what you run, watch and re-run.',
         },
         {
           term: 'Where to make changes',
@@ -184,17 +204,27 @@ const HELP: Array<{ path: string; help: Help }> = [
         {
           term: 'Source service',
           meaning:
-            'A group of the servers you are migrating from - on-premises machines or ones already on a cloud. Each connection under it is one server.',
+            'A group of the servers you are migrating from - on-premises machines or ones already running on a cloud. Each connection under it is one server.',
         },
         {
-          term: 'Source model',
+          term: 'Model',
           meaning:
-            'What was found on those servers, written down. It stays close to the original machines.',
+            'What a machine or its software actually is, written in the shape this system works with. Collecting reads the raw facts; a model is those facts turned into something the migration can act on.',
         },
         {
-          term: 'Target model',
+          term: 'Source model / target model',
           meaning:
-            'The same workload described the way the destination expects it - usually a cloud. This is what a workflow is built from.',
+            'Both are models - they differ in which side they describe. A source model describes the origin, the servers you are migrating from. A target model describes the same workload for the destination, usually a cloud. A workflow is built from a target model.',
+        },
+        {
+          term: 'Custom model',
+          meaning:
+            'Either kind, once you have changed its values and saved it under a new name. The original is left as it was.',
+        },
+        {
+          term: 'Workflow',
+          meaning:
+            'The steps that carry the migration out, generated from a target model. It is the last place values can be changed before anything is created, and it is what you run, watch and re-run.',
         },
         {
           term: 'Where to make changes',
@@ -243,17 +273,27 @@ const HELP: Array<{ path: string; help: Help }> = [
         {
           term: 'Source service',
           meaning:
-            'A group of the servers you are migrating from - on-premises machines or ones already on a cloud. Each connection under it is one server.',
+            'A group of the servers you are migrating from - on-premises machines or ones already running on a cloud. Each connection under it is one server.',
         },
         {
-          term: 'Source model',
+          term: 'Model',
           meaning:
-            'What was found on those servers, written down. It stays close to the original machines.',
+            'What a machine or its software actually is, written in the shape this system works with. Collecting reads the raw facts; a model is those facts turned into something the migration can act on.',
         },
         {
-          term: 'Target model',
+          term: 'Source model / target model',
           meaning:
-            'The same workload described the way the destination expects it - usually a cloud. This is what a workflow is built from.',
+            'Both are models - they differ in which side they describe. A source model describes the origin, the servers you are migrating from. A target model describes the same workload for the destination, usually a cloud. A workflow is built from a target model.',
+        },
+        {
+          term: 'Custom model',
+          meaning:
+            'Either kind, once you have changed its values and saved it under a new name. The original is left as it was.',
+        },
+        {
+          term: 'Workflow',
+          meaning:
+            'The steps that carry the migration out, generated from a target model. It is the last place values can be changed before anything is created, and it is what you run, watch and re-run.',
         },
         {
           term: 'Where to make changes',
@@ -309,17 +349,27 @@ const HELP: Array<{ path: string; help: Help }> = [
         {
           term: 'Source service',
           meaning:
-            'A group of the servers you are migrating from - on-premises machines or ones already on a cloud. Each connection under it is one server.',
+            'A group of the servers you are migrating from - on-premises machines or ones already running on a cloud. Each connection under it is one server.',
         },
         {
-          term: 'Source model',
+          term: 'Model',
           meaning:
-            'What was found on those servers, written down. It stays close to the original machines.',
+            'What a machine or its software actually is, written in the shape this system works with. Collecting reads the raw facts; a model is those facts turned into something the migration can act on.',
         },
         {
-          term: 'Target model',
+          term: 'Source model / target model',
           meaning:
-            'The same workload described the way the destination expects it - usually a cloud. This is what a workflow is built from.',
+            'Both are models - they differ in which side they describe. A source model describes the origin, the servers you are migrating from. A target model describes the same workload for the destination, usually a cloud. A workflow is built from a target model.',
+        },
+        {
+          term: 'Custom model',
+          meaning:
+            'Either kind, once you have changed its values and saved it under a new name. The original is left as it was.',
+        },
+        {
+          term: 'Workflow',
+          meaning:
+            'The steps that carry the migration out, generated from a target model. It is the last place values can be changed before anything is created, and it is what you run, watch and re-run.',
         },
         {
           term: 'Where to make changes',
