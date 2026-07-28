@@ -719,52 +719,70 @@ const panelStyle = computed(() => {
   the editor to work with, and the guide for the rest. The menu underneath is
   folded away rather than mixed in.
 */
-type EditorContext = { noun: string; saving: string };
+type EditorContext = {
+  /** What this screen is, said the way a person would say it. */
+  lead: string;
+  /** What the document holds and why you would change it. */
+  detail: string;
+  /** What pressing save does - the overlay makes it easy to assume the wrong thing. */
+  saving: string;
+};
 
 const EDITOR_CONTEXT: Array<{ path: string; ctx: EditorContext }> = [
   {
     path: '/main/models/source-models',
     ctx: {
-      noun: 'a source model',
+      lead: 'This screen shows a source model in the JSON editor, where you can read it and change it.',
+      detail:
+        'A source model is what was collected from the servers you are migrating from - each machine with its CPU, disks and network interfaces. Correct anything the collection got wrong, or adjust values before a target model is produced from it.',
       saving:
-        'Saving asks for a name and creates a custom model. The model you opened is left exactly as it was.',
+        'Saving asks for a name and creates a custom model; the model you opened stays as it was.',
     },
   },
   {
     path: '/main/models/target-models',
     ctx: {
-      noun: 'a target model',
+      lead: 'This screen shows a target model in the JSON editor, where you can read it and change it.',
+      detail:
+        'A target model describes the same workload the way the destination expects it - the infrastructure to create, with its images, specs, security groups and network. This is the last comfortable place to adjust those values before a workflow is built from it.',
       saving:
-        'Saving asks for a name and creates a custom model. The model you opened is left exactly as it was.',
+        'Saving asks for a name and creates a custom model; the model you opened stays as it was.',
     },
   },
   {
     path: '/main/workflow-management/workflows',
     ctx: {
-      noun: 'a workflow',
+      lead: 'This screen shows a workflow in the JSON editor, where you can read it and change it.',
+      detail:
+        'A workflow is the tasks the migration runs and the values each one needs. What you change here is what the next run uses.',
       saving: 'Saving updates this workflow.',
     },
   },
   {
     path: '/main/workflow-management/workflow-templates',
     ctx: {
-      noun: 'a workflow template',
+      lead: 'This screen shows a workflow template in the JSON editor, where you can read it and change it.',
+      detail:
+        'A template is the shape a workflow is built from - which tasks it has and in what order, without the values of any one migration.',
       saving: 'Saving updates this template.',
     },
   },
   {
     path: '/main/workflow-management/task-components',
     ctx: {
-      noun: 'a task component',
+      lead: 'This screen shows a task component in the JSON editor, where you can read it and change it.',
+      detail:
+        'A component is one step a workflow can take. Its JSON says what the step needs and what it gives back, which is what the workflow editor asks you to fill in.',
       saving: 'Saving updates this component.',
     },
   },
   {
     path: '/main/source-computing/source-services',
     ctx: {
-      noun: 'what was collected from your servers',
-      saving:
-        'This is a step on the way to a source model - what you keep here is what gets saved as the model.',
+      lead: 'This screen shows what was collected from your servers, in the JSON editor.',
+      detail:
+        'This is the reading taken from each server before it becomes a source model. Check it here, and correct anything that came back wrong.',
+      saving: 'What you keep here is what gets saved as the source model.',
     },
   },
 ];
@@ -775,20 +793,20 @@ function editorContextFor(path: string): EditorContext {
   )[0];
   return (
     hit?.ctx ?? {
-      noun: 'this document',
+      lead: 'This screen shows a document in the JSON editor, where you can read it and change it.',
+      detail: '',
       saving: 'Nothing is written until you save.',
     }
   );
 }
 
-function jsonEditorGroup(ctx: EditorContext): Group {
+function jsonEditorGroup(): Group {
   return {
     id: 'json-editor',
     title: 'Using the editor',
     guide: { label: 'Editing a model as JSON', url: DOC_LINKS.jsonEditor },
     intro:
-      'The same document is offered three ways - table, tree and text - and nothing is lost by moving between them. The table is the one to start from: it lists every value with its name beside it. ' +
-      ctx.saving,
+      'The same document is offered three ways - table, tree and text - and nothing is lost by moving between them. The table is the one to start from: it lists every value with its name beside it.',
     sections: [
       {
         heading: 'Change a value, add an entry',
@@ -830,8 +848,8 @@ const help = computed<Help>(() => {
   return {
     ...base,
     title: `${base.title} - JSON`,
-    paragraphs: [`You are looking at ${ctx.noun} as JSON.`],
-    groups: [jsonEditorGroup(ctx)],
+    paragraphs: [`${ctx.lead} ${ctx.saving}`, ctx.detail].filter(Boolean),
+    groups: [jsonEditorGroup()],
     deferred: base.groups?.length
       ? { label: base.title, groups: base.groups }
       : undefined,
