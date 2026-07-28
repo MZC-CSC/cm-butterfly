@@ -734,7 +734,7 @@ const EDITOR_CONTEXT: Array<{ path: string; ctx: EditorContext }> = [
     ctx: {
       lead: 'This screen shows a source model in the JSON editor, where you can read it and change it.',
       detail:
-        'A source model is what was collected from the servers you are migrating from - each machine with its CPU, disks and network interfaces. Correct anything the collection got wrong, or adjust values before a target model is produced from it.',
+        'A source model is what was collected from the servers you are migrating from - each machine with its CPU, disks and network interfaces. Collection reads what it can reach, and it does not always come back complete, so this is where you correct what it got wrong and fill in what it could not see. What you leave here is what the recommendation works from.',
       saving:
         'Saving asks for a name and creates a custom model; the model you opened stays as it was.',
     },
@@ -744,7 +744,7 @@ const EDITOR_CONTEXT: Array<{ path: string; ctx: EditorContext }> = [
     ctx: {
       lead: 'This screen shows a target model in the JSON editor, where you can read it and change it.',
       detail:
-        'A target model describes the same workload the way the destination expects it - the infrastructure to create, with its images, specs, security groups and network. This is the last comfortable place to adjust those values before a workflow is built from it.',
+        'A target model describes the same workload the way the destination expects it - the infrastructure to create, with its images, specs, security groups and network. It comes from a recommendation, and a recommendation is a best match rather than a certainty: a spec or an image can come back missing, and the machine it suggests may be larger or smaller than you want. This is where you settle those - fill in what is missing, change a spec up or down, add anything the destination needs. Whatever is left unsettled here has to be dealt with in the workflow instead, which is a harder place to find it.',
       saving:
         'Saving asks for a name and creates a custom model; the model you opened stays as it was.',
     },
