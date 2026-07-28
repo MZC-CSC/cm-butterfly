@@ -36,8 +36,43 @@ type Help = {
   groups?: Group[];
   /** Terms someone new to the console will not know yet. Kept last on purpose. */
   terms?: Array<{ term: string; meaning: string }>;
-  guide?: { label: string; url: string };
+  /** The written guides worth reading for this screen. */
+  guides?: Array<{ label: string; url: string }>;
 };
+
+/** The same words on every screen - defined once, shown at the end of each entry. */
+const TERMS: Help['terms'] = [
+  {
+    term: 'Source service',
+    meaning:
+      'A group of the servers you are migrating from - on-premises machines or ones already running on a cloud. Each connection under it is one server.',
+  },
+  {
+    term: 'Model',
+    meaning:
+      'What a machine or its software actually is, written in the shape this system works with. Collecting reads the raw facts; a model is those facts turned into something the migration can act on.',
+  },
+  {
+    term: 'Source model / target model',
+    meaning:
+      'Both are models - they differ in which side they describe. A source model describes the origin, the servers you are migrating from. A target model describes the same workload for the destination, usually a cloud. A workflow is built from a target model.',
+  },
+  {
+    term: 'Custom model',
+    meaning:
+      'Either kind, once you have changed its values and saved it under a new name. The original is left as it was.',
+  },
+  {
+    term: 'Workflow',
+    meaning:
+      'The steps that carry the migration out, generated from a target model. It is the last place values can be changed before anything is created, and it is what you run, watch and re-run.',
+  },
+  {
+    term: 'Where to make changes',
+    meaning:
+      'You can adjust the source model, the target model, or the workflow. Later is usually easier: the target model is already in the destination shape, and the workflow is the last word before anything runs. Target models and workflows can also be exported and imported, so a good one can be kept and reused like a template.',
+  },
+];
 
 /** Matched against the current path, longest match first. */
 const HELP: Array<{ path: string; help: Help }> = [
@@ -50,39 +85,22 @@ const HELP: Array<{ path: string; help: Help }> = [
         'Infrastructure and software migration follow the same five steps. Where they differ - a cost estimate for infrastructure, an install target for software - the help on each screen says so.',
         'The words below are the ones the steps use.',
       ],
-      terms: [
+      terms: TERMS,
+      guides: [
+        { label: 'Quick start', url: DOC_LINKS.quickStartMigration },
         {
-          term: 'Source service',
-          meaning:
-            'A group of the servers you are migrating from - on-premises machines or ones already running on a cloud. Each connection under it is one server.',
+          label: 'Bulk import of source connections',
+          url: DOC_LINKS.sourceConnectionBulkImport,
         },
         {
-          term: 'Model',
-          meaning:
-            'What a machine or its software actually is, written in the shape this system works with. Collecting reads the raw facts; a model is those facts turned into something the migration can act on.',
+          label: 'Running workflow tasks in parallel',
+          url: DOC_LINKS.workflowParallelSteps,
         },
         {
-          term: 'Source model / target model',
-          meaning:
-            'Both are models - they differ in which side they describe. A source model describes the origin, the servers you are migrating from. A target model describes the same workload for the destination, usually a cloud. A workflow is built from a target model.',
-        },
-        {
-          term: 'Custom model',
-          meaning:
-            'Either kind, once you have changed its values and saved it under a new name. The original is left as it was.',
-        },
-        {
-          term: 'Workflow',
-          meaning:
-            'The steps that carry the migration out, generated from a target model. It is the last place values can be changed before anything is created, and it is what you run, watch and re-run.',
-        },
-        {
-          term: 'Where to make changes',
-          meaning:
-            'You can adjust the source model, the target model, or the workflow. Later is usually easier: the target model is already in the destination shape, and the workflow is the last word before anything runs. Target models and workflows can also be exported and imported, so a good one can be kept and reused like a template.',
+          label: 'Reading the run status screen',
+          url: DOC_LINKS.workflowRunStatus,
         },
       ],
-      guide: { label: 'Quick start guide', url: DOC_LINKS.quickStartMigration },
     },
   },
   {
@@ -156,42 +174,14 @@ const HELP: Array<{ path: string; help: Help }> = [
           ],
         },
       ],
-      terms: [
+      terms: TERMS,
+      guides: [
         {
-          term: 'Source service',
-          meaning:
-            'A group of the servers you are migrating from - on-premises machines or ones already running on a cloud. Each connection under it is one server.',
+          label: 'Bulk import of source connections',
+          url: DOC_LINKS.sourceConnectionBulkImport,
         },
-        {
-          term: 'Model',
-          meaning:
-            'What a machine or its software actually is, written in the shape this system works with. Collecting reads the raw facts; a model is those facts turned into something the migration can act on.',
-        },
-        {
-          term: 'Source model / target model',
-          meaning:
-            'Both are models - they differ in which side they describe. A source model describes the origin, the servers you are migrating from. A target model describes the same workload for the destination, usually a cloud. A workflow is built from a target model.',
-        },
-        {
-          term: 'Custom model',
-          meaning:
-            'Either kind, once you have changed its values and saved it under a new name. The original is left as it was.',
-        },
-        {
-          term: 'Workflow',
-          meaning:
-            'The steps that carry the migration out, generated from a target model. It is the last place values can be changed before anything is created, and it is what you run, watch and re-run.',
-        },
-        {
-          term: 'Where to make changes',
-          meaning:
-            'You can adjust the source model, the target model, or the workflow. Later is usually easier: the target model is already in the destination shape, and the workflow is the last word before anything runs. Target models and workflows can also be exported and imported, so a good one can be kept and reused like a template.',
-        },
+        { label: 'Quick start', url: DOC_LINKS.quickStartMigration },
       ],
-      guide: {
-        label: 'Bulk import of source connections',
-        url: DOC_LINKS.sourceConnectionBulkImport,
-      },
     },
   },
   {
@@ -243,39 +233,8 @@ const HELP: Array<{ path: string; help: Help }> = [
           ],
         },
       ],
-      terms: [
-        {
-          term: 'Source service',
-          meaning:
-            'A group of the servers you are migrating from - on-premises machines or ones already running on a cloud. Each connection under it is one server.',
-        },
-        {
-          term: 'Model',
-          meaning:
-            'What a machine or its software actually is, written in the shape this system works with. Collecting reads the raw facts; a model is those facts turned into something the migration can act on.',
-        },
-        {
-          term: 'Source model / target model',
-          meaning:
-            'Both are models - they differ in which side they describe. A source model describes the origin, the servers you are migrating from. A target model describes the same workload for the destination, usually a cloud. A workflow is built from a target model.',
-        },
-        {
-          term: 'Custom model',
-          meaning:
-            'Either kind, once you have changed its values and saved it under a new name. The original is left as it was.',
-        },
-        {
-          term: 'Workflow',
-          meaning:
-            'The steps that carry the migration out, generated from a target model. It is the last place values can be changed before anything is created, and it is what you run, watch and re-run.',
-        },
-        {
-          term: 'Where to make changes',
-          meaning:
-            'You can adjust the source model, the target model, or the workflow. Later is usually easier: the target model is already in the destination shape, and the workflow is the last word before anything runs. Target models and workflows can also be exported and imported, so a good one can be kept and reused like a template.',
-        },
-      ],
-      guide: { label: 'Quick start guide', url: DOC_LINKS.quickStartMigration },
+      terms: TERMS,
+      guides: [{ label: 'Quick start', url: DOC_LINKS.quickStartMigration }],
     },
   },
   {
@@ -326,39 +285,8 @@ const HELP: Array<{ path: string; help: Help }> = [
           ],
         },
       ],
-      terms: [
-        {
-          term: 'Source service',
-          meaning:
-            'A group of the servers you are migrating from - on-premises machines or ones already running on a cloud. Each connection under it is one server.',
-        },
-        {
-          term: 'Model',
-          meaning:
-            'What a machine or its software actually is, written in the shape this system works with. Collecting reads the raw facts; a model is those facts turned into something the migration can act on.',
-        },
-        {
-          term: 'Source model / target model',
-          meaning:
-            'Both are models - they differ in which side they describe. A source model describes the origin, the servers you are migrating from. A target model describes the same workload for the destination, usually a cloud. A workflow is built from a target model.',
-        },
-        {
-          term: 'Custom model',
-          meaning:
-            'Either kind, once you have changed its values and saved it under a new name. The original is left as it was.',
-        },
-        {
-          term: 'Workflow',
-          meaning:
-            'The steps that carry the migration out, generated from a target model. It is the last place values can be changed before anything is created, and it is what you run, watch and re-run.',
-        },
-        {
-          term: 'Where to make changes',
-          meaning:
-            'You can adjust the source model, the target model, or the workflow. Later is usually easier: the target model is already in the destination shape, and the workflow is the last word before anything runs. Target models and workflows can also be exported and imported, so a good one can be kept and reused like a template.',
-        },
-      ],
-      guide: { label: 'Quick start guide', url: DOC_LINKS.quickStartMigration },
+      terms: TERMS,
+      guides: [{ label: 'Quick start', url: DOC_LINKS.quickStartMigration }],
     },
   },
   {
@@ -411,42 +339,93 @@ const HELP: Array<{ path: string; help: Help }> = [
           ],
         },
       ],
-      terms: [
+      terms: TERMS,
+      guides: [
         {
-          term: 'Source service',
-          meaning:
-            'A group of the servers you are migrating from - on-premises machines or ones already running on a cloud. Each connection under it is one server.',
+          label: 'Reading the run status screen',
+          url: DOC_LINKS.workflowRunStatus,
         },
         {
-          term: 'Model',
-          meaning:
-            'What a machine or its software actually is, written in the shape this system works with. Collecting reads the raw facts; a model is those facts turned into something the migration can act on.',
+          label: 'Running workflow tasks in parallel',
+          url: DOC_LINKS.workflowParallelSteps,
         },
+        { label: 'Quick start', url: DOC_LINKS.quickStartMigration },
+      ],
+    },
+  },
+  {
+    path: '/main/workflow-management/workflow-templates',
+    help: {
+      title: 'Workflow Templates',
+      paragraphs: [
+        'A template is a workflow shape you can start from, so a migration you run often does not have to be assembled each time.',
+      ],
+      groups: [
         {
-          term: 'Source model / target model',
-          meaning:
-            'Both are models - they differ in which side they describe. A source model describes the origin, the servers you are migrating from. A target model describes the same workload for the destination, usually a cloud. A workflow is built from a target model.',
-        },
-        {
-          term: 'Custom model',
-          meaning:
-            'Either kind, once you have changed its values and saved it under a new name. The original is left as it was.',
-        },
-        {
-          term: 'Workflow',
-          meaning:
-            'The steps that carry the migration out, generated from a target model. It is the last place values can be changed before anything is created, and it is what you run, watch and re-run.',
-        },
-        {
-          term: 'Where to make changes',
-          meaning:
-            'You can adjust the source model, the target model, or the workflow. Later is usually easier: the target model is already in the destination shape, and the workflow is the last word before anything runs. Target models and workflows can also be exported and imported, so a good one can be kept and reused like a template.',
+          id: 'use-templates',
+          title: 'Using templates',
+          intro:
+            'Templates hold the same content a workflow does, minus the values that belong to one particular run. Start from one and fill in what is specific to this migration.',
+          sections: [
+            {
+              heading: 'Start from a template',
+              steps: [
+                'Open a template to see the tasks it contains and how they are ordered.',
+                'Create a workflow from it, then adjust the task values for this migration.',
+              ],
+            },
+          ],
         },
       ],
-      guide: {
-        label: 'Reading the run status screen',
-        url: DOC_LINKS.workflowRunStatus,
-      },
+      terms: TERMS,
+      guides: [
+        {
+          label: 'Running workflow tasks in parallel',
+          url: DOC_LINKS.workflowParallelSteps,
+        },
+        { label: 'Quick start', url: DOC_LINKS.quickStartMigration },
+      ],
+    },
+  },
+  {
+    path: '/main/workflow-management/task-components',
+    help: {
+      title: 'Task Components',
+      paragraphs: [
+        'A task component is one step a workflow can take - collect something, create infrastructure, install software, wait.',
+      ],
+      groups: [
+        {
+          id: 'use-tasks',
+          title: 'Working with task components',
+          intro:
+            'Components are the pieces a workflow is assembled from. Looking at one shows what it needs and what it returns, which is what the workflow editor asks you to fill in.',
+          sections: [
+            {
+              heading: 'Read a component',
+              steps: [
+                'Open a component to see the values it takes and the result it produces.',
+                'Its JSON can be viewed and edited the same way a model can.',
+              ],
+            },
+            {
+              heading: 'Use it in a workflow',
+              steps: [
+                'In the workflow editor, drag the component from the Toolbox onto the canvas.',
+                'Components that do not depend on each other can sit side by side and run together.',
+              ],
+            },
+          ],
+        },
+      ],
+      terms: TERMS,
+      guides: [
+        {
+          label: 'Running workflow tasks in parallel',
+          url: DOC_LINKS.workflowParallelSteps,
+        },
+        { label: 'Quick start', url: DOC_LINKS.quickStartMigration },
+      ],
     },
   },
   {
@@ -473,10 +452,69 @@ const HELP: Array<{ path: string; help: Help }> = [
           ],
         },
       ],
-      guide: {
-        label: 'Running workflow tasks in parallel',
-        url: DOC_LINKS.workflowParallelSteps,
-      },
+      guides: [
+        {
+          label: 'Running workflow tasks in parallel',
+          url: DOC_LINKS.workflowParallelSteps,
+        },
+        { label: 'Quick start', url: DOC_LINKS.quickStartMigration },
+      ],
+    },
+  },
+  {
+    path: '/main/cloud-resources/cloud-credentials',
+    help: {
+      title: 'Cloud Credentials',
+      paragraphs: [
+        'The accounts this system uses to create things on a cloud. A migration cannot reach a destination without one.',
+      ],
+      groups: [
+        {
+          id: 'manage-credentials',
+          title: 'Managing credentials',
+          intro:
+            'Each credential belongs to one cloud provider and is chosen when a target is decided. Registering it here is what lets a workflow act on that provider.',
+          sections: [
+            {
+              heading: 'Register and check',
+              steps: [
+                'Add a credential for the provider you are migrating to.',
+                'A migration that fails to reach its destination is often a credential that is missing, expired, or short of permissions - check here first.',
+              ],
+            },
+          ],
+        },
+      ],
+      terms: TERMS,
+      guides: [{ label: 'Quick start', url: DOC_LINKS.quickStartMigration }],
+    },
+  },
+  {
+    path: '/main/cloud-resources/apis',
+    help: {
+      title: 'APIs',
+      paragraphs: [
+        'The interfaces this console calls, listed so you can see what is available and try a call directly.',
+      ],
+      groups: [
+        {
+          id: 'browse-apis',
+          title: 'Looking up an API',
+          intro:
+            'Every screen here is built on these calls. Reading them is useful when you want to know exactly what a screen sends, or to do something the screens do not cover yet.',
+          sections: [
+            {
+              heading: 'Find and try',
+              steps: [
+                'Find the API by the framework it belongs to.',
+                'Its parameters and response shape are shown with it.',
+              ],
+            },
+          ],
+        },
+      ],
+      terms: TERMS,
+      guides: [{ label: 'Quick start', url: DOC_LINKS.quickStartMigration }],
     },
   },
   {
@@ -510,19 +548,36 @@ const HELP: Array<{ path: string; help: Help }> = [
           ],
         },
       ],
-      guide: { label: 'Quick start guide', url: DOC_LINKS.quickStartMigration },
+      guides: [{ label: 'Quick start', url: DOC_LINKS.quickStartMigration }],
     },
   },
 ];
 
-const FALLBACK: Help = {
-  title: 'Help',
-  paragraphs: [
-    'There is no help written for this screen yet.',
-    'The quick start guide walks through a migration from beginning to end.',
-  ],
-  guide: { label: 'Quick start guide', url: DOC_LINKS.quickStartMigration },
-};
+/*
+  No entry for this screen yet. Saying only "Help" left the reader unsure whether
+  the panel had failed or the screen simply has none, so the screen is named and
+  the gap is stated.
+*/
+function fallbackFor(title: string): Help {
+  return {
+    title,
+    paragraphs: [
+      'Help for this screen has not been written yet - it is on the way.',
+      'In the meantime, the quick start guide walks through a migration from beginning to end.',
+    ],
+    terms: TERMS,
+    guides: [{ label: 'Quick start', url: DOC_LINKS.quickStartMigration }],
+  };
+}
+
+/** Turns a path segment into a screen name, so the panel can title itself. */
+function screenNameFrom(path: string): string {
+  const last = path.split('/').filter(Boolean).pop() ?? 'this screen';
+  return last
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
 
 const WIDTH_KEY = 'cm.helpPanel.width';
 const MODE_KEY = 'cm.helpPanel.mode';
@@ -589,7 +644,7 @@ const help = computed<Help>(() => {
   const hit = HELP.filter(e => path.startsWith(e.path)).sort(
     (a, b) => b.path.length - a.path.length,
   )[0];
-  return hit ? hit.help : FALLBACK;
+  return hit ? hit.help : fallbackFor(screenNameFrom(path));
 });
 
 /* The index at the top scrolls to the job it names. */
@@ -800,20 +855,24 @@ onBeforeUnmount(() => {
           </dl>
         </section>
 
-        <button
-          v-if="help.guide"
-          class="help-guide"
-          data-testid="help-guide-link"
-          @click="openDocLink(help.guide.url)"
-        >
-          <svg class="help-doc-icon" viewBox="0 0 16 16" aria-hidden="true">
-            <path
-              d="M4 1.5h5.2L13 5.3V14a.5.5 0 0 1-.5.5h-8A.5.5 0 0 1 4 14V1.5Zm1 1V13.5h7V6H8.7V2.5H5Zm4.7.7V5H12L9.7 3.2ZM6 7.5h5v1H6v-1Zm0 2.5h5v1H6v-1Z"
-            />
-          </svg>
-          <span class="help-guide-text">Guide: {{ help.guide.label }}</span>
-          <span class="help-guide-out">&#8599;</span>
-        </button>
+        <section v-if="help.guides" class="help-docs">
+          <h2 class="help-group-title">Read more</h2>
+          <button
+            v-for="(doc, g) in help.guides"
+            :key="`g${g}`"
+            class="help-guide"
+            data-testid="help-guide-link"
+            @click="openDocLink(doc.url)"
+          >
+            <svg class="help-doc-icon" viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                d="M4 1.5h5.2L13 5.3V14a.5.5 0 0 1-.5.5h-8A.5.5 0 0 1 4 14V1.5Zm1 1V13.5h7V6H8.7V2.5H5Zm4.7.7V5H12L9.7 3.2ZM6 7.5h5v1H6v-1Zm0 2.5h5v1H6v-1Z"
+              />
+            </svg>
+            <span class="help-guide-text">Guide: {{ doc.label }}</span>
+            <span class="help-guide-out">&#8599;</span>
+          </button>
+        </section>
       </div>
     </aside>
   </div>
@@ -955,10 +1014,13 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid #f3f4f6;
 }
 
+/* Colour carries the level - the outline was hard to follow in grey alone. */
 .help-group-title {
+  padding-bottom: 4px;
   font-size: 14px;
   font-weight: 700;
-  color: #111827;
+  color: #1d4ed8;
+  border-bottom: 2px solid #dbeafe;
 }
 
 .help-group-intro {
@@ -1008,7 +1070,18 @@ onBeforeUnmount(() => {
 .help-heading {
   font-size: 12px;
   font-weight: 600;
-  color: #111827;
+  color: #1f2937;
+}
+
+.help-heading::before {
+  display: inline-block;
+  width: 3px;
+  height: 11px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  content: '';
+  background: #60a5fa;
+  border-radius: 1px;
 }
 
 .help-steps {
@@ -1047,6 +1120,14 @@ onBeforeUnmount(() => {
   background: transparent;
   border: 0;
   cursor: pointer;
+}
+
+.help-docs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 14px;
+  border-top: 1px solid #f3f4f6;
 }
 
 .help-doc-icon {
