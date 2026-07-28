@@ -62,7 +62,7 @@ const steps: Step[] = [
     title: 'Register Source Service',
     detail: [
       'Register the servers you want to migrate.',
-      'Each connection is one source server, and the collection agent is installed when you add it.',
+      'Each connection is one source server, reached over SSH.',
     ],
     routeName: MENU_ID.SOURCE_SERVICES,
     testId: 'migration-guide-step-source-service',
@@ -75,8 +75,8 @@ const steps: Step[] = [
     no: 2,
     title: 'Create Source Model',
     detail: [
-      'Collect what is running on those servers and save it as a source model.',
-      'The rest of the flow is built on that inventory.',
+      'Collect from the servers you registered, on the same Source Services screen, and save the result as a source model.',
+      'Everything after this is built from that model.',
     ],
     routeName: MENU_ID.SOURCE_MODELS,
     testId: 'migration-guide-step-source-model',
@@ -204,19 +204,75 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
             :class="index < steps.length - 1 ? 'bg-gray-300' : 'bg-transparent'"
             aria-hidden="true"
           />
+          <!--
+            Say it is a document before it is clicked. On its own the title read
+            as a caption, and you only learned it was a link by pressing it.
+          -->
           <a
             v-if="step.guide"
             :href="guideUrlFor(step.guide.file)"
             target="_blank"
             rel="noopener noreferrer"
-            class="text-xs text-blue-600 underline"
+            class="inline-flex items-center gap-1 text-xs text-blue-600"
             :data-testid="`${step.testId}-guide`"
           >
-            {{ step.guide.title }}
+            <svg
+              class="h-3 w-3 shrink-0"
+              viewBox="0 0 16 16"
+              aria-hidden="true"
+            >
+              <path
+                fill="currentColor"
+                d="M4 1.5h5.2L13 5.3V14a.5.5 0 0 1-.5.5h-8A.5.5 0 0 1 4 14V1.5Zm1 1V13.5h7V6H8.7V2.5H5Zm4.7.7V5H12L9.7 3.2ZM6 7.5h5v1H6v-1Zm0 2.5h5v1H6v-1Z"
+              />
+            </svg>
+            <span class="underline">Guide: {{ step.guide.title }}</span>
+            <span class="text-gray-400">&#8599;</span>
           </a>
         </div>
       </li>
     </ol>
+
+    <!--
+      The boxes give the order; this says what the order is made of. Someone
+      arriving here does not yet know what a model is or why there are two of
+      them, and that is the question the steps alone leave open.
+    -->
+    <section class="mt-8 flex flex-col gap-3 text-sm text-gray-700">
+      <h2 class="text-base font-semibold text-gray-900">
+        What the steps are made of
+      </h2>
+      <p>
+        A migration moves a workload from the servers you have to somewhere
+        else, usually a cloud. It does that through models - a machine or its
+        software written in the shape this system works with.
+      </p>
+      <p>
+        A <strong>source model</strong> describes the origin: the servers you
+        are migrating from. A <strong>target model</strong> describes the same
+        workload for the destination. Both are models; they differ only in which
+        side they describe. Change either one's values and save it under a new
+        name and you have a <strong>custom model</strong>, with the original
+        left as it was.
+      </p>
+      <p>
+        A <strong>workflow</strong> is generated from a target model and is what
+        actually carries the migration out. It is also the last place values can
+        be changed before anything is created, which is why adjusting there is
+        often easiest - the target model is already in the destination's shape,
+        and the workflow is the final word.
+      </p>
+      <p>
+        Target models and workflows can be exported to a file and imported back,
+        so one that works can be kept and reused like a template.
+      </p>
+      <p>
+        Infrastructure and software follow the same five steps. Infrastructure
+        recommendations come with an estimated cost to choose by; software
+        recommendations come with a list of what to install, and expect the
+        infrastructure to exist already.
+      </p>
+    </section>
 
     <footer class="mt-6 text-sm text-gray-600">
       <span>
@@ -227,10 +283,18 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
         :href="guideUrl"
         target="_blank"
         rel="noopener noreferrer"
-        class="text-blue-600 underline"
+        class="inline-flex items-center gap-1 text-blue-600"
         data-testid="migration-guide-full-doc"
-        >Read the Quick Start guide</a
       >
+        <svg class="h-3 w-3 shrink-0" viewBox="0 0 16 16" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M4 1.5h5.2L13 5.3V14a.5.5 0 0 1-.5.5h-8A.5.5 0 0 1 4 14V1.5Zm1 1V13.5h7V6H8.7V2.5H5Zm4.7.7V5H12L9.7 3.2ZM6 7.5h5v1H6v-1Zm0 2.5h5v1H6v-1Z"
+          />
+        </svg>
+        <span class="underline">Guide: Quick start</span>
+        <span class="text-gray-400">&#8599;</span>
+      </a>
     </footer>
   </div>
 </template>
