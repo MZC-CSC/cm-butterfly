@@ -77,7 +77,7 @@ const HELP: Array<{ path: string; help: Help }> = [
     help: {
       title: 'Source Services',
       paragraphs: [
-        'This menu does two things: it keeps the list of servers you are migrating from, and it turns what is collected from them into a source model.',
+        'This menu does two things: you register and manage the servers you are migrating from, and you turn what is collected from them into a source model.',
         'A source service is a group of those servers - on-premises machines or ones already running on a cloud. Each connection under it is one server.',
       ],
       sections: [
@@ -171,7 +171,7 @@ const HELP: Array<{ path: string; help: Help }> = [
     help: {
       title: 'Source Models',
       paragraphs: [
-        'This menu does two things: it keeps your source models, and it produces a target model from one of them.',
+        'This menu does two things: you manage your source models, and you produce a target model from one of them.',
         'A source model stays close to the original servers - it is what was found on them.',
       ],
       sections: [
@@ -240,7 +240,7 @@ const HELP: Array<{ path: string; help: Help }> = [
     help: {
       title: 'Target Models',
       paragraphs: [
-        'This menu does two things: it keeps your target models, and it builds a workflow from one of them.',
+        'This menu does two things: you manage your target models, and you build a workflow from one of them.',
         'A target model describes the workload the way the destination expects it. The list marks each one as Basic or Custom, and as a CloudModel or a SoftwareModel.',
       ],
       sections: [
@@ -309,7 +309,7 @@ const HELP: Array<{ path: string; help: Help }> = [
     help: {
       title: 'Workflows',
       paragraphs: [
-        'This menu keeps your workflows and runs them. A workflow is the last thing you can change before anything is actually created.',
+        'This menu is where you manage your workflows and run them. A workflow is the last thing you can change before anything is actually created.',
         'Most come from a target model, but one can be built in the editor or copied from an existing workflow and adjusted.',
       ],
       sections: [
@@ -388,7 +388,7 @@ const HELP: Array<{ path: string; help: Help }> = [
     help: {
       title: 'Workflow Management',
       paragraphs: [
-        'Workflows, the templates they can be built from, and the task components a workflow is made of.',
+        'Where you manage workflows, the templates they can be built from, and the task components a workflow is made of.',
       ],
       sections: [
         {
