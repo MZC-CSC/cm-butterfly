@@ -827,8 +827,8 @@ function jsonEditorGroup(): Group {
       {
         heading: 'Filter or reshape an array',
         steps: [
-          'Switch to the tree view, click the array so it is selected, then right-click it.',
-          'Sort and Transform act on what is selected. With nothing selected they act on the whole document, which is an object - that is why the wizard stays empty and the fields you expected never appear.',
+          'Switch to the tree view and click the array you want to work on - targetSpecList, nodeGroups, firewallRules - so the row is highlighted.',
+          'Right-click it, or press Ctrl+Q, and choose Sort or Transform. Both work on one array at a time, so pick the array first and the wizard will offer its fields.',
           'Transform replaces the array with the result, so check the document before saving.',
         ],
       },
