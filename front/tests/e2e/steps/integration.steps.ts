@@ -328,10 +328,19 @@ When('타깃 모델의 스펙을 4GB 급으로 변경하면', async ({ page }) =
   const editor = new JsonEditorPage(page);
   await editor.openFromTargetModel();
   await editor.switchToTable();
-  await editor.search('spec');
+  await editor.search('specId');
   await editor.enableFilter();
-  const target = process.env.TEST_TARGET_SPEC_4GB || 'e2-standard-1';
-  await editor.setRowValue('spec', target);
+
+  // A spec is written provider+region+size, and only the size changes. Replacing the whole value
+  // would take the region with it and the migration would go looking for a machine type in the
+  // wrong place.
+  const size = process.env.TEST_TARGET_SPEC_SIZE || 'e2-medium';
+  const current = await editor.readRowValue('specId');
+  const parts = current.split('+');
+  const next =
+    parts.length > 1 ? [...parts.slice(0, -1), size].join('+') : size;
+  console.log(`[seg4] 스펙 ${current} → ${next}`);
+  await editor.setRowValue('specId', next);
   await editor.closeSearch();
 });
 

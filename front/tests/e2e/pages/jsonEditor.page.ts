@@ -138,6 +138,13 @@ export class JsonEditorPage {
     await humanClick(this.page.getByTestId('json-grid-menu-duplicate'));
   }
 
+  /** Read what a row currently holds - used when a value is edited in part rather than replaced. */
+  async readRowValue(rowText: string): Promise<string> {
+    const cell = this.row(rowText).locator('input, textarea').last();
+    await expect(cell).toBeVisible({ timeout: 15_000 });
+    return (await cell.inputValue()).trim();
+  }
+
   /**
    * Set the value of a row.
    *
