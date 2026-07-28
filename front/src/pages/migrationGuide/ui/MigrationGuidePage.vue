@@ -218,6 +218,47 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
       </li>
     </ol>
 
+    <!--
+      The boxes give the order; this says what the order is made of. Someone
+      arriving here does not yet know what a model is or why there are two of
+      them, and that is the question the steps alone leave open.
+    -->
+    <section class="mt-8 flex flex-col gap-3 text-sm text-gray-700">
+      <h2 class="text-base font-semibold text-gray-900">
+        What the steps are made of
+      </h2>
+      <p>
+        A migration moves a workload from the servers you have to somewhere
+        else, usually a cloud. It does that through models - a machine or its
+        software written in the shape this system works with.
+      </p>
+      <p>
+        A <strong>source model</strong> describes the origin: the servers you
+        are migrating from. A <strong>target model</strong> describes the same
+        workload for the destination. Both are models; they differ only in which
+        side they describe. Change either one's values and save it under a new
+        name and you have a <strong>custom model</strong>, with the original
+        left as it was.
+      </p>
+      <p>
+        A <strong>workflow</strong> is generated from a target model and is what
+        actually carries the migration out. It is also the last place values can
+        be changed before anything is created, which is why adjusting there is
+        often easiest - the target model is already in the destination's shape,
+        and the workflow is the final word.
+      </p>
+      <p>
+        Target models and workflows can be exported to a file and imported back,
+        so one that works can be kept and reused like a template.
+      </p>
+      <p>
+        Infrastructure and software follow the same five steps. Infrastructure
+        recommendations come with an estimated cost to choose by; software
+        recommendations come with a list of what to install, and expect the
+        infrastructure to exist already.
+      </p>
+    </section>
+
     <footer class="mt-6 text-sm text-gray-600">
       <span>
         Looking for the full walkthrough, including software migration and load
