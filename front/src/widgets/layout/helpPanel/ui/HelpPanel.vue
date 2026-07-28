@@ -241,7 +241,14 @@ onBeforeUnmount(() => {
             title="Detach - float over the page instead of taking a column"
             @click="setDocked(false)"
           >
-            Detach
+            <!-- a small pane lifted off the edge: the shape used for "open in a
+                 floating window" across editors and browsers -->
+            <svg viewBox="0 0 16 16" class="help-mode-icon" aria-hidden="true">
+              <path
+                d="M2.5 3.5h7a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Zm0 1v7h7v-7h-7Z"
+              />
+              <path d="M6.5 2.5h7a1 1 0 0 1 1 1v7h-1v-7h-7v-1Z" />
+            </svg>
           </button>
           <button
             v-else
@@ -250,7 +257,14 @@ onBeforeUnmount(() => {
             title="Dock - give the panel a column of its own"
             @click="setDocked(true)"
           >
-            Dock
+            <!-- a pane split with the right column filled: the shape used for
+                 "dock to the side" in editors -->
+            <svg viewBox="0 0 16 16" class="help-mode-icon" aria-hidden="true">
+              <path
+                d="M2 3h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm0 1v8h12V4H2Z"
+              />
+              <path d="M10 4.5h4.5v7H10v-7Z" />
+            </svg>
           </button>
           <button
             class="help-close"
@@ -324,7 +338,12 @@ onBeforeUnmount(() => {
 }
 
 .help-mode {
-  padding: 2px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 22px;
+  padding: 0;
   font-size: 12px;
   color: #4b5563;
   background: transparent;
@@ -336,6 +355,12 @@ onBeforeUnmount(() => {
     background: #f3f4f6;
     color: #111827;
   }
+}
+
+.help-mode-icon {
+  width: 14px;
+  height: 14px;
+  fill: currentcolor;
 }
 
 .help-resizer {
