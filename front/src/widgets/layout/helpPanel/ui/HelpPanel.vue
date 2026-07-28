@@ -31,6 +31,7 @@ const HELP: Array<{ path: string; help: Help }> = [
       title: 'Migration Guide',
       paragraphs: [
         'The five steps a migration runs through, in order. Selecting a step opens the screen where it happens.',
+        'Infrastructure and software migration follow the same five steps; where they differ, the help on each screen says so.',
         'The help icon at the top right shows help for whichever screen you are on.',
       ],
       guide: { label: 'Quick start guide', url: DOC_LINKS.quickStartMigration },
@@ -41,30 +42,53 @@ const HELP: Array<{ path: string; help: Help }> = [
     help: {
       title: 'Source Services',
       paragraphs: [
-        'Register the servers you want to migrate, then collect what is running on them.',
+        'A source service groups the servers you want to migrate. Each connection under it is one server.',
+        'A group can be created on its own and filled in later, or created with its connections in one go.',
       ],
       sections: [
         {
-          heading: 'Register servers',
+          heading: 'Create a group only',
           steps: [
-            'Create a Source Service.',
-            'On its Connections tab, add one connection per source server - name, IP address, SSH port, user, and a password or private key.',
+            'Create a source service with a name and description.',
+            'It appears in the list with no connections. Add them whenever the server details are ready.',
           ],
         },
         {
-          heading: 'Register many at once',
+          heading: 'Create a group with its connections',
           steps: [
-            'Download the connection template to see the file layout.',
-            'Fill in your servers. The template opens in Excel and saves back as either CSV or .xlsx.',
+            'While creating the source service, add connections in the same form.',
+            'Each connection needs a name, IP address, SSH port, user, and a password or private key.',
+          ],
+        },
+        {
+          heading: 'Add connections to an existing group',
+          steps: [
+            'Select the group and open its Connections tab.',
+            'Add one connection per server, entering the details by hand.',
+          ],
+        },
+        {
+          heading: 'Register many from a file',
+          steps: [
+            'Download the connection template to see the layout.',
+            'Fill it in. The template opens in Excel and saves back as either CSV or .xlsx.',
             'Import the file. The rows to be registered are listed on screen - review them, then confirm.',
           ],
         },
         {
-          heading: 'Collect',
+          heading: 'Export what is registered',
+          steps: [
+            'Select a group, tick the connections you want, and export.',
+            'Choose CSV or Excel. The file uses the import layout, so it can be edited and imported back.',
+            'Passwords and keys are left blank - fill them in again before importing.',
+          ],
+        },
+        {
+          heading: 'Collect from the servers',
           steps: [
             'Press Refresh first. It re-checks each connection and updates Agent Status and Connection Status on the Detail tab.',
-            'Once the status is healthy, run Collect Infra. The result opens in a viewer with the machine CPU, memory, disk and network.',
-            'For software, run Collect SW instead and press Convert in the viewer.',
+            'Once the status is healthy, run Collect Infra for machines, or Collect SW for the software running on them.',
+            'The result opens in a viewer. For software, press Convert before saving.',
           ],
         },
       ],
@@ -79,22 +103,31 @@ const HELP: Array<{ path: string; help: Help }> = [
     help: {
       title: 'Source Models',
       paragraphs: [
-        'What was collected from the registered servers, saved as a model. The rest of the flow is built on this inventory.',
+        'What was collected from the registered servers, saved as a model. The rest of the flow is built on it.',
+        'Infrastructure and software are separate models and take separate paths from here.',
       ],
       sections: [
         {
-          heading: 'Create one',
+          heading: 'Save a model',
           steps: [
-            'From a collected result, save it as a Source Model. It appears in this list.',
-            'Saving under a new name gives you a copy to adjust before recommending.',
+            'From a collected result, save it as a source model. It appears in this list.',
+            'Saving under a new name gives you a copy to adjust, leaving the original as it was.',
           ],
         },
         {
-          heading: 'Get a target from it',
+          heading: 'Infrastructure - get a target from it',
           steps: [
-            'Select a source model and run Recommend Model.',
-            'Each candidate shows an estimated monthly cost.',
-            'Choose one and save it as a Target Model.',
+            'Select an infrastructure source model and run Recommend Model.',
+            'Each candidate shows an estimated monthly cost, so you can choose by cost.',
+            'Choose one and save it as a target model.',
+          ],
+        },
+        {
+          heading: 'Software - get a target from it',
+          steps: [
+            'Select a software source model and run Recommend Model.',
+            'On the recommendation screen, press Get Migration List. The recommended migration fills the panel on the right.',
+            'Save it as a software target model. There is no cost estimate here - software is matched to what is installed, not to a machine price.',
           ],
         },
       ],
@@ -107,6 +140,7 @@ const HELP: Array<{ path: string; help: Help }> = [
       title: 'Target Models',
       paragraphs: [
         'A target model is generated from a source model. Adjust the values you want and save it as a custom model.',
+        'The list marks each one as Basic or Custom, and as a CloudModel or a SoftwareModel.',
       ],
       sections: [
         {
@@ -118,10 +152,18 @@ const HELP: Array<{ path: string; help: Help }> = [
           ],
         },
         {
-          heading: 'Build the workflow',
+          heading: 'Infrastructure - build the workflow',
           steps: [
             'Choose Make Workflow under Workflow Tool on the detail screen.',
-            'The workflow is generated from the target model, so its values are already filled in.',
+            'The workflow is generated from the target model, so the infra_migration task already carries its values.',
+          ],
+        },
+        {
+          heading: 'Software - build the workflow',
+          steps: [
+            'Choose Make Workflow on a software target model.',
+            'The run_software_migration task is filled in from the infrastructure you created - the install target namespace and infra are already set.',
+            'That means the infrastructure migration should have run first.',
           ],
         },
       ],
@@ -151,6 +193,13 @@ const HELP: Array<{ path: string; help: Help }> = [
             'Saving takes you to the run view, where you run, edit, re-run and check results on one screen.',
             'The graph shows live progress and where a run failed.',
             'You can re-run one task, everything from a task onward, or only the tasks that failed.',
+          ],
+        },
+        {
+          heading: 'After a software migration',
+          steps: [
+            'Open the Run Status tab and select the run_software_migration task.',
+            'Under Result, choose View installed software. It lists each piece of software with its version, install type, status, and the namespace, infra and node it landed on.',
           ],
         },
       ],
