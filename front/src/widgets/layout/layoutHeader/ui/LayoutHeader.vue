@@ -46,7 +46,10 @@ const imgName =
   @apply text-xl font-medium pl-[18px];
 }
 .top-bar-right {
-  @apply flex items-center gap-1 pr-2;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 8px;
 }
 .top-bar {
   @apply bg-white items-center justify-between border-b border-gray-200;

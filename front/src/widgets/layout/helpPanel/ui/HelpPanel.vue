@@ -220,61 +220,100 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onEscape));
 
 <style scoped lang="postcss">
 .help-button {
-  @apply flex h-8 w-8 items-center justify-center rounded text-gray-500;
+  display: flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: #6b7280;
 
   &:hover {
-    @apply bg-gray-100 text-gray-700;
+    background: #f3f4f6;
+    color: #374151;
   }
 }
 
 .help-icon {
-  @apply h-5 w-5;
-
+  width: 20px;
+  height: 20px;
   fill: currentcolor;
 }
 
 /* Lies over the page - the screen underneath keeps its width. */
 .help-panel {
-  @apply fixed right-0 flex flex-col border-l border-gray-200 bg-white;
-
+  position: fixed;
   top: 0;
+  right: 0;
   bottom: 0;
   z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-left: 1px solid #e5e7eb;
   box-shadow: -4px 0 16px rgb(0 0 0 / 8%);
 }
 
 .help-resizer {
-  @apply absolute left-0 top-0 h-full;
-
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 5px;
+  height: 100%;
   cursor: col-resize;
 
   &:hover {
-    @apply bg-blue-200;
+    background: #bfdbfe;
   }
 }
 
 .help-head {
-  @apply flex items-center justify-between border-b border-gray-200 px-4 py-3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .help-title {
-  @apply text-sm font-semibold text-gray-900;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
 }
 
 .help-close {
-  @apply rounded px-2 text-gray-500;
+  padding: 2px 8px;
+  color: #6b7280;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
 
   &:hover {
-    @apply bg-gray-100 text-gray-700;
+    background: #f3f4f6;
+    color: #374151;
   }
 }
 
 .help-body {
-  @apply flex flex-col gap-3 overflow-y-auto p-4 text-sm leading-relaxed text-gray-700;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #374151;
 }
 
 .help-guide {
-  @apply self-start text-sm text-blue-600 underline;
+  align-self: flex-start;
+  padding: 0;
+  font-size: 13px;
+  color: #2563eb;
+  text-decoration: underline;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
 }
 </style>
