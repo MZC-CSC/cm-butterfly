@@ -63,8 +63,8 @@
     만약 소스 연결정보 CSV로 "e2e-src-group" 그룹을 등록하면
     그러면 소스그룹 목록에 "e2e-src-group" 이 보인다
 
-    그리고 소스 서비스에 "e2e-src-nano" 소스서버를 등록한다
-    그리고 소스 서비스에 "e2e-src-micro" 소스서버를 등록한다
+    그리고 소스 서비스에 "e2e-src-nano" 소스서버를 "nano" 로 등록한다
+    그리고 소스 서비스에 "e2e-src-micro" 소스서버를 "micro" 로 등록한다
     그러면 소스그룹 목록에 "e2e-src-nano" 이 보인다
     그리고 소스그룹 목록에 "e2e-src-micro" 이 보인다
 

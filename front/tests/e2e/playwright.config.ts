@@ -122,6 +122,28 @@ export default defineConfig({
       timeout: 8 * 60_000,
     },
     {
+      /**
+       * The v0.6.0 integration scenario, recorded a segment at a time.
+       *
+       * It has a lane of its own for two reasons. It does not depend on seed - it registers its own
+       * source services as the first thing a viewer sees, and seeded leftovers would be in the shot.
+       * And each segment is a take, so it is run one segment at a time (`--grep @seg4`) and re-run on
+       * its own when a take goes wrong, which the other lanes have no reason to allow.
+       *
+       * Recording settings come from the environment (E2E_DEMO_PACE=1 for the pointer and typing);
+       * the size is set here so every take is the same shape and they cut together.
+       */
+      name: 'integration',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1920, height: 1080 },
+        video: { mode: 'on', size: { width: 1920, height: 1080 } },
+      },
+      grep: /@integration/,
+      // Provisioning and installing happen inside these segments.
+      timeout: 90 * 60_000,
+    },
+    {
       name: 'scenario',
       use: { ...devices['Desktop Chrome'] },
       dependencies: ['seed'],

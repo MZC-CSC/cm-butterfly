@@ -5,9 +5,11 @@ import { ModelsPage } from '../pages/models.page';
 import { WorkflowPage } from '../pages/workflow.page';
 import { NotificationPage } from '../pages/notification.page';
 import { WorkloadPage } from '../pages/workload.page';
+import { SourceServicesPage, Connection } from '../pages/sourceServices.page';
 import {
   config,
   testNamespace,
+  sourceServers,
   workflowData,
   workload,
 } from '../fixtures/test-data';
@@ -36,13 +38,14 @@ const { Given, When, Then } = createBdd(test);
 // ── 구간1: the migration guide and the help panel ───────────────────────
 
 When('마이그레이션 가이드 화면을 열면', async ({ page }) => {
-  await page.goto('/main/guide');
+  await page.goto('/main/migration-guide');
 });
 
 Then('마이그레이션 가이드가 보인다', async ({ page }) => {
-  await expect(page.getByTestId('migration-guide')).toBeVisible({
+  await expect(page.getByTestId('migration-guide-page')).toBeVisible({
     timeout: 20_000,
   });
+  await expect(page.getByTestId('migration-guide-steps')).toBeVisible();
 });
 
 /** Read down the page and come back up - the pause is what makes it readable on the recording. */
@@ -55,31 +58,51 @@ Given('가이드를 아래로 훑어보고 다시 위로 올린다', async ({ pa
   await page.waitForTimeout(1_000);
 });
 
+/**
+ * Enter through the diagram rather than the left menu.
+ *
+ * The guide numbers the steps and each one is a link to the screen that does it, so following it is
+ * how someone arrives the first time. Jumping straight to the menu would skip the part of the
+ * product that is meant to show you the order.
+ */
+const GUIDE_BLOCKS: Record<string, string> = {
+  '소스 서비스': 'migration-guide-step-source-service',
+  '소스 모델': 'migration-guide-step-source-model',
+  '타깃 모델': 'migration-guide-step-target-model',
+  '워크플로우 생성': 'migration-guide-step-create-workflow',
+  '워크플로우 실행': 'migration-guide-step-run-workflow',
+};
+
 When('가이드에서 {string} 블록을 클릭하면', async ({ page }, label: string) => {
-  await humanClick(
-    page
-      .getByTestId(`guide-block-${label}`)
-      .or(page.getByText(label, { exact: false }).first())
-      .first(),
-  );
+  const testId = GUIDE_BLOCKS[label];
+  expect(testId, `가이드에 "${label}" 블록이 정의돼 있지 않다`).toBeTruthy();
+  await humanClick(page.getByTestId(testId));
 });
 
 When('도움말을 열면', async ({ page }) => {
-  await humanClick(page.getByTestId('help-panel-open'));
+  await humanClick(page.getByTestId('help-toggle'));
   await expect(page.getByTestId('help-panel')).toBeVisible({ timeout: 15_000 });
 });
 
 Then('도움말에 현재 화면 설명이 보인다', async ({ page }) => {
-  const title = page.getByTestId('help-panel-title');
+  // The testids are new; the classes have always been there. Matching either lets the scenario run
+  // against a console built before they were added, which is what the first takes are recorded on.
+  const title = page
+    .getByTestId('help-title')
+    .or(page.locator('.help-title'))
+    .first();
   await expect(title).toBeVisible({ timeout: 15_000 });
-  // The panel used to show the list behind whatever was open. Anything is better than empty, but
-  // an empty body is exactly the failure that was reported, so it is what we check for.
-  await expect(page.getByTestId('help-panel-body')).not.toBeEmpty();
+  // The panel used to describe the list behind whatever was open on top of it. An empty body is
+  // the shape that failure took, so it is what this checks.
+  const body = page
+    .getByTestId('help-body')
+    .or(page.locator('.help-body'))
+    .first();
+  await expect(body).not.toBeEmpty();
 });
 
 Given('도움말 패널의 폭을 넓혔다 줄인다', async ({ page }) => {
-  const handle = page.getByTestId('help-panel-resize');
-  const box = await handle.boundingBox();
+  const box = await page.getByTestId('help-resizer').first().boundingBox();
   if (!box) return;
   const y = box.y + box.height / 2;
   await page.mouse.move(box.x + box.width / 2, y);
@@ -92,18 +115,24 @@ Given('도움말 패널의 폭을 넓혔다 줄인다', async ({ page }) => {
 });
 
 When('도움말 도킹을 해제하면', async ({ page }) => {
-  await humanClick(page.getByTestId('help-panel-undock'));
+  await humanClick(page.getByTestId('help-detach'));
 });
 
+/**
+ * Floating is a state, and the only thing that carries it is the class the panel switches to. The
+ * panel now also exposes `data-docked`, which says the same thing without depending on how the
+ * style is written; either one answering is enough.
+ */
 Then('도움말이 떠 있는 창으로 바뀐다', async ({ page }) => {
-  await expect(page.getByTestId('help-panel-floating')).toBeVisible({
-    timeout: 10_000,
-  });
+  const floating = page
+    .locator('[data-testid="help-panel"][data-docked="false"]')
+    .or(page.locator('.help-panel.is-float'))
+    .first();
+  await expect(floating).toBeVisible({ timeout: 10_000 });
 });
 
 Given('도움말 창을 다른 위치로 옮긴다', async ({ page }) => {
-  const header = page.getByTestId('help-panel-drag-handle');
-  const box = await header.boundingBox();
+  const box = await page.getByTestId('help-header').first().boundingBox();
   if (!box) return;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
@@ -113,55 +142,79 @@ Given('도움말 창을 다른 위치로 옮긴다', async ({ page }) => {
 });
 
 Given('도움말 창의 크기를 키운다', async ({ page }) => {
-  const grip = page.getByTestId('help-panel-floating-resize');
-  const box = await grip.boundingBox();
+  const box = await page.getByTestId('help-resizer').first().boundingBox();
   if (!box) return;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
-  await page.mouse.move(box.x + 220, box.y + 160, { steps: 20 });
+  await page.mouse.move(box.x - 240, box.y + 120, { steps: 20 });
   await page.mouse.up();
   await page.waitForTimeout(800);
 });
 
 Given('도움말을 닫는다', async ({ page }) => {
-  await humanClick(page.getByTestId('help-panel-close'));
+  await humanClick(page.getByTestId('help-close'));
   await expect(page.getByTestId('help-panel')).toBeHidden({ timeout: 10_000 });
 });
 
 // ── 구간2: registering source connections from a file ───────────────────
 
+/** The connection details for one of the two source servers, by the group name the scenario uses. */
+function connectionFor(
+  groupName: string,
+  server: 'nano' | 'micro',
+): Connection {
+  const s = sourceServers[server];
+  return {
+    name: `${uniqueName(groupName)}-${server}`,
+    ip: s.ip,
+    sshPort: s.sshPort,
+    user: s.sshUser,
+    password: s.privateKey ? undefined : s.password || undefined,
+    privateKey: s.privateKey || undefined,
+  };
+}
+
 /**
- * Register a group from a CSV of connection details.
+ * Register a group from a file rather than one connection at a time.
  *
- * The header is fixed at seven columns and the addresses are *private* IPs, because the collector
- * runs on the platform host and reaches the sources over the internal network. Authentication is by
- * key only; the password column stays empty.
+ * Both servers go in together, which is what the file route is for, and the same two are also
+ * registered singly in the steps that follow - so the scenario ends with three groups covering both
+ * ways of getting connections in.
  */
 When(
   '소스 연결정보 CSV로 {string} 그룹을 등록하면',
   async ({ page }, groupName: string) => {
     const name = uniqueName(groupName);
-    await page.goto('/main/source-service');
-    await humanClick(page.getByTestId('source-import-open'));
-    await page
-      .getByTestId('source-import-file')
-      .setInputFiles(
-        process.env.TEST_SOURCE_CSV || 'tests/e2e/fixtures/sources.csv',
-      );
-    // The preview counts the rows it parsed - confirming it is how a person checks the file was read.
-    await expect(page.getByTestId('source-import-preview')).toBeVisible({
-      timeout: 15_000,
-    });
-    await humanClick(page.getByTestId('source-import-confirm'));
+    const source = new SourceServicesPage(page);
+    await source.goto();
+    await source.createSourceGroupImportingConnections(name, [
+      connectionFor(groupName, 'nano'),
+      connectionFor(groupName, 'micro'),
+    ]);
+    scenarioState.sourceGroupName = name;
+  },
+);
+
+/** Register one server on its own - the other way in, and the group the scenario collects from. */
+Given(
+  '소스 서비스에 {string} 소스서버를 {string} 로 등록한다',
+  async ({ page }, groupName: string, server: string) => {
+    const kind = server === 'micro' ? 'micro' : 'nano';
+    const name = uniqueName(groupName);
+    const source = new SourceServicesPage(page);
+    await source.goto();
+    await source.createSourceGroupWithConnection(
+      name,
+      connectionFor(groupName, kind),
+    );
     scenarioState.sourceGroupName = name;
   },
 );
 
 Then('소스그룹 목록에 {string} 이 보인다', async ({ page }, name: string) => {
-  await page.goto('/main/source-service');
-  await expect(
-    page.getByRole('row', { name: uniqueName(name) }).first(),
-  ).toBeVisible({ timeout: 20_000 });
+  const source = new SourceServicesPage(page);
+  await source.goto();
+  await source.expectGroupListed(uniqueName(name));
 });
 
 // ── 구간3·4: recommending against a named CSP and region ────────────────

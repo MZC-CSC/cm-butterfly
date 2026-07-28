@@ -37,6 +37,10 @@ register(
   '소스 컴퓨팅',
   'sourcecomputing',
   'source',
+  // The migration guide names the first step "소스 서비스" and links straight to this screen, so a
+  // scenario that follows the guide arrives calling it that.
+  'Source Services',
+  '소스 서비스',
 );
 register(
   { path: '/main/models/source-models', urlPattern: /\/main\/models/ },

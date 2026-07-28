@@ -342,6 +342,59 @@ export class SourceServicesPage {
     await this.expectGroupListed(name);
   }
 
+  /**
+   * 소스그룹을 만들되 *실제 접속되는* 연결정보 여러 건을 CSV 임포트로 넣는다.
+   *
+   * 위 `createSourceGroupWithBulkImport` 는 익스포트가 여러 건을 담는지 보려고 만든 것이라 IP가 더미다.
+   * 통합 시나리오는 이 그룹으로 수집까지 가야 하므로 진짜 주소·키가 들어가야 한다 — 더미로 넣으면
+   * 등록은 되고 수집에서 무너져, 원인이 파일 임포트인지 수집인지 구분되지 않는다.
+   *
+   * 개인키는 여러 줄이라 CSV 한 칸에 그대로 넣을 수 없다. 줄바꿈을 `\n` 두 글자로 바꿔 담고 칸 전체를
+   * 따옴표로 감싼다.
+   */
+  async createSourceGroupImportingConnections(
+    name: string,
+    conns: Connection[],
+  ): Promise<void> {
+    const cell = (v: string | undefined): string => {
+      const s = (v ?? '').replace(/\r?\n/g, '\\n');
+      return /[",]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header =
+      'name,description,ip_address,ssh_port,user,password,private_key';
+    const rows = conns.map(c =>
+      [
+        cell(c.name),
+        '',
+        cell(c.ip),
+        cell(String(c.sshPort ?? '22')),
+        cell(c.user),
+        cell(c.privateKey ? '' : c.password),
+        cell(c.privateKey),
+      ].join(','),
+    );
+    const csv = '﻿' + [header, ...rows].join('\n') + '\n';
+
+    await humanClick(this.addGroupButton);
+    await humanFill(this.serviceNameInput, name);
+    await humanClick(this.withConnectionToggle);
+
+    await this.page.getByTestId('source-import-input').setInputFiles({
+      name: 'sources.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(csv, 'utf-8'),
+    });
+
+    // The preview reports how many rows the server parsed - that count is what tells us the file
+    // was read as a file rather than accepted and dropped.
+    await expect(this.page.getByTestId('source-import-count')).toContainText(
+      String(conns.length),
+      { timeout: 15_000 },
+    );
+    await humanClick(this.groupConfirmButton);
+    await this.expectGroupListed(name);
+  }
+
   /** 이름으로 소스그룹 선택(상세 진입) */
   async selectGroup(name: string): Promise<void> {
     await this.revealGroup(name);

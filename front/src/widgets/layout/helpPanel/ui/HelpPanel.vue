@@ -968,6 +968,7 @@ onBeforeUnmount(() => {
       :class="docked ? 'is-docked' : 'is-float'"
       :style="panelStyle"
       data-testid="help-panel"
+      :data-docked="docked ? 'true' : 'false'"
     >
       <span
         class="help-resizer"
@@ -981,7 +982,9 @@ onBeforeUnmount(() => {
         data-testid="help-header"
         @mousedown="startMove"
       >
-        <span class="help-title">{{ help.title }}</span>
+        <span class="help-title" data-testid="help-title">{{
+          help.title
+        }}</span>
         <span class="help-actions">
           <button
             v-if="docked"
@@ -1027,7 +1030,7 @@ onBeforeUnmount(() => {
           </button>
         </span>
       </header>
-      <div class="help-body">
+      <div class="help-body" data-testid="help-body">
         <p v-for="(line, i) in help.paragraphs" :key="i">{{ line }}</p>
 
         <!-- What this menu does, as a list you can jump from. -->

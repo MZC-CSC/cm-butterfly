@@ -84,6 +84,52 @@ export const sourceServer = {
   privateKey: process.env.TEST_SOURCE_PRIVATE_KEY || '',
 };
 
+/**
+ * The two source servers the integration scenario registers.
+ *
+ * The scenario needs more than one because it registers three groups - each server on its own, and
+ * both together from a file - and because the software it collects has to come from the smaller of
+ * the two and land on something larger. One entry would collapse all three groups onto the same
+ * machine and prove nothing about either.
+ *
+ * `sourceServer` above stays as it was and points at the same nano box, so the existing scenarios
+ * keep working untouched.
+ */
+export const sourceServers: Record<
+  'nano' | 'micro',
+  {
+    name: string;
+    ip: string;
+    sshPort: string;
+    sshUser: string;
+    password: string;
+    privateKey: string;
+  }
+> = {
+  nano: {
+    name: process.env.TEST_SOURCE_NANO_NAME || 'e2e-nano-source',
+    ip: process.env.TEST_SOURCE_NANO_IP || process.env.TEST_SOURCE_IP || '',
+    sshPort: process.env.TEST_SOURCE_SSH_PORT || '22',
+    sshUser: process.env.TEST_SOURCE_SSH_USER || 'ubuntu',
+    password: process.env.TEST_SOURCE_PASSWORD || 'e2e-dummy-pass',
+    privateKey:
+      process.env.TEST_SOURCE_NANO_PRIVATE_KEY ||
+      process.env.TEST_SOURCE_PRIVATE_KEY ||
+      '',
+  },
+  micro: {
+    name: process.env.TEST_SOURCE_MICRO_NAME || 'e2e-micro-source',
+    ip: process.env.TEST_SOURCE_MICRO_IP || '',
+    sshPort: process.env.TEST_SOURCE_SSH_PORT || '22',
+    sshUser: process.env.TEST_SOURCE_SSH_USER || 'ubuntu',
+    password: process.env.TEST_SOURCE_PASSWORD || 'e2e-dummy-pass',
+    privateKey:
+      process.env.TEST_SOURCE_MICRO_PRIVATE_KEY ||
+      process.env.TEST_SOURCE_PRIVATE_KEY ||
+      '',
+  },
+};
+
 /** Target recommendation — force low cost (nano/small class) */
 export const targetSpec = {
   csp: process.env.TEST_TARGET_CSP || 'aws',
