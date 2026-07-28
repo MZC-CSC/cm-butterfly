@@ -13,9 +13,13 @@ import { computed, ref, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router/composables';
 import { DOC_LINKS, openDocLink } from '@/shared/constants/docLinks';
 
+type Section = { heading: string; steps: string[] };
+
 type Help = {
   title: string;
   paragraphs: string[];
+  /** How to actually use the screen, as the steps you take on it. */
+  sections?: Section[];
   guide?: { label: string; url: string };
 };
 
@@ -37,8 +41,32 @@ const HELP: Array<{ path: string; help: Help }> = [
     help: {
       title: 'Source Services',
       paragraphs: [
-        'Register the servers you want to migrate. Each connection is one source server, and the collection agent is installed when you add it.',
-        'Several connections can be registered at once from a CSV or Excel file.',
+        'Register the servers you want to migrate, then collect what is running on them.',
+      ],
+      sections: [
+        {
+          heading: 'Register servers',
+          steps: [
+            'Create a Source Service.',
+            'On its Connections tab, add one connection per source server - name, IP address, SSH port, user, and a password or private key.',
+          ],
+        },
+        {
+          heading: 'Register many at once',
+          steps: [
+            'Download the connection template to see the file layout.',
+            'Fill in your servers. The template opens in Excel and saves back as either CSV or .xlsx.',
+            'Import the file. The rows to be registered are listed on screen - review them, then confirm.',
+          ],
+        },
+        {
+          heading: 'Collect',
+          steps: [
+            'Press Refresh first. It re-checks each connection and updates Agent Status and Connection Status on the Detail tab.',
+            'Once the status is healthy, run Collect Infra. The result opens in a viewer with the machine CPU, memory, disk and network.',
+            'For software, run Collect SW instead and press Convert in the viewer.',
+          ],
+        },
       ],
       guide: {
         label: 'Bulk import of source connections',
@@ -52,8 +80,25 @@ const HELP: Array<{ path: string; help: Help }> = [
       title: 'Source Models',
       paragraphs: [
         'What was collected from the registered servers, saved as a model. The rest of the flow is built on this inventory.',
-        'Open a model to review the collected values, and adjust them if the collection missed something.',
       ],
+      sections: [
+        {
+          heading: 'Create one',
+          steps: [
+            'From a collected result, save it as a Source Model. It appears in this list.',
+            'Saving under a new name gives you a copy to adjust before recommending.',
+          ],
+        },
+        {
+          heading: 'Get a target from it',
+          steps: [
+            'Select a source model and run Recommend Model.',
+            'Each candidate shows an estimated monthly cost.',
+            'Choose one and save it as a Target Model.',
+          ],
+        },
+      ],
+      guide: { label: 'Quick start guide', url: DOC_LINKS.quickStartMigration },
     },
   },
   {
@@ -62,8 +107,25 @@ const HELP: Array<{ path: string; help: Help }> = [
       title: 'Target Models',
       paragraphs: [
         'A target model is generated from a source model. Adjust the values you want and save it as a custom model.',
-        'Custom & View opens the model as JSON. The table view edits values and adds or removes list entries; the tree and text views are the same document in another shape.',
       ],
+      sections: [
+        {
+          heading: 'Adjust a model',
+          steps: [
+            'Open Custom & View to see the model as JSON.',
+            'The table view edits values and adds or removes list entries; the tree and text views are the same document in another shape.',
+            'Saving asks for a name and creates a custom model - the original is left as it was.',
+          ],
+        },
+        {
+          heading: 'Build the workflow',
+          steps: [
+            'Choose Make Workflow under Workflow Tool on the detail screen.',
+            'The workflow is generated from the target model, so its values are already filled in.',
+          ],
+        },
+      ],
+      guide: { label: 'Quick start guide', url: DOC_LINKS.quickStartMigration },
     },
   },
   {
@@ -72,7 +134,25 @@ const HELP: Array<{ path: string; help: Help }> = [
       title: 'Workflows',
       paragraphs: [
         'Create a workflow from a target model, or build one yourself in the editor.',
-        'Open a workflow to change any value it needs, then run it. The run status screen shows what is happening while it runs.',
+      ],
+      sections: [
+        {
+          heading: 'Check it before running',
+          steps: [
+            'Select the migration task on the canvas. Task Configuration opens on the right with the values carried over from the target model - path and query parameters and the request body.',
+            'Review them and edit anything that needs adjusting.',
+            'Drag components from the Toolbox on the left to extend what the workflow does.',
+            'Give the workflow a name and save it.',
+          ],
+        },
+        {
+          heading: 'Run and watch',
+          steps: [
+            'Saving takes you to the run view, where you run, edit, re-run and check results on one screen.',
+            'The graph shows live progress and where a run failed.',
+            'You can re-run one task, everything from a task onward, or only the tasks that failed.',
+          ],
+        },
       ],
       guide: {
         label: 'Reading the run status screen',
@@ -87,6 +167,15 @@ const HELP: Array<{ path: string; help: Help }> = [
       paragraphs: [
         'Workflows, the templates they can be built from, and the task components a workflow is made of.',
       ],
+      sections: [
+        {
+          heading: 'Working with tasks',
+          steps: [
+            'A task component is one step a workflow can take; a template is a workflow shape you can start from.',
+            'Tasks that do not depend on each other can be placed side by side to run together.',
+          ],
+        },
+      ],
       guide: {
         label: 'Running workflow tasks in parallel',
         url: DOC_LINKS.workflowParallelSteps,
@@ -98,8 +187,25 @@ const HELP: Array<{ path: string; help: Help }> = [
     help: {
       title: 'Workloads',
       paragraphs: [
-        'What a migration produced, and where you go to check or remove it.',
+        'What a migration produced, and where you check, test or remove it.',
       ],
+      sections: [
+        {
+          heading: 'Check what was created',
+          steps: [
+            'Open Infra Workloads and select the workload.',
+            'The Detail tab shows the infrastructure; the Server tab lists its servers.',
+          ],
+        },
+        {
+          heading: 'Load-test it',
+          steps: [
+            'Start a load test on the selected workload.',
+            'Progress is shown live, and completion or failure is announced in the notification badge at the top right.',
+          ],
+        },
+      ],
+      guide: { label: 'Quick start guide', url: DOC_LINKS.quickStartMigration },
     },
   },
 ];
@@ -278,6 +384,16 @@ onBeforeUnmount(() => {
       </header>
       <div class="help-body">
         <p v-for="(line, i) in help.paragraphs" :key="i">{{ line }}</p>
+        <section
+          v-for="(section, s) in help.sections || []"
+          :key="`s${s}`"
+          class="help-section"
+        >
+          <h3 class="help-heading">{{ section.heading }}</h3>
+          <ol class="help-steps">
+            <li v-for="(step, t) in section.steps" :key="t">{{ step }}</li>
+          </ol>
+        </section>
         <button
           v-if="help.guide"
           class="help-guide"
@@ -413,6 +529,27 @@ onBeforeUnmount(() => {
   font-size: 13px;
   line-height: 1.7;
   color: #374151;
+}
+
+.help-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.help-heading {
+  font-size: 12px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.help-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 18px;
+  margin: 0;
+  list-style: decimal;
 }
 
 .help-guide {
