@@ -128,7 +128,7 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
 </script>
 
 <template>
-  <div class="p-6" data-testid="migration-guide-page">
+  <div class="mx-auto max-w-3xl p-6" data-testid="migration-guide-page">
     <header class="mb-6">
       <h1 class="text-2xl font-semibold text-gray-900">Migration Guide</h1>
       <p class="mt-2 text-sm text-gray-600">
@@ -137,7 +137,7 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
       </p>
     </header>
 
-    <ol class="flex flex-col gap-3" data-testid="migration-guide-steps">
+    <ol class="flex flex-col" data-testid="migration-guide-steps">
       <li v-for="(step, index) in steps" :key="step.no" class="flex flex-col">
         <router-link
           :to="{ name: step.routeName }"
@@ -173,26 +173,32 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
         </router-link>
 
         <!--
-          Sits under the step rather than inside it: the step itself is a link, and a link
-          inside a link does not work. This is also the hook for "help for this screen" —
-          each step points at the guide for the screen it opens.
-        -->
-        <a
-          v-if="step.guide"
-          :href="guideUrlFor(step.guide.file)"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="mt-1 self-start pl-12 text-xs text-blue-600 underline"
-          :data-testid="`${step.testId}-guide`"
-        >
-          {{ step.guide.title }}
-        </a>
+          The run between two steps. The line sits under the middle of the number
+          badge (badge 2rem wide, inside 1rem of card padding, so its centre is at
+          2rem) and carries the guide link beside it, which keeps the column of
+          numbers, the line and the links on one axis - the eye then reads the
+          steps as a sequence rather than as five separate boxes.
 
-        <span
-          v-if="index < steps.length - 1"
-          class="my-1 ml-8 h-4 w-0.5 self-start bg-gray-300"
-          aria-hidden="true"
-        />
+          It sits outside the step because the step itself is a link, and a link
+          inside a link does not work.
+        -->
+        <div class="flex items-center gap-3" :class="step.guide ? 'py-1' : ''">
+          <span
+            class="ml-8 h-6 w-px shrink-0"
+            :class="index < steps.length - 1 ? 'bg-gray-300' : 'bg-transparent'"
+            aria-hidden="true"
+          />
+          <a
+            v-if="step.guide"
+            :href="guideUrlFor(step.guide.file)"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-xs text-blue-600 underline"
+            :data-testid="`${step.testId}-guide`"
+          >
+            {{ step.guide.title }}
+          </a>
+        </div>
       </li>
     </ol>
 
