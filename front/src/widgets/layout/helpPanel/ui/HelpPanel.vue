@@ -114,12 +114,39 @@ const FALLBACK: Help = {
 };
 
 const WIDTH_KEY = 'cm.helpPanel.width';
+const MODE_KEY = 'cm.helpPanel.mode';
 const MIN_WIDTH = 280;
 const MAX_WIDTH = 720;
 
 const route = useRoute();
 const open = ref(false);
 const width = ref(readWidth());
+
+/*
+  Two ways to show it. Docked, the panel takes a column of its own and the page
+  gives up that width - the screen becomes menu, work, help. Detached, it floats
+  over the page and the screen keeps its width.
+
+  Which one suits depends on the screen and on the person, so both are offered
+  and the choice is remembered.
+*/
+const docked = ref(localStorage.getItem(MODE_KEY) !== 'float');
+
+/* Docking works by reserving the width on the application root, so every screen
+   inside it reflows instead of being covered. */
+function applyDock() {
+  const root = document.getElementById('app');
+  if (!root) return;
+  const reserve = open.value && docked.value ? `${width.value}px` : '';
+  root.style.paddingRight = reserve;
+  root.style.boxSizing = 'border-box';
+}
+
+function setDocked(next: boolean) {
+  docked.value = next;
+  localStorage.setItem(MODE_KEY, next ? 'dock' : 'float');
+  applyDock();
+}
 
 function readWidth(): number {
   const saved = Number(localStorage.getItem(WIDTH_KEY));
@@ -136,6 +163,12 @@ const help = computed<Help>(() => {
 
 function toggle() {
   open.value = !open.value;
+  applyDock();
+}
+
+function close() {
+  open.value = false;
+  applyDock();
 }
 
 /* Drag the left edge to resize. The pointer is tracked on the document so the
@@ -148,6 +181,7 @@ function startResize(event: MouseEvent) {
   const onMove = (e: MouseEvent) => {
     const next = startWidth + (startX - e.clientX);
     width.value = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, next));
+    applyDock();
   };
   const onUp = () => {
     localStorage.setItem(WIDTH_KEY, String(width.value));
@@ -159,10 +193,14 @@ function startResize(event: MouseEvent) {
 }
 
 function onEscape(e: KeyboardEvent) {
-  if (e.key === 'Escape') open.value = false;
+  if (e.key === 'Escape') close();
 }
 document.addEventListener('keydown', onEscape);
-onBeforeUnmount(() => document.removeEventListener('keydown', onEscape));
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onEscape);
+  const root = document.getElementById('app');
+  if (root) root.style.paddingRight = '';
+});
 </script>
 
 <template>
@@ -183,6 +221,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onEscape));
     <aside
       v-if="open"
       class="help-panel"
+      :class="docked ? 'is-docked' : 'is-float'"
       :style="{ width: width + 'px' }"
       data-testid="help-panel"
     >
@@ -194,14 +233,34 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onEscape));
       />
       <header class="help-head">
         <span class="help-title">{{ help.title }}</span>
-        <button
-          class="help-close"
-          data-testid="help-close"
-          title="Close"
-          @click="open = false"
-        >
-          &#10005;
-        </button>
+        <span class="help-actions">
+          <button
+            v-if="docked"
+            class="help-mode"
+            data-testid="help-detach"
+            title="Detach - float over the page instead of taking a column"
+            @click="setDocked(false)"
+          >
+            Detach
+          </button>
+          <button
+            v-else
+            class="help-mode"
+            data-testid="help-dock"
+            title="Dock - give the panel a column of its own"
+            @click="setDocked(true)"
+          >
+            Dock
+          </button>
+          <button
+            class="help-close"
+            data-testid="help-close"
+            title="Close"
+            @click="close"
+          >
+            &#10005;
+          </button>
+        </span>
       </header>
       <div class="help-body">
         <p v-for="(line, i) in help.paragraphs" :key="i">{{ line }}</p>
@@ -251,7 +310,32 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onEscape));
   flex-direction: column;
   background: #ffffff;
   border-left: 1px solid #e5e7eb;
-  box-shadow: -4px 0 16px rgb(0 0 0 / 8%);
+}
+
+/* Detached: floats above the page. */
+.help-panel.is-float {
+  box-shadow: -4px 0 16px rgb(0 0 0 / 12%);
+}
+
+.help-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.help-mode {
+  padding: 2px 8px;
+  font-size: 12px;
+  color: #4b5563;
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  cursor: pointer;
+
+  &:hover {
+    background: #f3f4f6;
+    color: #111827;
+  }
 }
 
 .help-resizer {
