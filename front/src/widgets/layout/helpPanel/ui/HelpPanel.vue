@@ -12,6 +12,7 @@
 import { computed, ref, onBeforeUnmount, getCurrentInstance } from 'vue';
 import { useRoute } from 'vue-router/composables';
 import { DOC_LINKS, openDocLink } from '@/shared/constants/docLinks';
+import { isJsonEditorOpen } from '@/shared/ui/EnhancedJsonEditor/editorPresence';
 
 type Section = {
   heading: string;
@@ -706,12 +707,66 @@ const panelStyle = computed(() => {
   return style;
 });
 
+/*
+  The editor opens over the screen it belongs to, so the address stays the same
+  and the help would otherwise describe the list behind it. While it is open,
+  this goes first: what you are looking at, enough of the editor to work with,
+  and the guide for the rest.
+*/
+const JSON_EDITOR_GROUP: Group = {
+  id: 'json-editor',
+  title: 'Editing this as JSON',
+  guide: { label: 'Editing a model as JSON', url: DOC_LINKS.jsonEditor },
+  intro:
+    'The editor is open over the screen you came from, showing that document as JSON. It offers the same document three ways - table, tree and text - and nothing is lost by moving between them. Nothing is written until you save, and on the model screens saving asks for a name and creates a custom copy, leaving the original as it was.',
+  sections: [
+    {
+      heading: 'Change a value, add an entry',
+      steps: [
+        'In the table view, double-click a value to edit it and press Enter to keep it.',
+        'To add an entry to a list, copy one that already exists - the copy lands below it with every field filled in, so only the differences need changing.',
+        'Undo takes back anything, including edits made in the table.',
+      ],
+    },
+    {
+      heading: 'Find something in a large document',
+      steps: [
+        'Press the magnifier, or Ctrl+F, and type.',
+        'The arrows move between matches and open the branches on the way.',
+        'The Filter toggle leaves only the rows that match - useful when one name runs through the document and all of it has to change.',
+      ],
+    },
+    {
+      heading: 'Filter or reshape an array',
+      steps: [
+        'Switch to the tree view, click the array so it is selected, then right-click it.',
+        'Sort and Transform act on what is selected. With nothing selected they act on the whole document, which is an object - that is why the wizard stays empty and the fields you expected never appear.',
+        'Transform replaces the array with the result, so check the document before saving.',
+      ],
+    },
+  ],
+};
+
 const help = computed<Help>(() => {
   const path = route.path;
   const hit = HELP.filter(e => path.startsWith(e.path)).sort(
     (a, b) => b.path.length - a.path.length,
   )[0];
-  return hit ? hit.help : fallbackFor(screenNameFrom(path));
+  const base = hit ? hit.help : fallbackFor(screenNameFrom(path));
+  if (!isJsonEditorOpen.value) return base;
+
+  return {
+    ...base,
+    paragraphs: [
+      'The JSON editor is open over this screen. What it is editing, and how, comes first; the screen it belongs to follows.',
+      ...base.paragraphs,
+    ],
+    groups: [JSON_EDITOR_GROUP, ...(base.groups ?? [])],
+    guides: [
+      { label: 'Editing a model as JSON', url: DOC_LINKS.jsonEditor },
+      ...(base.guides ?? []).filter(g => g.url !== DOC_LINKS.jsonEditor),
+    ],
+  };
 });
 
 /* The index at the top scrolls to the job it names. */
