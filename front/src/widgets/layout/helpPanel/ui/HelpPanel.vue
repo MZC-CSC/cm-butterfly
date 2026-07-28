@@ -23,6 +23,8 @@ type Section = { heading: string; steps: string[] };
 type Group = {
   id: string;
   title: string;
+  /** The guide for this job, offered where it is being read rather than only at the end. */
+  guide?: { label: string; url: string };
   /** Why this job exists and what choices it offers, before the ways of doing it. */
   intro: string;
   sections: Section[];
@@ -113,6 +115,10 @@ const HELP: Array<{ path: string; help: Help }> = [
       groups: [
         {
           id: 'manage-sources',
+          guide: {
+            label: 'Bulk import of source connections',
+            url: DOC_LINKS.sourceConnectionBulkImport,
+          },
           title: 'Managing the servers you migrate from',
           intro:
             'A source service is a group of servers, and each connection under it is one server. There is no single order to build it in - create the group first and add servers when their details are ready, create both at once, add or change servers later, or bring them in from a file. Use whichever suits how you got the information.',
@@ -151,6 +157,7 @@ const HELP: Array<{ path: string; help: Help }> = [
         },
         {
           id: 'make-source-model',
+          guide: { label: 'Quick start', url: DOC_LINKS.quickStartMigration },
           title: 'Making a source model',
           intro:
             'Collecting reads what is actually on the servers; saving turns that into a source model the migration can work from. Two choices shape it - infrastructure or software, and a whole group or a single server. Collection reaches each server over SSH, so it has to be reachable at the time.',
@@ -210,6 +217,7 @@ const HELP: Array<{ path: string; help: Help }> = [
         },
         {
           id: 'make-target-model',
+          guide: { label: 'Quick start', url: DOC_LINKS.quickStartMigration },
           title: 'Producing a target model',
           intro:
             'This is where the origin turns into a destination. The two kinds part ways here: infrastructure gets candidate machines with a price to choose between, software gets a list of what to install and no price, since software is matched to what is there rather than to a machine.',
@@ -263,6 +271,7 @@ const HELP: Array<{ path: string; help: Help }> = [
         },
         {
           id: 'make-workflow',
+          guide: { label: 'Quick start', url: DOC_LINKS.quickStartMigration },
           title: 'Building the workflow',
           intro:
             'The workflow is generated from the model, so its values are already in place. What differs is the order: a software migration installs onto infrastructure, so that infrastructure has to exist first.',
@@ -299,6 +308,10 @@ const HELP: Array<{ path: string; help: Help }> = [
       groups: [
         {
           id: 'manage-workflows',
+          guide: {
+            label: 'Running workflow tasks in parallel',
+            url: DOC_LINKS.workflowParallelSteps,
+          },
           title: 'Managing workflows',
           intro:
             'Most workflows come from a target model, but one can also be built in the editor or copied from a workflow that already works. They can be exported and imported, so a good one can be kept and reused like a template.',
@@ -317,6 +330,10 @@ const HELP: Array<{ path: string; help: Help }> = [
         },
         {
           id: 'run-workflows',
+          guide: {
+            label: 'Reading the run status screen',
+            url: DOC_LINKS.workflowRunStatus,
+          },
           title: 'Running and checking results',
           intro:
             'Running, watching and re-running all happen on one screen. A failed run does not have to be started over - you can pick up from where it broke.',
@@ -363,6 +380,10 @@ const HELP: Array<{ path: string; help: Help }> = [
       groups: [
         {
           id: 'use-templates',
+          guide: {
+            label: 'Running workflow tasks in parallel',
+            url: DOC_LINKS.workflowParallelSteps,
+          },
           title: 'Using templates',
           intro:
             'Templates hold the same content a workflow does, minus the values that belong to one particular run. Start from one and fill in what is specific to this migration.',
@@ -397,6 +418,10 @@ const HELP: Array<{ path: string; help: Help }> = [
       groups: [
         {
           id: 'use-tasks',
+          guide: {
+            label: 'Running workflow tasks in parallel',
+            url: DOC_LINKS.workflowParallelSteps,
+          },
           title: 'Working with task components',
           intro:
             'Components are the pieces a workflow is assembled from. Looking at one shows what it needs and what it returns, which is what the workflow editor asks you to fill in.',
@@ -599,6 +624,8 @@ const width = ref(readWidth());
   Which one suits depends on the screen and on the person, so both are offered
   and the choice is remembered.
 */
+// Docked unless the reader has chosen otherwise before - taking a column is the
+// default because that is where the help sits without hiding anything.
 const docked = ref(localStorage.getItem(MODE_KEY) !== 'float');
 
 /* Where the detached panel sits. It opens on the right, which is also where the
@@ -842,6 +869,20 @@ onBeforeUnmount(() => {
               <li v-for="(step, t) in section.steps" :key="t">{{ step }}</li>
             </ol>
           </section>
+          <button
+            v-if="group.guide"
+            class="help-guide"
+            :data-testid="`help-group-guide-${group.id}`"
+            @click="openDocLink(group.guide.url)"
+          >
+            <svg class="help-doc-icon" viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                d="M4 1.5h5.2L13 5.3V14a.5.5 0 0 1-.5.5h-8A.5.5 0 0 1 4 14V1.5Zm1 1V13.5h7V6H8.7V2.5H5Zm4.7.7V5H12L9.7 3.2ZM6 7.5h5v1H6v-1Zm0 2.5h5v1H6v-1Z"
+              />
+            </svg>
+            <span class="help-guide-text">Guide: {{ group.guide.label }}</span>
+            <span class="help-guide-out">&#8599;</span>
+          </button>
         </section>
 
         <!-- Set apart: the same words on every screen, for when one is unfamiliar. -->
