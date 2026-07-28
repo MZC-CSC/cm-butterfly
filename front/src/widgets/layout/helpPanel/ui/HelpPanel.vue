@@ -17,9 +17,12 @@ type Section = { heading: string; steps: string[] };
 
 type Help = {
   title: string;
+  /** What this menu is for, before any of the steps. */
   paragraphs: string[];
   /** How to actually use the screen, as the steps you take on it. */
   sections?: Section[];
+  /** Terms someone new to the console will not know yet. Kept last on purpose. */
+  terms?: Array<{ term: string; meaning: string }>;
   guide?: { label: string; url: string };
 };
 
@@ -34,6 +37,28 @@ const HELP: Array<{ path: string; help: Help }> = [
         'Infrastructure and software migration follow the same five steps; where they differ, the help on each screen says so.',
         'The help icon at the top right shows help for whichever screen you are on.',
       ],
+      terms: [
+        {
+          term: 'Source service',
+          meaning:
+            'A group of the servers you are migrating from - on-premises machines or ones already on a cloud. Each connection under it is one server.',
+        },
+        {
+          term: 'Source model',
+          meaning:
+            'What was found on those servers, written down. It stays close to the original machines.',
+        },
+        {
+          term: 'Target model',
+          meaning:
+            'The same workload described the way the destination expects it - usually a cloud. This is what a workflow is built from.',
+        },
+        {
+          term: 'Where to make changes',
+          meaning:
+            'You can adjust the source model, the target model, or the workflow. Later is usually easier: the target model is already in the destination shape, and the workflow is the last word before anything runs. Target models and workflows can also be exported and imported, so a good one can be kept and reused like a template.',
+        },
+      ],
       guide: { label: 'Quick start guide', url: DOC_LINKS.quickStartMigration },
     },
   },
@@ -42,54 +67,77 @@ const HELP: Array<{ path: string; help: Help }> = [
     help: {
       title: 'Source Services',
       paragraphs: [
-        'A source service groups the servers you want to migrate. Each connection under it is one server.',
-        'A group can be created on its own and filled in later, or created with its connections in one go.',
+        'This menu does two things: it keeps the list of servers you are migrating from, and it turns what is collected from them into a source model.',
+        'A source service is a group of those servers - on-premises machines or ones already running on a cloud. Each connection under it is one server.',
       ],
       sections: [
         {
-          heading: 'Create a group only',
+          heading: 'Managing the group - create it empty',
           steps: [
             'Create a source service with a name and description.',
             'It appears in the list with no connections. Add them whenever the server details are ready.',
           ],
         },
         {
-          heading: 'Create a group with its connections',
+          heading: 'Managing the group - create it with connections',
           steps: [
             'While creating the source service, add connections in the same form.',
             'Each connection needs a name, IP address, SSH port, user, and a password or private key.',
           ],
         },
         {
-          heading: 'Add connections to an existing group',
+          heading: 'Managing the group - add, edit or remove later',
           steps: [
-            'Select the group and open its Connections tab.',
-            'Add one connection per server, entering the details by hand.',
+            'Select the group and open its Connections tab to add a server by hand.',
+            'Connections can be edited or removed the same way as the group itself.',
           ],
         },
         {
-          heading: 'Register many from a file',
+          heading: 'Managing the group - from a file',
           steps: [
             'Download the connection template to see the layout.',
             'Fill it in. The template opens in Excel and saves back as either CSV or .xlsx.',
             'Import the file. The rows to be registered are listed on screen - review them, then confirm.',
+            'What is already registered can be exported in the same layout, so a group can be copied or kept as a starting point. Passwords and keys come out blank and have to be filled in again.',
           ],
         },
         {
-          heading: 'Export what is registered',
+          heading: 'Making a source model - choose what to migrate',
           steps: [
-            'Select a group, tick the connections you want, and export.',
-            'Choose CSV or Excel. The file uses the import layout, so it can be edited and imported back.',
-            'Passwords and keys are left blank - fill them in again before importing.',
+            'Decide whether you are migrating infrastructure or software - the collection differs.',
+            'Select a whole group to cover every server in it, or a single connection to cover one server.',
           ],
         },
         {
-          heading: 'Collect from the servers',
+          heading: 'Making a source model - collect and save',
           steps: [
-            'Press Refresh first. It re-checks each connection and updates Agent Status and Connection Status on the Detail tab.',
-            'Once the status is healthy, run Collect Infra for machines, or Collect SW for the software running on them.',
-            'The result opens in a viewer. For software, press Convert before saving.',
+            'Press Refresh first. Collection reaches the server over SSH, so it has to be reachable - Refresh re-checks that and updates Agent Status and Connection Status on the Detail tab.',
+            'Run Collect Infra for machines, or Collect SW for the software on them.',
+            'The result opens in a viewer. Check it, and for software press Convert.',
+            'Save it as a source model. It then appears under Models.',
           ],
+        },
+      ],
+      terms: [
+        {
+          term: 'Source service',
+          meaning:
+            'A group of the servers you are migrating from - on-premises machines or ones already on a cloud. Each connection under it is one server.',
+        },
+        {
+          term: 'Source model',
+          meaning:
+            'What was found on those servers, written down. It stays close to the original machines.',
+        },
+        {
+          term: 'Target model',
+          meaning:
+            'The same workload described the way the destination expects it - usually a cloud. This is what a workflow is built from.',
+        },
+        {
+          term: 'Where to make changes',
+          meaning:
+            'You can adjust the source model, the target model, or the workflow. Later is usually easier: the target model is already in the destination shape, and the workflow is the last word before anything runs. Target models and workflows can also be exported and imported, so a good one can be kept and reused like a template.',
         },
       ],
       guide: {
@@ -103,19 +151,20 @@ const HELP: Array<{ path: string; help: Help }> = [
     help: {
       title: 'Source Models',
       paragraphs: [
-        'What was collected from the registered servers, saved as a model. The rest of the flow is built on it.',
-        'Infrastructure and software are separate models and take separate paths from here.',
+        'This menu does two things: it keeps your source models, and it produces a target model from one of them.',
+        'A source model stays close to the original servers - it is what was found on them.',
       ],
       sections: [
         {
-          heading: 'Save a model',
+          heading: 'Managing models',
           steps: [
-            'From a collected result, save it as a source model. It appears in this list.',
-            'Saving under a new name gives you a copy to adjust, leaving the original as it was.',
+            'Open a model to review what was collected, and adjust anything the collection got wrong.',
+            'Saving under a new name gives you a custom copy and leaves the original as it was.',
+            'Models can be renamed and removed here.',
           ],
         },
         {
-          heading: 'Infrastructure - get a target from it',
+          heading: 'Infrastructure - produce a target model',
           steps: [
             'Select an infrastructure source model and run Recommend Model.',
             'Each candidate shows an estimated monthly cost, so you can choose by cost.',
@@ -123,12 +172,34 @@ const HELP: Array<{ path: string; help: Help }> = [
           ],
         },
         {
-          heading: 'Software - get a target from it',
+          heading: 'Software - produce a target model',
           steps: [
             'Select a software source model and run Recommend Model.',
-            'On the recommendation screen, press Get Migration List. The recommended migration fills the panel on the right.',
-            'Save it as a software target model. There is no cost estimate here - software is matched to what is installed, not to a machine price.',
+            'Press Get Migration List. The recommended migration fills the panel on the right.',
+            'Save it as a software target model. There is no cost here - software is matched to what is installed, not to a machine price.',
           ],
+        },
+      ],
+      terms: [
+        {
+          term: 'Source service',
+          meaning:
+            'A group of the servers you are migrating from - on-premises machines or ones already on a cloud. Each connection under it is one server.',
+        },
+        {
+          term: 'Source model',
+          meaning:
+            'What was found on those servers, written down. It stays close to the original machines.',
+        },
+        {
+          term: 'Target model',
+          meaning:
+            'The same workload described the way the destination expects it - usually a cloud. This is what a workflow is built from.',
+        },
+        {
+          term: 'Where to make changes',
+          meaning:
+            'You can adjust the source model, the target model, or the workflow. Later is usually easier: the target model is already in the destination shape, and the workflow is the last word before anything runs. Target models and workflows can also be exported and imported, so a good one can be kept and reused like a template.',
         },
       ],
       guide: { label: 'Quick start guide', url: DOC_LINKS.quickStartMigration },
@@ -139,16 +210,17 @@ const HELP: Array<{ path: string; help: Help }> = [
     help: {
       title: 'Target Models',
       paragraphs: [
-        'A target model is generated from a source model. Adjust the values you want and save it as a custom model.',
-        'The list marks each one as Basic or Custom, and as a CloudModel or a SoftwareModel.',
+        'This menu does two things: it keeps your target models, and it builds a workflow from one of them.',
+        'A target model describes the workload the way the destination expects it. The list marks each one as Basic or Custom, and as a CloudModel or a SoftwareModel.',
       ],
       sections: [
         {
-          heading: 'Adjust a model',
+          heading: 'Managing models',
           steps: [
             'Open Custom & View to see the model as JSON.',
             'The table view edits values and adds or removes list entries; the tree and text views are the same document in another shape.',
             'Saving asks for a name and creates a custom model - the original is left as it was.',
+            'A model can be exported to a file and imported back, so a good one can be kept and reused.',
           ],
         },
         {
@@ -167,6 +239,28 @@ const HELP: Array<{ path: string; help: Help }> = [
           ],
         },
       ],
+      terms: [
+        {
+          term: 'Source service',
+          meaning:
+            'A group of the servers you are migrating from - on-premises machines or ones already on a cloud. Each connection under it is one server.',
+        },
+        {
+          term: 'Source model',
+          meaning:
+            'What was found on those servers, written down. It stays close to the original machines.',
+        },
+        {
+          term: 'Target model',
+          meaning:
+            'The same workload described the way the destination expects it - usually a cloud. This is what a workflow is built from.',
+        },
+        {
+          term: 'Where to make changes',
+          meaning:
+            'You can adjust the source model, the target model, or the workflow. Later is usually easier: the target model is already in the destination shape, and the workflow is the last word before anything runs. Target models and workflows can also be exported and imported, so a good one can be kept and reused like a template.',
+        },
+      ],
       guide: { label: 'Quick start guide', url: DOC_LINKS.quickStartMigration },
     },
   },
@@ -175,9 +269,17 @@ const HELP: Array<{ path: string; help: Help }> = [
     help: {
       title: 'Workflows',
       paragraphs: [
-        'Create a workflow from a target model, or build one yourself in the editor.',
+        'This menu keeps your workflows and runs them. A workflow is the last thing you can change before anything is actually created.',
+        'Most come from a target model, but one can be built in the editor or copied from an existing workflow and adjusted.',
       ],
       sections: [
+        {
+          heading: 'Managing workflows',
+          steps: [
+            'Create one from a target model, build it in the editor, or copy an existing workflow and change its values.',
+            'A workflow can be exported to a file and imported back, so a working one can be kept and reused like a template.',
+          ],
+        },
         {
           heading: 'Check it before running',
           steps: [
@@ -188,7 +290,7 @@ const HELP: Array<{ path: string; help: Help }> = [
           ],
         },
         {
-          heading: 'Run and watch',
+          heading: 'Run, watch and run again',
           steps: [
             'Saving takes you to the run view, where you run, edit, re-run and check results on one screen.',
             'The graph shows live progress and where a run failed.',
@@ -201,6 +303,28 @@ const HELP: Array<{ path: string; help: Help }> = [
             'Open the Run Status tab and select the run_software_migration task.',
             'Under Result, choose View installed software. It lists each piece of software with its version, install type, status, and the namespace, infra and node it landed on.',
           ],
+        },
+      ],
+      terms: [
+        {
+          term: 'Source service',
+          meaning:
+            'A group of the servers you are migrating from - on-premises machines or ones already on a cloud. Each connection under it is one server.',
+        },
+        {
+          term: 'Source model',
+          meaning:
+            'What was found on those servers, written down. It stays close to the original machines.',
+        },
+        {
+          term: 'Target model',
+          meaning:
+            'The same workload described the way the destination expects it - usually a cloud. This is what a workflow is built from.',
+        },
+        {
+          term: 'Where to make changes',
+          meaning:
+            'You can adjust the source model, the target model, or the workflow. Later is usually easier: the target model is already in the destination shape, and the workflow is the last word before anything runs. Target models and workflows can also be exported and imported, so a good one can be kept and reused like a template.',
         },
       ],
       guide: {
@@ -287,6 +411,10 @@ const width = ref(readWidth());
 */
 const docked = ref(localStorage.getItem(MODE_KEY) !== 'float');
 
+/* Where the detached panel sits. It opens on the right, which is also where the
+   screen keeps its buttons, so it has to be movable. Null means "as opened". */
+const offset = ref<{ x: number; y: number } | null>(null);
+
 /* Docking works by reserving the width on the application root, so every screen
    inside it reflows instead of being covered. */
 function applyDock() {
@@ -299,6 +427,7 @@ function applyDock() {
 
 function setDocked(next: boolean) {
   docked.value = next;
+  if (next) offset.value = null;
   localStorage.setItem(MODE_KEY, next ? 'dock' : 'float');
   applyDock();
 }
@@ -307,6 +436,18 @@ function readWidth(): number {
   const saved = Number(localStorage.getItem(WIDTH_KEY));
   return saved >= MIN_WIDTH && saved <= MAX_WIDTH ? saved : 380;
 }
+
+const panelStyle = computed(() => {
+  const style: Record<string, string> = { width: `${width.value}px` };
+  if (!docked.value && offset.value) {
+    style.left = `${offset.value.x}px`;
+    style.top = `${offset.value.y}px`;
+    style.right = 'auto';
+    style.bottom = 'auto';
+    style.height = '70vh';
+  }
+  return style;
+});
 
 const help = computed<Help>(() => {
   const path = route.path;
@@ -347,6 +488,39 @@ function startResize(event: MouseEvent) {
   document.addEventListener('mouseup', onUp);
 }
 
+/* Drag the header to move a detached panel out of the way. */
+function startMove(event: MouseEvent) {
+  if (docked.value) return;
+  if ((event.target as HTMLElement).closest('button')) return;
+  event.preventDefault();
+
+  const panel = (event.currentTarget as HTMLElement).closest(
+    '.help-panel',
+  ) as HTMLElement;
+  const box = panel.getBoundingClientRect();
+  const grabX = event.clientX - box.left;
+  const grabY = event.clientY - box.top;
+
+  const onMove = (e: MouseEvent) => {
+    offset.value = {
+      x: Math.max(
+        0,
+        Math.min(window.innerWidth - box.width, e.clientX - grabX),
+      ),
+      y: Math.max(
+        0,
+        Math.min(window.innerHeight - box.height, e.clientY - grabY),
+      ),
+    };
+  };
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  };
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
 function onEscape(e: KeyboardEvent) {
   if (e.key === 'Escape') close();
 }
@@ -377,7 +551,7 @@ onBeforeUnmount(() => {
       v-if="open"
       class="help-panel"
       :class="docked ? 'is-docked' : 'is-float'"
-      :style="{ width: width + 'px' }"
+      :style="panelStyle"
       data-testid="help-panel"
     >
       <span
@@ -386,7 +560,12 @@ onBeforeUnmount(() => {
         title="Drag to resize"
         @mousedown="startResize"
       />
-      <header class="help-head">
+      <header
+        class="help-head"
+        :class="{ 'is-movable': !docked }"
+        data-testid="help-header"
+        @mousedown="startMove"
+      >
         <span class="help-title">{{ help.title }}</span>
         <span class="help-actions">
           <button
@@ -396,13 +575,15 @@ onBeforeUnmount(() => {
             title="Detach - float over the page instead of taking a column"
             @click="setDocked(false)"
           >
-            <!-- a small pane lifted off the edge: the shape used for "open in a
-                 floating window" across editors and browsers -->
+            <!-- two overlapping windows: the shape that means "come out of the
+                 full screen into a window of your own" -->
             <svg viewBox="0 0 16 16" class="help-mode-icon" aria-hidden="true">
               <path
-                d="M2.5 3.5h7a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Zm0 1v7h7v-7h-7Z"
+                d="M2 5.5h7.5a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Zm0 1v7h7.5v-7H2Z"
               />
-              <path d="M6.5 2.5h7a1 1 0 0 1 1 1v7h-1v-7h-7v-1Z" />
+              <path
+                d="M6.5 1.5H14a1 1 0 0 1 1 1V10a1 1 0 0 1-1 1h-2v-1h2V2.5H6.5v2h-1v-2a1 1 0 0 1 1-1Z"
+              />
             </svg>
           </button>
           <button
@@ -412,8 +593,8 @@ onBeforeUnmount(() => {
             title="Dock - give the panel a column of its own"
             @click="setDocked(true)"
           >
-            <!-- a pane split with the right column filled: the shape used for
-                 "dock to the side" in editors -->
+            <!-- one window with its right column filled: back into the screen,
+                 taking a side of it -->
             <svg viewBox="0 0 16 16" class="help-mode-icon" aria-hidden="true">
               <path
                 d="M2 3h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm0 1v8h12V4H2Z"
@@ -442,6 +623,15 @@ onBeforeUnmount(() => {
           <ol class="help-steps">
             <li v-for="(step, t) in section.steps" :key="t">{{ step }}</li>
           </ol>
+        </section>
+        <section v-if="help.terms" class="help-section">
+          <h3 class="help-heading">What these words mean</h3>
+          <dl class="help-terms">
+            <template v-for="(t, k) in help.terms">
+              <dt :key="`t${k}`">{{ t.term }}</dt>
+              <dd :key="`d${k}`">{{ t.meaning }}</dd>
+            </template>
+          </dl>
         </section>
         <button
           v-if="help.guide"
@@ -541,6 +731,10 @@ onBeforeUnmount(() => {
   }
 }
 
+.help-head.is-movable {
+  cursor: move;
+}
+
 .help-head {
   display: flex;
   align-items: center;
@@ -599,6 +793,22 @@ onBeforeUnmount(() => {
   padding-left: 18px;
   margin: 0;
   list-style: decimal;
+}
+
+.help-terms {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.help-terms dt {
+  font-weight: 600;
+  color: #111827;
+}
+
+.help-terms dd {
+  margin: 0 0 4px;
 }
 
 .help-guide {

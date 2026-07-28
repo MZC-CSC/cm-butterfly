@@ -75,8 +75,8 @@ const steps: Step[] = [
     no: 2,
     title: 'Create Source Model',
     detail: [
-      'Collect what is running on those servers and save it as a source model.',
-      'The rest of the flow is built on that inventory.',
+      'Collect from the servers you registered, on the same Source Services screen, and save the result as a source model.',
+      'Everything after this is built from that model.',
     ],
     routeName: MENU_ID.SOURCE_MODELS,
     testId: 'migration-guide-step-source-model',
