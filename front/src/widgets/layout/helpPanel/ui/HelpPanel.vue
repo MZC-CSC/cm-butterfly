@@ -343,6 +343,10 @@ const HELP: Array<{ path: string; help: Help }> = [
           sections: [
             {
               heading: 'Create, copy and check',
+              guide: {
+                label: 'Editing a model as JSON',
+                url: DOC_LINKS.jsonEditor,
+              },
               steps: [
                 'Create one from a target model, build it in the editor, or copy an existing workflow and change its values.',
                 'Select the migration task on the canvas. Task Configuration opens on the right with the values carried over from the target model - path and query parameters and the request body.',
@@ -416,6 +420,10 @@ const HELP: Array<{ path: string; help: Help }> = [
           sections: [
             {
               heading: 'Start from a template',
+              guide: {
+                label: 'Editing a model as JSON',
+                url: DOC_LINKS.jsonEditor,
+              },
               steps: [
                 'Open a template to see the tasks it contains and how they are ordered.',
                 'Create a workflow from it, then adjust the task values for this migration.',
@@ -455,6 +463,10 @@ const HELP: Array<{ path: string; help: Help }> = [
           sections: [
             {
               heading: 'Read a component',
+              guide: {
+                label: 'Editing a model as JSON',
+                url: DOC_LINKS.jsonEditor,
+              },
               steps: [
                 'Open a component to see the values it takes and the result it produces.',
                 'Its JSON can be viewed and edited the same way a model can.',
