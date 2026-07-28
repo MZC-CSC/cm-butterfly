@@ -806,7 +806,13 @@ onBeforeUnmount(() => {
           data-testid="help-guide-link"
           @click="openDocLink(help.guide.url)"
         >
-          {{ help.guide.label }} &rsaquo;
+          <svg class="help-doc-icon" viewBox="0 0 16 16" aria-hidden="true">
+            <path
+              d="M4 1.5h5.2L13 5.3V14a.5.5 0 0 1-.5.5h-8A.5.5 0 0 1 4 14V1.5Zm1 1V13.5h7V6H8.7V2.5H5Zm4.7.7V5H12L9.7 3.2ZM6 7.5h5v1H6v-1Zm0 2.5h5v1H6v-1Z"
+            />
+          </svg>
+          <span class="help-guide-text">Guide: {{ help.guide.label }}</span>
+          <span class="help-guide-out">&#8599;</span>
         </button>
       </div>
     </aside>
@@ -1031,13 +1037,30 @@ onBeforeUnmount(() => {
 }
 
 .help-guide {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   align-self: flex-start;
   padding: 0;
   font-size: 13px;
   color: #2563eb;
-  text-decoration: underline;
   background: transparent;
   border: 0;
   cursor: pointer;
+}
+
+.help-doc-icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  fill: currentcolor;
+}
+
+.help-guide-text {
+  text-decoration: underline;
+}
+
+.help-guide-out {
+  color: #9ca3af;
 }
 </style>

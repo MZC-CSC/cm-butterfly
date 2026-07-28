@@ -204,15 +204,30 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
             :class="index < steps.length - 1 ? 'bg-gray-300' : 'bg-transparent'"
             aria-hidden="true"
           />
+          <!--
+            Say it is a document before it is clicked. On its own the title read
+            as a caption, and you only learned it was a link by pressing it.
+          -->
           <a
             v-if="step.guide"
             :href="guideUrlFor(step.guide.file)"
             target="_blank"
             rel="noopener noreferrer"
-            class="text-xs text-blue-600 underline"
+            class="inline-flex items-center gap-1 text-xs text-blue-600"
             :data-testid="`${step.testId}-guide`"
           >
-            {{ step.guide.title }}
+            <svg
+              class="h-3 w-3 shrink-0"
+              viewBox="0 0 16 16"
+              aria-hidden="true"
+            >
+              <path
+                fill="currentColor"
+                d="M4 1.5h5.2L13 5.3V14a.5.5 0 0 1-.5.5h-8A.5.5 0 0 1 4 14V1.5Zm1 1V13.5h7V6H8.7V2.5H5Zm4.7.7V5H12L9.7 3.2ZM6 7.5h5v1H6v-1Zm0 2.5h5v1H6v-1Z"
+              />
+            </svg>
+            <span class="underline">Guide: {{ step.guide.title }}</span>
+            <span class="text-gray-400">&#8599;</span>
           </a>
         </div>
       </li>
@@ -268,10 +283,18 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
         :href="guideUrl"
         target="_blank"
         rel="noopener noreferrer"
-        class="text-blue-600 underline"
+        class="inline-flex items-center gap-1 text-blue-600"
         data-testid="migration-guide-full-doc"
-        >Read the Quick Start guide</a
       >
+        <svg class="h-3 w-3 shrink-0" viewBox="0 0 16 16" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M4 1.5h5.2L13 5.3V14a.5.5 0 0 1-.5.5h-8A.5.5 0 0 1 4 14V1.5Zm1 1V13.5h7V6H8.7V2.5H5Zm4.7.7V5H12L9.7 3.2ZM6 7.5h5v1H6v-1Zm0 2.5h5v1H6v-1Z"
+          />
+        </svg>
+        <span class="underline">Guide: Quick start</span>
+        <span class="text-gray-400">&#8599;</span>
+      </a>
     </footer>
   </div>
 </template>
