@@ -35,7 +35,8 @@ import { MENU_ID } from '@/entities';
 type Step = {
   no: number;
   title: string;
-  detail: string;
+  /** One entry per sentence: each starts on its own line and still wraps on narrow screens. */
+  detail: string[];
   routeName: string;
   testId: string;
   /**
@@ -59,8 +60,10 @@ const steps: Step[] = [
   {
     no: 1,
     title: 'Register Source Service',
-    detail:
-      'Register the servers you want to migrate. Each connection is one source server, and the collection agent is installed when you add it.',
+    detail: [
+      'Register the servers you want to migrate.',
+      'Each connection is one source server, and the collection agent is installed when you add it.',
+    ],
     routeName: MENU_ID.SOURCE_SERVICES,
     testId: 'migration-guide-step-source-service',
     guide: {
@@ -71,24 +74,30 @@ const steps: Step[] = [
   {
     no: 2,
     title: 'Create Source Model',
-    detail:
-      'Collect what is running on those servers and save it as a source model — the inventory the rest of the flow is built on.',
+    detail: [
+      'Collect what is running on those servers and save it as a source model.',
+      'The rest of the flow is built on that inventory.',
+    ],
     routeName: MENU_ID.SOURCE_MODELS,
     testId: 'migration-guide-step-source-model',
   },
   {
     no: 3,
     title: 'Create Target Model',
-    detail:
-      'Get a recommended cloud specification for that source model. Each candidate shows an estimated cost, so you can choose by cost.',
+    detail: [
+      'A target model is generated from the source model.',
+      'Adjust the values you want and save it as a custom model.',
+    ],
     routeName: MENU_ID.TARGET_MODELS,
     testId: 'migration-guide-step-target-model',
   },
   {
     no: 4,
     title: 'Create Workflow',
-    detail:
-      'From the target model, generate the migration workflow. This is the entry point — workflows are created from a target model.',
+    detail: [
+      'Create the migration workflow straight from a target model.',
+      'You can also build one yourself in the workflow editor.',
+    ],
     routeName: MENU_ID.WORKFLOWS,
     testId: 'migration-guide-step-create-workflow',
     guide: {
@@ -99,8 +108,10 @@ const steps: Step[] = [
   {
     no: 5,
     title: 'Edit and Run Workflow',
-    detail:
-      'Review the values carried over from the target model, adjust what you need, then run it. The migration actually happens here.',
+    detail: [
+      'Open the workflow you want and change any value it needs.',
+      'Run it when it is ready - the migration happens here.',
+    ],
     routeName: MENU_ID.WORKFLOWS,
     testId: 'migration-guide-step-run-workflow',
     guide: {
@@ -128,16 +139,17 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
 </script>
 
 <template>
-  <div class="p-6" data-testid="migration-guide-page">
+  <div class="max-w-3xl p-6" data-testid="migration-guide-page">
     <header class="mb-6">
       <h1 class="text-2xl font-semibold text-gray-900">Migration Guide</h1>
       <p class="mt-2 text-sm text-gray-600">
         A migration runs through the five steps below, in order. Select a step
-        to open the screen where it happens.
+        to open the screen where it happens. The help icon at the top right
+        shows help for whichever screen you are on.
       </p>
     </header>
 
-    <ol class="flex flex-col gap-3" data-testid="migration-guide-steps">
+    <ol class="flex flex-col" data-testid="migration-guide-steps">
       <li v-for="(step, index) in steps" :key="step.no" class="flex flex-col">
         <router-link
           :to="{ name: step.routeName }"
@@ -163,7 +175,11 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
             <span class="text-base font-medium text-gray-900">{{
               step.title
             }}</span>
-            <span class="mt-1 text-sm text-gray-600">{{ step.detail }}</span>
+            <span class="mt-1 text-sm text-gray-600">
+              <span v-for="(line, l) in step.detail" :key="l" class="block">{{
+                line
+              }}</span>
+            </span>
           </span>
           <span
             class="self-center text-lg text-gray-300 transition-colors group-hover:text-blue-500"
@@ -173,26 +189,32 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
         </router-link>
 
         <!--
-          Sits under the step rather than inside it: the step itself is a link, and a link
-          inside a link does not work. This is also the hook for "help for this screen" —
-          each step points at the guide for the screen it opens.
-        -->
-        <a
-          v-if="step.guide"
-          :href="guideUrlFor(step.guide.file)"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="mt-1 self-start pl-12 text-xs text-blue-600 underline"
-          :data-testid="`${step.testId}-guide`"
-        >
-          {{ step.guide.title }}
-        </a>
+          The run between two steps. The line sits under the middle of the number
+          badge (badge 2rem wide, inside 1rem of card padding, so its centre is at
+          2rem) and carries the guide link beside it, which keeps the column of
+          numbers, the line and the links on one axis - the eye then reads the
+          steps as a sequence rather than as five separate boxes.
 
-        <span
-          v-if="index < steps.length - 1"
-          class="my-1 ml-8 h-4 w-0.5 self-start bg-gray-300"
-          aria-hidden="true"
-        />
+          It sits outside the step because the step itself is a link, and a link
+          inside a link does not work.
+        -->
+        <div class="flex items-center gap-3" :class="step.guide ? 'py-1' : ''">
+          <span
+            class="ml-8 h-6 w-px shrink-0"
+            :class="index < steps.length - 1 ? 'bg-gray-300' : 'bg-transparent'"
+            aria-hidden="true"
+          />
+          <a
+            v-if="step.guide"
+            :href="guideUrlFor(step.guide.file)"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-xs text-blue-600 underline"
+            :data-testid="`${step.testId}-guide`"
+          >
+            {{ step.guide.title }}
+          </a>
+        </div>
       </li>
     </ol>
 
