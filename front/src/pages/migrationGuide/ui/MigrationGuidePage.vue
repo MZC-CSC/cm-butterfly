@@ -35,7 +35,8 @@ import { MENU_ID } from '@/entities';
 type Step = {
   no: number;
   title: string;
-  detail: string;
+  /** One entry per sentence: each starts on its own line and still wraps on narrow screens. */
+  detail: string[];
   routeName: string;
   testId: string;
   /**
@@ -59,8 +60,10 @@ const steps: Step[] = [
   {
     no: 1,
     title: 'Register Source Service',
-    detail:
-      'Register the servers you want to migrate. Each connection is one source server, and the collection agent is installed when you add it.',
+    detail: [
+      'Register the servers you want to migrate.',
+      'Each connection is one source server, and the collection agent is installed when you add it.',
+    ],
     routeName: MENU_ID.SOURCE_SERVICES,
     testId: 'migration-guide-step-source-service',
     guide: {
@@ -71,24 +74,30 @@ const steps: Step[] = [
   {
     no: 2,
     title: 'Create Source Model',
-    detail:
-      'Collect what is running on those servers and save it as a source model — the inventory the rest of the flow is built on.',
+    detail: [
+      'Collect what is running on those servers and save it as a source model.',
+      'The rest of the flow is built on that inventory.',
+    ],
     routeName: MENU_ID.SOURCE_MODELS,
     testId: 'migration-guide-step-source-model',
   },
   {
     no: 3,
     title: 'Create Target Model',
-    detail:
-      'Get a recommended cloud specification for that source model. Each candidate shows an estimated cost, so you can choose by cost.',
+    detail: [
+      'A target model is generated from the source model.',
+      'Adjust any value you need before saving it.',
+    ],
     routeName: MENU_ID.TARGET_MODELS,
     testId: 'migration-guide-step-target-model',
   },
   {
     no: 4,
     title: 'Create Workflow',
-    detail:
-      'From the target model, generate the migration workflow. This is the entry point — workflows are created from a target model.',
+    detail: [
+      'Create the migration workflow straight from a target model.',
+      'You can also build one yourself in the workflow editor.',
+    ],
     routeName: MENU_ID.WORKFLOWS,
     testId: 'migration-guide-step-create-workflow',
     guide: {
@@ -99,8 +108,10 @@ const steps: Step[] = [
   {
     no: 5,
     title: 'Edit and Run Workflow',
-    detail:
-      'Review the values carried over from the target model, adjust what you need, then run it. The migration actually happens here.',
+    detail: [
+      'Open the workflow you want and change any value it needs.',
+      'Run it when it is ready - the migration happens here.',
+    ],
     routeName: MENU_ID.WORKFLOWS,
     testId: 'migration-guide-step-run-workflow',
     guide: {
@@ -128,7 +139,7 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
 </script>
 
 <template>
-  <div class="mx-auto max-w-3xl p-6" data-testid="migration-guide-page">
+  <div class="max-w-3xl p-6" data-testid="migration-guide-page">
     <header class="mb-6">
       <h1 class="text-2xl font-semibold text-gray-900">Migration Guide</h1>
       <p class="mt-2 text-sm text-gray-600">
@@ -163,7 +174,11 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
             <span class="text-base font-medium text-gray-900">{{
               step.title
             }}</span>
-            <span class="mt-1 text-sm text-gray-600">{{ step.detail }}</span>
+            <span class="mt-1 text-sm text-gray-600">
+              <span v-for="(line, l) in step.detail" :key="l" class="block">{{
+                line
+              }}</span>
+            </span>
           </span>
           <span
             class="self-center text-lg text-gray-300 transition-colors group-hover:text-blue-500"
