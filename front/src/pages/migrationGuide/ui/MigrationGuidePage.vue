@@ -86,7 +86,7 @@ const steps: Step[] = [
     title: 'Create Target Model',
     detail: [
       'A target model is generated from the source model.',
-      'Adjust any value you need before saving it.',
+      'Adjust the values you want and save it as a custom model.',
     ],
     routeName: MENU_ID.TARGET_MODELS,
     testId: 'migration-guide-step-target-model',
