@@ -9,7 +9,7 @@
  * The text here is a short orientation. The written guides stay in the
  * repository as the single source, and each entry links to its own.
  */
-import { computed, ref, onBeforeUnmount, getCurrentInstance } from 'vue';
+import { computed, ref, watch, onBeforeUnmount, getCurrentInstance } from 'vue';
 import { useRoute } from 'vue-router/composables';
 import { DOC_LINKS, openDocLink } from '@/shared/constants/docLinks';
 import { isJsonEditorOpen } from '@/shared/ui/EnhancedJsonEditor/editorPresence';
@@ -46,6 +46,11 @@ type Help = {
   terms?: Array<{ term: string; meaning: string }>;
   /** The written guides worth reading for this screen. */
   guides?: Array<{ label: string; url: string }>;
+  /**
+   * Help for the menu underneath, when something is open over it. Folded away by
+   * default - it is background to what is in front of you, not the answer to it.
+   */
+  deferred?: { label: string; groups: Group[] };
 };
 
 /** The same words on every screen - defined once, shown at the end of each entry. */
@@ -709,43 +714,109 @@ const panelStyle = computed(() => {
 
 /*
   The editor opens over the screen it belongs to, so the address stays the same
-  and the help would otherwise describe the list behind it. While it is open,
-  this goes first: what you are looking at, enough of the editor to work with,
-  and the guide for the rest.
+  and the help would otherwise describe the list behind it. While it is open the
+  panel answers the screen in front of you: what you are looking at, enough of
+  the editor to work with, and the guide for the rest. The menu underneath is
+  folded away rather than mixed in.
 */
-const JSON_EDITOR_GROUP: Group = {
-  id: 'json-editor',
-  title: 'Editing this as JSON',
-  guide: { label: 'Editing a model as JSON', url: DOC_LINKS.jsonEditor },
-  intro:
-    'The editor is open over the screen you came from, showing that document as JSON. It offers the same document three ways - table, tree and text - and nothing is lost by moving between them. Nothing is written until you save, and on the model screens saving asks for a name and creates a custom copy, leaving the original as it was.',
-  sections: [
-    {
-      heading: 'Change a value, add an entry',
-      steps: [
-        'In the table view, double-click a value to edit it and press Enter to keep it.',
-        'To add an entry to a list, copy one that already exists - the copy lands below it with every field filled in, so only the differences need changing.',
-        'Undo takes back anything, including edits made in the table.',
-      ],
+type EditorContext = { noun: string; saving: string };
+
+const EDITOR_CONTEXT: Array<{ path: string; ctx: EditorContext }> = [
+  {
+    path: '/main/models/source-models',
+    ctx: {
+      noun: 'a source model',
+      saving:
+        'Saving asks for a name and creates a custom model. The model you opened is left exactly as it was.',
     },
-    {
-      heading: 'Find something in a large document',
-      steps: [
-        'Press the magnifier, or Ctrl+F, and type.',
-        'The arrows move between matches and open the branches on the way.',
-        'The Filter toggle leaves only the rows that match - useful when one name runs through the document and all of it has to change.',
-      ],
+  },
+  {
+    path: '/main/models/target-models',
+    ctx: {
+      noun: 'a target model',
+      saving:
+        'Saving asks for a name and creates a custom model. The model you opened is left exactly as it was.',
     },
-    {
-      heading: 'Filter or reshape an array',
-      steps: [
-        'Switch to the tree view, click the array so it is selected, then right-click it.',
-        'Sort and Transform act on what is selected. With nothing selected they act on the whole document, which is an object - that is why the wizard stays empty and the fields you expected never appear.',
-        'Transform replaces the array with the result, so check the document before saving.',
-      ],
+  },
+  {
+    path: '/main/workflow-management/workflows',
+    ctx: {
+      noun: 'a workflow',
+      saving: 'Saving updates this workflow.',
     },
-  ],
-};
+  },
+  {
+    path: '/main/workflow-management/workflow-templates',
+    ctx: {
+      noun: 'a workflow template',
+      saving: 'Saving updates this template.',
+    },
+  },
+  {
+    path: '/main/workflow-management/task-components',
+    ctx: {
+      noun: 'a task component',
+      saving: 'Saving updates this component.',
+    },
+  },
+  {
+    path: '/main/source-computing/source-services',
+    ctx: {
+      noun: 'what was collected from your servers',
+      saving:
+        'This is a step on the way to a source model - what you keep here is what gets saved as the model.',
+    },
+  },
+];
+
+function editorContextFor(path: string): EditorContext {
+  const hit = EDITOR_CONTEXT.filter(e => path.startsWith(e.path)).sort(
+    (a, b) => b.path.length - a.path.length,
+  )[0];
+  return (
+    hit?.ctx ?? {
+      noun: 'this document',
+      saving: 'Nothing is written until you save.',
+    }
+  );
+}
+
+function jsonEditorGroup(ctx: EditorContext): Group {
+  return {
+    id: 'json-editor',
+    title: 'Using the editor',
+    guide: { label: 'Editing a model as JSON', url: DOC_LINKS.jsonEditor },
+    intro:
+      'The same document is offered three ways - table, tree and text - and nothing is lost by moving between them. The table is the one to start from: it lists every value with its name beside it. ' +
+      ctx.saving,
+    sections: [
+      {
+        heading: 'Change a value, add an entry',
+        steps: [
+          'In the table view, double-click a value to edit it and press Enter to keep it.',
+          'To add an entry to a list, copy one that already exists - the copy lands below it with every field filled in, so only the differences need changing.',
+          'Undo takes back anything, including edits made in the table.',
+        ],
+      },
+      {
+        heading: 'Find something in a large document',
+        steps: [
+          'Press the magnifier, or Ctrl+F, and type.',
+          'The arrows move between matches and open the branches on the way.',
+          'The Filter toggle leaves only the rows that match - useful when one name runs through the document and all of it has to change.',
+        ],
+      },
+      {
+        heading: 'Filter or reshape an array',
+        steps: [
+          'Switch to the tree view, click the array so it is selected, then right-click it.',
+          'Sort and Transform act on what is selected. With nothing selected they act on the whole document, which is an object - that is why the wizard stays empty and the fields you expected never appear.',
+          'Transform replaces the array with the result, so check the document before saving.',
+        ],
+      },
+    ],
+  };
+}
 
 const help = computed<Help>(() => {
   const path = route.path;
@@ -755,18 +826,26 @@ const help = computed<Help>(() => {
   const base = hit ? hit.help : fallbackFor(screenNameFrom(path));
   if (!isJsonEditorOpen.value) return base;
 
+  const ctx = editorContextFor(path);
   return {
     ...base,
-    paragraphs: [
-      'The JSON editor is open over this screen. What it is editing, and how, comes first; the screen it belongs to follows.',
-      ...base.paragraphs,
-    ],
-    groups: [JSON_EDITOR_GROUP, ...(base.groups ?? [])],
+    title: `${base.title} - JSON`,
+    paragraphs: [`You are looking at ${ctx.noun} as JSON.`],
+    groups: [jsonEditorGroup(ctx)],
+    deferred: base.groups?.length
+      ? { label: base.title, groups: base.groups }
+      : undefined,
     guides: [
       { label: 'Editing a model as JSON', url: DOC_LINKS.jsonEditor },
       ...(base.guides ?? []).filter(g => g.url !== DOC_LINKS.jsonEditor),
     ],
   };
+});
+
+/* Folded by default, and folded again whenever the panel changes what it shows. */
+const showDeferred = ref(false);
+watch(help, () => {
+  showDeferred.value = false;
 });
 
 /* The index at the top scrolls to the job it names. */
@@ -994,6 +1073,43 @@ onBeforeUnmount(() => {
           </button>
         </section>
 
+        <!-- The menu underneath, when something is open over it. Behind a line and
+             folded away, so it reads as background rather than as the answer. -->
+        <div v-if="help.deferred" class="help-more">
+          <hr class="help-rule" />
+          <button
+            class="help-more-toggle"
+            data-testid="help-more-toggle"
+            :aria-expanded="showDeferred ? 'true' : 'false'"
+            @click="showDeferred = !showDeferred"
+          >
+            <span class="help-more-caret">{{
+              showDeferred ? '&#9662;' : '&#9656;'
+            }}</span>
+            About the menu underneath: {{ help.deferred.label }}
+          </button>
+          <template v-if="showDeferred">
+            <section
+              v-for="group in help.deferred.groups"
+              :key="`d-${group.id}`"
+              class="help-group"
+            >
+              <h2 class="help-group-title">{{ group.title }}</h2>
+              <p class="help-group-intro">{{ group.intro }}</p>
+              <section
+                v-for="(sec, x) in group.sections"
+                :key="`ds${x}`"
+                class="help-section"
+              >
+                <h3 class="help-heading">{{ sec.heading }}</h3>
+                <ol class="help-steps">
+                  <li v-for="(step, t) in sec.steps" :key="t">{{ step }}</li>
+                </ol>
+              </section>
+            </section>
+          </template>
+        </div>
+
         <!-- Set apart: the same words on every screen, for when one is unfamiliar. -->
         <section v-if="help.terms" class="help-glossary">
           <h2 class="help-group-title">Words used here</h2>
@@ -1209,6 +1325,35 @@ onBeforeUnmount(() => {
   padding-top: 18px;
   margin-top: 8px;
   border-top: 2px solid #e5e7eb;
+}
+
+/* The line that says the screen's own help has ended. */
+.help-rule {
+  margin: 4px 0 10px;
+  border: 0;
+  border-top: 1px solid #e5e7eb;
+}
+
+.help-more-toggle {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+  padding: 0;
+  font-size: 12px;
+  color: #6b7280;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+
+  &:hover {
+    color: #374151;
+  }
+}
+
+.help-more-caret {
+  font-size: 10px;
 }
 
 /* A guide that sits inside a section rather than at the foot of the job. */
