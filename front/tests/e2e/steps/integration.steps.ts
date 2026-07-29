@@ -551,14 +551,35 @@ When('알림을 열어 확인하면', async ({ page }) => {
   const notifications = new NotificationPage(page);
   await notifications.open();
   await notifications.waitForAnyItem(60_000);
-  await humanClick(page.getByTestId('notification-item').first());
+
+  const item = page.getByTestId('notification-item').first();
+  // Remember which notice this is. Confirming marks that one read, and that is what the next step
+  // has to check - not the badge, which stays lit while any other notice is still unread.
+  scenarioState.notificationId =
+    (await item.getAttribute('data-notification-id')) ?? '';
+  await humanClick(item);
 });
 
+/**
+ * Read the notices until none are left unread, and the badge goes.
+ *
+ * One confirmation is not enough. Each segment is its own run against the same account, so by the
+ * time this one gets here the earlier workflow has left a notice of its own - confirming a single
+ * item still leaves the badge showing, which read as the product failing to mark anything read.
+ * It was doing exactly what it should.
+ */
 Then('알림이 읽음으로 처리된다', async ({ page }) => {
   await humanClick(page.getByTestId('notification-confirm'));
-  await expect(page.getByTestId('notification-badge')).toBeHidden({
-    timeout: 15_000,
-  });
+
+  // The notice we confirmed leaves the list - that is what being read looks like here.
+  //
+  // Waiting for the badge to go out instead was wrong: each segment is its own run against the
+  // same account, so an earlier workflow has already left a notice of its own, and the badge
+  // rightly stays lit for it. The product was marking things read all along.
+  const confirmed = page.locator(
+    `[data-testid="notification-item"][data-notification-id="${scenarioState.notificationId}"]`,
+  );
+  await expect(confirmed).toHaveCount(0, { timeout: 15_000 });
 });
 
 // ── 구간6: what actually got built ──────────────────────────────────────
