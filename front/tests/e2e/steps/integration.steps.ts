@@ -15,7 +15,7 @@ import {
   workflowData,
   workload,
 } from '../fixtures/test-data';
-import { RUN_ID, uniqueName } from '../support/naming';
+import { uniqueName } from '../support/naming';
 import { getSessionToken } from '../support/apiWait';
 import { scenarioState } from '../support/world';
 import { recall, remember } from '../support/handoff';
@@ -515,6 +515,10 @@ Then('워크플로우의 작업별 상태가 모두 정상이다', async ({ page
     '먼저 워크플로우를 생성·실행하는 단계가 있어야 한다',
   ).toBeTruthy();
 
+  // Reads what has happened so far rather than waiting for the run to end. Provisioning carries on
+  // in the background; holding here would spend minutes watching a progress bar when the next piece
+  // of work could be under way. A task that has already failed shows up now, and the rest is judged
+  // later from what was actually built.
   const wf = new WorkflowPage(page);
   await wf.openRunViewer(name as string);
   const failed = page
@@ -620,15 +624,16 @@ Then(
  * is used, and cm-beetle reuses an existing resource when it finds one under the name it wants, so
  * the second run quietly attaches to the first run's network instead of failing outright.
  *
- * Prefixes take at most 20 characters of alphanumerics and hyphens, which this stays inside:
- * `t1-260729-123456`.
+ * The stamp is the date and the time, so the name says when it was made down to the second and two
+ * runs on the same day cannot land on the same one. Prefixes take at most 20 characters of
+ * alphanumerics and hyphens, which this stays inside: `t1-260729-184430`.
  */
 function trackSeed(track: string): string {
   const d = new Date();
-  const yy = String(d.getFullYear()).slice(2);
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `t${track}-${yy}${mm}${dd}-${RUN_ID}`;
+  const p2 = (n: number) => String(n).padStart(2, '0');
+  const day = `${String(d.getFullYear()).slice(2)}${p2(d.getMonth() + 1)}${p2(d.getDate())}`;
+  const time = `${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}`;
+  return `t${track}-${day}-${time}`;
 }
 
 // ── 구간6: what a track actually built ──────────────────────────────────
@@ -717,39 +722,79 @@ When(
  *
  * This is the long stretch deliberately left out of the recording.
  */
-Then('소프트웨어 설치가 끝날 때까지 기다린다', async ({ page }) => {
+/**
+ * Confirm the install has been taken on, and leave it running.
+ *
+ * grasshopper installs asynchronously and takes several minutes over it. Sitting here would spend
+ * that time watching, when the only thing that matters at this point is that the work was accepted -
+ * the outcome is read in the next segment, from the install list. That is also what a person does:
+ * start it, go and do something else, come back to the result.
+ */
+Then('소프트웨어 설치가 시작된다', async ({ page }) => {
   const token = await getSessionToken(page);
-  const executionId = scenarioState.swExecutionIds?.[0];
-  const deadline = Date.now() + 60 * 60_000;
-  let last = '';
-
+  const deadline = Date.now() + 5 * 60_000;
   while (Date.now() < deadline) {
     const list = await readSoftwareStatuses(
       page,
       token,
-      executionId,
+      undefined,
       scenarioState.infraName,
     );
     if (list.length) {
-      const done = list.filter(s => s.status === 'finished').length;
-      const failed = list.filter(s => s.status === 'failed');
-      const pending = list.filter(
-        s => s.status !== 'finished' && s.status !== 'failed',
-      );
-      const line = `${done}/${list.length} 완료, ${failed.length} 실패, ${pending.length} 남음`;
-      if (line !== last) {
-        console.log(`[seg7] ${line}`);
-        last = line;
-      }
-      if (!pending.length) {
-        scenarioState.swMigrationRows = list;
-        return;
-      }
+      console.log(`[seg7] 설치 착수 확인 — 대상 ${list.length}개`);
+      return;
     }
-    await page.waitForTimeout(30_000);
+    await page.waitForTimeout(15_000);
   }
-  throw new Error('소프트웨어 설치가 한 시간 안에 끝나지 않았다');
+  throw new Error(
+    '소프트웨어 설치가 시작되지 않았다 — grasshopper 에 실행 기록이 없다',
+  );
 });
+
+/**
+ * Wait for the install to settle, then report what happened.
+ *
+ * Called at the start of the segment that reads the result, so the waiting happens where the answer
+ * is needed rather than where the work was started.
+ */
+Given(
+  '{string} 번 트랙이 만든 인프라의 소프트웨어 설치가 끝나기를 기다린다',
+  async ({ page }, track: string) => {
+    const infraName = infraFor(track);
+    scenarioState.infraName = infraName;
+    scenarioState.infraId = infraName;
+
+    const token = await getSessionToken(page);
+    const deadline = Date.now() + 60 * 60_000;
+    let last = '';
+    while (Date.now() < deadline) {
+      const list = await readSoftwareStatuses(
+        page,
+        token,
+        undefined,
+        infraName,
+      );
+      if (list.length) {
+        const done = list.filter(s => s.status === 'finished').length;
+        const failed = list.filter(s => s.status === 'failed');
+        const pending = list.filter(
+          s => s.status !== 'finished' && s.status !== 'failed',
+        );
+        const line = `${done}/${list.length} 완료, ${failed.length} 실패, ${pending.length} 남음`;
+        if (line !== last) {
+          console.log(`[seg8] ${line}`);
+          last = line;
+        }
+        if (!pending.length) {
+          scenarioState.swMigrationRows = list;
+          return;
+        }
+      }
+      await page.waitForTimeout(30_000);
+    }
+    throw new Error('소프트웨어 설치가 한 시간 안에 끝나지 않았다');
+  },
+);
 
 /**
  * The per-software rows grasshopper reports for a run.
