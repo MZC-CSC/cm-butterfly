@@ -3,7 +3,7 @@ import { ApiMock } from './apiMock';
 import { registerHoneybeeMocks } from './mocks/honeybee';
 import { registerMciMocks } from './mocks/mci';
 import { isDemoPace } from './humanize';
-import { installCursor } from './cursor';
+import { installCursor, expectCursorPresent } from './cursor';
 
 /**
  * Common test fixtures.
@@ -92,6 +92,11 @@ export const test = base.extend<{ mockApi: ApiMock | null; screens: boolean }>({
       }
 
       await use(true);
+
+      // The pointer has to have been there. Nothing fails when it is missing - the run passes and
+      // the take only looks wrong once someone watches it - so it is checked at the end, when
+      // there has certainly been a screen to draw into.
+      if (isDemoPace()) await expectCursorPresent(page);
 
       // ★ Ending screen — "what state the screen was in when the test ended".
       try {

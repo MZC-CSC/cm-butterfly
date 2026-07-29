@@ -97,3 +97,25 @@ export async function installCursor(page: Page): Promise<void> {
   await page.addInitScript(CURSOR_SCRIPT);
   await page.evaluate(CURSOR_SCRIPT).catch(() => {});
 }
+
+/**
+ * Confirm the pointer really is on the page.
+ *
+ * Worth checking, because when it is missing nothing fails - the run passes, the take looks fine
+ * until someone watches it, and the screen appears to click itself. A whole set of takes was
+ * recorded that way before anyone noticed, and every one of them had to be shot again.
+ *
+ * Called once the first screen is up, since there is nothing to draw into before that.
+ */
+export async function expectCursorPresent(page: Page): Promise<void> {
+  const drawn = await page
+    .locator('#e2e-cursor')
+    .count()
+    .catch(() => 0);
+  if (drawn === 0) {
+    throw new Error(
+      '녹화용 커서가 화면에 없다. 이대로 찍으면 화면이 저절로 눌리는 것처럼 보인다 — ' +
+        'support/cursor.ts 의 installCursor 가 이 페이지에 걸렸는지 확인한다.',
+    );
+  }
+}
