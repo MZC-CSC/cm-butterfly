@@ -137,6 +137,10 @@ const loadFieldSpec = async (provider: string) => {
 };
 
 const handleProviderChange = (selected: string) => {
+  if (!selected || selected === state.provider) {
+    state.provider = selected;
+    return;
+  }
   state.provider = selected;
   loadFieldSpec(selected);
 };
@@ -213,11 +217,15 @@ onMounted(loadProviders);
         <p-pane-layout class="source-service-button-modal">
           <p-pane-layout class="layout">
             <p-field-group label="Provider" required>
+              <!-- The selection arrives through @select. PSelectDropdown does not
+                   emit update:selected, so binding that listener leaves the form
+                   looking fine and never reacting. -->
               <p-select-dropdown
                 :menu="providerItems"
-                :selected="state.provider"
+                :selected.sync="state.provider"
+                placeholder="Select a provider"
                 data-testid="credential-provider"
-                @update:selected="handleProviderChange"
+                @select="handleProviderChange"
               />
             </p-field-group>
             <p class="field-note" data-testid="credential-provider-error">
