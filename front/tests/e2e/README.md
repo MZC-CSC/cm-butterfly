@@ -25,7 +25,7 @@ npm ci
 npx playwright install --with-deps chromium
 
 export BASE_URL=http://cmig.dev.cscmzc.com           # 대상 콘솔
-export TEST_SOURCE_IP=<소스 VM 공인 IP>               # ★ 실제 SSH 가능한 VM 이어야 한다
+export TEST_SOURCE_IP=<소스 VM 사설 IP>               # ★ 사설 IP 다 (아래 참고)
 export TEST_SOURCE_PRIVATE_KEY="$(cat e2e-source-key)"
 
 npx bddgen --config tests/e2e/playwright.config.ts    # .feature → 테스트 생성

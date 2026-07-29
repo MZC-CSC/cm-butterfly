@@ -72,6 +72,11 @@ export const testNamespace = {
  *   The recommended spec follows the source spec, so create it as a small instance (nano/micro/small).
  *
  *   TEST_SOURCE_IP / TEST_SOURCE_PRIVATE_KEY must be injected.
+ *
+ * ★ Give it the server's **private** address. Collection runs from the platform host, on the same
+ *   network as the sources, and their security groups open SSH only to it - a public address does
+ *   not reach them. A public address also changes every time the VM is stopped and started, while
+ *   the private one does not.
  */
 export const sourceServer = {
   name: process.env.TEST_SOURCE_NAME || 'e2e-nano-source',
@@ -95,11 +100,10 @@ export const sourceServer = {
  * `sourceServer` above stays as it was and points at the same nano box, so the existing scenarios
  * keep working untouched.
  *
- * ★ Give these the servers' **private** addresses. Collection runs from the platform host, which
- *   reaches the sources over the internal network - their security groups do not open SSH to the
- *   host's public address, so a public IP here leaves the connection unusable. Registration still
- *   succeeds, Collect Infra simply stays disabled, and the failure surfaces several steps later as
- *   an empty collection result rather than as "cannot connect".
+ * ★ Private addresses here too, for the reason above. Worth knowing how it goes wrong: a public
+ *   address still *registers* without complaint. Collect Infra simply stays disabled, and it
+ *   surfaces several steps later as an empty collection - with no request in the platform's log at
+ *   all, so it does not read as a connection problem.
  */
 export const sourceServers: Record<
   'nano' | 'micro',
