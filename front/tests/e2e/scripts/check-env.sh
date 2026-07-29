@@ -28,15 +28,25 @@ code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$BASE/" || echo 00
 if [ "$code" = "200" ]; then say "콘솔 $HOST" "OK ($code)"
 else say "콘솔 $HOST" "❌ 응답 $code — 서버가 꺼져 있을 수 있다"; fail=1; fi
 
-# 컨테이너가 다 떠 있는지. 하나라도 restarting 이면 그 뒤 단계가 엉뚱하게 실패한다.
-# 상태 문자열은 "(healthy)" 로 괄호까지 붙는다 — 괄호 없이 찾으면 한 줄도 매칭되지 않아
-# 멀쩡한 것을 전부 비정상으로 센다.
+# 라인업이 성해 있는지. 하나라도 restarting 이면 그 뒤 단계가 엉뚱하게 실패한다.
+#
+# 보는 대상은 **cloud-migrator 프로젝트의 컨테이너**뿐이다. 같은 호스트에서 다른 세션이 자기
+# 브랜치 컨테이너를 띄워 두기도 하는데, 그건 우리 것이 아니고 헬스체크가 없어 상태가 그냥
+# "Up" 으로 나온다 — 전체를 훑으면 남의 것 때문에 우리 실행이 막힌다.
+#
+# 판정은 docker 의 health 필터로 한다. 상태 문자열을 직접 훑으면 "(healthy)" 의 괄호 하나에
+# 걸려 멀쩡한 것을 전부 비정상으로 세게 된다(실제로 그랬다).
 if [ "$code" = "200" ] && [ -r "$SSH_KEY" ]; then
-  # grep 은 하나도 못 찾으면 1 로 끝난다 — 여기서는 그것이 정상(전부 healthy)이므로 실패로 보지 않는다.
   bad="$(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -i "$SSH_KEY" "ubuntu@$HOST" \
-    'docker ps --format "{{.Names}} {{.Status}}" | grep -cv "(healthy)" || true' 2>/dev/null)"
-  if [ "$bad" = "0" ]; then say "컨테이너" "전부 healthy"
-  else say "컨테이너" "❌ healthy 아님 $bad 개"; fail=1; fi
+    'docker ps -q --filter label=com.docker.compose.project=cloud-migrator \
+       --filter health=unhealthy --filter health=starting | wc -l' 2>/dev/null)"
+  total="$(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -i "$SSH_KEY" "ubuntu@$HOST" \
+    'docker ps -q --filter label=com.docker.compose.project=cloud-migrator | wc -l' 2>/dev/null)"
+  if [ "${bad:-1}" = "0" ] && [ "${total:-0}" -gt 0 ]; then
+    say "라인업 컨테이너" "$total 개 전부 정상"
+  else
+    say "라인업 컨테이너" "❌ ${total:-?} 개 중 ${bad:-?} 개가 준비되지 않음"; fail=1
+  fi
 fi
 
 # 소스 서버는 *플랫폼 호스트에서* 닿아야 한다 — 여기서 닿는 것과 다르다(08-주의사항 C-7).
@@ -69,6 +79,14 @@ for t in target-detail-custom-view source-detail-custom-view target-custom-save 
 done
 if [ -z "$missing" ]; then say "화면 식별자" "필요한 것 모두 있음"
 else say "화면 식별자" "❌ 없음:$missing"; fail=1; fi
+
+# 화면 이동은 좌측 메뉴 클릭으로 한다. 메뉴 항목의 식별자는 라우트 이름으로 만들어지므로
+# 위 목록처럼 문자열 하나로 찾을 수 없다 — 만들어 내는 자리를 본다.
+if grep -rq 'data-testid="`menu-${n.id}`"\|`menu-\${n.id}`' "$SRC" --include=*.vue 2>/dev/null; then
+  say "메뉴 식별자" "있음"
+else
+  say "메뉴 식별자" "❌ 없음 — 메뉴 클릭 이동이 통째로 막힌다"; fail=1
+fi
 
 echo
 if [ "$fail" -ne 0 ]; then

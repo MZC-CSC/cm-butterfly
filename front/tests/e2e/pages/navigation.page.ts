@@ -13,7 +13,6 @@ import { Page, expect } from '@playwright/test';
  *  - Models               → /main/models/source-models
  *  - Workflow Management   → /main/workflow-management/workflows
  *  - Workload Operations   → /main/workload-operations/workloads
- *  - Cloud Resources       → /main/cloud-resources/cloud-credentials
  */
 interface NavTarget {
   /** Landing URL to navigate to */
@@ -70,16 +69,6 @@ register(
   'workloadoperations',
   'workload',
   '워크로드',
-);
-register(
-  {
-    path: '/main/cloud-resources/cloud-credentials',
-    urlPattern: /\/main\/cloud-resources/,
-  },
-  'Cloud Resources',
-  '클라우드 리소스',
-  'cloudresources',
-  'cloud',
 );
 
 export class NavigationPage {
