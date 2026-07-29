@@ -291,6 +291,19 @@ export class WorkloadPage {
     }
     await humanFill(this.deleteConfirmInput.first(), infraName);
     await humanClick(this.deleteConfirmButton.first());
+
+    // Close the progress dialog once it appears.
+    //
+    // Deleting cloud resources takes minutes and the dialog stays up for the whole of it, over the
+    // screen. Anything after this - selecting the other infrastructure, moving to another screen -
+    // is blocked while it is open, which is how the cleanup segment failed: it went to delete the
+    // second infrastructure and could not reach the menu.
+    //
+    // The dialog says so itself: closing it does not stop the delete, and the list carries the
+    // state in its Delete Status column. So this is what a person does here too.
+    await expect(this.deleteProgress).toBeVisible({ timeout: 30_000 });
+    await humanClick(this.deleteCloseButton.first());
+    await expect(this.deleteProgress).toBeHidden({ timeout: 15_000 });
   }
 
   /**
