@@ -175,7 +175,7 @@ export function useLifecycleControl() {
    *
    * **Sequential on purpose.** Firing them together is what broke the workload list once already:
    * cb-tumblebug turns away lookups past the second in flight, and a `Promise.all` threw away the
-   * successful answers along with the rejected one (BAR-1637). A handful of selected workloads costs
+   * successful answers along with the rejected one. A handful of selected workloads costs
    * nothing to walk in order, and each one's outcome lands on screen as it arrives instead of all of
    * them appearing at the end.
    *

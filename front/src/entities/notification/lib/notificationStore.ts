@@ -52,7 +52,7 @@ export function setNotificationPopupEnabled(on: boolean): void {
 }
 
 /**
- * Arrival pulse (BAR-1579).
+ * Arrival pulse.
  *
  * Bumped once whenever a poll brings a *genuinely new* notification (not the login backlog).
  * The topbar watches this and plays the arrival cue — an envelope flying into the badge — so
