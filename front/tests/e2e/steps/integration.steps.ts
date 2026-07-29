@@ -230,6 +230,12 @@ When(
   '{string} {string} 로 타깃 인프라를 추천받아 {string} 타깃 모델로 저장하면',
   async ({ page }, csp: string, region: string, modelName: string) => {
     const models = new ModelsPage(page);
+    // Saving the collected result leaves you on the source *services* screen. The recommendation
+    // starts from the source model's own detail, so go there and open the model first.
+    await models.gotoSourceModels();
+    await models.selectModel(
+      scenarioState.sourceModelName ?? uniqueName(modelName),
+    );
     await models.openRecommend();
     await models.selectProvider(csp);
     await models.selectRegion(region);
