@@ -72,11 +72,20 @@ export class SourceServicesPage {
    * 그래서 검색에 기대지 않고 *페이지를 넘겨 가며* 찾고, 몇 페이지에서 찾았는지도 남긴다.
    */
   private async revealGroup(name: string): Promise<number> {
-    // 목록을 서버에서 새로 받아온다.
-    // 등록 직후 목록이 자동 갱신되지 않아, 방금 만든 그룹이 화면에 없는 채로 남아 있는 경우가 있다
-    // (honeybee에는 들어갔는데 목록에는 안 보이는 상태). 그 상태로 페이지를 넘겨봐야 없는 건 없다.
-    // 새로고침하면 1페이지부터 다시 세므로 페이지 번호 계산도 안정된다.
-    await this.page.reload({ waitUntil: 'domcontentloaded' });
+    // 이미 화면에 보이면 다시 받아올 것이 없다.
+    // 새로고침은 화면을 한 번 비웠다 다시 그리므로 녹화본이 그 자리에서 깜빡인다 — 같은 그룹을 두 번
+    // 확인하는 흐름(등록 직후 한 번, 시나리오의 "목록에 보인다"에서 또 한 번)에서 두 번 다 깜빡였다.
+    const alreadyListed = await this.groupRow(name)
+      .first()
+      .isVisible()
+      .catch(() => false);
+
+    if (!alreadyListed) {
+      // 등록 직후 목록이 자동 갱신되지 않아, 방금 만든 그룹이 화면에 없는 채로 남아 있는 경우가 있다
+      // (honeybee에는 들어갔는데 목록에는 안 보이는 상태). 그 상태로 페이지를 넘겨봐야 없는 건 없다.
+      // 새로고침하면 1페이지부터 다시 세므로 페이지 번호 계산도 안정된다.
+      await this.page.reload({ waitUntil: 'domcontentloaded' });
+    }
     await expect(this.groupTable).toBeVisible({ timeout: 20_000 });
     return this.groupPagination.expectRowSomewhere(this.groupRow(name), name);
   }

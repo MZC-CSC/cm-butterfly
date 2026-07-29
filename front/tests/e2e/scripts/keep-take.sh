@@ -45,6 +45,31 @@ if [ "${#VIDEOS[@]}" -eq 0 ]; then
   exit 1
 fi
 
+# 테이크 앞머리의 빈 화면을 잘라 낸다.
+#
+# 브라우저가 뜨고 첫 화면이 그려질 때까지 2초 남짓 하얀 화면이 남는다. 구간마다 그게 붙으니 이어 붙이면
+# 단계 사이마다 흰 화면이 끼는 것처럼 보인다. 내용이 시작되는 지점을 찾아 그 앞을 버린다.
+#
+# 잘라 낼 지점은 프레임 밝기로 찾는다 — 거의 백색(평균 250 이상)인 동안은 아직 아무것도 안 그려진 것이다.
+first_content_second() {
+  local video="$1" probe
+  probe="$(mktemp -d)"
+  ffmpeg -v error -i "$video" -t 6 -vf "fps=5,scale=160:-1,format=gray" "$probe/%04d.png" 2>/dev/null || true
+  python3 - "$probe" <<'PY'
+import sys, glob
+from PIL import Image
+frames = sorted(glob.glob(sys.argv[1] + "/*.png"))
+for i, f in enumerate(frames):
+    px = list(Image.open(f).getdata())
+    if sum(px) / len(px) < 250:          # 뭔가 그려졌다
+        print(f"{max(0, i - 1) / 5:.1f}")  # 한 프레임 앞에서 시작해 툭 끊기지 않게
+        break
+else:
+    print("0.0")
+PY
+  rm -rf "$probe"
+}
+
 SEG_ARG="${1:?구간 번호가 필요하다 (예: seg3)}"
 STAMP="$(date +%Y%m%d-%H%M)"
 i=0
@@ -52,6 +77,14 @@ for v in "${VIDEOS[@]}"; do
   num="${SEG_ARG#seg}"
   name="$(seg_label "$num")-$STAMP"
   [ "${#VIDEOS[@]}" -gt 1 ] && name="$name-$((++i))"
-  cp "$v" "$KEEP_DIR/$name.webm"
-  echo "[keep] $name.webm  ($(du -h "$v" | cut -f1))"
+
+  start="$(first_content_second "$v")"
+
+  # 다시 인코딩해서 자른다. 스트림 복사(-c copy)는 키프레임 경계로만 자를 수 있는데 playwright 가
+  # 내보내는 webm 은 앞쪽에 키프레임이 하나뿐이라, 복사로는 아무것도 잘리지 않는다(실제로 그랬다).
+  # 나가는 형식은 mp4(h264) — 편집기에서 바로 붙일 수 있고 용량도 webm 보다 작다.
+  ffmpeg -v error -y -ss "$start" -i "$v" \
+    -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p -an \
+    "$KEEP_DIR/$name.mp4"
+  echo "[keep] $name.mp4  (앞 ${start}초 잘라냄, $(du -h "$KEEP_DIR/$name.mp4" | cut -f1))"
 done
