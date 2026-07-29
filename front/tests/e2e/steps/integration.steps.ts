@@ -385,38 +385,45 @@ async function waitForDagRegistered(page: Page, name: string): Promise<void> {
   const started = Date.now();
   const deadline = started + 3 * 60_000;
 
-  const wfId = await page.request
-    .post(`${config.baseURL}/api/cm-cicada/Get-Workflow-By-Name`, {
-      headers: auth,
-      data: { pathParams: { wfName: name } },
-    })
-    .then(r => r.json())
-    .then(b => b?.responseData?.data?.id ?? b?.responseData?.id ?? '')
-    .catch(() => '');
-
-  if (wfId) {
-    while (Date.now() < deadline) {
-      const ready = await page.request
-        .post(`${config.baseURL}/api/cm-cicada/Get-Workflow-Runs`, {
-          headers: auth,
-          data: { pathParams: { wfId } },
-        })
-        .then(r => r.ok())
-        .catch(() => false);
-      if (ready) break;
-      await page.waitForTimeout(10_000);
-    }
-  } else {
-    // Could not resolve the id - wait out the old fixed pause rather than run too early.
-    await page.waitForTimeout(120_000);
+  // Ask for the id until it answers. A workflow that was saved a moment ago is not always there on
+  // the first call, and a single attempt that missed used to drop into a blind two-minute sleep -
+  // which is two minutes of a frozen screen in the recording, every time it happened.
+  let wfId = '';
+  while (!wfId && Date.now() < deadline) {
+    wfId = await page.request
+      .post(`${config.baseURL}/api/cm-cicada/Get-Workflow-By-Name`, {
+        headers: auth,
+        data: { pathParams: { wfName: name } },
+      })
+      .then(r => r.json())
+      .then(b => b?.responseData?.data?.id ?? b?.responseData?.id ?? '')
+      .catch(() => '');
+    if (!wfId) await page.waitForTimeout(3_000);
   }
 
-  // Say which path was taken. Both come out near two minutes, and a bare duration cannot tell a
-  // real registration wait from the blind fallback - which is the difference worth knowing.
+  if (!wfId) {
+    // Say so rather than sleeping and running anyway. Running before the DAG is parsed is rejected
+    // outright, and retrying is not an option - an attempt that does land builds another instance.
+    throw new Error(
+      `워크플로우 "${name}" 의 id 를 ${Math.round((Date.now() - started) / 1000)}초 동안 찾지 못했다. ` +
+        'DAG 가 등록되기 전에 실행하면 거부되므로 여기서 멈춘다.',
+    );
+  }
+
+  while (Date.now() < deadline) {
+    const ready = await page.request
+      .post(`${config.baseURL}/api/cm-cicada/Get-Workflow-Runs`, {
+        headers: auth,
+        data: { pathParams: { wfId } },
+      })
+      .then(r => r.ok())
+      .catch(() => false);
+    if (ready) break;
+    await page.waitForTimeout(3_000);
+  }
+
   console.log(
-    wfId
-      ? `[workflow] DAG 등록 확인까지 ${Math.round((Date.now() - started) / 1000)}초`
-      : `[workflow] ⚠ 워크플로우 id 를 못 찾아 고정 대기로 넘어감 (${name})`,
+    `[workflow] DAG 등록 확인까지 ${Math.round((Date.now() - started) / 1000)}초`,
   );
   // Registration and runnability are not the same instant, so a short grace on top.
   await page.waitForTimeout(15_000);
@@ -725,7 +732,9 @@ When(
 
     await wf.gotoWorkflows();
     await wf.expectWorkflowVisible(name);
-    await page.waitForTimeout(120_000);
+    // Same wait as the infra workflow, for the same reason - running before the DAG is parsed is
+    // rejected. Waiting for the signal rather than sitting out a fixed two minutes.
+    await waitForDagRegistered(page, name);
     await wf.runWorkflow(name);
     scenarioState.softwareWorkflowName = name;
   },
