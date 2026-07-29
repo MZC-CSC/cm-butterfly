@@ -168,7 +168,7 @@ export async function humanFill(locator: Locator, text: string): Promise<void> {
   }
   if (isDemoPace()) {
     await travelTo(locator);
-    await pause(DEMO_BEAT_MS);
+    await pause(DEMO_CLICK_MS); // the pointer has arrived; let it be seen before it presses
     await locator.click().catch(() => {});
     await locator.fill('');
     const perChar = text.length
@@ -178,10 +178,13 @@ export async function humanFill(locator: Locator, text: string): Promise<void> {
       await locator.pressSequentially(text, {
         delay: Math.min(perChar, 70),
       });
+      // Nothing to hold for. The characters appeared one at a time, so the value was readable
+      // while it was being entered - stopping afterwards only makes the run look stalled, and on
+      // a login it turns two quick fields into a wait, a wait, and then a click.
     } else {
       await locator.fill(text); // too long to type without dragging - paste it
+      await pause(DEMO_BEAT_MS); // it appeared all at once, so give it a moment to be read
     }
-    await pause(DEMO_BEAT_MS); // hold so the entered value can be read
     return;
   }
   await locator.scrollIntoViewIfNeeded().catch(() => {});

@@ -34,6 +34,26 @@ export async function openScreen(
   });
 }
 
+/**
+ * Pick a screen from the side list a landing screen shows.
+ *
+ * Some entries in the sidebar do not go straight to a screen - Workloads opens a page whose own
+ * side list carries MCI and PMK (api/conf/menu.yaml has them as children of `workloads`). Those
+ * items carry `data-testid="lsb-{id}"`, from the same route names.
+ */
+export async function openSubScreen(
+  page: Page,
+  menuId: string,
+  subMenuId: string,
+  path: string,
+): Promise<void> {
+  await openScreen(page, menuId, path.replace(/\/[^/]+$/, ''));
+  await humanClick(page.getByTestId(`lsb-${subMenuId}`));
+  await expect(page).toHaveURL(new RegExp(escapeForUrl(path)), {
+    timeout: 20_000,
+  });
+}
+
 function escapeForUrl(path: string): string {
   return path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

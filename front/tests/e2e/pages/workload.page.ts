@@ -1,7 +1,7 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 import { humanClick, humanFill } from '../support/humanize';
-import { openScreen } from '../support/navigate';
+import { openSubScreen } from '../support/navigate';
 
 /**
  * WorkloadPage — Page Object for the workload operations screen (infra MCI + node VM + load test).
@@ -29,15 +29,27 @@ export class WorkloadPage {
   // Navigation
   // ─────────────────────────────────────────────────────────────
 
-  /** Navigate to the infra (MCI) workload screen */
+  /**
+   * Navigate to the infra (MCI) workload screen.
+   *
+   * Two steps, because that is how the console is laid out. The sidebar carries Workloads; MCI and
+   * PMK are its children (api/conf/menu.yaml) and appear in the side list of the screen Workloads
+   * opens, not in the sidebar itself.
+   */
   async gotoMci(): Promise<void> {
-    await openScreen(this.page, 'mciwls', WorkloadPage.mciPath);
+    await openSubScreen(this.page, 'workloads', 'mciwls', WorkloadPage.mciPath);
     await expect(this.mciTable).toBeVisible({ timeout: 15_000 });
   }
 
-  /** Navigate to the PMK (Kubernetes) workload screen */
+  /**
+   * Navigate to the PMK (Kubernetes) workload screen.
+   *
+   * Reached by address rather than by the menu: PMK has no sidebar entry of its own, and no
+   * recorded segment goes here, so there is nothing to be gained from working out which control on
+   * the workloads screen switches to it.
+   */
   async gotoPmk(): Promise<void> {
-    await openScreen(this.page, 'pmkwls', WorkloadPage.pmkPath);
+    await this.page.goto(WorkloadPage.pmkPath);
   }
 
   // ─────────────────────────────────────────────────────────────

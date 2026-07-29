@@ -20,6 +20,7 @@ import { getSessionToken } from '../support/apiWait';
 import { scenarioState } from '../support/world';
 import { recall, remember } from '../support/handoff';
 import { humanClick } from '../support/humanize';
+import { openScreen } from '../support/navigate';
 
 const { Given, When, Then } = createBdd(test);
 
@@ -41,7 +42,7 @@ const { Given, When, Then } = createBdd(test);
 // ── 구간1: the migration guide and the help panel ───────────────────────
 
 When('마이그레이션 가이드 화면을 열면', async ({ page }) => {
-  await page.goto('/main/migration-guide');
+  await openScreen(page, 'migrationguide', '/main/migration-guide');
 });
 
 Then('마이그레이션 가이드가 보인다', async ({ page }) => {
@@ -406,12 +407,16 @@ async function waitForDagRegistered(page: Page, name: string): Promise<void> {
       await page.waitForTimeout(10_000);
     }
   } else {
-    // Could not resolve the id - fall back to the wait this replaced rather than run too early.
+    // Could not resolve the id - wait out the old fixed pause rather than run too early.
     await page.waitForTimeout(120_000);
   }
 
+  // Say which path was taken. Both come out near two minutes, and a bare duration cannot tell a
+  // real registration wait from the blind fallback - which is the difference worth knowing.
   console.log(
-    `[workflow] DAG 등록까지 ${Math.round((Date.now() - started) / 1000)}초`,
+    wfId
+      ? `[workflow] DAG 등록 확인까지 ${Math.round((Date.now() - started) / 1000)}초`
+      : `[workflow] ⚠ 워크플로우 id 를 못 찾아 고정 대기로 넘어감 (${name})`,
   );
   // Registration and runnability are not the same instant, so a short grace on top.
   await page.waitForTimeout(15_000);

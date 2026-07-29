@@ -291,14 +291,31 @@ export class SourceServicesPage {
   }
 
   /** 연결정보 폼 채우기(현재 열린 폼 기준) */
+  /**
+   * Fill the connection form, in the order the fields are read.
+   *
+   * A field that already holds the wanted value is left alone. The SSH port opens as 22 and that is
+   * what the scenario wants, so clicking into it, clearing it and typing 22 back is work nobody
+   * would do - and on screen it reads as the form being fiddled with rather than filled in.
+   */
   async fillConnection(conn: Connection): Promise<void> {
     await humanFill(this.connNameInput, conn.name);
     await humanFill(this.connIpInput, conn.ip);
-    await humanFill(this.connPortInput, String(conn.sshPort ?? '22'));
+    await this.fillIfDifferent(
+      this.connPortInput,
+      String(conn.sshPort ?? '22'),
+    );
     await humanFill(this.connUserInput, conn.user);
     if (conn.password) await humanFill(this.connPasswordInput, conn.password);
     if (conn.privateKey)
       await humanFill(this.connPrivateKeyInput, conn.privateKey);
+  }
+
+  /** Type into a field only when what it already holds is not what we want. */
+  private async fillIfDifferent(field: Locator, value: string): Promise<void> {
+    const current = await field.inputValue().catch(() => '');
+    if (current.trim() === value) return;
+    await humanFill(field, value);
   }
 
   /**
