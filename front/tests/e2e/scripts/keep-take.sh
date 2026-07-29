@@ -50,24 +50,22 @@ fi
 # 브라우저가 뜨고 첫 화면이 그려질 때까지 2초 남짓 하얀 화면이 남는다. 구간마다 그게 붙으니 이어 붙이면
 # 단계 사이마다 흰 화면이 끼는 것처럼 보인다. 내용이 시작되는 지점을 찾아 그 앞을 버린다.
 #
-# 잘라 낼 지점은 프레임 밝기로 찾는다 — 거의 백색(평균 250 이상)인 동안은 아직 아무것도 안 그려진 것이다.
+# 찾는 일은 ffmpeg 에게 맡긴다. 프레임을 전부 png 로 뽑아 파이썬으로 비교하던 방식은 4분짜리 구간에서
+# 수 분이 걸렸다 — 같은 판정을 필터 한 번으로 6초 만에 한다.
+#
+# 흰 화면을 찾는 필터가 따로 없으므로 화면을 뒤집어(negate) *검은* 구간을 찾는다.
 first_content_second() {
-  local video="$1" probe
-  probe="$(mktemp -d)"
-  ffmpeg -v error -i "$video" -t 6 -vf "fps=5,scale=160:-1,format=gray" "$probe/%04d.png" 2>/dev/null || true
-  python3 - "$probe" <<'PY'
-import sys, glob
-from PIL import Image
-frames = sorted(glob.glob(sys.argv[1] + "/*.png"))
-for i, f in enumerate(frames):
-    px = list(Image.open(f).getdata())
-    if sum(px) / len(px) < 250:          # 뭔가 그려졌다
-        print(f"{max(0, i - 1) / 5:.1f}")  # 한 프레임 앞에서 시작해 툭 끊기지 않게
-        break
-else:
-    print("0.0")
-PY
-  rm -rf "$probe"
+  local video="$1"
+  ffmpeg -v info -t 6 -i "$video" -vf "negate,blackdetect=d=0.1:pic_th=0.96" -f null - 2>&1 \
+    | awk '
+        match($0, /black_start:[0-9.]+/) {
+          s = substr($0, RSTART+12, RLENGTH-12)
+        }
+        match($0, /black_end:[0-9.]+/) {
+          e = substr($0, RSTART+10, RLENGTH-10)
+          if (s+0 < 0.3 && !done) { printf "%.1f\n", (e-0.2 > 0 ? e-0.2 : 0); done=1 }
+        }
+        END { if (!done) print "0.0" }'
 }
 
 # 끝에 남는 정지 화면도 잘라 낸다.
@@ -75,28 +73,24 @@ PY
 # 마지막 동작이 끝난 뒤에도 녹화는 계속 돌아간다 — 단언을 확인하고 화면을 캡처하고 브라우저를 닫는
 # 동안이다. 그 시간이 그대로 꼬리로 붙어, 한 테이크가 7초 넘게 멈춘 화면으로 끝나기도 했다.
 #
-# 화면이 마지막으로 *바뀐* 지점을 찾아 거기서 조금만 더 두고 끊는다.
+# 여기서도 ffmpeg 이 판정한다(freezedetect). 중간의 멈춤은 기다리는 자리라 그대로 두고, *끝까지
+# 이어지는* 멈춤 — 시작만 있고 끝이 없는 것 — 만 잘라 낸다.
 last_change_second() {
-  local video="$1" probe
-  probe="$(mktemp -d)"
-  ffmpeg -v error -i "$video" -vf "fps=5,scale=160:-1,format=gray" "$probe/%04d.png" 2>/dev/null || true
-  python3 - "$probe" <<'PY'
-import sys, glob
-from PIL import Image, ImageChops
-frames = sorted(glob.glob(sys.argv[1] + "/*.png"))
-last = 0
-prev = None
-for i, f in enumerate(frames):
-    im = Image.open(f)
-    if prev is not None:
-        d = ImageChops.difference(im, prev)
-        if sum(1 for p in d.getdata() if p > 12) >= 6:   # 눈에 보일 만큼 바뀌었다
-            last = i
-    prev = im
-total = len(frames) / 5 if frames else 0
-print(f"{min(total, last / 5 + 0.8):.1f}")   # 마지막 변화 뒤 0.8초까지만 남긴다
-PY
-  rm -rf "$probe"
+  local video="$1" total
+  total="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$video")"
+  ffmpeg -v info -i "$video" -vf "freezedetect=n=-55dB:d=2" -f null - 2>&1 \
+    | awk -v total="$total" '
+        match($0, /freeze_start: [0-9.]+/) { s = substr($0, RSTART+14, RLENGTH-14); open=1 }
+        match($0, /freeze_end: [0-9.]+/)   { open=0 }
+        END {
+          if (!open) { printf "%.1f\n", total; exit }
+          t = s + 0.8
+          if (t > total) t = total
+          # 절반 넘게 잘라 내야 한다면 판정을 믿지 않는다. 꼬리를 다듬으려다 내용을 버리는 쪽이
+          # 훨씬 나쁘다 — 남는 정지 몇 초는 편집에서 잘라도 되지만 없어진 장면은 다시 찍어야 한다.
+          if (t < total * 0.5) { printf "%.1f\n", total; exit }
+          printf "%.1f\n", t
+        }'
 }
 
 SEG_ARG="${1:?구간 번호가 필요하다 (예: seg3)}"
