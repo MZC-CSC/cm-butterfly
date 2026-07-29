@@ -78,6 +78,24 @@ const blockedTargets = computed(() =>
     : [],
 );
 
+/**
+ * The warning shown when a target's status is not one this action normally runs from.
+ *
+ * Worded for how many there are. A single target reads as itself — "1 of 1 are not in a state…"
+ * counts something the user can already see, and gets the grammar wrong on the way.
+ */
+const stateWarning = computed(() => {
+  if (!meta.value || !blockedTargets.value.length) return '';
+  const noun = props.scope === 'infra' ? 'workload' : 'server';
+  const subject =
+    props.targets.length === 1
+      ? `This ${noun} is`
+      : blockedTargets.value.length === props.targets.length
+        ? `None of the selected ${noun}s are`
+        : `${blockedTargets.value.length} of the ${props.targets.length} selected ${noun}s are`;
+  return `${subject} not in a state that normally allows ${meta.value.label}. The request may be refused — Force sends it regardless.`;
+});
+
 const isConfirmDisabled = computed(() => {
   if (state.phase === 'progress') return true;
   if (!props.targets.length) return true;
@@ -273,9 +291,7 @@ watch(
             class="warning-note"
             data-testid="wl-lifecycle-state-warning"
           >
-            {{ blockedTargets.length }} of {{ targets.length }} are not in a
-            state that normally allows {{ meta.label }}. The request may be
-            refused — Force sends it regardless.
+            {{ stateWarning }}
           </p>
 
           <p-field-group label="Method" required class="mt-8">
