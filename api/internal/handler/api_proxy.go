@@ -162,6 +162,16 @@ func SubsystemAnyCaller(c echo.Context, subsystemName, operationId string, commo
 		authString = ""
 	}
 
+	// Credential values arrive in the clear and must not go any further that way.
+	// Sealing them here, before CommonCaller, also keeps them out of the request
+	// dump that CommonHttpToCommonResponse writes to the log.
+	if isCredentialRegistration(subsystemName, operationId) {
+		if err := sealCredentialRequest(targetFrameworkInfo, authString, commonRequest); err != nil {
+			log.Printf("ERROR: credential registration rejected: %v", err)
+			return response.CommonResponseStatusBadRequest(err.Error()), err
+		}
+	}
+
 	// Pass the incoming X-Request-Id straight through to the subsystem. cm-beetle
 	// tracks the request by this id (Handling before the handler runs, then
 	// Success/Error when it finishes), so even if the front-end times out waiting
