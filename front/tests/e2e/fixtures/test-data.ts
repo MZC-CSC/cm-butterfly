@@ -174,14 +174,21 @@ export const workload = {
     scenarioName: process.env.TEST_LOADTEST_NAME || 'e2e-smoke-load',
     targetHost: process.env.TEST_LOADTEST_HOST || '127.0.0.1',
     /**
-     * Port the load test targets on the migrated infra.
+     * The port the load test *aims at* on the migrated infrastructure.
      *
-     * ★ Default 5555 (not 80). The load-test nginx is installed on the *target* infra at test time
-     *   (perf.steps: 부하테스트 대상 웹서버를 준비한다) and configured to listen on this port, and the
-     *   same port is opened on the target's security group. It is *not* the source (sshtest) server —
-     *   nginx was removed from those for security. Override with TEST_LOADTEST_PORT if needed.
+     * ★ This is the service port - where the web server actually answers - not the agent port.
+     *   The two are easy to confuse and the confusion is quiet: cm-ant's precheck fetches
+     *   `http://<target>:<port>/` before it starts, so pointing it at the agent port gives
+     *   "connection refused" and a failed test on a perfectly healthy target.
+     *
+     *   Software migration installs nginx with the source's own configuration, and the source
+     *   serves on 80, so the migrated one does too.
+     *
+     *   5555 is the *agent's* port. cm-ant installs its generator agent on the target and needs
+     *   that port open in the security group - which is why the scenario opens it in the model -
+     *   but nothing serves the site there.
      */
-    port: process.env.TEST_LOADTEST_PORT || '5555',
+    port: process.env.TEST_LOADTEST_PORT || '80',
     path: process.env.TEST_LOADTEST_PATH || '/',
     virtualUsers: process.env.TEST_LOADTEST_VU || '1',
     duration: process.env.TEST_LOADTEST_DURATION || '10',

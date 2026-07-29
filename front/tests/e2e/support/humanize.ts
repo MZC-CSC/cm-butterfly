@@ -33,14 +33,20 @@ const LONG_TEXT_THRESHOLD = 24; // chars above which a value counts as "long"
   watched or recorded: the pointer travels to the target instead of teleporting, and
   text is typed a character at a time rather than pasted.
 */
-/**
- * The pause before acting and after landing. `E2E_DEMO_BEAT_MS` overrides it.
- *
- * Short on purpose. The pointer already travels visibly and text is typed a character at a time, so
- * the action reads as an action without holding still afterwards - a longer beat on top of both
- * just makes the recording feel stalled.
- */
-const DEMO_BEAT_MS = Number(process.env.E2E_DEMO_BEAT_MS ?? 400);
+/*
+  Two different pauses, because they are doing two different jobs.
+
+  Before a click the pointer has just travelled to the target, and a brief hold is what makes the
+  click read as aimed rather than teleported - a tenth of a second is enough to see it land.
+
+  After typing there is nothing to wait for at all: the characters appeared one by one, so the
+  entry was already visible while it happened. A short beat only keeps the value on screen a moment
+  before the run moves on.
+*/
+/** Held after the pointer arrives, before the click. `E2E_DEMO_CLICK_MS` overrides it. */
+const DEMO_CLICK_MS = Number(process.env.E2E_DEMO_CLICK_MS ?? 120);
+/** Held after a value has been entered. `E2E_DEMO_BEAT_MS` overrides it. */
+const DEMO_BEAT_MS = Number(process.env.E2E_DEMO_BEAT_MS ?? 200);
 /*
   Playwright's `steps` option sends the intermediate mousemove events back to back, so the
   pointer arrives in a few milliseconds - on screen that still reads as a jump. The glide
@@ -136,9 +142,9 @@ export async function humanClick(
   }
   if (isDemoPace()) {
     await travelTo(locator);
-    await pause(DEMO_BEAT_MS); // let the viewer see where the pointer landed
+    await pause(DEMO_CLICK_MS); // let the pointer be seen on the target before it presses
     await locator.click(opts);
-    await pause(DEMO_BEAT_MS); // and what the click did
+    await pause(DEMO_CLICK_MS); // and let what the click did register
     return;
   }
   await locator.scrollIntoViewIfNeeded().catch(() => {});
