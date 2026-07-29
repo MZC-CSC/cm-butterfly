@@ -167,8 +167,10 @@ export async function humanFill(locator: Locator, text: string): Promise<void> {
     return;
   }
   if (isDemoPace()) {
+    // No hold on either side of a text field. The pointer travels there visibly and the characters
+    // appear one at a time, so both the aiming and the entering are already on screen - a pause
+    // before and after just turns filling a form into a series of stops.
     await travelTo(locator);
-    await pause(DEMO_CLICK_MS); // the pointer has arrived; let it be seen before it presses
     await locator.click().catch(() => {});
     await locator.fill('');
     const perChar = text.length
