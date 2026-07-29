@@ -1,3 +1,4 @@
+import { Page } from '@playwright/test';
 import { createBdd } from 'playwright-bdd';
 import { test, expect } from '../support/fixtures';
 import { JsonEditorPage } from '../pages/jsonEditor.page';
@@ -10,6 +11,7 @@ import {
   config,
   testNamespace,
   sourceServers,
+  targetSpec,
   workflowData,
   workload,
 } from '../fixtures/test-data';
@@ -239,8 +241,14 @@ When(
     await models.openRecommend();
     await models.selectProvider(csp);
     await models.selectRegion(region);
+    // Ask for more candidates than the default. A small source narrows what comes back, and the
+    // ones with a blank spec or image are unusable - a wider list is what makes a complete one
+    // likely to be there at all.
+    await models.setCandidateLimit(
+      Number(process.env.TEST_RECOMMEND_LIMIT || 20),
+    );
     await models.runRecommend();
-    const picked = await models.selectCompleteCandidate();
+    const picked = await models.selectCompleteCandidate(targetSpec.maxClass);
     scenarioState.lastRecommendedSpec = picked.spec;
     await models.saveAsTargetModel(uniqueName(modelName));
   },
@@ -255,17 +263,39 @@ When(
  * expects; typing a rule by hand would test the keyboard rather than the product, and any field
  * left out would surface much later as an infra that comes up unreachable.
  */
+/**
+ * Copy the rule that already allows 22 and change the copy's port to 5555.
+ *
+ * The rule is an item of an array, and only array items can be duplicated - the port field itself
+ * has no copy of its own. So the port row is what we search for, but the item *containing* it is
+ * what gets duplicated, and the port on the new item is what gets changed.
+ */
+async function openPortByDuplicating(page: Page): Promise<void> {
+  const editor = new JsonEditorPage(page);
+  await editor.switchToTable();
+  await editor.search('22');
+  await editor.enableFilter();
+
+  const portRow = editor.row('22');
+  await expect(
+    portRow,
+    '방화벽에 22번 규칙이 없다 — 소스 서버에 방화벽이 설정돼 있어야 수집에 잡힌다',
+  ).toBeVisible({ timeout: 15_000 });
+
+  const item = await editor.enclosingItem(portRow);
+  await editor.duplicateRow(item);
+
+  // The copy is the second row now matching 22; changing it leaves the original alone.
+  const copy = editor.rowsMatching('22').nth(1);
+  await editor.setRowValue(copy, '5555');
+  await editor.closeSearch();
+}
+
 When(
   '소스 모델의 방화벽에 22번 규칙을 복제해 5555 포트를 추가하면',
   async ({ page }) => {
-    const editor = new JsonEditorPage(page);
-    await editor.openFromSourceModel();
-    await editor.switchToTable();
-    await editor.search('22');
-    await editor.enableFilter();
-    await editor.duplicateRow('22');
-    await editor.setRowValue('22', '5555');
-    await editor.closeSearch();
+    await new JsonEditorPage(page).openFromSourceModel();
+    await openPortByDuplicating(page);
   },
 );
 
@@ -276,14 +306,8 @@ When(
     await models.gotoTargetModels();
     await models.selectModel(uniqueName(modelName));
 
-    const editor = new JsonEditorPage(page);
-    await editor.openFromTargetModel();
-    await editor.switchToTable();
-    await editor.search('22');
-    await editor.enableFilter();
-    await editor.duplicateRow('22');
-    await editor.setRowValue('22', '5555');
-    await editor.closeSearch();
+    await new JsonEditorPage(page).openFromTargetModel();
+    await openPortByDuplicating(page);
   },
 );
 

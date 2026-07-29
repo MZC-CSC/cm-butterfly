@@ -102,15 +102,35 @@ export class JsonEditorPage {
 
   /** Rows currently drawn in the grid. */
   private get gridRows(): Locator {
-    return this.page.locator('[data-testid^="json-grid-row-"]').or(
-      // the grid renders plain rows when no per-row testid is attached yet
-      this.page.locator('.json-grid tbody tr'),
-    );
+    return this.page.locator('.pg-table tbody tr.pg-row');
   }
 
-  /** A row whose text contains the given value. */
-  row(text: string): Locator {
-    return this.gridRows.filter({ hasText: text }).first();
+  /**
+   * The row whose value is *exactly* this.
+   *
+   * Matching on a substring is no good here: a document full of addresses and ports contains "22"
+   * inside `224.0.0.251/32` and inside any port in the twenties, so a loose match picks a different
+   * row than the one meant - and a rule gets edited that nobody looked at.
+   */
+  row(value: string): Locator {
+    return this.rowsMatching(value).first();
+  }
+
+  /** Every row whose value is exactly this - used to tell an original from the copy made of it. */
+  rowsMatching(value: string): Locator {
+    const exact = new RegExp(
+      `^\\s*${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`,
+    );
+    return this.gridRows.filter({
+      has: this.page.locator('.pg-value').filter({ hasText: exact }),
+    });
+  }
+
+  /** The row whose *key* is this, for fields addressed by name rather than by value. */
+  rowByKey(key: string): Locator {
+    return this.gridRows
+      .filter({ has: this.page.locator('.pg-key', { hasText: key }) })
+      .first();
   }
 
   async expectRowVisible(text: string): Promise<void> {
@@ -126,23 +146,55 @@ export class JsonEditorPage {
    * and the copy's port is changed. Writing a whole rule by hand would test the keyboard, not the
    * product.
    */
-  async duplicateRow(text: string): Promise<void> {
-    const row = this.row(text);
-    await expect(row).toBeVisible({ timeout: 15_000 });
-    const inline = row.getByTestId('json-grid-row-duplicate');
-    if (await inline.isVisible().catch(() => false)) {
-      await humanClick(inline);
+  async duplicateRow(locator: Locator): Promise<void> {
+    await expect(locator).toBeVisible({ timeout: 15_000 });
+    const inline = locator.getByTestId('json-grid-row-duplicate');
+    if (await inline.count()) {
+      await humanClick(inline.first());
       return;
     }
-    await humanClick(row.getByTestId('json-grid-row-menu'));
+    // Only array items can be duplicated, so a leaf field has no button of its own - the copy has
+    // to be taken of the item that contains it, through its right-click menu.
+    await locator.click({ button: 'right' });
     await humanClick(this.page.getByTestId('json-grid-menu-duplicate'));
   }
 
+  /**
+   * The array item that holds a row - the thing a copy is actually taken of.
+   *
+   * Rows are flattened to one level of indentation per depth, so the item a field belongs to is the
+   * nearest row above it that sits shallower and carries a duplicate button.
+   */
+  async enclosingItem(row: Locator): Promise<Locator> {
+    const rows = this.gridRows;
+    const total = await rows.count();
+    const target = await row.getAttribute('class');
+    const depthOf = (cls: string | null) =>
+      Number((cls ?? '').match(/depth-(\d+)/)?.[1] ?? '0');
+    const want = depthOf(target);
+
+    let index = -1;
+    for (let i = 0; i < total; i++) {
+      if ((await rows.nth(i).getAttribute('class')) === target) {
+        index = i;
+        break;
+      }
+    }
+    for (let i = index - 1; i >= 0; i--) {
+      const candidate = rows.nth(i);
+      if (depthOf(await candidate.getAttribute('class')) >= want) continue;
+      if (await candidate.getByTestId('json-grid-row-duplicate').count()) {
+        return candidate;
+      }
+    }
+    return row;
+  }
+
   /** Read what a row currently holds - used when a value is edited in part rather than replaced. */
-  async readRowValue(rowText: string): Promise<string> {
-    const cell = this.row(rowText).locator('input, textarea').last();
+  async readRowValue(key: string): Promise<string> {
+    const cell = this.rowByKey(key).locator('.pg-value');
     await expect(cell).toBeVisible({ timeout: 15_000 });
-    return (await cell.inputValue()).trim();
+    return (await cell.innerText()).trim();
   }
 
   /**
@@ -151,10 +203,14 @@ export class JsonEditorPage {
    * The grid edits in place, so the cell becomes an input once clicked. Confirm with Enter - moving
    * focus away also commits, but Enter is what a person presses.
    */
-  async setRowValue(rowText: string, value: string): Promise<void> {
-    const cell = this.row(rowText).locator('input, textarea').last();
-    await humanFill(cell, value);
-    await cell.press('Enter');
+  async setRowValue(row: Locator, value: string): Promise<void> {
+    // The value only becomes an input once the cell is double-clicked; until then it is text.
+    const cell = row.locator('.pg-cell-value');
+    await cell.dblclick();
+    const input = cell.locator('.pg-edit-input');
+    await expect(input).toBeVisible({ timeout: 10_000 });
+    await humanFill(input, value);
+    await input.press('Enter');
   }
 
   // ── saving ─────────────────────────────────────────────────────────────
