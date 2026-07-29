@@ -304,10 +304,21 @@ export class WorkloadPage {
     await this.deleteCloseButton.click();
   }
 
-  /** Whether the given text (in progress/error) is shown in the delete-status cell of a list row. */
+  /**
+   * Whether the delete-status cell of a list row shows the given state.
+   *
+   * ★ The scenario names the state in Korean; the screen writes it in English. Matching the two
+   *   belongs here, not in the scenario — the wording on screen is a selector concern, and the
+   *   scenarios stay readable in Korean.
+   *
+   *   This mapping is why both delete-status scenarios were failing: the cell was translated to
+   *   English (BAR-1567) while the step still looked for `진행 중`, so it could never match. The
+   *   scenarios had been red on develop ever since, describing a screen that works.
+   */
   async expectRowDeleteStatus(text: '진행 중' | '에러'): Promise<void> {
+    const onScreen = text === '진행 중' ? /In progress/i : /Failed/i;
     await expect(
-      this.mciRowDeleteStatus().filter({ hasText: text }).first(),
+      this.mciRowDeleteStatus().filter({ hasText: onScreen }).first(),
     ).toBeVisible({ timeout: 30_000 });
   }
 
@@ -755,18 +766,111 @@ export class WorkloadPage {
 
   /**
    * Stop (suspend/stop) the created infra — no terminate, to protect against charges.
-   * If the current UI has no data-testid on the stop action yet, fall back to the action menu's Suspend/Stop item.
-   * (When the control is not exposed, only this one place in the Page Object needs changing.)
+   *
+   * Goes through the same Suspend the screen offers, and confirms it, rather than only opening the
+   * menu. Opening the menu is not stopping anything; leaving it there would have this step report
+   * success while the instance kept running and kept charging.
    */
   async stopInstance(infraName: string): Promise<void> {
     await this.gotoMci();
     await this.expectMciListLoaded();
     await this.selectMci(infraName);
-    await this.actionDropdown.click();
-    await this.page
-      .getByTestId('mci-action-suspend')
-      .or(this.page.getByRole('menuitem', { name: /suspend|stop|중지/i }))
-      .or(this.page.getByText(/suspend|stop/i).first())
-      .click();
+    await this.chooseInfraAction('suspend');
+    await this.confirmLifecycle();
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Lifecycle control — GetControlInfra / GetControlInfraNode (cb-tumblebug)
+  // ─────────────────────────────────────────────────────────────
+
+  private get vmActionDropdown(): Locator {
+    return this.page.getByTestId('vm-action-dropdown');
+  }
+
+  /** The confirm step of the lifecycle modal (what it does, the targets, Normal/Force). */
+  private get lifecycleConfirm(): Locator {
+    return this.page.getByTestId('wl-lifecycle-confirm');
+  }
+  /** The progress step — one row per target with the answer that came back. */
+  private get lifecycleProgress(): Locator {
+    return this.page.getByTestId('wl-lifecycle-progress');
+  }
+  private get lifecycleOkButton(): Locator {
+    return this.page.getByTestId('wl-lifecycle-ok');
+  }
+  private get lifecycleKeywordInput(): Locator {
+    return this.page.locator(
+      'input[data-testid="wl-lifecycle-confirm-keyword"], textarea[data-testid="wl-lifecycle-confirm-keyword"]',
+    );
+  }
+
+  /**
+   * Open the action menu and pick a lifecycle action, leaving the modal on its confirm step.
+   *
+   * The modal is judged open by its confirm *content*, never by the modal testid — that one sits on
+   * the PButtonModal wrapper, which is not a visible element (DESIGN-MIRINAE §1.4).
+   */
+  async chooseInfraAction(action: LifecycleActionName): Promise<void> {
+    await humanClick(this.actionDropdown);
+    await humanClick(this.page.getByTestId(`mci-action-${action}`));
+    await expect(this.lifecycleConfirm).toBeVisible({ timeout: 15_000 });
+  }
+
+  /** The same, for a single server on the Server tab. A server must already be selected. */
+  async chooseNodeAction(action: LifecycleActionName): Promise<void> {
+    await humanClick(this.vmActionDropdown);
+    await humanClick(this.page.getByTestId(`vm-action-${action}`));
+    await expect(this.lifecycleConfirm).toBeVisible({ timeout: 15_000 });
+  }
+
+  /** Choose Force in the confirm step. */
+  async chooseForceMethod(): Promise<void> {
+    await humanClick(this.page.getByTestId('wl-lifecycle-method-force'));
+  }
+
+  /** Type the name a destructive action asks for. */
+  async fillLifecycleKeyword(keyword: string): Promise<void> {
+    await humanFill(this.lifecycleKeywordInput.first(), keyword);
+  }
+
+  /**
+   * Whether the confirm button is currently blocked.
+   *
+   * ★ Read from the class, not from `isEnabled()`. mirinae renders a disabled PButton with a class
+   *   and no `disabled` attribute, so the standard API answers "enabled" for a button that is in
+   *   fact refusing clicks — and the test reports a working guard as broken (DESIGN-MIRINAE §1.6).
+   */
+  async isLifecycleConfirmBlocked(): Promise<boolean> {
+    return this.lifecycleOkButton
+      .first()
+      .evaluate(el => el.className.split(/\s+/).includes('disabled'));
+  }
+
+  /** Press the confirm button. */
+  async confirmLifecycle(): Promise<void> {
+    await humanClick(this.lifecycleOkButton.first());
+  }
+
+  /** The warning shown when a target's status does not normally allow the chosen action. */
+  async expectLifecycleStateWarning(): Promise<void> {
+    await expect(
+      this.page.getByTestId('wl-lifecycle-state-warning'),
+    ).toBeVisible({ timeout: 10_000 });
+  }
+
+  /** Whether the modal closed itself — which it does only when every target was accepted. */
+  async expectLifecycleModalClosed(): Promise<void> {
+    await expect(this.lifecycleConfirm).toBeHidden({ timeout: 30_000 });
+    await expect(this.lifecycleProgress).toBeHidden({ timeout: 30_000 });
+  }
+
+  /** A target's outcome row — `accepted` or `failed`. */
+  lifecycleResult(targetName: string): Locator {
+    return this.page.locator(
+      `[data-testid="wl-lifecycle-result"][data-name="${targetName}"]`,
+    );
   }
 }
+
+/** The lifecycle actions the console exposes; also the `action` value sent to cb-tumblebug. */
+export type LifecycleActionName = 'suspend' | 'resume' | 'reboot' | 'terminate';
