@@ -70,6 +70,35 @@ PY
   rm -rf "$probe"
 }
 
+# 끝에 남는 정지 화면도 잘라 낸다.
+#
+# 마지막 동작이 끝난 뒤에도 녹화는 계속 돌아간다 — 단언을 확인하고 화면을 캡처하고 브라우저를 닫는
+# 동안이다. 그 시간이 그대로 꼬리로 붙어, 한 테이크가 7초 넘게 멈춘 화면으로 끝나기도 했다.
+#
+# 화면이 마지막으로 *바뀐* 지점을 찾아 거기서 조금만 더 두고 끊는다.
+last_change_second() {
+  local video="$1" probe
+  probe="$(mktemp -d)"
+  ffmpeg -v error -i "$video" -vf "fps=5,scale=160:-1,format=gray" "$probe/%04d.png" 2>/dev/null || true
+  python3 - "$probe" <<'PY'
+import sys, glob
+from PIL import Image, ImageChops
+frames = sorted(glob.glob(sys.argv[1] + "/*.png"))
+last = 0
+prev = None
+for i, f in enumerate(frames):
+    im = Image.open(f)
+    if prev is not None:
+        d = ImageChops.difference(im, prev)
+        if sum(1 for p in d.getdata() if p > 12) >= 6:   # 눈에 보일 만큼 바뀌었다
+            last = i
+    prev = im
+total = len(frames) / 5 if frames else 0
+print(f"{min(total, last / 5 + 0.8):.1f}")   # 마지막 변화 뒤 0.8초까지만 남긴다
+PY
+  rm -rf "$probe"
+}
+
 SEG_ARG="${1:?구간 번호가 필요하다 (예: seg3)}"
 STAMP="$(date +%Y%m%d-%H%M)"
 i=0
@@ -79,12 +108,13 @@ for v in "${VIDEOS[@]}"; do
   [ "${#VIDEOS[@]}" -gt 1 ] && name="$name-$((++i))"
 
   start="$(first_content_second "$v")"
+  stop="$(last_change_second "$v")"
 
   # 다시 인코딩해서 자른다. 스트림 복사(-c copy)는 키프레임 경계로만 자를 수 있는데 playwright 가
   # 내보내는 webm 은 앞쪽에 키프레임이 하나뿐이라, 복사로는 아무것도 잘리지 않는다(실제로 그랬다).
   # 나가는 형식은 mp4(h264) — 편집기에서 바로 붙일 수 있고 용량도 webm 보다 작다.
-  ffmpeg -v error -y -ss "$start" -i "$v" \
+  ffmpeg -v error -y -ss "$start" -to "$stop" -i "$v" \
     -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p -an \
     "$KEEP_DIR/$name.mp4"
-  echo "[keep] $name.mp4  (앞 ${start}초 잘라냄, $(du -h "$KEEP_DIR/$name.mp4" | cut -f1))"
+  echo "[keep] $name.mp4  (${start}~${stop}초 구간, $(du -h "$KEEP_DIR/$name.mp4" | cut -f1))"
 done
