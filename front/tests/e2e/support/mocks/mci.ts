@@ -90,6 +90,28 @@ export function registerMciMocks(mock: ApiMock): ApiMock {
     'cm-beetle/GetInfra': ({ body }) =>
       ok({ data: infraItem(body?.pathParams?.infraId ?? MOCK_INFRA_ID) }),
 
+    // Lifecycle control — accept and answer the way cb-tumblebug does.
+    //
+    // ★ What these scenarios actually check is **what went out**, not what came back. The console
+    //   has no state machine of its own here: it sends one call per target and shows the answer. So
+    //   the thing that can silently break is the *request* — the wrong operationId (cm-beetle has no
+    //   control endpoint, so a stray `cm-beetle/` prefix 404s), a missing `action`, or a `force` that
+    //   goes out when nobody asked for it. The steps read the recorded calls for exactly that.
+    //
+    //   The reply is a single message line, which is all cb-tumblebug returns (model.SimpleMsg). It
+    //   is an acknowledgement, not a completion — echoing the action keeps that visible.
+    'cb-tumblebug/GetControlInfra': ({ body }) =>
+      ok({ message: `${body?.queryParams?.action} requested for the Infra` }),
+    'cb-tumblebug/GetControlInfraNode': ({ body }) =>
+      ok({ message: `${body?.queryParams?.action} requested for the Node` }),
+
+    // Selecting a server makes the screen ask cm-ant for that server's last load test. Nothing here
+    // is about load testing, but an un-mocked call goes out to the real backend and comes back as a
+    // toast that can sit over the very controls the scenario is about to press. Answered with "no
+    // run on record" purely to keep it out of the way — **this is silencing, not verification.**
+    // The load-test contract is checked where it belongs, against the real lineup.
+    'cm-ant/Getlastloadtestexecutionstate': () => ok({ result: null }),
+
     // Delete request — **hold the response.**
     //
     // ★ Do not respond immediately. The real DeleteInfra holds the response until completion, and the screen keeps

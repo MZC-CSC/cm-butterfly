@@ -2,6 +2,7 @@ import { createBdd } from 'playwright-bdd';
 import { test, expect, getMock } from '../support/fixtures';
 import type { ApiMock } from '../support/apiMock';
 import { WorkloadPage } from '../pages/workload.page';
+import type { LifecycleActionName } from '../pages/workload.page';
 import { workload, testNamespace } from '../fixtures/test-data';
 import { scenarioState } from '../support/world';
 import { snapshotCspResources, orphanReport } from '../support/orphanResources';
@@ -301,6 +302,158 @@ Then('강제 삭제로 남은 CSP 리소스를 결과서에 기록한다', async
   );
   // Emit the report body to the test log so it can be copied verbatim into the result report.
   console.log(md);
+});
+
+// ─────────────────────────────────────────────────────────────
+// Lifecycle control — GetControlInfra / GetControlInfraNode (cb-tumblebug)
+//
+// These steps assert on the *requests that went out*, read from the mock's call log. The screen
+// here holds no state of its own — it sends one call per target and shows the answer — so the
+// place a mistake can hide is the request. A wrong subsystem prefix is the sharpest example:
+// cm-beetle has no control endpoint at all, and the 404 that comes back reads like "no such
+// workload", which turns a routing slip into a phantom resource problem.
+// ─────────────────────────────────────────────────────────────
+
+const CONTROL_INFRA_OP = 'cb-tumblebug/GetControlInfra';
+const CONTROL_NODE_OP = 'cb-tumblebug/GetControlInfraNode';
+
+/** The mock's call log, with a clear failure when the scenario forgot the @mock tier. */
+function mockCalls(): ApiMock {
+  const mock = getMock();
+  expect(
+    mock,
+    'this step needs the @mock tier — the call log lives on the mock',
+  ).not.toBeNull();
+  return mock as ApiMock;
+}
+
+/** Step "choose the {action} action for the workload" — the list toolbar's action menu. */
+When('워크로드 {string} 동작을 고른다', async ({ page }, action: string) => {
+  await new WorkloadPage(page).chooseInfraAction(action as LifecycleActionName);
+});
+
+/** Step "choose the {action} action for the server" — the server tab's action menu. */
+When('서버 {string} 동작을 고른다', async ({ page }, action: string) => {
+  await new WorkloadPage(page).chooseNodeAction(action as LifecycleActionName);
+});
+
+/** Step "choose Force" — skips cb-tumblebug's state checks; deletes nothing. */
+When('Force 를 고른다', async ({ page }) => {
+  await new WorkloadPage(page).chooseForceMethod();
+});
+
+/** Step "type {keyword} as the confirmation" — required by the destructive action. */
+When('확인 문구로 {string} 를 입력한다', async ({ page }, keyword: string) => {
+  await new WorkloadPage(page).fillLifecycleKeyword(keyword);
+});
+
+/** Step "confirm the action" — presses the modal's action button. */
+When('동작을 확인한다', async ({ page }) => {
+  await new WorkloadPage(page).confirmLifecycle();
+});
+
+/** Step "the run button is blocked" — judged by class, not by isEnabled (DESIGN-MIRINAE §1.6). */
+Then('실행 버튼이 막혀 있다', async ({ page }) => {
+  expect(
+    await new WorkloadPage(page).isLifecycleConfirmBlocked(),
+    'the destructive action should stay blocked until the name is typed',
+  ).toBeTruthy();
+});
+
+/** Step "the run button is released". */
+Then('실행 버튼이 풀린다', async ({ page }) => {
+  await expect
+    .poll(() => new WorkloadPage(page).isLifecycleConfirmBlocked(), {
+      timeout: 10_000,
+    })
+    .toBeFalsy();
+});
+
+/** Step "a warning says the status does not match" — shown before the request, not after a refusal. */
+Then('상태가 맞지 않는다는 안내가 보인다', async ({ page }) => {
+  await new WorkloadPage(page).expectLifecycleStateWarning();
+});
+
+/** Step "the lifecycle dialog closes" — it closes itself only when every target was accepted. */
+Then('라이프사이클 창이 닫힌다', async ({ page }) => {
+  await new WorkloadPage(page).expectLifecycleModalClosed();
+});
+
+/** Step "an infra {action} control request went out for {infra}". */
+Then(
+  '{string} 에 인프라 {string} 제어 요청이 나갔다',
+  // eslint-disable-next-line no-empty-pattern
+  async ({}, infraName: string, action: string) => {
+    await expect
+      .poll(
+        () =>
+          mockCalls().calls.filter(
+            c =>
+              c.operationId === CONTROL_INFRA_OP &&
+              c.body?.pathParams?.infraId === infraName &&
+              c.body?.queryParams?.action === action,
+          ).length,
+        { timeout: 15_000 },
+      )
+      .toBe(1);
+  },
+);
+
+/** Step "a node {action} control request went out for {node}". */
+Then(
+  '{string} 에 노드 {string} 제어 요청이 나갔다',
+  // eslint-disable-next-line no-empty-pattern
+  async ({}, nodeName: string, action: string) => {
+    await expect
+      .poll(
+        () =>
+          mockCalls().calls.filter(
+            c =>
+              c.operationId === CONTROL_NODE_OP &&
+              c.body?.pathParams?.nodeId === nodeName &&
+              c.body?.queryParams?.action === action,
+          ).length,
+        { timeout: 15_000 },
+      )
+      .toBe(1);
+  },
+);
+
+/**
+ * Step "no infra control request went out".
+ *
+ * Acting on one server must not quietly move the whole workload. Both calls come from the same
+ * screen and neither leaves a different mark on it, so only the request log can tell them apart.
+ */
+// eslint-disable-next-line no-empty-pattern
+Then('인프라 제어 요청은 나가지 않았다', async ({}) => {
+  expect(
+    mockCalls().calls.filter(c => c.operationId === CONTROL_INFRA_OP),
+    'a single server was targeted, so the whole workload must not have been controlled',
+  ).toEqual([]);
+});
+
+/** Step "the last control request carried no force". */
+// eslint-disable-next-line no-empty-pattern
+Then('마지막 제어 요청에 force 가 실리지 않았다', async ({}) => {
+  const mock = mockCalls();
+  const last =
+    mock.lastCall(CONTROL_INFRA_OP) ?? mock.lastCall(CONTROL_NODE_OP);
+  expect(last, 'no control request was recorded').toBeTruthy();
+  expect(
+    last?.body?.queryParams?.force,
+    'force was never chosen, so it must not have been sent',
+  ).toBeUndefined();
+});
+
+/** Step "the last control request carried force". */
+// eslint-disable-next-line no-empty-pattern
+Then('마지막 제어 요청에 force 가 실렸다', async ({}) => {
+  const mock = mockCalls();
+  const last =
+    mock.lastCall(CONTROL_INFRA_OP) ?? mock.lastCall(CONTROL_NODE_OP);
+  expect(last, 'no control request was recorded').toBeTruthy();
+  expect(last?.body?.queryParams?.force).toBe('true');
 });
 
 // ─────────────────────────────────────────────────────────────
