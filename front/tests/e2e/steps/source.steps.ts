@@ -129,9 +129,18 @@ When(
   },
 );
 
-/** "그리고 \"e2e-src\" 소스그룹을 선택한다" */
+/**
+ * "그리고 \"e2e-src\" 소스그룹을 선택한다"
+ *
+ * Selecting a group is also *choosing what comes next* — collect, save and the software steps all
+ * act on it. Recording it here is what lets a scenario that only picks up an existing group work at
+ * all: the integration segments are each their own run, and without this the steps that follow fall
+ * back to the fixture's default name and go looking for a group nobody made.
+ */
 Given('{string} 소스그룹을 선택한다', async ({ page }, name: string) => {
-  await new SourceServicesPage(page).selectGroup(uniqueName(name));
+  const group = uniqueName(name);
+  await new SourceServicesPage(page).selectGroup(group);
+  scenarioState.sourceGroupName = group;
 });
 
 /** "그리고 \"e2e-conn\" 연결정보를 선택한다" (연결 탭 진입 포함) */

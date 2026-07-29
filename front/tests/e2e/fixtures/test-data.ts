@@ -94,6 +94,12 @@ export const sourceServer = {
  *
  * `sourceServer` above stays as it was and points at the same nano box, so the existing scenarios
  * keep working untouched.
+ *
+ * ★ Give these the servers' **private** addresses. Collection runs from the platform host, which
+ *   reaches the sources over the internal network - their security groups do not open SSH to the
+ *   host's public address, so a public IP here leaves the connection unusable. Registration still
+ *   succeeds, Collect Infra simply stays disabled, and the failure surfaces several steps later as
+ *   an empty collection result rather than as "cannot connect".
  */
 export const sourceServers: Record<
   'nano' | 'micro',
