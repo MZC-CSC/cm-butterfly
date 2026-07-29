@@ -101,5 +101,5 @@ export interface ICredentialHolder {
 }
 
 export interface IGetCredentialHolderListResponse {
-  credentialHolder: ICredentialHolder[];
+  credentialHolderList: ICredentialHolder[];
 }

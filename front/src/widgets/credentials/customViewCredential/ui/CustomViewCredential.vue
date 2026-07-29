@@ -34,6 +34,11 @@ const emit = defineEmits([
 // a PEM block) gets a textarea. Everything else is a single line.
 const MULTILINE_HINTS = ['privatekey', 'private_key', 'json', 'certificate'];
 
+// cb-tumblebug rejects a holder name outside this shape, and it does so with a
+// 500 whose reason is buried in the body. Checking it here turns that into a
+// message next to the field.
+const HOLDER_NAME_PATTERN = /^[a-z0-9_]+$/;
+
 const state = reactive({
   provider: '',
   credentialHolder: 'admin',
@@ -58,8 +63,17 @@ const providerItems = computed(() =>
 // Registration is blocked unless the field list actually came from the server and
 // every field it named has a value. Sending a blank field would register a
 // credential that reports success and then quietly gets skipped.
+const holderNameError = computed(() => {
+  const holder = state.credentialHolder.trim();
+  if (!holder) return '';
+  return HOLDER_NAME_PATTERN.test(holder)
+    ? ''
+    : 'Use lowercase letters, digits and underscores only. Hyphens are reserved as connection name delimiters.';
+});
+
 const canSubmit = computed(() => {
   if (!state.provider || !state.credentialHolder.trim()) return false;
+  if (holderNameError.value) return false;
   if (state.specError || state.fields.length === 0) return false;
   return state.fields.every(field => (state.values[field] ?? '').trim() !== '');
 });
@@ -147,17 +161,21 @@ const handleConfirm = async () => {
     });
 
     // A non-2xx answer that does not throw used to fall through here silently,
-    // leaving the modal open with no message at all.
+    // leaving the modal open with no message at all. The reason is in the body,
+    // not in the status line - a rejected holder name comes back as a 500 whose
+    // status text is only "Internal Server Error".
     const code = data?.status?.code;
     if (code !== undefined && (code < 200 || code >= 300)) {
-      showErrorMessage(
-        'failed',
-        data?.status?.message || 'Credential registration failed',
-      );
+      const reason =
+        (data?.responseData as { message?: string } | undefined)?.message ||
+        data?.status?.message;
+      showErrorMessage('failed', reason || 'Credential registration failed');
       return;
     }
 
-    const connections = data?.responseData?.allConnections?.count;
+    const allConnections = data?.responseData?.allConnections;
+    const connections =
+      allConnections?.count ?? allConnections?.connectionconfig?.length;
     showSuccessMessage(
       'success',
       connections
@@ -206,10 +224,16 @@ onMounted(loadProviders);
               {{ providerLoadError }}
             </p>
 
-            <p-field-group label="Credential Holder" required>
+            <p-field-group
+              label="Credential Holder"
+              required
+              :invalid="!!holderNameError"
+              :invalid-text="holderNameError"
+            >
               <p-text-input
                 v-model="state.credentialHolder"
                 data-testid="credential-holder"
+                :invalid="!!holderNameError"
               />
             </p-field-group>
 
