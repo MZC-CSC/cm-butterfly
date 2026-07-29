@@ -205,9 +205,13 @@ export class JsonEditorPage {
    */
   async setRowValue(row: Locator, value: string): Promise<void> {
     // The value only becomes an input once the cell is double-clicked; until then it is text.
-    const cell = row.locator('.pg-cell-value');
-    await cell.dblclick();
-    const input = cell.locator('.pg-edit-input');
+    await row.locator('.pg-cell-value').dblclick();
+
+    // Look for the input on the page rather than inside the row. Rows are found by the text of
+    // their value, and editing *replaces* that text with the input - so the locator that found the
+    // row stops matching the moment the edit begins, and anything looked up through it comes back
+    // empty. Only one cell can be in edit mode at a time, so the page-level match is unambiguous.
+    const input = this.page.locator('.pg-edit-input');
     await expect(input).toBeVisible({ timeout: 10_000 });
     await humanFill(input, value);
     await input.press('Enter');
