@@ -47,16 +47,7 @@ export class JsonEditorPage {
   /** Open the editor from a target model detail. */
   async openFromTargetModel(): Promise<void> {
     if (await this.isOpen()) return;
-    await humanClick(
-      this.page
-        .getByTestId('target-detail-custom-view')
-        .or(
-          this.page
-            .getByText('Custom & View Target Model', { exact: false })
-            .first(),
-        )
-        .first(),
-    );
+    await humanClick(this.page.getByTestId('target-detail-custom-view'));
     await this.expectOpen();
   }
 
@@ -254,9 +245,6 @@ export class JsonEditorPage {
       this.page
         .getByTestId('target-custom-save')
         .or(this.page.getByTestId('create-form-save'))
-        // Falls back to the label so a console built before the identifier existed still works -
-        // the takes are recorded against whatever is deployed at the time.
-        .or(this.page.getByRole('button', { name: /^\s*save\s*$/i }))
         .first(),
     );
     await humanFill(

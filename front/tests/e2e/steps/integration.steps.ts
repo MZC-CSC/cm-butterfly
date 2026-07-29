@@ -15,9 +15,10 @@ import {
   workflowData,
   workload,
 } from '../fixtures/test-data';
-import { uniqueName } from '../support/naming';
+import { RUN_ID, uniqueName } from '../support/naming';
 import { getSessionToken } from '../support/apiWait';
 import { scenarioState } from '../support/world';
+import { recall, remember } from '../support/handoff';
 import { humanClick } from '../support/humanize';
 
 const { Given, When, Then } = createBdd(test);
@@ -87,20 +88,10 @@ When('도움말을 열면', async ({ page }) => {
 });
 
 Then('도움말에 현재 화면 설명이 보인다', async ({ page }) => {
-  // The testids are new; the classes have always been there. Matching either lets the scenario run
-  // against a console built before they were added, which is what the first takes are recorded on.
-  const title = page
-    .getByTestId('help-title')
-    .or(page.locator('.help-title'))
-    .first();
-  await expect(title).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('help-title')).toBeVisible({ timeout: 15_000 });
   // The panel used to describe the list behind whatever was open on top of it. An empty body is
   // the shape that failure took, so it is what this checks.
-  const body = page
-    .getByTestId('help-body')
-    .or(page.locator('.help-body'))
-    .first();
-  await expect(body).not.toBeEmpty();
+  await expect(page.getByTestId('help-body')).not.toBeEmpty();
 });
 
 Given('도움말 패널의 폭을 넓혔다 줄인다', async ({ page }) => {
@@ -126,11 +117,11 @@ When('도움말 도킹을 해제하면', async ({ page }) => {
  * style is written; either one answering is enough.
  */
 Then('도움말이 떠 있는 창으로 바뀐다', async ({ page }) => {
-  const floating = page
-    .locator('[data-testid="help-panel"][data-docked="false"]')
-    .or(page.locator('.help-panel.is-float'))
-    .first();
-  await expect(floating).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId('help-panel')).toHaveAttribute(
+    'data-docked',
+    'false',
+    { timeout: 10_000 },
+  );
 });
 
 Given('도움말 창을 다른 위치로 옮긴다', async ({ page }) => {
@@ -436,8 +427,9 @@ async function waitForDagRegistered(page: Page, name: string): Promise<void> {
  * alphanumerics and hyphens.
  */
 When(
-  '{string} 타깃 모델로 nameSeed {string} 를 주고 마이그레이션 워크플로우를 생성하고 실행하면',
-  async ({ page }, targetModelName: string, seed: string) => {
+  '{string} 타깃 모델로 {string} 번 트랙 이름으로 마이그레이션 워크플로우를 생성하고 실행하면',
+  async ({ page }, targetModelName: string, track: string) => {
+    const seed = trackSeed(track);
     const models = new ModelsPage(page);
     const wf = new WorkflowPage(page);
     const name = `${workflowData.createNamePrefix}-${seed}-${Date.now()}`;
@@ -458,10 +450,56 @@ When(
     await waitForDagRegistered(page, name);
     await wf.runWorkflow(name);
 
-    scenarioState.infraName = `${seed}-infra101`;
     scenarioState.softwareWorkflowName = name;
+
+    // Find what was actually created rather than assuming what it will be called. The name comes
+    // from the prefix plus whatever the target model carries, so guessing it is a rule that holds
+    // only until the naming changes - and it cannot tell this run's infrastructure from one left
+    // behind by an earlier one. The id is read back and handed to the segments that follow.
+    const infraId = await waitForInfraCreated(page, seed);
+    scenarioState.infraName = infraId;
+    scenarioState.infraId = infraId;
+    remember(`infra:${track}`, infraId);
   },
 );
+
+/**
+ * Wait until the migration has produced an infrastructure, and return its id.
+ *
+ * The prefix is what tells this run's infrastructure apart from the others in the namespace - it is
+ * given to the workflow precisely so that the names do not collide - so it is what we match on,
+ * and the id that comes back is what everything downstream uses.
+ */
+async function waitForInfraCreated(page: Page, seed: string): Promise<string> {
+  const token = await getSessionToken(page);
+  const deadline = Date.now() + 20 * 60_000;
+  while (Date.now() < deadline) {
+    const infras = await page.request
+      .post(`${config.baseURL}/api/cm-beetle/ListInfra`, {
+        headers: { Authorization: `Bearer ${token}` },
+        data: { pathParams: { nsId: testNamespace.id } },
+      })
+      .then(r => r.json())
+      .then(b => b?.responseData?.data?.infra ?? [])
+      .catch(() => []);
+    const mine = (infras as any[]).find((i: any) =>
+      String(i?.id ?? '').startsWith(`${seed}-`),
+    );
+    if (mine?.id) return mine.id;
+    await page.waitForTimeout(20_000);
+  }
+  throw new Error(`"${seed}" 접두어로 만들어진 인프라를 찾지 못했다`);
+}
+
+/** The infra a given track created, by the prefix its workflow was given. */
+function infraFor(track: string): string {
+  const id = recall(`infra:${track}`);
+  expect(
+    id,
+    `${track} 번 트랙이 만든 인프라를 알 수 없다 — 그 인프라를 만드는 구간이 먼저 실행돼야 한다`,
+  ).toBeTruthy();
+  return id as string;
+}
 
 /**
  * Check the tasks, not the run.
@@ -522,8 +560,9 @@ Then('알림이 읽음으로 처리된다', async ({ page }) => {
  * this is what tells the two apart from a pair of infras that merely came up.
  */
 Then(
-  '{string} 인프라의 보안그룹에 5555 포트가 열려 있다',
-  async ({ page, request }, infraName: string) => {
+  '{string} 번 트랙이 만든 인프라의 보안그룹에 5555 포트가 열려 있다',
+  async ({ page, request }, track: string) => {
+    const infraName = infraFor(track);
     const token = await getSessionToken(page);
     const nsId = testNamespace.id;
 
@@ -573,11 +612,72 @@ Then(
   },
 );
 
+/**
+ * The naming prefix a track's infrastructure is built with.
+ *
+ * Date, run and track number, so that no two runs produce the same names - and so that a glance at
+ * a resource says roughly when it was made. A fixed prefix collides with itself the second time it
+ * is used, and cm-beetle reuses an existing resource when it finds one under the name it wants, so
+ * the second run quietly attaches to the first run's network instead of failing outright.
+ *
+ * Prefixes take at most 20 characters of alphanumerics and hyphens, which this stays inside:
+ * `t1-260729-123456`.
+ */
+function trackSeed(track: string): string {
+  const d = new Date();
+  const yy = String(d.getFullYear()).slice(2);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `t${track}-${yy}${mm}${dd}-${RUN_ID}`;
+}
+
+// ── 구간6: what a track actually built ──────────────────────────────────
+
+/**
+ * These name the *track* rather than the infrastructure, and look up what that track created.
+ *
+ * The scenario used to write the name out - `awsb-infra101` - which is the prefix plus whatever the
+ * target model happens to carry. That only holds while the naming rule holds, and it cannot tell
+ * this run's infrastructure from a leftover with the same name. The id is recorded when the
+ * migration finishes and read back here.
+ */
+Then(
+  '{string} 번 트랙이 만든 인프라가 목록에 보인다',
+  async ({ page }, track: string) => {
+    const wl = new WorkloadPage(page);
+    await wl.gotoMci();
+    await wl.expectMciVisible(infraFor(track));
+  },
+);
+
+Given(
+  '{string} 번 트랙이 만든 인프라를 선택한다',
+  async ({ page }, track: string) => {
+    const infraId = infraFor(track);
+    scenarioState.infraName = infraId;
+    scenarioState.infraId = infraId;
+    await new WorkloadPage(page).selectMci(infraId);
+  },
+);
+
+Given(
+  '{string} 번 트랙이 만든 인프라를 삭제한다',
+  async ({ page }, track: string) => {
+    const infraId = infraFor(track);
+    const wl = new WorkloadPage(page);
+    await wl.gotoMci();
+    await wl.selectMci(infraId);
+    await wl.openDeleteModal();
+    await wl.confirmDelete(infraId, 'normal');
+  },
+);
+
 // ── 구간7·8: software, judged by the install rather than the run ────────
 
 When(
-  '{string} 타깃 SW 모델로 {string} 에 소프트웨어 마이그레이션 워크플로우를 생성하고 실행하면',
-  async ({ page }, swModelName: string, infraName: string) => {
+  '{string} 타깃 SW 모델로 {string} 번 트랙이 만든 인프라에 소프트웨어 마이그레이션 워크플로우를 생성하고 실행하면',
+  async ({ page }, swModelName: string, track: string) => {
+    const infraName = infraFor(track);
     scenarioState.infraName = infraName;
     scenarioState.infraId = infraName;
     scenarioState.swRunStartedAt = Date.now();
@@ -624,7 +724,12 @@ Then('소프트웨어 설치가 끝날 때까지 기다린다', async ({ page })
   let last = '';
 
   while (Date.now() < deadline) {
-    const list = await readSoftwareStatuses(page, token, executionId);
+    const list = await readSoftwareStatuses(
+      page,
+      token,
+      executionId,
+      scenarioState.infraName,
+    );
     if (list.length) {
       const done = list.filter(s => s.status === 'finished').length;
       const failed = list.filter(s => s.status === 'failed');
@@ -646,58 +751,142 @@ Then('소프트웨어 설치가 끝날 때까지 기다린다', async ({ page })
   throw new Error('소프트웨어 설치가 한 시간 안에 끝나지 않았다');
 });
 
-/** The per-software rows grasshopper reports for a run, flattened across target mappings. */
+/**
+ * The per-software rows grasshopper reports for a run.
+ *
+ * Two calls, because the two endpoints answer different questions. The list gives one entry per
+ * run with its target and overall state but *no* per-software detail; the detail only comes from
+ * asking for a specific execution. So when we do not already hold an id - each segment runs on its
+ * own and remembers nothing - the run is found by the infra it installed onto, newest first.
+ */
 async function readSoftwareStatuses(
   page: Page,
   token: string,
   executionId?: string,
-): Promise<Array<{ software_name: string; status: string }>> {
-  const op = executionId
-    ? 'Get-Software-Migration-Status'
-    : 'List-Software-Migration-Status';
-  const body = executionId ? { pathParams: { executionId } } : {};
-  const data = await page.request
-    .post(`${config.baseURL}/api/cm-grasshopper/${op}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      data: body,
-    })
-    .then(r => r.json())
-    .then(b => b?.responseData)
-    .catch(() => null);
-  if (!data) return [];
+  infraName?: string,
+): Promise<
+  Array<{ software_name: string; status: string; error_message?: string }>
+> {
+  const auth = { Authorization: `Bearer ${token}` };
+  const post = (op: string, data: unknown) =>
+    page.request
+      .post(`${config.baseURL}/api/cm-grasshopper/${op}`, {
+        headers: auth,
+        data,
+      })
+      .then(r => r.json())
+      .then(b => b?.responseData)
+      .catch(() => null);
 
-  const runs = Array.isArray(data) ? data : [data];
-  return runs.flatMap((run: any) =>
-    (run?.target_mappings ?? []).flatMap(
-      (m: any) => m?.software_migration_status_list ?? [],
-    ),
+  let id = executionId;
+  if (!id) {
+    const runs = (await post('List-Software-Migration-Status', {})) ?? [];
+    const forInfra = (Array.isArray(runs) ? runs : []).filter((run: any) =>
+      (run?.target_mappings ?? []).some(
+        (m: any) => !infraName || m?.target?.infra_id === infraName,
+      ),
+    );
+    // Newest last in the list, so take it from the end.
+    id = forInfra[forInfra.length - 1]?.execution_id;
+  }
+  if (!id) return [];
+
+  const detail = await post('Get-Software-Migration-Status', {
+    pathParams: { executionId: id },
+  });
+  return ((detail as any)?.target_mappings ?? []).flatMap(
+    (m: any) => m?.software_migration_status_list ?? [],
   );
 }
 
-Then(
-  '소프트웨어 마이그레이션 결과에 {string} 가 설치 성공으로 보인다',
-  async ({ page }, software: string) => {
-    const row = page
-      .getByTestId('sw-result-row')
-      .filter({ hasText: software })
-      .first();
-    await expect(row).toBeVisible({ timeout: 30_000 });
-    await expect(row).toContainText(/success|완료/i);
+/**
+ * Read the install list for an infra, from grasshopper.
+ *
+ * The scenario says the install is judged by what was installed, not by the workflow or the screen
+ * - so this asks the service that did the installing. It also names the infra for the steps after
+ * it, which matters because each segment is run on its own and starts with nothing remembered.
+ */
+Given(
+  '{string} 번 트랙이 만든 인프라의 소프트웨어 설치 결과를 조회한다',
+  async ({ page }, track: string) => {
+    const infraName = infraFor(track);
+    scenarioState.infraName = infraName;
+    scenarioState.infraId = infraName;
+
+    const token = await getSessionToken(page);
+    const rows = await readSoftwareStatuses(
+      page,
+      token,
+      scenarioState.swExecutionIds?.[0],
+      infraName,
+    );
+    expect(
+      rows.length,
+      `${infraName} 에 대한 소프트웨어 설치 기록이 없다 — 마이그레이션이 실행되지 않았다`,
+    ).toBeGreaterThan(0);
+    scenarioState.swMigrationRows = rows;
+
+    const done = rows.filter(r => r.status === 'finished').length;
+    const failed = rows.filter(r => r.status === 'failed');
+    console.log(
+      `[seg8] 설치 ${done}/${rows.length} 완료, 실패 ${failed.length}건`,
+    );
   },
 );
 
+Then(
+  '소프트웨어 마이그레이션 결과에 {string} 가 설치 성공으로 보인다',
+  async ({ page: _page }, software: string) => {
+    const rows = scenarioState.swMigrationRows ?? [];
+    const row = rows.find((r: any) => r.software_name === software);
+    expect(
+      row,
+      `설치 목록에 ${software} 가 없다 — 소스에서 수집되지 않았을 수 있다`,
+    ).toBeTruthy();
+    expect(
+      row.status,
+      `${software} 설치가 끝나지 않았거나 실패했다: ${row.status} ${row.error_message ?? ''}`,
+    ).toBe('finished');
+  },
+);
+
+/**
+ * Run a load test against the migrated infra.
+ *
+ * The load settings live on the *node*, not on the infra - ticking the infra row leaves the button
+ * out of reach. And the target address has to be looked up: each segment runs on its own, so
+ * nothing is remembered from the run that created the machine.
+ */
 Given(
-  '{string} 인프라에 부하 테스트를 실행한다',
-  async ({ page }, infraName: string) => {
+  '{string} 번 트랙이 만든 인프라에 부하 테스트를 실행한다',
+  async ({ page }, track: string) => {
+    const infraName = infraFor(track);
     scenarioState.infraName = infraName;
     scenarioState.infraId = infraName;
+
+    const token = await getSessionToken(page);
+    const infra = await page.request
+      .post(`${config.baseURL}/api/cm-beetle/GetInfra`, {
+        headers: { Authorization: `Bearer ${token}` },
+        data: { pathParams: { nsId: testNamespace.id, infraId: infraName } },
+      })
+      .then(r => r.json())
+      .then(b => b?.responseData?.data ?? b?.responseData ?? {})
+      .catch(() => ({}));
+    const node = (infra.node ?? [])[0] ?? {};
+    const host = node.publicIP ?? '';
+    expect(host, `${infraName} 의 노드 주소를 찾지 못했다`).toBeTruthy();
+    scenarioState.nodeId = node.id;
+    scenarioState.nodePublicIp = host;
+    console.log(
+      `[seg8] 부하 대상 ${node.id} (${host}:${workload.loadTest.port})`,
+    );
 
     const wl = new WorkloadPage(page);
     await wl.gotoMci();
     await wl.selectMci(infraName);
-    await wl.runLoadTest({
-      ...workload.loadTest,
-      targetHost: scenarioState.nodePublicIp || workload.loadTest.targetHost,
-    });
+    await wl.openServerTab();
+    await wl.selectNode(node.id ?? '');
+    await wl.runLoadTest({ ...workload.loadTest, targetHost: host });
   },
 );

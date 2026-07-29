@@ -48,9 +48,18 @@ export class WorkloadPage {
     return this.page.getByTestId('mci-list-table');
   }
 
-  /** Target an infra row by name — a single ARIA row (an .or() chain matches the same row with multiple locators, causing duplicates → strict violation). */
-  mciRow(infraName: string): Locator {
-    return this.page.getByRole('row', { name: infraName });
+  /**
+   * Target an infra row by the identifier the list carries on it.
+   *
+   * Only the identifier - no falling back to the visible name. A fallback would keep this passing
+   * when the identifier stops being rendered, which is the moment we most need to be told.
+   */
+  mciRow(infraId: string): Locator {
+    return this.page
+      .locator(
+        `tr:has([data-infra-id="${infraId}"]), tr:has([data-infra-uid="${infraId}"])`,
+      )
+      .first();
   }
 
   /** List loading complete (spinner gone, table shown) */
