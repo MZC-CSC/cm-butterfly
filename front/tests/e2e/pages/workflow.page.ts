@@ -2,6 +2,7 @@ import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 import { workflowData } from '../fixtures/test-data';
 import { humanClick, humanFill } from '../support/humanize';
+import { openScreen } from '../support/navigate';
 
 /**
  * WorkflowPage — the "where/how" layer of the workflow management (cm-cicada) domain.
@@ -328,7 +329,7 @@ export class WorkflowPage {
   // ─────────────────────────────────────────────────────────────────────────
 
   async gotoWorkflows(): Promise<void> {
-    await this.page.goto(WorkflowPage.workflowsPath);
+    await openScreen(this.page, 'workflows', WorkflowPage.workflowsPath);
     await this.expectWorkflowsLoaded();
   }
 
@@ -732,7 +733,11 @@ export class WorkflowPage {
   // ─────────────────────────────────────────────────────────────────────────
 
   async gotoTemplates(): Promise<void> {
-    await this.page.goto(WorkflowPage.templatesPath);
+    await openScreen(
+      this.page,
+      'workflowtemplates',
+      WorkflowPage.templatesPath,
+    );
     await expect(this.templateTable).toBeVisible({ timeout: 15_000 });
   }
 
@@ -751,7 +756,11 @@ export class WorkflowPage {
   // ─────────────────────────────────────────────────────────────────────────
 
   async gotoTaskComponents(): Promise<void> {
-    await this.page.goto(WorkflowPage.taskComponentsPath);
+    await openScreen(
+      this.page,
+      'taskcomponents',
+      WorkflowPage.taskComponentsPath,
+    );
     await this.expectTaskComponentsLoaded();
   }
 

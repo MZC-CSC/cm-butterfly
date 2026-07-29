@@ -1,6 +1,7 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 import { humanClick, humanFill } from '../support/humanize';
+import { openScreen } from '../support/navigate';
 
 /**
  * SourceServicesPage — 소스 서비스(소스 컴퓨팅, cm-honeybee) 화면의 "어디서/어떻게".
@@ -268,7 +269,7 @@ export class SourceServicesPage {
 
   /** 소스 서비스 화면으로 이동 */
   async goto(): Promise<void> {
-    await this.page.goto(SourceServicesPage.path);
+    await openScreen(this.page, 'sourceservices', SourceServicesPage.path);
     await expect(this.addGroupButton).toBeVisible({ timeout: 15_000 });
   }
 
@@ -349,16 +350,20 @@ export class SourceServicesPage {
    * 통합 시나리오는 이 그룹으로 수집까지 가야 하므로 진짜 주소·키가 들어가야 한다 — 더미로 넣으면
    * 등록은 되고 수집에서 무너져, 원인이 파일 임포트인지 수집인지 구분되지 않는다.
    *
-   * 개인키는 여러 줄이라 CSV 한 칸에 그대로 넣을 수 없다. 줄바꿈을 `\n` 두 글자로 바꿔 담고 칸 전체를
-   * 따옴표로 감싼다.
+   * 개인키는 여러 줄이다. 줄바꿈은 *그대로 둔 채* 칸 전체를 따옴표로 감싼다 — CSV 규격이 따옴표 안의
+   * 줄바꿈을 허용하고, 파싱을 맡은 서버도 그렇게 읽는다.
+   *
+   * 줄바꿈을 `\n` 두 글자로 바꿔 넣던 때가 있었는데, 서버는 그걸 되돌리지 않는다. 키에 역슬래시와 n이
+   * 그대로 남아 SSH가 읽지 못하고, 등록은 조용히 성공한 뒤 연결만 failed 로 남았다 — 파일 임포트로
+   * 만든 그룹으로 수집까지 가 보지 않으면 드러나지 않는다.
    */
   async createSourceGroupImportingConnections(
     name: string,
     conns: Connection[],
   ): Promise<void> {
     const cell = (v: string | undefined): string => {
-      const s = (v ?? '').replace(/\r?\n/g, '\\n');
-      return /[",]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      const s = v ?? '';
+      return /["\n,]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const header =
       'name,description,ip_address,ssh_port,user,password,private_key';
@@ -379,11 +384,31 @@ export class SourceServicesPage {
     await humanFill(this.serviceNameInput, name);
     await humanClick(this.withConnectionToggle);
 
-    await this.page.getByTestId('source-import-input').setInputFiles({
+    // Attach the file by *pressing the button a person presses*, not by writing to the hidden input.
+    //
+    // Both put the same file in, but only this one is visible: the pointer travels to "Import
+    // Source Connection", presses it, and the chosen file appears. Writing straight to the input
+    // skips the press, so a recording shows a filename arriving on its own with nothing before it.
+    //
+    // Waiting for the chooser is what keeps the operating system's own window from opening -
+    // the browser asks for a file, this catches the request first and answers it.
+    const chooser = this.page.waitForEvent('filechooser');
+    await humanClick(this.page.getByTestId('source-import-file'));
+    await (
+      await chooser
+    ).setFiles({
       name: 'sources.csv',
       mimeType: 'text/csv',
       buffer: Buffer.from(csv, 'utf-8'),
     });
+
+    // The chosen file is named on screen before anything is read. This is the step that used to be
+    // missing: rows appeared in the preview with nothing to say where they came from, and there was
+    // no way to tell a file had been attached at all.
+    await expect(this.page.getByTestId('source-import-filename')).toContainText(
+      'sources.csv',
+      { timeout: 10_000 },
+    );
 
     // The preview reports how many rows the server parsed - that count is what tells us the file
     // was read as a file rather than accepted and dropped.

@@ -1,6 +1,7 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 import { humanClick, humanFill } from '../support/humanize';
+import { openScreen } from '../support/navigate';
 
 /**
  * WorkloadPage — Page Object for the workload operations screen (infra MCI + node VM + load test).
@@ -30,13 +31,13 @@ export class WorkloadPage {
 
   /** Navigate to the infra (MCI) workload screen */
   async gotoMci(): Promise<void> {
-    await this.page.goto(WorkloadPage.mciPath);
+    await openScreen(this.page, 'mciwls', WorkloadPage.mciPath);
     await expect(this.mciTable).toBeVisible({ timeout: 15_000 });
   }
 
   /** Navigate to the PMK (Kubernetes) workload screen */
   async gotoPmk(): Promise<void> {
-    await this.page.goto(WorkloadPage.pmkPath);
+    await openScreen(this.page, 'pmkwls', WorkloadPage.pmkPath);
   }
 
   // ─────────────────────────────────────────────────────────────
