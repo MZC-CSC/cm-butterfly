@@ -80,14 +80,19 @@ test.describe('워크로드 라이프사이클 제어 — 실제 워크로드 �
     console.log(`[live] force suspend — modal still open: ${stillOpen}`);
   });
 
-  test('Force 로 다시 켠다', async ({ page }) => {
+  // Suspended 에서 Resume 은 허용된 전이다. 사용자가 실제로 밟는 길이므로 Force 없이 확인한다.
+  test('다시 켠다', async ({ page }) => {
     test.setTimeout(180_000);
     const wl = await openAndSelect(page);
     await wl.chooseInfraAction('resume');
-    await wl.chooseForceMethod();
     await wl.confirmLifecycle();
     await page.waitForTimeout(5_000);
-    await page.screenshot({ path: '/tmp/wl-live-04-force-resume.png' });
+    await page.screenshot({ path: '/tmp/wl-live-04-resume.png' });
+    const refused = await page
+      .getByTestId('wl-lifecycle-error')
+      .isVisible()
+      .catch(() => false);
+    console.log(`[live] normal resume refused=${refused}`);
   });
 
   test('종료한다', async ({ page }) => {
@@ -100,9 +105,13 @@ test.describe('워크로드 라이프사이클 제어 — 실제 워크로드 �
       '이름을 입력하기 전에는 종료가 막혀 있어야 한다',
     ).toBeTruthy();
     await wl.fillLifecycleKeyword(INFRA);
-    await wl.chooseForceMethod();
     await wl.confirmLifecycle();
     await page.waitForTimeout(5_000);
     await page.screenshot({ path: '/tmp/wl-live-05-terminate.png' });
+    const refused = await page
+      .getByTestId('wl-lifecycle-error')
+      .isVisible()
+      .catch(() => false);
+    console.log(`[live] normal terminate refused=${refused}`);
   });
 });
