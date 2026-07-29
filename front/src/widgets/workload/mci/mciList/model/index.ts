@@ -151,7 +151,7 @@ export function useMciListModel(props: IProps) {
   // status from before the action and the screen would look as though nothing had happened.
   //
   // ★ The list, and only the list. Asking each workload for its own detail is exactly the fan-out
-  //   that broke this screen once (BAR-1637): cb-tumblebug allows two infra lookups at a time, so
+  //   that broke this screen once: cb-tumblebug allows two infra lookups at a time, so
   //   from the third workload on the extra calls came back 429 and took the whole list with them.
   //   One list call already carries every status shown here.
   const FOLLOW_INTERVAL_MS = 5_000;
