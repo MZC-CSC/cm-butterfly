@@ -226,7 +226,17 @@ export class JsonEditorPage {
    * That is the point of the custom pass: the collected model stays as collected.
    */
   async saveAsCustom(name: string): Promise<void> {
-    await humanClick(this.page.getByTestId('create-form-save'));
+    // The two custom-view screens name their save button differently - the source one has carried
+    // `create-form-save` for a while, the target one had no identifier at all until now.
+    await humanClick(
+      this.page
+        .getByTestId('target-custom-save')
+        .or(this.page.getByTestId('create-form-save'))
+        // Falls back to the label so a console built before the identifier existed still works -
+        // the takes are recorded against whatever is deployed at the time.
+        .or(this.page.getByRole('button', { name: /^\s*save\s*$/i }))
+        .first(),
+    );
     await humanFill(
       this.page
         .locator(
