@@ -607,22 +607,72 @@ When(
  * has handed the job over - 4.4 seconds in the ETRI run, with the install barely started. This is
  * the long stretch that is deliberately left out of the recording.
  */
+/**
+ * Wait for the install, not for the screen.
+ *
+ * grasshopper takes the request and installs asynchronously, so the workflow is finished as soon as
+ * it has handed the job over - 4.4 seconds in the ETRI run, with the install barely started. The
+ * results button does not exist yet at that point either, so watching for it waits on the wrong
+ * thing; the install list is what actually moves.
+ *
+ * This is the long stretch deliberately left out of the recording.
+ */
 Then('소프트웨어 설치가 끝날 때까지 기다린다', async ({ page }) => {
-  const wf = new WorkflowPage(page);
-  await wf.waitSoftwareMigrationButton();
-  await wf.openSoftwareMigrationResult();
-
+  const token = await getSessionToken(page);
+  const executionId = scenarioState.swExecutionIds?.[0];
   const deadline = Date.now() + 60 * 60_000;
+  let last = '';
+
   while (Date.now() < deadline) {
-    const rows = await wf.readSoftwareMigrationRows();
-    const pending = rows.filter(r => /install|progress|중/i.test(r.status));
-    if (rows.length && !pending.length) return;
-    await page.waitForTimeout(60_000);
-    await page.reload();
-    await wf.openSoftwareMigrationResult();
+    const list = await readSoftwareStatuses(page, token, executionId);
+    if (list.length) {
+      const done = list.filter(s => s.status === 'finished').length;
+      const failed = list.filter(s => s.status === 'failed');
+      const pending = list.filter(
+        s => s.status !== 'finished' && s.status !== 'failed',
+      );
+      const line = `${done}/${list.length} 완료, ${failed.length} 실패, ${pending.length} 남음`;
+      if (line !== last) {
+        console.log(`[seg7] ${line}`);
+        last = line;
+      }
+      if (!pending.length) {
+        scenarioState.swMigrationRows = list;
+        return;
+      }
+    }
+    await page.waitForTimeout(30_000);
   }
   throw new Error('소프트웨어 설치가 한 시간 안에 끝나지 않았다');
 });
+
+/** The per-software rows grasshopper reports for a run, flattened across target mappings. */
+async function readSoftwareStatuses(
+  page: Page,
+  token: string,
+  executionId?: string,
+): Promise<Array<{ software_name: string; status: string }>> {
+  const op = executionId
+    ? 'Get-Software-Migration-Status'
+    : 'List-Software-Migration-Status';
+  const body = executionId ? { pathParams: { executionId } } : {};
+  const data = await page.request
+    .post(`${config.baseURL}/api/cm-grasshopper/${op}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: body,
+    })
+    .then(r => r.json())
+    .then(b => b?.responseData)
+    .catch(() => null);
+  if (!data) return [];
+
+  const runs = Array.isArray(data) ? data : [data];
+  return runs.flatMap((run: any) =>
+    (run?.target_mappings ?? []).flatMap(
+      (m: any) => m?.software_migration_status_list ?? [],
+    ),
+  );
+}
 
 Then(
   '소프트웨어 마이그레이션 결과에 {string} 가 설치 성공으로 보인다',

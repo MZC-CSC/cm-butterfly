@@ -19,7 +19,8 @@ set -euo pipefail
 seg_label() {
   case "${1#seg}" in
     1) SEG="seg1-로그인-마이그레이션가이드-도움말" ;;
-    2) SEG="seg2-소스서비스등록" ;;
+    2) SEG="seg2-소스서비스등록-개별" ;;
+    2a) SEG="seg2a-소스서비스등록-파일임포트" ;;
     3) SEG="seg3-소스모델-AWS타깃모델-5555추가-워크플로우" ;;
     4) SEG="seg4-커스텀소스모델-GCP타깃모델-스펙상향" ;;
     5) SEG="seg5-워크플로우-nameSeed-알림확인" ;;
