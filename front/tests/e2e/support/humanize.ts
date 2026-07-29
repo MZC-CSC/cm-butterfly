@@ -33,8 +33,14 @@ const LONG_TEXT_THRESHOLD = 24; // chars above which a value counts as "long"
   watched or recorded: the pointer travels to the target instead of teleporting, and
   text is typed a character at a time rather than pasted.
 */
-/** The pause before acting and after landing. `E2E_DEMO_BEAT_MS` overrides it. */
-const DEMO_BEAT_MS = Number(process.env.E2E_DEMO_BEAT_MS ?? 1_000);
+/**
+ * The pause before acting and after landing. `E2E_DEMO_BEAT_MS` overrides it.
+ *
+ * Short on purpose. The pointer already travels visibly and text is typed a character at a time, so
+ * the action reads as an action without holding still afterwards - a longer beat on top of both
+ * just makes the recording feel stalled.
+ */
+const DEMO_BEAT_MS = Number(process.env.E2E_DEMO_BEAT_MS ?? 400);
 /*
   Playwright's `steps` option sends the intermediate mousemove events back to back, so the
   pointer arrives in a few milliseconds - on screen that still reads as a jump. The glide
@@ -63,8 +69,16 @@ export function isHumanPace(): boolean {
   return process.env.E2E_HUMAN_PACE === '1' || isDemoPace();
 }
 
-/** slowMo baseline for launchOptions — 0 unless human pacing is on. */
+/**
+ * slowMo baseline for launchOptions — 0 unless human pacing is on.
+ *
+ * Demo pacing turns it off. slowMo delays *every* low-level action, and the demo path already
+ * spends its time where it should be seen: gliding to the target and typing. Keeping both makes
+ * each step cost the sum of the two, which is what made the takes feel like they were pausing for
+ * a second and a half after every entry.
+ */
 export function humanSlowMoMs(): number {
+  if (isDemoPace()) return 0;
   return isHumanPace() ? SLOWMO_MS : 0;
 }
 

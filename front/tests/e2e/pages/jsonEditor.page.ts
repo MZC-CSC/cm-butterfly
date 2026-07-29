@@ -22,14 +22,31 @@ export class JsonEditorPage {
 
   // ── entry points ───────────────────────────────────────────────────────
 
-  /** Open the editor from a source model detail. */
+  /** True when the editor is already on screen - opening it again would time out on the link. */
+  private async isOpen(): Promise<boolean> {
+    return this.page
+      .locator('.jse-main')
+      .first()
+      .isVisible()
+      .catch(() => false);
+  }
+
+  /**
+   * Open the editor from a source model detail.
+   *
+   * Does nothing if it is already open. Steps that edit the document each open it for themselves,
+   * so that they can be run on their own, and consecutive edits would otherwise have the second one
+   * clicking a link that is no longer on screen.
+   */
   async openFromSourceModel(): Promise<void> {
+    if (await this.isOpen()) return;
     await humanClick(this.page.getByTestId('source-detail-custom-view'));
     await this.expectOpen();
   }
 
   /** Open the editor from a target model detail. */
   async openFromTargetModel(): Promise<void> {
+    if (await this.isOpen()) return;
     await humanClick(
       this.page
         .getByTestId('target-detail-custom-view')
@@ -54,28 +71,33 @@ export class JsonEditorPage {
   /**
    * Switch to table mode (the property grid).
    *
-   * The mode buttons are the library's own, and their titles carry the shortcut ("Switch to table
-   * mode"), so match on the substring rather than the whole title.
+   * The mode buttons are the three labelled `text` / `tree` / `table` at the left of the menu, and
+   * they are matched by that label. Matching on the title instead picked up the search toggle - the
+   * editor then stayed in text mode with find-and-replace open, and everything after it looked for
+   * grid rows that were never drawn.
+   *
+   * Which mode it opens in is not fixed, so this is not a formality: the same screen has been seen
+   * opening in table mode and in text mode.
    */
   async switchToTable(): Promise<void> {
-    await humanClick(
-      this.page.locator('.jse-menu button[title*="table" i]').first(),
-    );
-    await expect(this.searchToggleTarget()).toBeVisible({ timeout: 15_000 });
+    await this.switchMode('table');
+    // Confirm by the grid itself rather than by a control that exists in more than one mode.
+    await expect(this.page.locator('.pg-table').first()).toBeVisible({
+      timeout: 15_000,
+    });
   }
 
   async switchToTree(): Promise<void> {
-    await humanClick(
-      this.page.locator('.jse-menu button[title*="tree" i]').first(),
-    );
+    await this.switchMode('tree');
   }
 
-  /** Something that only exists once the grid is drawn - used to confirm the switch landed. */
-  private searchToggleTarget(): Locator {
-    return this.page
-      .locator('.jse-menu button[title^="Search"]')
-      .or(this.page.getByTestId('json-grid-search-input'))
+  private async switchMode(mode: 'text' | 'tree' | 'table'): Promise<void> {
+    const button = this.page
+      .locator('.jse-menu button')
+      .filter({ hasText: new RegExp(`^\\s*${mode}\\s*$`) })
       .first();
+    await expect(button).toBeVisible({ timeout: 15_000 });
+    await humanClick(button);
   }
 
   // ── search (table mode) ────────────────────────────────────────────────

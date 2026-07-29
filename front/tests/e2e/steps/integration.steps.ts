@@ -53,11 +53,11 @@ Then('마이그레이션 가이드가 보인다', async ({ page }) => {
 /** Read down the page and come back up - the pause is what makes it readable on the recording. */
 Given('가이드를 아래로 훑어보고 다시 위로 올린다', async ({ page }) => {
   await page.mouse.wheel(0, 600);
-  await page.waitForTimeout(1_500);
+  await page.waitForTimeout(700);
   await page.mouse.wheel(0, 600);
-  await page.waitForTimeout(1_500);
+  await page.waitForTimeout(700);
   await page.mouse.wheel(0, -1_200);
-  await page.waitForTimeout(1_000);
+  await page.waitForTimeout(500);
 });
 
 /**
@@ -110,10 +110,10 @@ Given('도움말 패널의 폭을 넓혔다 줄인다', async ({ page }) => {
   await page.mouse.move(box.x + box.width / 2, y);
   await page.mouse.down();
   await page.mouse.move(box.x - 220, y, { steps: 20 });
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(400);
   await page.mouse.move(box.x + 60, y, { steps: 20 });
   await page.mouse.up();
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(400);
 });
 
 When('도움말 도킹을 해제하면', async ({ page }) => {
@@ -140,7 +140,7 @@ Given('도움말 창을 다른 위치로 옮긴다', async ({ page }) => {
   await page.mouse.down();
   await page.mouse.move(box.x - 300, box.y + 180, { steps: 25 });
   await page.mouse.up();
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(400);
 });
 
 Given('도움말 창의 크기를 키운다', async ({ page }) => {
@@ -150,7 +150,7 @@ Given('도움말 창의 크기를 키운다', async ({ page }) => {
   await page.mouse.down();
   await page.mouse.move(box.x - 240, box.y + 120, { steps: 20 });
   await page.mouse.up();
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(400);
 });
 
 Given('도움말을 닫는다', async ({ page }) => {
@@ -364,13 +364,13 @@ When('타깃 모델의 스펙을 4GB 급으로 변경하면', async ({ page }) =
   // A spec is written provider+region+size, and only the size changes. Replacing the whole value
   // would take the region with it and the migration would go looking for a machine type in the
   // wrong place.
-  const size = process.env.TEST_TARGET_SPEC_SIZE || 'e2-medium';
+  const size = process.env.TEST_TARGET_SPEC_SIZE || 't3a.large';
   const current = await editor.readRowValue('specId');
   const parts = current.split('+');
   const next =
     parts.length > 1 ? [...parts.slice(0, -1), size].join('+') : size;
   console.log(`[seg4] 스펙 ${current} → ${next}`);
-  await editor.setRowValue('specId', next);
+  await editor.setRowValue(editor.rowByKey('specId'), next);
   await editor.closeSearch();
 });
 
