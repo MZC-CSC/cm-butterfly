@@ -377,6 +377,56 @@ When('타깃 모델의 스펙을 4GB 급으로 변경하면', async ({ page }) =
 // ── 구간3·5: workflows that do not collide with each other ──────────────
 
 /**
+ * Wait until airflow has picked up the workflow's DAG.
+ *
+ * Saving only writes the DAG to disk; airflow parses it on its own schedule, and a run fired before
+ * that is rejected outright. Retrying is not an option - an attempt that does land builds another
+ * instance - so this waits for a signal instead of sitting out a fixed two minutes.
+ *
+ * The signal is the workflow's *run list*: cm-cicada answers it from airflow, so while the DAG is
+ * still unknown the call fails, and once it is parsed the call answers (with nothing in it, since
+ * it has never run). Falls through at the deadline rather than failing - the run is the real check.
+ */
+async function waitForDagRegistered(page: Page, name: string): Promise<void> {
+  const token = await getSessionToken(page);
+  const auth = { Authorization: `Bearer ${token}` };
+  const started = Date.now();
+  const deadline = started + 3 * 60_000;
+
+  const wfId = await page.request
+    .post(`${config.baseURL}/api/cm-cicada/Get-Workflow-By-Name`, {
+      headers: auth,
+      data: { pathParams: { wfName: name } },
+    })
+    .then(r => r.json())
+    .then(b => b?.responseData?.data?.id ?? b?.responseData?.id ?? '')
+    .catch(() => '');
+
+  if (wfId) {
+    while (Date.now() < deadline) {
+      const ready = await page.request
+        .post(`${config.baseURL}/api/cm-cicada/Get-Workflow-Runs`, {
+          headers: auth,
+          data: { pathParams: { wfId } },
+        })
+        .then(r => r.ok())
+        .catch(() => false);
+      if (ready) break;
+      await page.waitForTimeout(10_000);
+    }
+  } else {
+    // Could not resolve the id - fall back to the wait this replaced rather than run too early.
+    await page.waitForTimeout(120_000);
+  }
+
+  console.log(
+    `[workflow] DAG 등록까지 ${Math.round((Date.now() - started) / 1000)}초`,
+  );
+  // Registration and runnability are not the same instant, so a short grace on top.
+  await page.waitForTimeout(15_000);
+}
+
+/**
  * Create and run a migration workflow with a naming prefix.
  *
  * Without it the second track fails. What the recommendation produces is named the same whatever the
@@ -400,11 +450,12 @@ When(
     await wf.saveWorkflow();
 
     // cm-cicada only writes the DAG on save; airflow picks it up on its own schedule, and running
-    // before that is rejected outright. Waiting once is cheaper than a retry loop here - every retry
-    // of a migration workflow would build another instance.
+    // before that is rejected outright. We cannot simply retry - every attempt at a migration
+    // workflow that does land builds another instance - so we wait for airflow to report the DAG
+    // instead of sitting out a fixed two minutes. It is usually ready well before that.
     await wf.gotoWorkflows();
     await wf.expectWorkflowVisible(name);
-    await page.waitForTimeout(120_000);
+    await waitForDagRegistered(page, name);
     await wf.runWorkflow(name);
 
     scenarioState.infraName = `${seed}-infra101`;
@@ -439,14 +490,20 @@ Then('워크플로우의 작업별 상태가 모두 정상이다', async ({ page
 
 // ── 구간5: the completion notice ────────────────────────────────────────
 
+/**
+ * The badge is what says a notification arrived - the list only exists once the panel is opened.
+ * Waiting on the list without opening it waits for something that cannot appear.
+ */
 Given('워크플로우 완료 알림이 도착한다', async ({ page }) => {
-  const notifications = new NotificationPage(page);
-  await notifications.waitForAnyItem(20 * 60_000);
+  await expect(page.getByTestId('notification-badge')).toBeVisible({
+    timeout: 10 * 60_000,
+  });
 });
 
 When('알림을 열어 확인하면', async ({ page }) => {
   const notifications = new NotificationPage(page);
   await notifications.open();
+  await notifications.waitForAnyItem(60_000);
   await humanClick(page.getByTestId('notification-item').first());
 });
 
@@ -498,7 +555,14 @@ Then(
       const body = await res.json().catch(() => ({}));
       const sg = body?.responseData?.data ?? body?.responseData ?? {};
       for (const rule of sg.firewallRules ?? []) {
-        if (rule?.ports) ports.push(String(rule.ports));
+        // The port field is named differently at each layer, and reading the wrong one yields
+        // undefined for every rule - which reads as "the port is not open" and is a convincing
+        // way to report a working product as broken.
+        //   source model  firewallTable[].dstPorts
+        //   target model  firewallRules[].Ports
+        //   security group (cb-tumblebug)  firewallRules[].Port
+        const port = rule?.Port ?? rule?.Ports ?? rule?.ports;
+        if (port !== undefined && port !== null) ports.push(String(port));
       }
     }
 
