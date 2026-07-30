@@ -101,6 +101,28 @@ export class NotificationPage {
   }
 
   /**
+   * Read the newest notice and clear it - whatever it says.
+   *
+   * Used to close out a long job when the exact wording is not the point. The point is that the job
+   * announced itself, someone read it, and the badge went quiet.
+   */
+  async readAndClearFirst(): Promise<void> {
+    await this.open();
+    const row = this.items.first();
+    if (!(await row.isVisible({ timeout: 60_000 }).catch(() => false))) return;
+
+    await humanClick(row.getByRole('button').first());
+    await expect(row.getByTestId('notification-detail')).toBeVisible({
+      timeout: 10_000,
+    });
+    await this.page.waitForTimeout(1_200);
+
+    await humanClick(row.getByTestId('notification-confirm'));
+    await expect(row).toBeHidden({ timeout: 15_000 });
+    await this.page.keyboard.press('Escape').catch(() => {});
+  }
+
+  /**
    * Empty the box before recording starts.
    *
    * Logging in pops up whatever was left from earlier work, so the first thing on screen is a stack

@@ -620,6 +620,8 @@ When('알림을 열어 확인하면', async ({ page }) => {
   scenarioState.notificationId =
     (await item.getAttribute('data-notification-id')) ?? '';
   await humanClick(item);
+  // A beat to read what it says before it is marked read.
+  await page.waitForTimeout(1_200);
 });
 
 /**
@@ -803,6 +805,9 @@ When(
     await waitForDagRegistered(page, name);
     await wf.runHere();
     scenarioState.softwareWorkflowName = name;
+    // The next segment is a separate run, so it cannot see this variable. It needs the name to know
+    // which workflow to watch while the install goes on.
+    remember('sw-workflow', name);
   },
 );
 
@@ -865,9 +870,24 @@ Given(
     scenarioState.infraName = infraName;
     scenarioState.infraId = infraName;
 
+    // Wait where the work is shown.
+    //
+    // ★ This step used to poll an API and nothing else, so the screen stayed on whatever the last
+    //   segment had left up - the source services list - for the entire install. That was most of
+    //   the take: minutes of a list nobody was using. The software migration workflow's Run Status
+    //   is the screen this is happening on, so we open it and stay there.
+    const wf = new WorkflowPage(page);
+    const swWorkflow = recall('sw-workflow');
+    if (swWorkflow) {
+      await wf.gotoWorkflows();
+      await wf.selectWorkflow(swWorkflow).catch(() => {});
+      await wf.revealWholeRunGraph().catch(() => {});
+    }
+
     const token = await getSessionToken(page);
     const deadline = Date.now() + 60 * 60_000;
     let last = '';
+    let round = 0;
     while (Date.now() < deadline) {
       const list = await readSoftwareStatuses(
         page,
@@ -891,7 +911,17 @@ Given(
           return;
         }
       }
-      await page.waitForTimeout(30_000);
+      // Spend the wait on the run rather than in front of it - same as the infra wait.
+      for (let i = 0; i < 10; i++) {
+        if (swWorkflow) {
+          await wf.revealWholeRunGraph().catch(() => {});
+          if (round % 3 === 1 && i === 4) {
+            await wf.browseRunWhileWaiting().catch(() => {});
+          }
+        }
+        await page.waitForTimeout(3_000);
+      }
+      round++;
     }
     throw new Error('소프트웨어 설치가 한 시간 안에 끝나지 않았다');
   },
@@ -1090,4 +1120,31 @@ Then('워크플로우는 여전히 실패로 남는다', async ({ page }) => {
   // 샘플의 실패 작업은 언제나 실패한다 - 재실행이 결과를 바꾸지 않는 것이 정상이고,
   // 여기서 보여주려는 것은 결과가 아니라 *어떤 작업이 다시 돌았는가* 다.
   expect(state).toContain('failed');
+});
+
+// ── 값이 다음 단계까지 살아 있는지 ──────────────────────────────────────
+//
+// 이 시나리오가 보여주려는 것은 화면 조작이 아니라 *값이 이어진다*는 것이다. 소스 모델에서 연
+// 포트가 타깃 모델에 남고, 타깃 모델이 워크플로우로 넘어가고, 그 워크플로우가 실제 장비를
+// 만든다. 말로는 이어졌다고 할 수 있지만 화면에서 짚어 주지 않으면 보는 사람은 알 수 없다.
+
+Then(
+  '워크플로우의 {string} 작업에 {string} 값이 그대로 있다',
+  async ({ page }, taskName: string, value: string) => {
+    await new WorkflowPage(page).showParamValue(taskName, value);
+  },
+);
+
+// ── 알림: 일이 끝났음을 확인하고 치우는 것까지가 그 작업의 마지막 ──────
+//
+// 알림이 날아오는 것으로 끝내면 보는 사람은 그게 무슨 알림이었는지 모른다. 열어서 읽고, 한 박자
+// 두고, 읽음으로 처리해 배지를 끄는 데까지가 사람이 하는 일이다. 다음 구간의 알림함이 앞
+// 구간 것으로 어수선해지지 않는 효과도 있다.
+
+Given('알림함을 비운다', async ({ page }) => {
+  await new NotificationPage(page).clearAll();
+});
+
+Then('완료 알림을 읽고 지운다', async ({ page }) => {
+  await new NotificationPage(page).readAndClearFirst();
 });

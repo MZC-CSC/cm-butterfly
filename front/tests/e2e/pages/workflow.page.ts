@@ -610,6 +610,36 @@ export class WorkflowPage {
     await this.revealWholeRunGraph();
   }
 
+  /**
+   * Show that a value we set earlier is what this task will run with.
+   *
+   * ★ This is the point of the whole walkthrough: a port opened on the source model reaches the
+   *   target model, the target model reaches the workflow, and the workflow is what builds the
+   *   machine. Saying so is not the same as showing it - so we select the task, open its parameters
+   *   and point at the value itself.
+   *
+   * The panel prints the task's saved parameters as key/value, so the value is searched for as text
+   * within it rather than by a path into the JSON, which changes shape between task types.
+   */
+  async showParamValue(taskName: string, value: string): Promise<void> {
+    await this.pickTask(taskName, false);
+
+    const params = this.page.getByTestId('workflow-run-params');
+    await expect(params).toBeVisible({ timeout: 15_000 });
+
+    const hit = params
+      .locator('.run-viewer__param-value', {
+        hasText: value,
+      })
+      .first();
+    await expect(
+      hit,
+      `워크플로우 파라미터에 "${value}" 가 없다 — 앞 단계에서 바꾼 값이 여기까지 오지 않았다`,
+    ).toBeVisible({ timeout: 15_000 });
+
+    await spotlight(this.page, hit);
+  }
+
   /** A task node in the run graph, by its name. */
   taskNode(name: string): Locator {
     return this.page
