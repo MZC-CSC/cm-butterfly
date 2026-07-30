@@ -24,6 +24,24 @@ say() { printf '  %-28s %s\n' "$1" "$2"; }
 
 echo "===== 실행 전 환경 확인 ====="
 
+# 워크트리에 의존성과 생성된 spec 이 있는지.
+#
+# 새로 딴 워크트리에는 node_modules 가 없다. 그 상태로 돌리면 playwright.config.ts 가
+# @playwright/test 를 못 찾아 **전 구간이 몇 초 만에 죽는다** — 실제로 한 벌을 통째로 그렇게 날렸다.
+# spec 도 마찬가지다. bddgen 을 돌리지 않으면 "No tests found" 로 조용히 끝난다.
+E2E_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+FRONT="$(cd "$E2E_DIR/../.." && pwd)"
+
+if [ -d "$FRONT/node_modules/@playwright/test" ]; then say "의존성" "설치됨"
+else say "의존성" "❌ 없음 — cd $FRONT && npm ci"; fail=1; fi
+
+if [ -n "$(find "$E2E_DIR/.features-gen" -name '*.spec.js' 2>/dev/null | head -1)" ]; then
+  say "생성된 spec" "있음"
+else
+  say "생성된 spec" "❌ 없음 — cd $E2E_DIR && npx bddgen"; fail=1
+fi
+
+
 code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$BASE/" || echo 000)"
 if [ "$code" = "200" ]; then say "콘솔 $HOST" "OK ($code)"
 else say "콘솔 $HOST" "❌ 응답 $code — 서버가 꺼져 있을 수 있다"; fail=1; fi

@@ -25,6 +25,17 @@ fi
 
 export E2E_DEMO_PACE=1
 
+# 찍기 전에 환경을 본다.
+#
+# 한 벌을 통째로 날린 적이 있다 — 새로 딴 워크트리에 node_modules 가 없어 전 구간이 몇 초 만에
+# 죽었고, 그것도 구간마다 영상을 꺼내려다 "영상이 없다"가 아홉 번 찍히고서야 알았다.
+# 여기서 한 번 보면 그 30분을 버리지 않는다.
+scripts/check-env.sh || {
+  echo
+  echo "환경이 준비되지 않아 촬영을 시작하지 않는다. 위 항목을 해소하고 다시 실행한다."
+  exit 1
+}
+
 failed=()
 for seg in "${SEGMENTS[@]}"; do
   echo
