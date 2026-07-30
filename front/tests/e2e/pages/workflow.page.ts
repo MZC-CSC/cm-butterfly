@@ -612,6 +612,79 @@ export class WorkflowPage {
     );
   }
 
+  /**
+   * Change a firewall port here, in the workflow.
+   *
+   * Same idea as the spec: the model decided one thing and the workflow says another, and what
+   * comes out follows the workflow. The port sits in the request body under the security group's
+   * rules, and the field identifiers follow that path.
+   *
+   * ★ The field is found by its *path*, not by its value. A bare `22` matches a dozen things in a
+   *   migration body - counts, sizes, minutes - and retyping the wrong one changes something nobody
+   *   is watching. The port fields are the ones whose path ends in a port, and the layers spell it
+   *   differently (`dstPorts`, `Ports`, `Port`), so the path is matched loosely and the value
+   *   exactly.
+   *
+   * @returns the port that was replaced
+   */
+  async setPortInWorkflow(from: string, to: string): Promise<string> {
+    const fields = this.page.locator('[data-testid^="wf-field-body_params."]');
+    const count = await fields.count();
+
+    for (let i = 0; i < count; i++) {
+      const field = fields.nth(i);
+      const path = (await field.getAttribute('data-testid')) ?? '';
+      if (!/port/i.test(path)) continue;
+
+      const value = (await field.inputValue().catch(() => '')).trim();
+      if (value !== from) continue;
+
+      await field.scrollIntoViewIfNeeded().catch(() => {});
+      await field.click();
+      await field.press('End');
+      for (let n = 0; n < value.length; n++) {
+        await field.press('Backspace');
+        await this.page.waitForTimeout(26);
+      }
+      await field.pressSequentially(to, { delay: 60 });
+      await this.page.waitForTimeout(500);
+
+      await spotlight(this.page, field);
+      return value;
+    }
+
+    throw new Error(
+      `워크플로우 본문에서 ${from} 번 포트 필드를 찾지 못했다 — 방화벽 규칙이 본문에 실렸는지 확인한다`,
+    );
+  }
+
+  /**
+   * Copy the workflow on screen and open the copy for editing.
+   *
+   * ★ The console has no "save as". Editing a workflow that has already run is blocked outright -
+   *   the editor shows a notice telling you to do exactly this - so the only way to keep the
+   *   original and vary it is Clone & Edit, and the button only appears once there is run history.
+   *
+   * The backend names the copy `{original}_copy`; the caller renames it in the editor.
+   */
+  async cloneAndEdit(): Promise<void> {
+    const button = this.page.getByTestId('workflow-clone-edit-btn');
+    await expect(
+      button,
+      'Clone & Edit 버튼이 없다 — 실행 이력이 있는 워크플로우에서만 나타난다',
+    ).toBeVisible({ timeout: 30_000 });
+    await humanClick(button);
+
+    const confirm = this.page.getByTestId('workflow-clone-confirm');
+    await expect(confirm).toBeVisible({ timeout: 15_000 });
+    // Hold on the question for a beat - it says what is about to happen, and it is the answer to
+    // "why is there suddenly a second workflow with almost the same name".
+    await this.page.waitForTimeout(1_000);
+    await humanClick(this.page.getByTestId('workflow-clone-confirm-ok'));
+
+    await this.expectDesignerOpen();
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // 3) Workflow run + state polling (History)
   // ─────────────────────────────────────────────────────────────────────────
@@ -727,7 +800,11 @@ export class WorkflowPage {
    * Pointing at one value and stopping there leaves a viewer wondering what else is in the list.
    * The panel is what the workflow will run with, so it is worth reading to the end.
    */
-  private async scrollThroughParams(params: Locator): Promise<void> {
+  async scrollThroughParams(panel?: Locator): Promise<void> {
+    const params = panel ?? this.page.getByTestId('workflow-run-params');
+    if (!(await params.isVisible({ timeout: 5_000 }).catch(() => false)))
+      return;
+
     const box = await params.boundingBox().catch(() => null);
     if (!box) return;
 
@@ -736,18 +813,78 @@ export class WorkflowPage {
       box.y + Math.min(box.height / 2, 240),
     );
 
-    let previous = -1;
-    for (let i = 0; i < 10; i++) {
-      const at = await this.page
-        .evaluate(() => window.scrollY)
-        .catch(() => previous);
-      if (at === previous) break;
-      previous = at;
+    // Which element actually scrolls, and how far is left.
+    //
+    // ★ This used to watch `window.scrollY`. The body does not move - the request body is long but
+    //   it scrolls *inside its own box* - so the reading was 0 before and 0 after, the loop decided
+    //   nothing had happened and stopped after a single notch. On screen the panel opened, twitched
+    //   once and sat there for the rest of the run, with the spec and the ports below the fold the
+    //   whole time. Watching the panel's own scrollTop is what makes the wheel measurable.
+    const progress = () =>
+      params
+        .evaluate((el: Element) => {
+          const scrollable = (node: Element | null): Element | null => {
+            while (node) {
+              if (node.scrollHeight - node.clientHeight > 8) return node;
+              const inner = Array.from(node.querySelectorAll('*')).find(
+                c => c.scrollHeight - c.clientHeight > 8,
+              );
+              if (inner) return inner;
+              node = node.parentElement;
+            }
+            return null;
+          };
+          const target = scrollable(el);
+          if (!target) return null;
+          return {
+            top: target.scrollTop,
+            max: target.scrollHeight - target.clientHeight,
+          };
+        })
+        .catch(() => null);
 
-      await this.page.mouse.wheel(0, 220);
-      await this.page.waitForTimeout(320);
+    const start = await progress();
+    if (!start || start.max <= 8) {
+      // Nothing to scroll - everything already fits.
+      await this.page.waitForTimeout(800);
+      return;
     }
-    await this.page.waitForTimeout(600);
+
+    let previous = -1;
+    for (let i = 0; i < 40; i++) {
+      const at = await progress();
+      if (!at) break;
+      if (at.top >= at.max - 4) break;
+      if (at.top === previous) {
+        // The wheel is not reaching it - drive the element itself rather than give up.
+        await params
+          .evaluate((el: Element) => {
+            const find = (node: Element | null): Element | null => {
+              while (node) {
+                if (node.scrollHeight - node.clientHeight > 8) return node;
+                const inner = Array.from(node.querySelectorAll('*')).find(
+                  c => c.scrollHeight - c.clientHeight > 8,
+                );
+                if (inner) return inner;
+                node = node.parentElement;
+              }
+              return null;
+            };
+            const target = find(el);
+            if (target) target.scrollTop += 200;
+          })
+          .catch(() => {});
+      } else {
+        await this.page.mouse.wheel(0, 200);
+      }
+      previous = at.top;
+      // Slow enough to read on the way down.
+      await this.page.waitForTimeout(500);
+    }
+
+    // Rest at the bottom. The spec and the ports are down here, and stopping mid-scroll reads as
+    // the screen having got stuck.
+    await this.page.waitForTimeout(1_200);
   }
 
   /** A task node in the run graph, by its name. */
@@ -839,7 +976,7 @@ export class WorkflowPage {
    * Nothing here decides anything. It reads, and if a piece is not there it moves on - the point is
    * to show the screen working, not to assert on it. Judgement happens in the steps.
    */
-  async browseRunWhileWaiting(): Promise<void> {
+  async browseRunWhileWaiting(withLog = false): Promise<void> {
     const nodes = this.page.getByTestId('workflow-run-node');
     const count = await nodes.count().catch(() => 0);
     if (count === 0) return;
@@ -866,20 +1003,76 @@ export class WorkflowPage {
       return;
     await this.page.waitForTimeout(1_200);
 
-    // If this task kept a log, open it. `Try 1` is the first attempt.
-    const tryButton = this.page.getByTestId('workflow-run-log-try').first();
-    if (await tryButton.isVisible({ timeout: 2_000 }).catch(() => false)) {
-      await humanClick(tryButton).catch(() => {});
-      await this.page.waitForTimeout(1_500);
+    if (withLog) await this.openTaskLog();
+  }
 
-      // "Full log" is a details element - open it so the log is actually on screen.
-      const full = this.page
-        .locator('.run-viewer__log-details summary')
-        .first();
-      if (await full.isVisible({ timeout: 2_000 }).catch(() => false)) {
-        await humanClick(full).catch(() => {});
-        await this.page.waitForTimeout(1_500);
-      }
+  /**
+   * Open what the software migration task produced, from the task itself.
+   *
+   * ★ The run viewer puts a Result section on the task detail, and for a software migration that is
+   *   a button onto the installed list. Judging the install by an API call is what keeps the test
+   *   honest, but it happens where nobody can see it - on the recording the migration simply ends
+   *   and the next thing starts. This is the screen a person would open to answer the same question.
+   *
+   * @param taskName the task in the run graph that did the installing
+   */
+  async showInstalledSoftware(taskName: string): Promise<number> {
+    await this.pickTask(taskName, false);
+
+    const button = this.page.getByTestId('workflow-run-result-sw-btn');
+    await expect(
+      button,
+      '설치 결과 버튼이 없다 — 소프트웨어 마이그레이션 작업에 실행 ID가 붙지 않았다',
+    ).toBeVisible({ timeout: 30_000 });
+    await spotlight(this.page, button);
+    await humanClick(button);
+
+    const overlay = this.page.getByTestId('sw-migration-overlay');
+    await expect(overlay).toBeVisible({ timeout: 30_000 });
+
+    const table = this.page.getByTestId('sw-migration-table');
+    await expect(table).toBeVisible({ timeout: 30_000 });
+
+    // Read down the list. This is the answer to "did it actually install", and one screenful of it
+    // is not the whole answer.
+    await this.page.waitForTimeout(1_200);
+    await this.scrollThroughParams(table);
+
+    return table
+      .locator('tbody tr')
+      .count()
+      .catch(() => 0);
+  }
+
+  /**
+   * Open the selected task's log and expand it.
+   *
+   * ★ Shown once, not on every run. It is the same three clicks whichever workflow you are looking
+   *   at, and repeating it in all four tracks is four minutes of a viewer watching something they
+   *   have already understood. The caller decides which run gets it.
+   */
+  async openTaskLog(): Promise<void> {
+    // `Try 1` is the first attempt; a task that never ran has no log to open.
+    const tryButton = this.page.getByTestId('workflow-run-log-try').first();
+    if (!(await tryButton.isVisible({ timeout: 5_000 }).catch(() => false)))
+      return;
+
+    await spotlight(this.page, tryButton).catch(() => {});
+    await humanClick(tryButton).catch(() => {});
+    await this.page.waitForTimeout(1_500);
+
+    // "Full log" is a details element - open it so the log is actually on screen.
+    const full = this.page.locator('.run-viewer__log-details summary').first();
+    if (await full.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await humanClick(full).catch(() => {});
+      await this.page.waitForTimeout(1_200);
+    }
+
+    // Read down it. The log is why the panel was opened, and one screenful is where the
+    // interesting part usually is not.
+    const log = this.page.getByTestId('workflow-run-log').first();
+    if (await log.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await this.scrollThroughParams(log);
     }
   }
 

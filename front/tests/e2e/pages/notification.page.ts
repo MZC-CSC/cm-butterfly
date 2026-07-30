@@ -156,6 +156,107 @@ export class NotificationPage {
   }
 
   /**
+   * Find the notice this run produced, read it, and clear it.
+   *
+   * ★ `readAndClearFirst` takes whatever is on top, and on a busy environment that is often not the
+   *   one this segment was waiting for - system notices arrive on their own schedule. The workflow's
+   *   name is in its message, so that is what picks it out.
+   *
+   * The wait is generous but not fatal: if the notice never arrives the segment carries on without
+   * it. A missing announcement is not worth failing a take over, and the job itself was already
+   * judged by its real result.
+   *
+   * @returns whether a matching notice was found and cleared
+   */
+  async readAndClearFor(
+    keyword: string,
+    waitForArrival = 10 * 60_000,
+  ): Promise<boolean> {
+    const deadline = Date.now() + waitForArrival;
+    const count = this.page.getByTestId('notification-count');
+
+    // Wait outside the panel, the same way as before - an open, empty panel on screen reads as
+    // checking the corner over and over.
+    while (Date.now() < deadline) {
+      if (await count.isVisible({ timeout: 15_000 }).catch(() => false)) {
+        await this.open();
+        const row = this.items.filter({ hasText: keyword }).first();
+        if (await row.isVisible({ timeout: 3_000 }).catch(() => false)) {
+          const id = await row.getAttribute('data-notification-id');
+
+          await humanClick(row.getByRole('button').first());
+          await expect(row.getByTestId('notification-detail')).toBeVisible({
+            timeout: 10_000,
+          });
+          // A beat to read it.
+          await this.page.waitForTimeout(1_500);
+
+          await humanClick(row.getByTestId('notification-confirm'));
+          if (id) {
+            await expect(
+              this.page.locator(`[data-notification-id="${id}"]`),
+            ).toBeHidden({ timeout: 15_000 });
+          }
+          await this.page.keyboard.press('Escape').catch(() => {});
+          return true;
+        }
+        // Not here yet - close up and wait rather than sit with the panel open.
+        await this.page.keyboard.press('Escape').catch(() => {});
+      }
+      await this.page.waitForTimeout(5_000);
+    }
+    return false;
+  }
+
+  /**
+   * Open the box and clear the notices one at a time.
+   *
+   * ★ Its own segment, deliberately. Working through a stack of messages is a thing the console
+   *   does and nothing else in the walkthrough shows it - "Mark all read" empties the box in one
+   *   press, which proves the box can be emptied but not that each message can be read.
+   *
+   * @returns how many were cleared
+   */
+  async readAndClearEachOne(limit = 30): Promise<number> {
+    await this.open();
+
+    let cleared = 0;
+    for (let i = 0; i < limit; i++) {
+      const row = this.items.first();
+      if (!(await row.isVisible({ timeout: 5_000 }).catch(() => false))) break;
+
+      const id = await row.getAttribute('data-notification-id');
+      await humanClick(row.getByRole('button').first());
+      await expect(row.getByTestId('notification-detail')).toBeVisible({
+        timeout: 10_000,
+      });
+      await this.page.waitForTimeout(1_200);
+
+      await humanClick(row.getByTestId('notification-confirm'));
+      if (id) {
+        await expect(
+          this.page.locator(`[data-notification-id="${id}"]`),
+        ).toBeHidden({ timeout: 15_000 });
+      }
+      cleared++;
+      await this.page.waitForTimeout(500);
+    }
+
+    await this.page.keyboard.press('Escape').catch(() => {});
+    return cleared;
+  }
+
+  /** The box has nothing left in it. */
+  async expectEmpty(): Promise<void> {
+    await this.open();
+    await expect(this.page.getByTestId('notification-empty')).toBeVisible({
+      timeout: 15_000,
+    });
+    await this.page.waitForTimeout(1_000);
+    await this.page.keyboard.press('Escape').catch(() => {});
+  }
+
+  /**
    * Empty the box before recording starts.
    *
    * Logging in pops up whatever was left from earlier work, so the first thing on screen is a stack

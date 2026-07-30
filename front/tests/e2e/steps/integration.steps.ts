@@ -191,6 +191,35 @@ When(
   },
 );
 
+Then('설치된 소프트웨어를 워크플로우 화면에서 확인한다', async ({ page }) => {
+  const wf = new WorkflowPage(page);
+  const name = recall('sw-workflow') ?? scenarioState.softwareWorkflowName;
+  expect(
+    name,
+    '소프트웨어 마이그레이션 워크플로우를 알 수 없다 — 앞 구간이 먼저 실행돼야 한다',
+  ).toBeTruthy();
+
+  await wf.gotoWorkflows();
+  await wf.openRunViewer(name as string);
+  const installed = await wf.showInstalledSoftware(
+    workflowData.softwareMigrationTask,
+  );
+  console.log(`[소프트웨어] 화면에서 확인한 설치 항목 ${installed} 건`);
+  expect(installed, '설치 목록이 비어 있다').toBeGreaterThan(0);
+});
+
+Then(
+  '{string} 그룹의 연결 목록에 파일로 넣은 서버가 모두 보인다',
+  async ({ page }, groupName: string) => {
+    const source = new SourceServicesPage(page);
+    await source.goto();
+    await source.showImportedConnections(uniqueName(groupName), [
+      connectionFor(groupName, 'nano').name,
+      connectionFor(groupName, 'micro').name,
+    ]);
+  },
+);
+
 /** Register one server on its own - the other way in, and the group the scenario collects from. */
 Given(
   '소스 서비스에 {string} 소스서버를 {string} 로 등록한다',
@@ -475,6 +504,26 @@ async function waitForDagRegistered(page: Page, name: string): Promise<void> {
 }
 
 /**
+ * What this track's workflow is for, in the words that go in the Description box.
+ *
+ * Each track reaches the same place by a different route, and the description is the only thing on
+ * screen that says which route this one took. Reading four workflows with the same name shape and
+ * no explanation tells a viewer nothing.
+ */
+function trackDescription(track: string): string {
+  switch (track) {
+    case '1':
+      return descriptions.infraWorkflowPlain;
+    case '2':
+      return descriptions.infraWorkflow5555SpecUp;
+    case '3':
+      return descriptions.infraWorkflowCloned;
+    default:
+      return descriptions.infraWorkflow5555;
+  }
+}
+
+/**
  * Create and run a migration workflow with a naming prefix.
  *
  * Without it the second track fails. What the recommendation produces is named the same whatever the
@@ -496,29 +545,9 @@ When(
 
     await models.openWorkflowEditorFromTarget(uniqueName(targetModelName));
     await wf.expectDesignerOpen();
-    await wf.fillWorkflowName(
-      name,
-      // 트랙1 은 워크플로우에서 스펙을 직접 바꾸고, 트랙2 는 모델이 이미 바꿔 둔 것을 쓴다.
-      track === '1'
-        ? descriptions.infraWorkflowSpecEdited
-        : descriptions.infraWorkflow5555SpecUp,
-    );
+    await wf.fillWorkflowName(name, trackDescription(track));
     await wf.selectTaskInDesigner(workflowData.infraMigrationTask);
     await wf.setTaskParam('query', 'nameSeed', seed);
-
-    // Track 1 changes the spec *here*, in the workflow, on top of a model that only opened a port.
-    // That is the third link: the model decides one thing, the workflow overrides another, and the
-    // machine comes out the way the workflow said.
-    const workflowSpec =
-      track === '1'
-        ? await wf.setSpecInWorkflow(
-            process.env.TEST_WF_SPEC_OVERRIDE || 't3a.small',
-          )
-        : '';
-    if (workflowSpec) {
-      scenarioState.workflowSpec = workflowSpec;
-      console.log(`[seg3] 워크플로우에서 스펙 → ${workflowSpec}`);
-    }
 
     await wf.saveWorkflow();
 
@@ -539,6 +568,74 @@ When(
     // from the prefix plus whatever the target model carries, so guessing it is a rule that holds
     // only until the naming changes - and it cannot tell this run's infrastructure from one left
     // behind by an earlier one. The id is read back and handed to the segments that follow.
+    remember(`workflow:${track}`, name);
+    remember('workflow:last', name);
+
+    // The log scene belongs to the first track. It is the same three clicks on every run, and
+    // repeating it four times is time a viewer spends on something already understood.
+    const infraId = await waitForInfraCreated(page, seed, wf, track === '1');
+    scenarioState.infraName = infraId;
+    scenarioState.infraId = infraId;
+    remember(`infra:${track}`, infraId);
+  },
+);
+
+/**
+ * Take a workflow that has already run, copy it, and change the copy.
+ *
+ * ★ This is the third route to the same place, and the only one that never touches a model. The
+ *   console has no "save as" - editing a workflow with run history is blocked and the screen points
+ *   you here - so Clone & Edit is how a person varies something that already worked.
+ *
+ * The copy needs its own `nameSeed` before it runs. Without it the clone inherits the original's
+ * prefix and cm-beetle hands it the first run's subnet and security group, so the port and spec
+ * changed here would land on resources that already exist and nothing would look different.
+ */
+When(
+  '{string} 번 트랙 워크플로우를 복제해 포트와 스펙을 바꾸고 {string} 번 트랙으로 실행하면',
+  async ({ page }, from: string, track: string) => {
+    const seed = trackSeed(track);
+    const name = `${workflowData.createNamePrefix}-${seed}`;
+    const wf = new WorkflowPage(page);
+
+    const origin = recall(`workflow:${from}`);
+    expect(
+      origin,
+      `${from} 번 트랙 워크플로우를 알 수 없다 — 그 워크플로우를 만드는 구간이 먼저 실행돼야 한다`,
+    ).toBeTruthy();
+
+    await wf.gotoWorkflows();
+    await wf.openRunViewer(origin as string);
+    await wf.cloneAndEdit();
+
+    // The copy arrives as `{original}_copy`. Give it a name of its own and say what it is for.
+    await wf.fillWorkflowName(name, trackDescription(track));
+
+    await wf.selectTaskInDesigner(workflowData.infraMigrationTask);
+    await wf.setTaskParam('query', 'nameSeed', seed);
+
+    // Both edits happen here, in the workflow, on a model nobody touched.
+    const port = process.env.TEST_WF_PORT_OVERRIDE || '6666';
+    const replaced = await wf.setPortInWorkflow('5555', port);
+    console.log(`[트랙${track}] 워크플로우에서 포트 ${replaced} → ${port}`);
+
+    const spec = await wf.setSpecInWorkflow(
+      process.env.TEST_WF_SPEC_OVERRIDE || 't3a.small',
+    );
+    scenarioState.workflowSpec = spec;
+    console.log(`[트랙${track}] 워크플로우에서 스펙 → ${spec}`);
+
+    // Show what else is in there before leaving the panel.
+    await wf.scrollThroughParams();
+
+    await wf.saveWorkflow();
+    await waitForDagRegistered(page, name);
+    await wf.runHere();
+
+    remember(`workflow:${track}`, name);
+    remember('workflow:last', name);
+    remember(`port:${track}`, port);
+
     const infraId = await waitForInfraCreated(page, seed, wf);
     scenarioState.infraName = infraId;
     scenarioState.infraId = infraId;
@@ -557,6 +654,7 @@ async function waitForInfraCreated(
   page: Page,
   seed: string,
   wf?: WorkflowPage,
+  withLog = false,
 ): Promise<string> {
   const token = await getSessionToken(page);
   const deadline = Date.now() + 20 * 60_000;
@@ -585,7 +683,11 @@ async function waitForInfraCreated(
     // minutes of a still screen is the one thing a recording cannot afford.
     for (let i = 0; i < 7; i++) {
       await wf?.revealWholeRunGraph().catch(() => {});
-      if (i === 2 || i === 5) await wf?.browseRunWhileWaiting().catch(() => {});
+      if (i === 2 || i === 5) {
+        // The log is opened on one run only - see openTaskLog. Every track shows the graph and the
+        // task detail; only the track that asked for it goes as far as the log.
+        await wf?.browseRunWhileWaiting(withLog && i === 5).catch(() => {});
+      }
       await page.waitForTimeout(3_000);
     }
   }
@@ -848,6 +950,7 @@ When(
     // The next segment is a separate run, so it cannot see this variable. It needs the name to know
     // which workflow to watch while the install goes on.
     remember('sw-workflow', name);
+    remember('workflow:last', name);
   },
 );
 
@@ -1175,6 +1278,21 @@ Then(
   },
 );
 
+/**
+ * Open the task's parameters and read down them, without singling anything out.
+ *
+ * For the track that changes nothing there is no value to point at - but what the recommendation
+ * filled in is exactly what the other three tracks are measured against, so it is worth seeing.
+ */
+Then(
+  '워크플로우의 {string} 작업 파라미터를 훑어본다',
+  async ({ page }, taskName: string) => {
+    const wf = new WorkflowPage(page);
+    await wf.pickTask(taskName, false);
+    await wf.scrollThroughParams();
+  },
+);
+
 // ── 알림: 일이 끝났음을 확인하고 치우는 것까지가 그 작업의 마지막 ──────
 //
 // 알림이 날아오는 것으로 끝내면 보는 사람은 그게 무슨 알림이었는지 모른다. 열어서 읽고, 한 박자
@@ -1185,6 +1303,44 @@ Given('알림함을 비운다', async ({ page }) => {
   await new NotificationPage(page).clearAll();
 });
 
+/**
+ * Close out the job by finding *its* notice, not whatever is on top.
+ *
+ * The environment produces system notices of its own, so "the newest one" is regularly something
+ * else entirely. The workflow name is in the message, which is what makes it findable.
+ *
+ * Not fatal if it never turns up - the job was already judged by its real result, and a missing
+ * announcement is not worth losing a take over.
+ */
 Then('완료 알림을 읽고 지운다', async ({ page }) => {
-  await new NotificationPage(page).readAndClearFirst();
+  const notifications = new NotificationPage(page);
+  const mine = recall(`workflow:last`) ?? scenarioState.softwareWorkflowName;
+  const found = mine
+    ? await notifications.readAndClearFor(mine as string)
+    : false;
+  if (!found) {
+    console.log(`[알림] "${mine ?? '이름 없음'}" 알림을 찾지 못해 넘어간다`);
+  }
+});
+
+Then('알림이 몇 건 남았는지 확인한다', async ({ page }) => {
+  const notifications = new NotificationPage(page);
+  await notifications.open();
+  const left = await notifications.count();
+  console.log(`[알림] 남은 알림 ${left} 건`);
+  // 하나도 없으면 보여줄 것이 없다 — 앞 구간들이 실제로 돌았는지부터 의심할 자리다.
+  expect(
+    left,
+    '남은 알림이 없다 — 앞 구간이 알림을 남기지 않았다',
+  ).toBeGreaterThan(0);
+});
+
+Then('알림을 하나씩 열어 확인하고 지운다', async ({ page }) => {
+  const cleared = await new NotificationPage(page).readAndClearEachOne();
+  console.log(`[알림] ${cleared} 건을 하나씩 확인하고 지웠다`);
+  expect(cleared, '지울 알림이 하나도 없다').toBeGreaterThan(0);
+});
+
+Then('알림함이 비었다', async ({ page }) => {
+  await new NotificationPage(page).expectEmpty();
 });

@@ -2,6 +2,7 @@ import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 import { humanClick, humanFill } from '../support/humanize';
 import { openScreen } from '../support/navigate';
+import { spotlight } from '../support/spotlight';
 
 /**
  * SourceServicesPage — 소스 서비스(소스 컴퓨팅, cm-honeybee) 화면의 "어디서/어떻게".
@@ -420,6 +421,15 @@ export class SourceServicesPage {
     // the browser asks for a file, this catches the request first and answers it.
     const chooser = this.page.waitForEvent('filechooser');
     await humanClick(this.page.getByTestId('source-import-file'));
+
+    // Stay on the button for a beat before the file turns up.
+    //
+    // ★ The chooser is the operating system's window and never appears in the recording. Answer it
+    //   the instant it opens and the filename lands in the same frame as the press, which reads as
+    //   the button having produced it. Holding the pointer there for a moment leaves a gap the
+    //   viewer fills in themselves - that is where the file was picked, off screen.
+    await this.page.waitForTimeout(1_500);
+
     await (
       await chooser
     ).setFiles({
@@ -431,10 +441,12 @@ export class SourceServicesPage {
     // The chosen file is named on screen before anything is read. This is the step that used to be
     // missing: rows appeared in the preview with nothing to say where they came from, and there was
     // no way to tell a file had been attached at all.
-    await expect(this.page.getByTestId('source-import-filename')).toContainText(
-      'sources.csv',
-      { timeout: 10_000 },
-    );
+    const filename = this.page.getByTestId('source-import-filename');
+    await expect(filename).toContainText('sources.csv', { timeout: 10_000 });
+
+    // Point at it. Nothing else on screen says a file arrived, and the name is small print next to
+    // a preview that draws the eye.
+    await spotlight(this.page, filename);
 
     // The preview reports how many rows the server parsed - that count is what tells us the file
     // was read as a file rather than accepted and dropped.
@@ -456,6 +468,37 @@ export class SourceServicesPage {
   async openConnection(connName: string): Promise<void> {
     await humanClick(this.connectionsTab);
     await humanClick(this.connectionRow(connName).first());
+  }
+
+  /**
+   * Open the group and show every connection the file brought in.
+   *
+   * ★ One file can carry many servers, and the group row only says a group exists. Stopping at
+   *   "the group is in the list" leaves the interesting part unshown - that several connections
+   *   arrived at once, which is the whole reason to import a file rather than type them in.
+   *
+   * @returns the connection names read off the tab
+   */
+  async showImportedConnections(
+    group: string,
+    expected: string[],
+  ): Promise<string[]> {
+    await this.selectGroup(group);
+    await humanClick(this.connectionsTab);
+
+    for (const name of expected) {
+      const row = this.connectionRow(name).first();
+      await expect(
+        row,
+        `연결 목록에 "${name}" 이 없다 — 파일이 일부만 읽힌 것이다`,
+      ).toBeVisible({ timeout: 20_000 });
+    }
+
+    // Rest on the list long enough to take it in. The rows are what the file produced, and they go
+    // by in a moment if the next step starts straight away.
+    await this.page.waitForTimeout(1_200);
+
+    return expected;
   }
 
   // ───────────────────────── 연결정보 익스포트 ─────────────────────────
