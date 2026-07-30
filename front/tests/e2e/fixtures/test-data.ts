@@ -204,6 +204,24 @@ export const workload = {
  * cm-cicada defines a TaskComponent with a type/spec schema.
  * 5 task types: http · http_xcom · bash · ssh · trigger_workflow.
  */
+/**
+ * What each thing is for, in the author's words.
+ *
+ * The walkthrough is shown to people who have not used the console, and a list of names tells them
+ * nothing. These go into the description field when the model is saved, so the reason survives on
+ * the screen rather than only in whoever was narrating.
+ */
+export const descriptions = {
+  sourceModel5555:
+    '커스텀 소스 모델 시험 — 수집한 정보에 5555 포트를 더해 저장한다. 여기에 넣은 값은 타깃 모델과 워크플로우에 그대로 이어져, 별도로 다시 넣지 않아도 그 설정대로 인프라가 만들어진다.',
+  targetModel5555:
+    '커스텀 타깃 모델 시험 — 추천받은 구성에 5555 포트를 더했다. 이 값이 워크플로우 파라미터로 들어가 그대로 인프라에 반영된다.',
+  targetModelSpecUp:
+    '커스텀 타깃 모델 시험 — 소스 모델에 없던 5555 포트를 열고, 소스보다 높은 성능의 스펙으로 바꿨다. 이 두 가지가 워크플로우에 자동으로 실려 그 설정대로 인프라가 만들어진다.',
+  softwareTargetModel:
+    '소프트웨어 마이그레이션 시험 — 수집한 소프트웨어 가운데 옮길 것을 골라 저장한다. 무엇을 설치할지만 담고, 어디에 설치할지는 워크플로우에서 정한다.',
+} as const;
+
 export const workflowData = {
   /** The 5 task types in cm-cicada's new schema (for create/palette verification) */
   taskTypes: ['http', 'http_xcom', 'bash', 'ssh', 'trigger_workflow'] as const,

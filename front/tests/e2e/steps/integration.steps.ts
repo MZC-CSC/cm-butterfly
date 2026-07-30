@@ -14,6 +14,7 @@ import {
   targetSpec,
   workflowData,
   workload,
+  descriptions,
 } from '../fixtures/test-data';
 import { uniqueName } from '../support/naming';
 import { spotlight } from '../support/spotlight';
@@ -324,12 +325,21 @@ When(
 
 When('{string} 커스텀 모델로 저장하면', async ({ page }, name: string) => {
   const saved = uniqueName(name);
-  await new JsonEditorPage(page).saveAsCustom(saved);
+  await new JsonEditorPage(page).saveAsCustom(
+    saved,
+    descriptions.sourceModel5555,
+  );
   scenarioState.sourceModelName = saved;
 });
 
 When('{string} 커스텀 타깃 모델로 저장하면', async ({ page }, name: string) => {
-  await new JsonEditorPage(page).saveAsCustom(uniqueName(name));
+  // The two target models are saved for different reasons - one only opens a port, the other also
+  // raises the spec - so they do not get the same explanation.
+  const raisedSpec = name.includes('up');
+  await new JsonEditorPage(page).saveAsCustom(
+    uniqueName(name),
+    raisedSpec ? descriptions.targetModelSpecUp : descriptions.targetModel5555,
+  );
 });
 
 // ── checking the rule carried through, in table mode ────────────────────

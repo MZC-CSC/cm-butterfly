@@ -1,5 +1,6 @@
 import { Page, Locator, expect } from '@playwright/test';
 import { humanClick, humanFill } from '../support/humanize';
+import { describe as writeDescription } from '../support/describe';
 
 /**
  * JsonEditorPage — the model JSON editor (Custom & View).
@@ -267,7 +268,7 @@ export class JsonEditorPage {
    * Saving from here never overwrites the original - it creates a new model under the name given.
    * That is the point of the custom pass: the collected model stays as collected.
    */
-  async saveAsCustom(name: string): Promise<void> {
+  async saveAsCustom(name: string, description?: string): Promise<void> {
     // The two custom-view screens name their save button differently - the source one has carried
     // `create-form-save` for a while, the target one had no identifier at all until now.
     await humanClick(
@@ -284,6 +285,17 @@ export class JsonEditorPage {
         .first(),
       name,
     );
+
+    // Say what it is for. A name on its own tells a viewer nothing about why this model exists,
+    // and the list they see later carries only these two fields.
+    if (description) {
+      await writeDescription(
+        this.page,
+        this.page.getByTestId('model-description-input').first(),
+        description,
+      );
+    }
+
     await humanClick(this.page.getByTestId('model-name-save'));
   }
 }
