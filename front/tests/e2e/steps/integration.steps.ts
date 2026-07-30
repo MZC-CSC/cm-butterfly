@@ -498,12 +498,28 @@ When(
     await wf.expectDesignerOpen();
     await wf.fillWorkflowName(
       name,
-      targetModelName.includes('up')
-        ? descriptions.infraWorkflow5555SpecUp
-        : descriptions.infraWorkflow5555,
+      // 트랙1 은 워크플로우에서 스펙을 직접 바꾸고, 트랙2 는 모델이 이미 바꿔 둔 것을 쓴다.
+      track === '1'
+        ? descriptions.infraWorkflowSpecEdited
+        : descriptions.infraWorkflow5555SpecUp,
     );
     await wf.selectTaskInDesigner(workflowData.infraMigrationTask);
     await wf.setTaskParam('query', 'nameSeed', seed);
+
+    // Track 1 changes the spec *here*, in the workflow, on top of a model that only opened a port.
+    // That is the third link: the model decides one thing, the workflow overrides another, and the
+    // machine comes out the way the workflow said.
+    const workflowSpec =
+      track === '1'
+        ? await wf.setSpecInWorkflow(
+            process.env.TEST_WF_SPEC_OVERRIDE || 't3a.small',
+          )
+        : '';
+    if (workflowSpec) {
+      scenarioState.workflowSpec = workflowSpec;
+      console.log(`[seg3] 워크플로우에서 스펙 → ${workflowSpec}`);
+    }
+
     await wf.saveWorkflow();
 
     // cm-cicada only writes the DAG on save; airflow picks it up on its own schedule, and running

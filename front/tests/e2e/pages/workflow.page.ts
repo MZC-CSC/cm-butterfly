@@ -543,6 +543,51 @@ export class WorkflowPage {
     await this.page.waitForTimeout(500);
   }
 
+  /**
+   * Change the instance spec here, in the workflow, rather than in the model.
+   *
+   * ★ The point is to show the third link in the chain: a value set in the workflow overrides what
+   *   the model carried, and the machine comes out the way the workflow said. The model's own spec
+   *   stays as it was.
+   *
+   * The spec lives inside an array in the request body (`targetInfra.nodeGroups[].specId`), and the
+   * field identifiers follow that path, so rather than guess the index we look for the field whose
+   * value looks like a spec - `provider+region+size`. Only the size at the end is retyped, the same
+   * way it is done in the model editor.
+   */
+  async setSpecInWorkflow(size: string): Promise<string> {
+    const fields = this.page.locator('[data-testid^="wf-field-body_params."]');
+    const count = await fields.count();
+
+    for (let i = 0; i < count; i++) {
+      const field = fields.nth(i);
+      const value = await field.inputValue().catch(() => '');
+      // `aws+ap-northeast-2+t3a.medium` - three parts, the last one the size.
+      if (!/^[a-z0-9-]+\+[a-z0-9-]+\+\S+$/i.test(value)) continue;
+
+      const parts = value.split('+');
+      const oldSize = parts[parts.length - 1];
+      if (oldSize === size) return value;
+
+      await field.click();
+      await field.press('End');
+      for (let n = 0; n < oldSize.length; n++) {
+        await field.press('Backspace');
+        await this.page.waitForTimeout(26);
+      }
+      await field.pressSequentially(size, { delay: 55 });
+      await this.page.waitForTimeout(500);
+
+      const next = [...parts.slice(0, -1), size].join('+');
+      await spotlight(this.page, field);
+      return next;
+    }
+
+    throw new Error(
+      '워크플로우 본문에서 스펙 필드를 찾지 못했다 — provider+region+size 형태의 값이 없다',
+    );
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // 3) Workflow run + state polling (History)
   // ─────────────────────────────────────────────────────────────────────────
