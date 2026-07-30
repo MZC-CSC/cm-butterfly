@@ -771,7 +771,10 @@ Given(
     await wl.gotoMci();
     await wl.selectMci(infraId);
     await wl.openDeleteModal();
-    await wl.confirmDelete(infraId, 'normal');
+    // The last delete of the run gets a longer hold - there is nothing after it to watch, and this
+    // is where the progress dialog can actually be read.
+    await wl.confirmDelete(infraId, 'normal', track === '2' ? 10_000 : 1_500);
+    await wl.waitUntilMciGone(infraId);
   },
 );
 
@@ -1033,3 +1036,58 @@ Given(
     await wl.runLoadTest({ ...workload.loadTest, targetHost: host });
   },
 );
+
+// ── 재실행 시연: 병렬 샘플에서 일부만 실패시켜 버튼이 무엇을 하는지 보여준다 ──
+//
+// 실제 마이그레이션으로는 이걸 보여줄 수 없다. 실패를 만들려면 자원을 만들다 말아야 하고, 그건
+// 비용과 뒷정리를 남긴다. 그래서 bash 만 쓰는 샘플을 따로 둔다 — 두 갈래가 나란히 돌고 한쪽만
+// 실패하므로, "이 작업만" 과 "이 작업부터 아래로" 의 차이가 화면에서 그대로 보인다.
+//
+// 샘플은 미리 등록돼 있어야 한다(fixtures/sample-parallel-failure-workflow.json).
+
+Given('실패 샘플 워크플로우를 연다', async ({ page }) => {
+  const wf = new WorkflowPage(page);
+  await wf.gotoWorkflows();
+  await wf.selectWorkflow(workflowData.failureSampleName);
+  await wf.revealWholeRunGraph();
+});
+
+When('실패 샘플 워크플로우를 실행한다', async ({ page }) => {
+  const wf = new WorkflowPage(page);
+  await wf.runHere();
+  const state = await wf.waitForRunSettled();
+  expect(state, '샘플이 실패로 끝나야 재실행을 보여줄 수 있다').toContain(
+    'failed',
+  );
+});
+
+When('실패한 {string} 작업만 다시 실행한다', async ({ page }, task: string) => {
+  const wf = new WorkflowPage(page);
+  await wf.pickTask(task);
+  await wf.rerunFromSelected('only');
+  await wf.waitForRunSettled();
+});
+
+When(
+  '{string} 작업부터 아래로 모두 다시 실행한다',
+  async ({ page }, task: string) => {
+    const wf = new WorkflowPage(page);
+    await wf.pickTask(task);
+    await wf.rerunFromSelected('after');
+    await wf.waitForRunSettled();
+  },
+);
+
+When('실패한 작업을 모두 다시 실행한다', async ({ page }) => {
+  const wf = new WorkflowPage(page);
+  await wf.rerunAllFailed();
+  await wf.waitForRunSettled();
+});
+
+Then('워크플로우는 여전히 실패로 남는다', async ({ page }) => {
+  const wf = new WorkflowPage(page);
+  const state = await wf.waitForRunSettled();
+  // 샘플의 실패 작업은 언제나 실패한다 - 재실행이 결과를 바꾸지 않는 것이 정상이고,
+  // 여기서 보여주려는 것은 결과가 아니라 *어떤 작업이 다시 돌았는가* 다.
+  expect(state).toContain('failed');
+});

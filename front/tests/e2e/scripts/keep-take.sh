@@ -153,7 +153,7 @@ for v in "${VIDEOS[@]}"; do
   # 손실이 한 겹 더 얹혀 글자가 뭉갠다. 화면 녹화는 글자가 생명이라 crf 를 낮추고 preset 을
   # 늦춰 *원본이 가진 만큼은* 그대로 남긴다. 늘어나는 용량은 한 편에 수 MB 수준이다.
   ffmpeg -v error -y -ss "$start" -to "$stop" -i "$v" \
-    -c:v libx264 -preset slow -crf 16 -tune stillimage -pix_fmt yuv420p -an \
+    -c:v libx264 -preset "${E2E_KEEP_PRESET:-slow}" -crf "${E2E_KEEP_CRF:-16}" -tune stillimage -pix_fmt yuv420p -an \
     -movflags +faststart \
     "$KEEP_DIR/$name.mp4"
   echo "[keep] $name.mp4  (${start}~${stop}초 구간, $(du -h "$KEEP_DIR/$name.mp4" | cut -f1))"

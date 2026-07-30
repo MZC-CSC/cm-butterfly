@@ -215,6 +215,15 @@ export const workflowData = {
    */
   safeRunWorkflowName:
     process.env.TEST_WF_SAFE_RUN || 'e2e-sample-bash-workflow',
+  /**
+   * The parallel sample that always fails on one branch.
+   *
+   * Pre-registered on the environment from `fixtures/sample-parallel-failure-workflow.json`; the
+   * console cannot build one, and a real migration cannot be made to fail without leaving resources
+   * behind. Bash only, so running it costs nothing.
+   */
+  failureSampleName:
+    process.env.TEST_WF_FAILURE_SAMPLE || 'sample-parallel-partial-failure',
 
   /**
    * Name of the *template* used to create the charge-safe example workflow.

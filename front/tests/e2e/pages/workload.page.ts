@@ -322,6 +322,7 @@ export class WorkloadPage {
   async confirmDelete(
     infraName: string,
     method: 'normal' | 'force' = 'normal',
+    holdMs = 1_500,
   ): Promise<void> {
     if (method === 'force') {
       const forceRadio = this.deleteModal.getByTestId(
@@ -342,6 +343,14 @@ export class WorkloadPage {
     // The dialog says so itself: closing it does not stop the delete, and the list carries the
     // state in its Delete Status column. So this is what a person does here too.
     await expect(this.deleteProgress).toBeVisible({ timeout: 30_000 });
+
+    // Let it be seen before closing it.
+    //
+    // The dialog is where a person learns that deleting keeps going after the dialog is gone - and
+    // the recording used to close it the instant it appeared, so nobody could read it. `hold` is
+    // longer on the last delete of a run, where there is nothing after it to watch.
+    await this.page.waitForTimeout(holdMs);
+
     await humanClick(this.deleteCloseButton.first());
     await expect(this.deleteProgress).toBeHidden({ timeout: 15_000 });
   }

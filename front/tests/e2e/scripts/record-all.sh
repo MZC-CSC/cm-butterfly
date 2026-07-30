@@ -17,7 +17,7 @@ cd "$(dirname "$0")/.."
 
 SEGMENTS=("$@")
 if [ "${#SEGMENTS[@]}" -eq 0 ]; then
-  SEGMENTS=(1 2a 2 3 4 5 6 7 8 9)
+  SEGMENTS=(1 2a 2 3 4 5 6 7 8 8b 9)
 fi
 
 : "${BASE_URL:?BASE_URL 이 필요하다}"

@@ -2,6 +2,7 @@ import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 import { workflowData } from '../fixtures/test-data';
 import { humanClick, humanFill } from '../support/humanize';
+import { spotlight } from '../support/spotlight';
 import { openScreen } from '../support/navigate';
 
 /**
@@ -607,6 +608,84 @@ export class WorkflowPage {
     });
 
     await this.revealWholeRunGraph();
+  }
+
+  /** A task node in the run graph, by its name. */
+  taskNode(name: string): Locator {
+    return this.page
+      .getByTestId('workflow-run-node')
+      .filter({ hasText: name })
+      .first();
+  }
+
+  /**
+   * Select a task in the run graph and point at it.
+   *
+   * The graph is what the re-run controls act on - which task is selected decides what they will
+   * do - so the selection is worth showing rather than just performing.
+   */
+  async pickTask(name: string, highlight = true): Promise<void> {
+    const node = this.taskNode(name);
+    await node.scrollIntoViewIfNeeded().catch(() => {});
+    if (highlight) await spotlight(this.page, node);
+    await humanClick(node);
+    await expect(this.page.getByTestId('workflow-run-task-detail')).toBeVisible(
+      {
+        timeout: 15_000,
+      },
+    );
+  }
+
+  /**
+   * Re-run from the selected task, at the given scope, and confirm.
+   *
+   * `only` runs that task again on its own; `after` runs it and everything that depends on it. The
+   * screen shows which tasks it would run before doing anything, which is the part worth seeing -
+   * so the list is left up for a moment before confirming.
+   */
+  async rerunFromSelected(scope: 'only' | 'after'): Promise<void> {
+    await humanClick(
+      this.page.locator(
+        `[data-testid="workflow-rerun-scope"][data-scope="${scope}"]`,
+      ),
+    );
+
+    const confirm = this.page.getByTestId('workflow-rerun-confirm');
+    await expect(confirm).toBeVisible({ timeout: 20_000 });
+    await spotlight(
+      this.page,
+      this.page.getByTestId('workflow-rerun-target').first(),
+    );
+    await humanClick(this.page.getByTestId('workflow-rerun-ok'));
+    await expect(confirm).toBeHidden({ timeout: 20_000 });
+  }
+
+  /** The "Re-run failed tasks" button above the graph - everything that failed in this run. */
+  async rerunAllFailed(): Promise<void> {
+    const button = this.page.getByTestId('workflow-rerun-failed-btn');
+    await expect(button).toBeVisible({ timeout: 20_000 });
+    await expect(button).toBeEnabled({ timeout: 20_000 });
+    await spotlight(this.page, button);
+    await humanClick(button);
+
+    const confirm = this.page.getByTestId('workflow-rerun-confirm');
+    if (await confirm.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await humanClick(this.page.getByTestId('workflow-rerun-ok'));
+      await expect(confirm).toBeHidden({ timeout: 20_000 });
+    }
+  }
+
+  /** Wait until the run is not running any more, and answer with what it ended as. */
+  async waitForRunSettled(timeoutMs = 8 * 60_000): Promise<string> {
+    const deadline = Date.now() + timeoutMs;
+    let state = '';
+    while (Date.now() < deadline) {
+      state = (await this.latestRunStateText()).trim().toLowerCase();
+      if (/success|failed/.test(state)) return state;
+      await this.revealWholeRunGraph().catch(() => {});
+      await this.page.waitForTimeout(3_000);
+    }
+    return state;
   }
 
   /**

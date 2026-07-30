@@ -145,8 +145,13 @@ export default defineConfig({
         // of four, so the letters arrive with clean edges instead of the ragged ones the encoder
         // then has to spend bits on. The file is for showing to people; the words have to be
         // readable.
-        deviceScaleFactor: 2,
-        video: { mode: 'on', size: { width: 1920, height: 1080 } },
+        // Only when the take is meant to be shown (E2E_HQ=1). Rendering at 2x costs memory and time,
+        // and a run that only asks "does the scenario still work" gains nothing from it.
+        deviceScaleFactor: process.env.E2E_HQ === '1' ? 2 : 1,
+        video:
+          process.env.E2E_VIDEO === 'off'
+            ? 'off'
+            : { mode: 'on', size: { width: 1920, height: 1080 } },
       },
       grep: /@integration/,
       // Provisioning and installing happen inside these segments.
