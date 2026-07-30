@@ -195,8 +195,21 @@ function handleSoftwareModal() {
       "
       :block="true"
     >
+      <!--
+        Agent Status / Connection Status.
+
+        `data-status` carries the raw value, not the styled text, so a test can wait for the state
+        itself rather than reading a label. Refresh has to report success here before Collect Infra
+        and Collect SW do anything - pressing them while this still says Unknown is how a collection
+        comes back empty.
+      -->
       <template #data-status="{ data }">
-        <p-status :theme="data.color" :text="data.text" />
+        <p-status
+          data-testid="source-group-status"
+          :data-status="data.status"
+          :theme="data.color"
+          :text="data.text"
+        />
       </template>
 
       <template #data-viewInfra="{ data }">

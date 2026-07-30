@@ -96,6 +96,33 @@ last_change_second() {
         }'
 }
 
+# 콘솔이 뜨는 지점(초) — 로그인 화면이 끝나는 곳.
+#
+# 로그인 화면과 콘솔은 **왼쪽 기둥**이 다르다. 콘솔에는 메뉴 글자가 세로로 서 있고 로그인 화면의
+# 같은 자리는 매끈한 배경이다. 글자가 있으면 밝기가 들쭉날쭉해지므로, 그 편차가 처음으로 커지는
+# 지점이 콘솔이 그려진 때다. 글자를 읽지 않으므로 문구가 바뀌어도 흔들리지 않는다.
+console_open_second() {
+  local video="$1" probe t
+  probe="$(mktemp -d)"
+  ffmpeg -v error -y -i "$video" -t 30 \
+    -vf "fps=5,crop=iw*0.12:ih*0.55:0:ih*0.12,scale=90:-1,format=gray" \
+    "$probe/%04d.png" 2>/dev/null || true
+  t="$(python3 -c "
+import sys, glob
+from PIL import Image, ImageStat
+frames = sorted(glob.glob(sys.argv[1] + '/*.png'))
+for i, f in enumerate(frames):
+    if ImageStat.Stat(Image.open(f).convert('L')).stddev[0] > 18:
+        # 여유를 두지 않는다 — 한 프레임만 앞서도 로그인 화면이 남고,
+        # 이어 붙였을 때 그 깜빡임이 그대로 보인다.
+        print(f'{i / 5:.1f}'); break
+else:
+    print('0.0')
+" "$probe" 2>/dev/null)"
+  rm -rf "$probe"
+  echo "${t:-0.0}"
+}
+
 SEG_ARG="${1:?구간 번호가 필요하다 (예: seg3)}"
 STAMP="$(date +%Y%m%d-%H%M)"
 i=0
@@ -107,11 +134,27 @@ for v in "${VIDEOS[@]}"; do
   start="$(first_content_second "$v")"
   stop="$(last_change_second "$v")"
 
+  # 로그인 장면은 첫 편에만 둔다.
+  #
+  # 녹화는 브라우저가 열릴 때 함께 시작되므로 중간부터 켤 수 없고, 매 구간이 로그인부터 찍힌다.
+  # 아홉 편을 이어 붙이면 로그인 화면이 아홉 번 나온다 — 하나로 합칠 수가 없다. 그래서 첫 편을
+  # 뺀 나머지는 콘솔이 뜨는 지점부터 남긴다.
+  if [ "$num" != "1" ]; then
+    login_end="$(console_open_second "$v")"
+    if awk -v a="$login_end" -v b="$start" 'BEGIN{exit !(a>b)}'; then
+      start="$login_end"
+    fi
+  fi
+
   # 다시 인코딩해서 자른다. 스트림 복사(-c copy)는 키프레임 경계로만 자를 수 있는데 playwright 가
   # 내보내는 webm 은 앞쪽에 키프레임이 하나뿐이라, 복사로는 아무것도 잘리지 않는다(실제로 그랬다).
   # 나가는 형식은 mp4(h264) — 편집기에서 바로 붙일 수 있고 용량도 webm 보다 작다.
+  # 화질 — 원본(playwright 의 VP8, 1080p 에 700kbps 남짓)이 이미 얇다. 여기서 다시 세게 압축하면
+  # 손실이 한 겹 더 얹혀 글자가 뭉갠다. 화면 녹화는 글자가 생명이라 crf 를 낮추고 preset 을
+  # 늦춰 *원본이 가진 만큼은* 그대로 남긴다. 늘어나는 용량은 한 편에 수 MB 수준이다.
   ffmpeg -v error -y -ss "$start" -to "$stop" -i "$v" \
-    -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p -an \
+    -c:v libx264 -preset slow -crf 16 -tune stillimage -pix_fmt yuv420p -an \
+    -movflags +faststart \
     "$KEEP_DIR/$name.mp4"
   echo "[keep] $name.mp4  (${start}~${stop}초 구간, $(du -h "$KEEP_DIR/$name.mp4" | cut -f1))"
 done

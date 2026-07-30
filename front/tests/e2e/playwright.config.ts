@@ -137,6 +137,15 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1920, height: 1080 },
+        // Render at twice the pixels and record at 1080p.
+        //
+        // The recorder's bitrate is not ours to set - it comes out around 700 kbps at 1080p, which
+        // is thin for a screen recording, and the first thing that suffers is the text. Rendering
+        // at 2x and letting the frame come down to 1080p means every recorded pixel is an average
+        // of four, so the letters arrive with clean edges instead of the ragged ones the encoder
+        // then has to spend bits on. The file is for showing to people; the words have to be
+        // readable.
+        deviceScaleFactor: 2,
         video: { mode: 'on', size: { width: 1920, height: 1080 } },
       },
       grep: /@integration/,

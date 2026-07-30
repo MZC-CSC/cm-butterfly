@@ -557,11 +557,28 @@ export class SourceServicesPage {
     await expect(this.exportNotice).toBeHidden({ timeout: 10_000 });
   }
 
-  /** 연결 상태 점검(Refresh) — 정상이어야 Collect 버튼 활성화. 상세가 열린 상태에서 호출. */
+  /** Agent Status / Connection Status 값 (source-group-status 의 data-status) */
+  private get groupStatus(): Locator {
+    return this.page.getByTestId('source-group-status');
+  }
+
+  /**
+   * 연결 상태 점검(Refresh) — **상태가 success 가 된 뒤에야** 수집을 누른다.
+   *
+   * ★ 종전에는 Refresh 를 누르고 `collectInfraButton` 이 *enabled* 가 되기를 기다렸다. 그런데
+   *   미리내 PButton 은 비활성을 **class 로만** 표현해 표준 `disabled` 속성이 붙지 않는다
+   *   (DESIGN-MIRINAE §1.6). `toBeEnabled()` 는 언제나 참을 돌려주므로 그 기다림은 **아무것도
+   *   기다리지 않았다** — 녹화를 보면 Refresh 를 누른 직후 상태가 Unknown 인 채로 Collect 를
+   *   누르고 있다. 사람이라면 상태가 success 로 바뀌는 것을 보고 누른다.
+   *
+   *   기다릴 것은 버튼의 겉모습이 아니라 **화면이 말하는 상태**다. Refresh 는 서버에 다시 물어
+   *   Agent Status 를 갱신하고, 그 값이 success 여야 수집이 실제로 결과를 가져온다.
+   */
   async refreshGroupStatus(): Promise<void> {
     await humanClick(this.groupRefreshButton);
-    // 상태 반영(로딩 종료) 대기 후 Collect가 활성화됨
-    await expect(this.collectInfraButton).toBeEnabled({ timeout: 30_000 });
+    await expect(this.groupStatus).toHaveAttribute('data-status', 'Success', {
+      timeout: 60_000,
+    });
   }
 
   /** 인프라 수집 실행 (그룹단위 import-infra) — 선택된 그룹 상세에서 Refresh 후 Collect Infra */
