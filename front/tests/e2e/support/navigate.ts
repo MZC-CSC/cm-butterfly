@@ -21,6 +21,13 @@ export async function openScreen(
   menuId: string,
   path: string,
 ): Promise<void> {
+  // Already here? Then there is nothing to do.
+  //
+  // A person on the source services list who wants to add a second one presses Add again - they do
+  // not go back to the left menu and click their way in a second time. The recording was doing
+  // exactly that, once per registration, and the same loop showed up around the workloads screen.
+  if (page.url().includes(path)) return;
+
   const insideConsole = page.url().includes('/main/');
 
   if (insideConsole) {
@@ -47,6 +54,8 @@ export async function openSubScreen(
   subMenuId: string,
   path: string,
 ): Promise<void> {
+  if (page.url().includes(path)) return;
+
   await openScreen(page, menuId, path.replace(/\/[^/]+$/, ''));
   await humanClick(page.getByTestId(`lsb-${subMenuId}`));
   await expect(page).toHaveURL(new RegExp(escapeForUrl(path)), {

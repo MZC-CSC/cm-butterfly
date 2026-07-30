@@ -16,6 +16,7 @@ import {
   workload,
 } from '../fixtures/test-data';
 import { uniqueName } from '../support/naming';
+import { spotlight } from '../support/spotlight';
 import { getSessionToken } from '../support/apiWait';
 import { scenarioState } from '../support/world';
 import { recall, remember } from '../support/handoff';
@@ -280,6 +281,24 @@ async function openPortByDuplicating(page: Page): Promise<void> {
   // The copy is the second row now matching 22; changing it leaves the original alone.
   const copy = editor.rowsMatching('22').nth(1);
   await editor.setRowValue(copy, '5555');
+
+  // Now show that it is there.
+  //
+  // ★ The grid is filtered to rows matching 22, so the moment the copy becomes 5555 it drops out of
+  //   the view - on screen the rule appears to have been typed and then lost, and nothing says the
+  //   port was added. Searching for the new value brings it back into a view that contains only it,
+  //   which is the thing worth looking at.
+  await editor.search('5555');
+  const added = editor.row('5555');
+  await expect(
+    added,
+    '5555 규칙이 추가되지 않았다 — 복제한 행의 포트가 바뀌지 않았을 수 있다',
+  ).toBeVisible({ timeout: 10_000 });
+
+  // Point at it. Someone who has never used the console will not spot one changed number in a table
+  // of ports on their own.
+  await spotlight(page, added);
+
   await editor.closeSearch();
 }
 
@@ -362,7 +381,18 @@ When('타깃 모델의 스펙을 4GB 급으로 변경하면', async ({ page }) =
   const next =
     parts.length > 1 ? [...parts.slice(0, -1), size].join('+') : size;
   console.log(`[seg4] 스펙 ${current} → ${next}`);
-  await editor.setRowValue(editor.rowByKey('specId'), next);
+
+  // Only the size at the end changes, so only that is retyped - the caret goes to the end, the old
+  // size is backspaced away and the new one typed in its place.
+  const oldSize = parts.length > 1 ? parts[parts.length - 1] : current;
+  await editor.replaceRowValueTail(editor.rowByKey('specId'), oldSize, size);
+
+  const specRow = editor.rowByKey('specId');
+  await expect(specRow, `스펙이 ${next} 로 바뀌지 않았다`).toContainText(size, {
+    timeout: 10_000,
+  });
+  await spotlight(page, specRow);
+
   await editor.closeSearch();
 });
 
@@ -425,8 +455,10 @@ async function waitForDagRegistered(page: Page, name: string): Promise<void> {
   console.log(
     `[workflow] DAG 등록 확인까지 ${Math.round((Date.now() - started) / 1000)}초`,
   );
-  // Registration and runnability are not the same instant, so a short grace on top.
-  await page.waitForTimeout(15_000);
+  // No blind grace here. Registered and runnable are not the same instant, but the screen says
+  // which it is - the Run button appears when the viewer decides the workflow is ready - so the
+  // waiting belongs there, where it ends the moment it can. Fifteen seconds of a still screen is
+  // fifteen seconds of the recording spent on nothing.
 }
 
 /**
@@ -460,10 +492,12 @@ When(
     // before that is rejected outright. We cannot simply retry - every attempt at a migration
     // workflow that does land builds another instance - so we wait for airflow to report the DAG
     // instead of sitting out a fixed two minutes. It is usually ready well before that.
-    await wf.gotoWorkflows();
-    await wf.expectWorkflowVisible(name);
+    // Saving leaves us on this workflow's Run Status - the app selects it and switches tabs. So we
+    // stay: wait here until airflow has the DAG, then press Run on the screen already in front of
+    // us. Going out to the list and searching for a name we just typed is four steps to arrive
+    // where we were.
     await waitForDagRegistered(page, name);
-    await wf.runWorkflow(name);
+    await wf.runHere();
 
     scenarioState.softwareWorkflowName = name;
 
@@ -512,8 +546,12 @@ async function waitForInfraCreated(
     // the tasks turning green scroll off the bottom - the one thing worth watching during these
     // minutes leaves the screen. Putting it back once per poll is not enough: the view is at the
     // top for most of the twenty seconds in between. So the wait is spent watching, not sleeping.
+    // Spend the wait on the run rather than in front of it. The graph stays in view, and every
+    // other round we open the task that just finished and its log - the viewer has all of it, and
+    // minutes of a still screen is the one thing a recording cannot afford.
     for (let i = 0; i < 7; i++) {
       await wf?.revealWholeRunGraph().catch(() => {});
+      if (i === 2 || i === 5) await wf?.browseRunWhileWaiting().catch(() => {});
       await page.waitForTimeout(3_000);
     }
   }
@@ -757,12 +795,10 @@ When(
     await wf.setTaskParam('query', 'infraId', infraName);
     await wf.saveWorkflow();
 
-    await wf.gotoWorkflows();
-    await wf.expectWorkflowVisible(name);
-    // Same wait as the infra workflow, for the same reason - running before the DAG is parsed is
-    // rejected. Waiting for the signal rather than sitting out a fixed two minutes.
+    // Same as the infra workflow: saving leaves us on this one's Run Status, so we wait here for
+    // airflow to have the DAG and press Run without going anywhere.
     await waitForDagRegistered(page, name);
-    await wf.runWorkflow(name);
+    await wf.runHere();
     scenarioState.softwareWorkflowName = name;
   },
 );

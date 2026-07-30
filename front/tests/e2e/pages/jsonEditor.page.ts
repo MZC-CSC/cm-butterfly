@@ -230,6 +230,35 @@ export class JsonEditorPage {
     await input.press('Enter');
   }
 
+  /**
+   * Change only the end of a value - delete the tail, type the new one.
+   *
+   * ★ A spec reads `aws+ap-northeast-2+t3a.medium`, and only the size at the end changes. Retyping
+   *   the whole thing is what the recording was doing, and it looks like nothing anyone does: you
+   *   put the caret at the end, backspace over `t3a.medium`, and type `t3a.large`.
+   *
+   *   This is safe because the tail is not guessed - the caller read the current value and split it,
+   *   so the number of characters to remove is known exactly.
+   */
+  async replaceRowValueTail(
+    row: Locator,
+    oldTail: string,
+    newTail: string,
+  ): Promise<void> {
+    await row.locator('.pg-cell-value').dblclick();
+
+    const input = this.page.locator('.pg-edit-input');
+    await expect(input).toBeVisible({ timeout: 10_000 });
+
+    await input.press('End');
+    for (let i = 0; i < oldTail.length; i++) {
+      await input.press('Backspace');
+      await this.page.waitForTimeout(28);
+    }
+    await input.pressSequentially(newTail, { delay: 55 });
+    await input.press('Enter');
+  }
+
   // ── saving ─────────────────────────────────────────────────────────────
 
   /**

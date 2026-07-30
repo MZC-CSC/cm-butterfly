@@ -72,4 +72,50 @@ export class NotificationPage {
       expect(cls).not.toContain('error');
     }
   }
+
+  /**
+   * Close out a long job the way a person does: read the message, then clear it.
+   *
+   * The recording used to end when the notification arrived - it flew into the corner and that was
+   * that. But arriving is not the end of the job; someone still opens it, reads what it says, and
+   * marks it read so the badge goes quiet. That last part is also what keeps the next segment's
+   * panel free of this one's leftovers.
+   *
+   * Matches on the opening of the message because the list truncates long text.
+   */
+  async readAndClear(message: string): Promise<void> {
+    await this.open();
+
+    const row = this.items.filter({ hasText: message.slice(0, 24) }).first();
+    await expect(row).toBeVisible({ timeout: 60_000 });
+
+    await humanClick(row.getByRole('button').first());
+    await expect(row.getByTestId('notification-detail')).toBeVisible({
+      timeout: 10_000,
+    });
+    // A beat to read it.
+    await this.page.waitForTimeout(1_200);
+
+    await humanClick(row.getByTestId('notification-confirm'));
+    await expect(row).toBeHidden({ timeout: 15_000 });
+  }
+
+  /**
+   * Empty the box before recording starts.
+   *
+   * Logging in pops up whatever was left from earlier work, so the first thing on screen is a stack
+   * of messages that have nothing to do with what is about to be shown. The panel's own
+   * "Mark all read" clears them - which is what it does, despite the name.
+   */
+  async clearAll(): Promise<void> {
+    await this.open();
+    const markAll = this.page.getByTestId('notification-mark-all');
+    if (await markAll.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await humanClick(markAll);
+      await expect(this.page.getByTestId('notification-empty')).toBeVisible({
+        timeout: 15_000,
+      });
+    }
+    await this.page.keyboard.press('Escape').catch(() => {});
+  }
 }

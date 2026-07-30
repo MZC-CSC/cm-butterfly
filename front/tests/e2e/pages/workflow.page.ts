@@ -126,10 +126,23 @@ export class WorkflowPage {
    * fall back to paging the whole list.
    */
   private async revealWorkflow(name: string): Promise<number> {
+    await expect(this.workflowTable).toBeVisible({ timeout: 15_000 });
+    const pager = new TablePagination(this.page, this.workflowTable);
+    const { total } = await pager.status();
+
+    // One page? Then the row is already on screen and a person clicks it.
+    //
+    // ★ Searching is for finding what you cannot see. With three rows in front of you, typing a
+    //   name you just chose into the search box is not what anyone does - and the recording was
+    //   doing it two and three times per workflow. Search earns its place once the list pages.
+    if (total <= 1) {
+      await expect(this.rowByText(name)).toBeVisible({ timeout: 15_000 });
+      return 1;
+    }
+
     const viaSearch = await this.revealWorkflowBySearch(name).catch(() => null);
     if (viaSearch !== null) return viaSearch;
-    // Fallback: page through 15 rows at a time (the old behavior).
-    const pager = new TablePagination(this.page, this.workflowTable);
+    // Search did not narrow it - page through 15 rows at a time.
     return pager.expectRowSomewhere(this.rowByText(name), name);
   }
 
@@ -523,6 +536,40 @@ export class WorkflowPage {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
+   * Run the workflow already open in Run Status.
+   *
+   * ★ Saving a workflow leaves you *here*. `WorkflowsPage.handleSavedWorkflow` selects the new
+   *   workflow and switches to the Run Status tab, so the thing to press is on screen the moment
+   *   the editor closes. The recording used to leave for the list, search for the name, pick the
+   *   row and come back - four steps to reach the screen it was already looking at.
+   *
+   * Waits for the viewer to report the workflow runnable rather than sitting out a fixed grace.
+   */
+  async runHere(): Promise<void> {
+    await expect(this.page.getByTestId('workflow-run-viewer')).toBeVisible({
+      timeout: 30_000,
+    });
+
+    const runButton = this.page
+      .getByTestId('workflow-viewer-run-first-btn')
+      .or(this.page.getByTestId('workflow-viewer-run-btn'))
+      .first();
+    await expect(runButton).toBeVisible({ timeout: 5 * 60_000 });
+    await expect(runButton).toBeEnabled({ timeout: 5 * 60_000 });
+    await humanClick(runButton);
+
+    await expect(this.page.getByTestId('workflow-run-confirm')).toBeVisible({
+      timeout: 15_000,
+    });
+    await humanClick(this.page.getByTestId('workflow-run-confirm-ok'));
+    await expect(this.page.getByTestId('workflow-run-confirm')).toBeHidden({
+      timeout: 15_000,
+    });
+
+    await this.revealWholeRunGraph();
+  }
+
+  /**
    * Run a workflow from Run Status - open the row, press Run there, confirm.
    *
    * ★ Not the list's Run button. Both start the same run, but they leave you in different places:
@@ -560,6 +607,61 @@ export class WorkflowPage {
     });
 
     await this.revealWholeRunGraph();
+  }
+
+  /**
+   * Spend the wait looking at the run instead of staring at it.
+   *
+   * A migration takes minutes, and the recording used to hold still for all of them. But the run is
+   * doing something the whole time - tasks turn green one after another - and the viewer will show
+   * what each one produced: its state, its result, its log. So while we wait, we walk the tasks
+   * that have finished, open the newest one, and open its log if there is one.
+   *
+   * Nothing here decides anything. It reads, and if a piece is not there it moves on - the point is
+   * to show the screen working, not to assert on it. Judgement happens in the steps.
+   */
+  async browseRunWhileWaiting(): Promise<void> {
+    const nodes = this.page.getByTestId('workflow-run-node');
+    const count = await nodes.count().catch(() => 0);
+    if (count === 0) return;
+
+    // The most recently finished task - the one a person would look at.
+    let target = -1;
+    for (let i = count - 1; i >= 0; i--) {
+      const text =
+        (await nodes
+          .nth(i)
+          .innerText()
+          .catch(() => '')) || '';
+      if (/success|running|failed/i.test(text)) {
+        target = i;
+        break;
+      }
+    }
+    if (target < 0) return;
+
+    await humanClick(nodes.nth(target)).catch(() => {});
+
+    const detail = this.page.getByTestId('workflow-run-task-detail');
+    if (!(await detail.isVisible({ timeout: 5_000 }).catch(() => false)))
+      return;
+    await this.page.waitForTimeout(1_200);
+
+    // If this task kept a log, open it. `Try 1` is the first attempt.
+    const tryButton = this.page.getByTestId('workflow-run-log-try').first();
+    if (await tryButton.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      await humanClick(tryButton).catch(() => {});
+      await this.page.waitForTimeout(1_500);
+
+      // "Full log" is a details element - open it so the log is actually on screen.
+      const full = this.page
+        .locator('.run-viewer__log-details summary')
+        .first();
+      if (await full.isVisible({ timeout: 2_000 }).catch(() => false)) {
+        await humanClick(full).catch(() => {});
+        await this.page.waitForTimeout(1_500);
+      }
+    }
   }
 
   /**
