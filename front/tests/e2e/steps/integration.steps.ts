@@ -604,7 +604,13 @@ Then('워크플로우의 작업별 상태가 모두 정상이다', async ({ page
  * Waiting on the list without opening it waits for something that cannot appear.
  */
 Given('워크플로우 완료 알림이 도착한다', async ({ page }) => {
-  await expect(page.getByTestId('notification-badge')).toBeVisible({
+  // 종이 아니라 **개수**를 기다린다.
+  //
+  // ★ `notification-badge` 는 종 자체라 알림이 하나도 없어도 늘 보인다. 이 대기가 통했던 것은
+  //   앞 구간이 남긴 알림이 항상 있었기 때문이고, 시작할 때 알림함을 비우게 되자 곧바로
+  //   드러났다 — 종은 보이는데 목록은 비어 있어 다음 단계가 열자마자 실패했다.
+  //   `notification-count` 는 count > 0 일 때만 그려지므로, 그것이 나타나는 것이 곧 도착이다.
+  await expect(page.getByTestId('notification-count')).toBeVisible({
     timeout: 10 * 60_000,
   });
 });

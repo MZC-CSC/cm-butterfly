@@ -31,7 +31,7 @@ const OUTLINE_SCRIPT = `(box) => {
     ].join(';');
     document.body.appendChild(el);
   }
-  const pad = 6;
+  const pad = 4;
   el.style.left = (box.x - pad) + 'px';
   el.style.top = (box.y - pad) + 'px';
   el.style.width = (box.width + pad * 2) + 'px';
@@ -45,6 +45,44 @@ const CLEAR_SCRIPT = `() => {
 }`;
 
 /**
+ * The rectangle of the text inside, not of the box around it.
+ *
+ * ★ A value cell is as wide as the column - a hundred pixels of which ten are the number. Measuring
+ *   the element gives the column, so the ring went round the whole row, field label and all. What
+ *   is being pointed at is the value, so the value is what gets measured.
+ *
+ * Falls back to the element when there is nothing to measure (an icon, an empty cell).
+ */
+async function textBox(
+  locator: Locator,
+): Promise<{ x: number; y: number; width: number; height: number } | null> {
+  const measured = await locator
+    .evaluate((el: Element) => {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let node = walker.nextNode();
+      let best: DOMRect | null = null;
+      while (node) {
+        if ((node.textContent ?? '').trim()) {
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          const r = range.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0 && (!best || r.width > best.width)) {
+            best = r;
+          }
+        }
+        node = walker.nextNode();
+      }
+      return best
+        ? { x: best.x, y: best.y, width: best.width, height: best.height }
+        : null;
+    })
+    .catch(() => null);
+
+  if (measured) return measured;
+  return locator.boundingBox().catch(() => null);
+}
+
+/**
  * Circle the element with the pointer, outline it, hold, then let go.
  *
  * @param laps how many times to go round - two reads as deliberate, more reads as fidgeting
@@ -55,7 +93,7 @@ export async function spotlight(
   laps = 2,
 ): Promise<void> {
   await locator.scrollIntoViewIfNeeded().catch(() => {});
-  const box = await locator.boundingBox().catch(() => null);
+  const box = await textBox(locator);
   if (!box) return;
 
   await page.evaluate(OUTLINE_SCRIPT, box).catch(() => {});
@@ -64,8 +102,10 @@ export async function spotlight(
   // sweep and a short cell gets a tight one.
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
-  const rx = Math.max(48, box.width / 2 + 26);
-  const ry = Math.max(30, box.height / 2 + 22);
+  // Hug the value. A ring big enough to enclose the whole cell says "somewhere in this row", which
+  // is not what a person means when they point at a number.
+  const rx = Math.min(90, Math.max(22, box.width / 2 + 12));
+  const ry = Math.min(46, Math.max(15, box.height / 2 + 11));
 
   const stepsPerLap = 28;
   for (let lap = 0; lap < laps; lap++) {
@@ -77,7 +117,7 @@ export async function spotlight(
   }
 
   // Rest on it, so the last thing seen is the value itself.
-  await page.mouse.move(box.x + Math.min(20, box.width / 2), cy);
+  await page.mouse.move(box.x + Math.min(12, box.width / 2), cy);
   await page.waitForTimeout(900);
 
   await page.evaluate(CLEAR_SCRIPT).catch(() => {});
