@@ -1,6 +1,7 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 import { humanClick, humanFill } from '../support/humanize';
+import { openScreen } from '../support/navigate';
 
 /**
  * SourceServicesPage — 소스 서비스(소스 컴퓨팅, cm-honeybee) 화면의 "어디서/어떻게".
@@ -71,11 +72,20 @@ export class SourceServicesPage {
    * 그래서 검색에 기대지 않고 *페이지를 넘겨 가며* 찾고, 몇 페이지에서 찾았는지도 남긴다.
    */
   private async revealGroup(name: string): Promise<number> {
-    // 목록을 서버에서 새로 받아온다.
-    // 등록 직후 목록이 자동 갱신되지 않아, 방금 만든 그룹이 화면에 없는 채로 남아 있는 경우가 있다
-    // (honeybee에는 들어갔는데 목록에는 안 보이는 상태). 그 상태로 페이지를 넘겨봐야 없는 건 없다.
-    // 새로고침하면 1페이지부터 다시 세므로 페이지 번호 계산도 안정된다.
-    await this.page.reload({ waitUntil: 'domcontentloaded' });
+    // 이미 화면에 보이면 다시 받아올 것이 없다.
+    // 새로고침은 화면을 한 번 비웠다 다시 그리므로 녹화본이 그 자리에서 깜빡인다 — 같은 그룹을 두 번
+    // 확인하는 흐름(등록 직후 한 번, 시나리오의 "목록에 보인다"에서 또 한 번)에서 두 번 다 깜빡였다.
+    const alreadyListed = await this.groupRow(name)
+      .first()
+      .isVisible()
+      .catch(() => false);
+
+    if (!alreadyListed) {
+      // 등록 직후 목록이 자동 갱신되지 않아, 방금 만든 그룹이 화면에 없는 채로 남아 있는 경우가 있다
+      // (honeybee에는 들어갔는데 목록에는 안 보이는 상태). 그 상태로 페이지를 넘겨봐야 없는 건 없다.
+      // 새로고침하면 1페이지부터 다시 세므로 페이지 번호 계산도 안정된다.
+      await this.page.reload({ waitUntil: 'domcontentloaded' });
+    }
     await expect(this.groupTable).toBeVisible({ timeout: 20_000 });
     return this.groupPagination.expectRowSomewhere(this.groupRow(name), name);
   }
@@ -268,7 +278,7 @@ export class SourceServicesPage {
 
   /** 소스 서비스 화면으로 이동 */
   async goto(): Promise<void> {
-    await this.page.goto(SourceServicesPage.path);
+    await openScreen(this.page, 'sourceservices', SourceServicesPage.path);
     await expect(this.addGroupButton).toBeVisible({ timeout: 15_000 });
   }
 
@@ -281,14 +291,31 @@ export class SourceServicesPage {
   }
 
   /** 연결정보 폼 채우기(현재 열린 폼 기준) */
+  /**
+   * Fill the connection form, in the order the fields are read.
+   *
+   * A field that already holds the wanted value is left alone. The SSH port opens as 22 and that is
+   * what the scenario wants, so clicking into it, clearing it and typing 22 back is work nobody
+   * would do - and on screen it reads as the form being fiddled with rather than filled in.
+   */
   async fillConnection(conn: Connection): Promise<void> {
     await humanFill(this.connNameInput, conn.name);
     await humanFill(this.connIpInput, conn.ip);
-    await humanFill(this.connPortInput, String(conn.sshPort ?? '22'));
+    await this.fillIfDifferent(
+      this.connPortInput,
+      String(conn.sshPort ?? '22'),
+    );
     await humanFill(this.connUserInput, conn.user);
     if (conn.password) await humanFill(this.connPasswordInput, conn.password);
     if (conn.privateKey)
       await humanFill(this.connPrivateKeyInput, conn.privateKey);
+  }
+
+  /** Type into a field only when what it already holds is not what we want. */
+  private async fillIfDifferent(field: Locator, value: string): Promise<void> {
+    const current = await field.inputValue().catch(() => '');
+    if (current.trim() === value) return;
+    await humanFill(field, value);
   }
 
   /**
@@ -339,6 +366,83 @@ export class SourceServicesPage {
       { timeout: 15_000 },
     );
     await this.groupConfirmButton.click();
+    await this.expectGroupListed(name);
+  }
+
+  /**
+   * 소스그룹을 만들되 *실제 접속되는* 연결정보 여러 건을 CSV 임포트로 넣는다.
+   *
+   * 위 `createSourceGroupWithBulkImport` 는 익스포트가 여러 건을 담는지 보려고 만든 것이라 IP가 더미다.
+   * 통합 시나리오는 이 그룹으로 수집까지 가야 하므로 진짜 주소·키가 들어가야 한다 — 더미로 넣으면
+   * 등록은 되고 수집에서 무너져, 원인이 파일 임포트인지 수집인지 구분되지 않는다.
+   *
+   * 개인키는 여러 줄이다. 줄바꿈은 *그대로 둔 채* 칸 전체를 따옴표로 감싼다 — CSV 규격이 따옴표 안의
+   * 줄바꿈을 허용하고, 파싱을 맡은 서버도 그렇게 읽는다.
+   *
+   * 줄바꿈을 `\n` 두 글자로 바꿔 넣던 때가 있었는데, 서버는 그걸 되돌리지 않는다. 키에 역슬래시와 n이
+   * 그대로 남아 SSH가 읽지 못하고, 등록은 조용히 성공한 뒤 연결만 failed 로 남았다 — 파일 임포트로
+   * 만든 그룹으로 수집까지 가 보지 않으면 드러나지 않는다.
+   */
+  async createSourceGroupImportingConnections(
+    name: string,
+    conns: Connection[],
+  ): Promise<void> {
+    const cell = (v: string | undefined): string => {
+      const s = v ?? '';
+      return /["\n,]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header =
+      'name,description,ip_address,ssh_port,user,password,private_key';
+    const rows = conns.map(c =>
+      [
+        cell(c.name),
+        '',
+        cell(c.ip),
+        cell(String(c.sshPort ?? '22')),
+        cell(c.user),
+        cell(c.privateKey ? '' : c.password),
+        cell(c.privateKey),
+      ].join(','),
+    );
+    const csv = '﻿' + [header, ...rows].join('\n') + '\n';
+
+    await humanClick(this.addGroupButton);
+    await humanFill(this.serviceNameInput, name);
+    await humanClick(this.withConnectionToggle);
+
+    // Attach the file by *pressing the button a person presses*, not by writing to the hidden input.
+    //
+    // Both put the same file in, but only this one is visible: the pointer travels to "Import
+    // Source Connection", presses it, and the chosen file appears. Writing straight to the input
+    // skips the press, so a recording shows a filename arriving on its own with nothing before it.
+    //
+    // Waiting for the chooser is what keeps the operating system's own window from opening -
+    // the browser asks for a file, this catches the request first and answers it.
+    const chooser = this.page.waitForEvent('filechooser');
+    await humanClick(this.page.getByTestId('source-import-file'));
+    await (
+      await chooser
+    ).setFiles({
+      name: 'sources.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(csv, 'utf-8'),
+    });
+
+    // The chosen file is named on screen before anything is read. This is the step that used to be
+    // missing: rows appeared in the preview with nothing to say where they came from, and there was
+    // no way to tell a file had been attached at all.
+    await expect(this.page.getByTestId('source-import-filename')).toContainText(
+      'sources.csv',
+      { timeout: 10_000 },
+    );
+
+    // The preview reports how many rows the server parsed - that count is what tells us the file
+    // was read as a file rather than accepted and dropped.
+    await expect(this.page.getByTestId('source-import-count')).toContainText(
+      String(conns.length),
+      { timeout: 15_000 },
+    );
+    await humanClick(this.groupConfirmButton);
     await this.expectGroupListed(name);
   }
 

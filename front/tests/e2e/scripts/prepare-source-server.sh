@@ -33,6 +33,19 @@ echo "<h1>cm-butterfly e2e source</h1><p>migrated-from-source</p>" | sudo tee /v
 sudo systemctl enable --now nginx
 echo "[prepare] nginx: $(systemctl is-active nginx)"
 curl -sf -o /dev/null http://localhost/ && echo "[prepare] http 200 OK"
+
+# 방화벽을 켜 둔다 — 수집이 규칙을 가져와야 소스 모델에 firewallTable 이 생긴다.
+#
+# 통합 시나리오는 *이미 있는 22번 규칙을 복제해* 5555 를 연다. 소스에 방화벽이 아예 없으면
+# 수집 결과에 규칙이 한 줄도 없고, 복제할 것이 없어 그 단계가 성립하지 않는다.
+# (실제로 이 서버는 ufw inactive · iptables 비어 있는 상태였고, 그래서 타깃 모델의
+#  firewallRules 가 null 로 저장됐다.)
+#
+# ★ enable 전에 22 를 먼저 연다 — 순서를 바꾸면 지금 이 SSH 세션이 끊긴다.
+sudo ufw allow 22/tcp >/dev/null
+sudo ufw allow 80/tcp >/dev/null
+sudo ufw --force enable >/dev/null
+echo "[prepare] ufw: $(sudo ufw status | head -1)"
 REMOTE
 
 echo "[prepare] 완료 — cm-honeybee 소프트웨어 수집에 nginx 가 잡힌다(패키지 + 바이너리)."

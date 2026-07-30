@@ -46,6 +46,8 @@ export const scenarioState: {
   exportedFileName?: string;
   /** Contents of that exported file, so the step can check the columns actually written */
   exportedFileContent?: string;
+  /** The notice that was opened, so the next step can check that *it* was marked read */
+  notificationId?: string;
 } = {};
 
 export function resetScenarioState(): void {

@@ -72,6 +72,11 @@ export const testNamespace = {
  *   The recommended spec follows the source spec, so create it as a small instance (nano/micro/small).
  *
  *   TEST_SOURCE_IP / TEST_SOURCE_PRIVATE_KEY must be injected.
+ *
+ * ★ Give it the server's **private** address. Collection runs from the platform host, on the same
+ *   network as the sources, and their security groups open SSH only to it - a public address does
+ *   not reach them. A public address also changes every time the VM is stopped and started, while
+ *   the private one does not.
  */
 export const sourceServer = {
   name: process.env.TEST_SOURCE_NAME || 'e2e-nano-source',
@@ -82,6 +87,57 @@ export const sourceServer = {
   // The connection-info form requires a password or privateKey to register. @unit defaults to a dummy password.
   password: process.env.TEST_SOURCE_PASSWORD || 'e2e-dummy-pass',
   privateKey: process.env.TEST_SOURCE_PRIVATE_KEY || '',
+};
+
+/**
+ * The two source servers the integration scenario registers.
+ *
+ * The scenario needs more than one because it registers three groups - each server on its own, and
+ * both together from a file - and because the software it collects has to come from the smaller of
+ * the two and land on something larger. One entry would collapse all three groups onto the same
+ * machine and prove nothing about either.
+ *
+ * `sourceServer` above stays as it was and points at the same nano box, so the existing scenarios
+ * keep working untouched.
+ *
+ * ★ Private addresses here too, for the reason above. Worth knowing how it goes wrong: a public
+ *   address still *registers* without complaint. Collect Infra simply stays disabled, and it
+ *   surfaces several steps later as an empty collection - with no request in the platform's log at
+ *   all, so it does not read as a connection problem.
+ */
+export const sourceServers: Record<
+  'nano' | 'micro',
+  {
+    name: string;
+    ip: string;
+    sshPort: string;
+    sshUser: string;
+    password: string;
+    privateKey: string;
+  }
+> = {
+  nano: {
+    name: process.env.TEST_SOURCE_NANO_NAME || 'e2e-nano-source',
+    ip: process.env.TEST_SOURCE_NANO_IP || process.env.TEST_SOURCE_IP || '',
+    sshPort: process.env.TEST_SOURCE_SSH_PORT || '22',
+    sshUser: process.env.TEST_SOURCE_SSH_USER || 'ubuntu',
+    password: process.env.TEST_SOURCE_PASSWORD || 'e2e-dummy-pass',
+    privateKey:
+      process.env.TEST_SOURCE_NANO_PRIVATE_KEY ||
+      process.env.TEST_SOURCE_PRIVATE_KEY ||
+      '',
+  },
+  micro: {
+    name: process.env.TEST_SOURCE_MICRO_NAME || 'e2e-micro-source',
+    ip: process.env.TEST_SOURCE_MICRO_IP || '',
+    sshPort: process.env.TEST_SOURCE_SSH_PORT || '22',
+    sshUser: process.env.TEST_SOURCE_SSH_USER || 'ubuntu',
+    password: process.env.TEST_SOURCE_PASSWORD || 'e2e-dummy-pass',
+    privateKey:
+      process.env.TEST_SOURCE_MICRO_PRIVATE_KEY ||
+      process.env.TEST_SOURCE_PRIVATE_KEY ||
+      '',
+  },
 };
 
 /** Target recommendation — force low cost (nano/small class) */
@@ -118,14 +174,21 @@ export const workload = {
     scenarioName: process.env.TEST_LOADTEST_NAME || 'e2e-smoke-load',
     targetHost: process.env.TEST_LOADTEST_HOST || '127.0.0.1',
     /**
-     * Port the load test targets on the migrated infra.
+     * The port the load test *aims at* on the migrated infrastructure.
      *
-     * ★ Default 5555 (not 80). The load-test nginx is installed on the *target* infra at test time
-     *   (perf.steps: 부하테스트 대상 웹서버를 준비한다) and configured to listen on this port, and the
-     *   same port is opened on the target's security group. It is *not* the source (sshtest) server —
-     *   nginx was removed from those for security. Override with TEST_LOADTEST_PORT if needed.
+     * ★ This is the service port - where the web server actually answers - not the agent port.
+     *   The two are easy to confuse and the confusion is quiet: cm-ant's precheck fetches
+     *   `http://<target>:<port>/` before it starts, so pointing it at the agent port gives
+     *   "connection refused" and a failed test on a perfectly healthy target.
+     *
+     *   Software migration installs nginx with the source's own configuration, and the source
+     *   serves on 80, so the migrated one does too.
+     *
+     *   5555 is the *agent's* port. cm-ant installs its generator agent on the target and needs
+     *   that port open in the security group - which is why the scenario opens it in the model -
+     *   but nothing serves the site there.
      */
-    port: process.env.TEST_LOADTEST_PORT || '5555',
+    port: process.env.TEST_LOADTEST_PORT || '80',
     path: process.env.TEST_LOADTEST_PATH || '/',
     virtualUsers: process.env.TEST_LOADTEST_VU || '1',
     duration: process.env.TEST_LOADTEST_DURATION || '10',

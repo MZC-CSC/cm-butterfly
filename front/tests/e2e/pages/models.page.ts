@@ -1,6 +1,7 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 import { humanClick, humanFill } from '../support/humanize';
+import { openScreen } from '../support/navigate';
 
 /**
  * ModelsPage — the Page Object that gathers the "where/how" of the model (source/target/recommend) domain.
@@ -162,12 +163,12 @@ export class ModelsPage {
   // ───────────────────────────────────────────────────────────────────
 
   async gotoSourceModels(): Promise<void> {
-    await this.page.goto(ModelsPage.sourceModelsPath);
+    await openScreen(this.page, 'sourcemodels', ModelsPage.sourceModelsPath);
     await this.page.waitForURL(/\/models\/source-models/, { timeout: 15_000 });
   }
 
   async gotoTargetModels(): Promise<void> {
-    await this.page.goto(ModelsPage.targetModelsPath);
+    await openScreen(this.page, 'targetmodels', ModelsPage.targetModelsPath);
     await this.page.waitForURL(/\/models\/target-models/, { timeout: 15_000 });
   }
 

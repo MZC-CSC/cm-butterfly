@@ -1,6 +1,7 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 import { humanClick, humanFill } from '../support/humanize';
+import { openSubScreen } from '../support/navigate';
 
 /**
  * WorkloadPage — Page Object for the workload operations screen (infra MCI + node VM + load test).
@@ -28,13 +29,25 @@ export class WorkloadPage {
   // Navigation
   // ─────────────────────────────────────────────────────────────
 
-  /** Navigate to the infra (MCI) workload screen */
+  /**
+   * Navigate to the infra (MCI) workload screen.
+   *
+   * Two steps, because that is how the console is laid out. The sidebar carries Workloads; MCI and
+   * PMK are its children (api/conf/menu.yaml) and appear in the side list of the screen Workloads
+   * opens, not in the sidebar itself.
+   */
   async gotoMci(): Promise<void> {
-    await this.page.goto(WorkloadPage.mciPath);
+    await openSubScreen(this.page, 'workloads', 'mciwls', WorkloadPage.mciPath);
     await expect(this.mciTable).toBeVisible({ timeout: 15_000 });
   }
 
-  /** Navigate to the PMK (Kubernetes) workload screen */
+  /**
+   * Navigate to the PMK (Kubernetes) workload screen.
+   *
+   * Reached by address rather than by the menu: PMK has no sidebar entry of its own, and no
+   * recorded segment goes here, so there is nothing to be gained from working out which control on
+   * the workloads screen switches to it.
+   */
   async gotoPmk(): Promise<void> {
     await this.page.goto(WorkloadPage.pmkPath);
   }
@@ -48,9 +61,18 @@ export class WorkloadPage {
     return this.page.getByTestId('mci-list-table');
   }
 
-  /** Target an infra row by name — a single ARIA row (an .or() chain matches the same row with multiple locators, causing duplicates → strict violation). */
-  mciRow(infraName: string): Locator {
-    return this.page.getByRole('row', { name: infraName });
+  /**
+   * Target an infra row by the identifier the list carries on it.
+   *
+   * Only the identifier - no falling back to the visible name. A fallback would keep this passing
+   * when the identifier stops being rendered, which is the moment we most need to be told.
+   */
+  mciRow(infraId: string): Locator {
+    return this.page
+      .locator(
+        `tr:has([data-infra-id="${infraId}"]), tr:has([data-infra-uid="${infraId}"])`,
+      )
+      .first();
   }
 
   /** List loading complete (spinner gone, table shown) */
@@ -269,6 +291,19 @@ export class WorkloadPage {
     }
     await humanFill(this.deleteConfirmInput.first(), infraName);
     await humanClick(this.deleteConfirmButton.first());
+
+    // Close the progress dialog once it appears.
+    //
+    // Deleting cloud resources takes minutes and the dialog stays up for the whole of it, over the
+    // screen. Anything after this - selecting the other infrastructure, moving to another screen -
+    // is blocked while it is open, which is how the cleanup segment failed: it went to delete the
+    // second infrastructure and could not reach the menu.
+    //
+    // The dialog says so itself: closing it does not stop the delete, and the list carries the
+    // state in its Delete Status column. So this is what a person does here too.
+    await expect(this.deleteProgress).toBeVisible({ timeout: 30_000 });
+    await humanClick(this.deleteCloseButton.first());
+    await expect(this.deleteProgress).toBeHidden({ timeout: 15_000 });
   }
 
   /**

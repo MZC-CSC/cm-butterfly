@@ -53,9 +53,17 @@ Then('타깃 모델 목록에 {string} 이 보인다', async ({ page }, name: st
   await models.expectModelInList(uniqueName(name));
 });
 
-/** "{string} 소스 모델을 선택한다" — select the given source model row in the list (reveals detail) */
+/**
+ * "{string} 소스 모델을 선택한다" — select the given source model row in the list (reveals detail)
+ *
+ * Goes to the list first. A scenario that starts here - as each recorded segment does - is on
+ * whatever screen the login left it on, and the failure reads "no rows rendered", which sounds like
+ * the models are missing rather than like we are looking at the wrong page.
+ */
 Given('{string} 소스 모델을 선택한다', async ({ page }, name: string) => {
-  await new ModelsPage(page).selectModel(uniqueName(name));
+  const models = new ModelsPage(page);
+  await models.gotoSourceModels();
+  await models.selectModel(uniqueName(name));
   scenarioState.sourceModelName = uniqueName(name);
 });
 

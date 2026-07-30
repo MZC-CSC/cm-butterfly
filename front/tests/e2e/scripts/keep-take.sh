@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+#
+# 방금 찍은 구간 영상을 결과 폴더로 옮겨 둔다.
+#
+# playwright 는 실행할 때마다 test-results 를 통째로 비운다. 구간을 하나씩 찍는 방식에서는
+# 다음 구간을 찍는 순간 앞 구간의 영상이 사라진다 — 실제로 통과한 구간 1·2 의 첫 테이크가
+# 그렇게 없어졌다. 그래서 한 구간이 끝나면 바로 꺼내 둔다.
+#
+# 사용법:
+#   scripts/keep-take.sh seg3            # 구간3 영상을 결과 폴더에 seg3-<시각>.webm 으로 보관
+#   KEEP_DIR=... scripts/keep-take.sh seg3
+#
+set -euo pipefail
+
+# 구간 번호는 인자로 받는다. playwright 가 결과 폴더 이름을 잘라 버려서(제목 중간이 사라진다)
+# 폴더에서 읽어 낼 수가 없다 — 그래서 한 번에 한 구간씩 찍고 그 번호를 넘긴다.
+#
+# 번호만으로는 무엇을 찍은 것인지 알 수 없다. 파일명에 내용을 붙여 두면 폴더만 봐도 읽힌다.
+seg_label() {
+  case "${1#seg}" in
+    1) SEG="seg1-로그인-마이그레이션가이드-도움말" ;;
+    2) SEG="seg2-소스서비스등록-개별" ;;
+    2a) SEG="seg2a-소스서비스등록-파일임포트" ;;
+    3) SEG="seg3-트랙A-타깃모델에5555-인프라생성" ;;
+    4) SEG="seg4-트랙B-소스모델에5555-타깃모델확인-스펙상향" ;;
+    5) SEG="seg5-트랙B-이름갈라-두번째인프라-알림확인" ;;
+    6) SEG="seg6-워크로드-인프라2대확인" ;;
+    7) SEG="seg7-소프트웨어수집-SW모델-마이그레이션" ;;
+    8) SEG="seg8-nginx설치확인-부하테스트" ;;
+    9) SEG="seg9-정리-인프라삭제" ;;
+    *) SEG="seg$1" ;;
+  esac
+  printf '%s' "$SEG"
+}
+FRONT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+SRC_DIR="$FRONT_DIR/test-results"
+KEEP_DIR="${KEEP_DIR:-/home/ubuntu/mzc/ant/workflow/cmig-workflow/conf/private/E2E결과/통합시나리오-v060}"
+
+mkdir -p "$KEEP_DIR"
+
+# 실패한 실행의 영상도 남긴다 — 어디서 어긋났는지는 그 영상에만 있다.
+mapfile -t VIDEOS < <(find "$SRC_DIR" -name video.webm -not -path '*/.playwright-artifacts-*' | sort)
+if [ "${#VIDEOS[@]}" -eq 0 ]; then
+  echo "[keep] 영상이 없다: $SRC_DIR"
+  exit 1
+fi
+
+# 테이크 앞머리의 빈 화면을 잘라 낸다.
+#
+# 브라우저가 뜨고 첫 화면이 그려질 때까지 2초 남짓 하얀 화면이 남는다. 구간마다 그게 붙으니 이어 붙이면
+# 단계 사이마다 흰 화면이 끼는 것처럼 보인다. 내용이 시작되는 지점을 찾아 그 앞을 버린다.
+#
+# 찾는 일은 ffmpeg 에게 맡긴다. 프레임을 전부 png 로 뽑아 파이썬으로 비교하던 방식은 4분짜리 구간에서
+# 수 분이 걸렸다 — 같은 판정을 필터 한 번으로 6초 만에 한다.
+#
+# 흰 화면을 찾는 필터가 따로 없으므로 화면을 뒤집어(negate) *검은* 구간을 찾는다.
+first_content_second() {
+  local video="$1"
+  ffmpeg -v info -t 6 -i "$video" -vf "negate,blackdetect=d=0.1:pic_th=0.96" -f null - 2>&1 \
+    | awk '
+        match($0, /black_start:[0-9.]+/) {
+          s = substr($0, RSTART+12, RLENGTH-12)
+        }
+        match($0, /black_end:[0-9.]+/) {
+          e = substr($0, RSTART+10, RLENGTH-10)
+          if (s+0 < 0.3 && !done) { printf "%.1f\n", (e-0.2 > 0 ? e-0.2 : 0); done=1 }
+        }
+        END { if (!done) print "0.0" }'
+}
+
+# 끝에 남는 정지 화면도 잘라 낸다.
+#
+# 마지막 동작이 끝난 뒤에도 녹화는 계속 돌아간다 — 단언을 확인하고 화면을 캡처하고 브라우저를 닫는
+# 동안이다. 그 시간이 그대로 꼬리로 붙어, 한 테이크가 7초 넘게 멈춘 화면으로 끝나기도 했다.
+#
+# 여기서도 ffmpeg 이 판정한다(freezedetect). 중간의 멈춤은 기다리는 자리라 그대로 두고, *끝까지
+# 이어지는* 멈춤 — 시작만 있고 끝이 없는 것 — 만 잘라 낸다.
+last_change_second() {
+  local video="$1" total
+  total="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$video")"
+  ffmpeg -v info -i "$video" -vf "freezedetect=n=-55dB:d=2" -f null - 2>&1 \
+    | awk -v total="$total" '
+        match($0, /freeze_start: [0-9.]+/) { s = substr($0, RSTART+14, RLENGTH-14); open=1 }
+        match($0, /freeze_end: [0-9.]+/)   { open=0 }
+        END {
+          if (!open) { printf "%.1f\n", total; exit }
+          t = s + 0.8
+          if (t > total) t = total
+          # 절반 넘게 잘라 내야 한다면 판정을 믿지 않는다. 꼬리를 다듬으려다 내용을 버리는 쪽이
+          # 훨씬 나쁘다 — 남는 정지 몇 초는 편집에서 잘라도 되지만 없어진 장면은 다시 찍어야 한다.
+          if (t < total * 0.5) { printf "%.1f\n", total; exit }
+          printf "%.1f\n", t
+        }'
+}
+
+SEG_ARG="${1:?구간 번호가 필요하다 (예: seg3)}"
+STAMP="$(date +%Y%m%d-%H%M)"
+i=0
+for v in "${VIDEOS[@]}"; do
+  num="${SEG_ARG#seg}"
+  name="$(seg_label "$num")-$STAMP"
+  [ "${#VIDEOS[@]}" -gt 1 ] && name="$name-$((++i))"
+
+  start="$(first_content_second "$v")"
+  stop="$(last_change_second "$v")"
+
+  # 다시 인코딩해서 자른다. 스트림 복사(-c copy)는 키프레임 경계로만 자를 수 있는데 playwright 가
+  # 내보내는 webm 은 앞쪽에 키프레임이 하나뿐이라, 복사로는 아무것도 잘리지 않는다(실제로 그랬다).
+  # 나가는 형식은 mp4(h264) — 편집기에서 바로 붙일 수 있고 용량도 webm 보다 작다.
+  ffmpeg -v error -y -ss "$start" -to "$stop" -i "$v" \
+    -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p -an \
+    "$KEEP_DIR/$name.mp4"
+  echo "[keep] $name.mp4  (${start}~${stop}초 구간, $(du -h "$KEEP_DIR/$name.mp4" | cut -f1))"
+done

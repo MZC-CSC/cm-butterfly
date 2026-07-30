@@ -13,7 +13,6 @@ import { Page, expect } from '@playwright/test';
  *  - Models               → /main/models/source-models
  *  - Workflow Management   → /main/workflow-management/workflows
  *  - Workload Operations   → /main/workload-operations/workloads
- *  - Cloud Resources       → /main/cloud-resources/cloud-credentials
  */
 interface NavTarget {
   /** Landing URL to navigate to */
@@ -37,6 +36,10 @@ register(
   '소스 컴퓨팅',
   'sourcecomputing',
   'source',
+  // The migration guide names the first step "소스 서비스" and links straight to this screen, so a
+  // scenario that follows the guide arrives calling it that.
+  'Source Services',
+  '소스 서비스',
 );
 register(
   { path: '/main/models/source-models', urlPattern: /\/main\/models/ },
@@ -66,16 +69,6 @@ register(
   'workloadoperations',
   'workload',
   '워크로드',
-);
-register(
-  {
-    path: '/main/cloud-resources/cloud-credentials',
-    urlPattern: /\/main\/cloud-resources/,
-  },
-  'Cloud Resources',
-  '클라우드 리소스',
-  'cloudresources',
-  'cloud',
 );
 
 export class NavigationPage {
