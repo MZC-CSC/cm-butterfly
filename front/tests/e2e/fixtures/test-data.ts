@@ -205,23 +205,21 @@ export const workload = {
  * 5 task types: http · http_xcom · bash · ssh · trigger_workflow.
  */
 /**
- * What each thing is for, in the author's words.
+ * What each thing is for, written the way someone actually types it into a description box.
  *
- * The walkthrough is shown to people who have not used the console, and a list of names tells them
- * nothing. These go into the description field when the model is saved, so the reason survives on
- * the screen rather than only in whoever was narrating.
+ * Short and practical. A paragraph of explanation in a field a person fills in by hand reads as
+ * written by something that is not a person, and the walkthrough is meant to look like ordinary use.
  */
 export const descriptions = {
   sourceModel5555:
-    '커스텀 소스 모델 시험 — 수집한 정보에 5555 포트를 더해 저장한다. 여기에 넣은 값은 타깃 모델과 워크플로우에 그대로 이어져, 별도로 다시 넣지 않아도 그 설정대로 인프라가 만들어진다.',
+    '방화벽 5555 포트 추가 테스트. 소스 모델에 넣은 값이 타깃 모델과 워크플로우까지 따라오는지 확인용',
   targetModelRecommended:
-    '추천받은 구성 그대로 저장한 타깃 모델 — 여기에는 손대지 않는다. 뒤에서 이 모델을 복제해 포트와 스펙을 바꾸고, 바꾼 값이 워크플로우까지 이어지는지 견주기 위한 기준이다.',
-  targetModel5555:
-    '커스텀 타깃 모델 시험 — 추천받은 구성에 5555 포트를 더했다. 이 값이 워크플로우 파라미터로 들어가 그대로 인프라에 반영된다.',
+    '추천 결과 그대로 저장. 아래에서 포트와 스펙을 바꾼 모델들과 비교할 기준',
+  targetModel5555: '타깃 모델에 방화벽 5555 포트 추가 테스트',
   targetModelSpecUp:
-    '커스텀 타깃 모델 시험 — 소스 모델에 없던 5555 포트를 열고, 소스보다 높은 성능의 스펙으로 바꿨다. 이 두 가지가 워크플로우에 자동으로 실려 그 설정대로 인프라가 만들어진다.',
+    '방화벽 5555 포트 추가 + 스펙 상향 테스트. 워크플로우에 그대로 실려 인프라가 만들어지는지 확인용',
   softwareTargetModel:
-    '소프트웨어 마이그레이션 시험 — 수집한 소프트웨어 가운데 옮길 것을 골라 저장한다. 무엇을 설치할지만 담고, 어디에 설치할지는 워크플로우에서 정한다.',
+    '옮길 소프트웨어만 골라 저장. 설치 위치는 워크플로우에서 지정',
 } as const;
 
 export const workflowData = {
