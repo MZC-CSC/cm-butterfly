@@ -111,14 +111,34 @@ export class NotificationPage {
     const row = this.items.first();
     if (!(await row.isVisible({ timeout: 60_000 }).catch(() => false))) return;
 
+    // ★ Hold on to *which* notice this is before touching it.
+    //   `items.first()` is a position, not a thing. Once the notice is marked read it leaves the
+    //   list and `first()` becomes the next one - which is visible, so waiting for "the first row"
+    //   to disappear waits for something that will not happen. The id is what identifies it.
+    const id = await row.getAttribute('data-notification-id');
+
     await humanClick(row.getByRole('button').first());
     await expect(row.getByTestId('notification-detail')).toBeVisible({
       timeout: 10_000,
     });
+    // A beat to read it.
     await this.page.waitForTimeout(1_200);
 
     await humanClick(row.getByTestId('notification-confirm'));
-    await expect(row).toBeHidden({ timeout: 15_000 });
+
+    if (id) {
+      await expect(
+        this.page.locator(`[data-notification-id="${id}"]`),
+      ).toBeHidden({ timeout: 15_000 });
+    } else {
+      // No id to hold on to - fall back to the list getting shorter, which is the same statement
+      // made about the whole list rather than about one row.
+      const before = await this.items.count();
+      await expect
+        .poll(() => this.items.count(), { timeout: 15_000 })
+        .toBeLessThan(before);
+    }
+
     await this.page.keyboard.press('Escape').catch(() => {});
   }
 

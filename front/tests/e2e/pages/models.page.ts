@@ -1,6 +1,7 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 import { humanClick, humanFill } from '../support/humanize';
+import { describe as writeDescription } from '../support/describe';
 import { openScreen } from '../support/navigate';
 
 /**
@@ -597,9 +598,21 @@ export class ModelsPage {
   }
 
   /** Save the recommendation result as a target model (cloud model) with the given name */
-  async saveAsTargetModel(name: string): Promise<void> {
+  async saveAsTargetModel(name: string, description?: string): Promise<void> {
     await humanClick(this.saveAsTargetButton); // → SimpleEditForm(Save Target Model)
     await humanFill(this.modelNameInput, name);
+
+    // Say what it is for. This dialog is the *first* target model of a run - the one saved straight
+    // from the recommendation - and it was going in with an empty description while the custom ones
+    // explained themselves.
+    if (description) {
+      await writeDescription(
+        this.page,
+        this.page.getByTestId('model-description-input').first(),
+        description,
+      );
+    }
+
     await humanClick(this.modelNameConfirmButton);
     await expect(this.successConfirmButton).toBeVisible({ timeout: 15_000 });
     await humanClick(this.successConfirmButton);

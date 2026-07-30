@@ -244,7 +244,10 @@ When(
     await models.runRecommend();
     const picked = await models.selectCompleteCandidate(targetSpec.maxClass);
     scenarioState.lastRecommendedSpec = picked.spec;
-    await models.saveAsTargetModel(uniqueName(modelName));
+    await models.saveAsTargetModel(
+      uniqueName(modelName),
+      descriptions.targetModelRecommended,
+    );
   },
 );
 
