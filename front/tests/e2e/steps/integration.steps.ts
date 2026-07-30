@@ -496,7 +496,12 @@ When(
 
     await models.openWorkflowEditorFromTarget(uniqueName(targetModelName));
     await wf.expectDesignerOpen();
-    await wf.fillWorkflowName(name);
+    await wf.fillWorkflowName(
+      name,
+      targetModelName.includes('up')
+        ? descriptions.infraWorkflow5555SpecUp
+        : descriptions.infraWorkflow5555,
+    );
     await wf.selectTaskInDesigner(workflowData.infraMigrationTask);
     await wf.setTaskParam('query', 'nameSeed', seed);
     await wf.saveWorkflow();
@@ -814,7 +819,7 @@ When(
 
     await models.openWorkflowEditorFromTarget(uniqueName(swModelName));
     await wf.expectDesignerOpen();
-    await wf.fillWorkflowName(name);
+    await wf.fillWorkflowName(name, descriptions.softwareWorkflow);
     await wf.selectTaskInDesigner(workflowData.softwareMigrationTask);
     await wf.setTaskParam('query', 'infraId', infraName);
     await wf.saveWorkflow();

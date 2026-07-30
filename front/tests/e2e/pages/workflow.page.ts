@@ -3,6 +3,7 @@ import { TablePagination } from '../support/pagination';
 import { workflowData } from '../fixtures/test-data';
 import { humanClick, humanFill } from '../support/humanize';
 import { spotlight } from '../support/spotlight';
+import { describe as writeDescription } from '../support/describe';
 import { openScreen } from '../support/navigate';
 
 /**
@@ -428,8 +429,18 @@ export class WorkflowPage {
   }
 
   /** Enter a name + select a template, then save */
-  async fillWorkflowName(name: string): Promise<void> {
+  async fillWorkflowName(name: string, description?: string): Promise<void> {
     await humanFill(this.designerNameInput, name);
+
+    // What this workflow is for. The editor has a description box beside the name and it was going
+    // in empty, so the list afterwards shows a row of names and nothing else.
+    if (description) {
+      await writeDescription(
+        this.page,
+        this.page.getByTestId('workflow-description-input').first(),
+        description,
+      );
+    }
   }
 
   async selectTemplate(templateName: string): Promise<void> {
