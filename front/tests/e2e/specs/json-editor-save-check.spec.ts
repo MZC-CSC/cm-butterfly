@@ -119,7 +119,10 @@ test.describe('JSON 에디터 — 편집·가져오기 결과가 저장되는지
       .expect(await valueOf('description'), 'the edited value survives save')
       .toBe(edited);
     test
-      .expect(await listCount('nodeGroups'), 'the duplicated entry survives save')
+      .expect(
+        await listCount('nodeGroups'),
+        'the duplicated entry survives save',
+      )
       .toBe(duplicated);
 
     // --- export, change the file, import, save, reopen -----------------------
@@ -147,7 +150,10 @@ test.describe('JSON 에디터 — 편집·가져오기 결과가 저장되는지
     await page.waitForTimeout(2_500);
     if (!(await page.locator('.property-grid').count())) await openGrid();
     test
-      .expect(await valueOf('description'), 'the imported file reaches the screen')
+      .expect(
+        await valueOf('description'),
+        'the imported file reaches the screen',
+      )
       .toBe(imported);
 
     const importedName = `e2e-json-imp-${STAMP}`;

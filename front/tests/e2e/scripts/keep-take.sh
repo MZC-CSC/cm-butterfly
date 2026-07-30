@@ -34,7 +34,10 @@ seg_label() {
 }
 FRONT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
 SRC_DIR="$FRONT_DIR/test-results"
-KEEP_DIR="${KEEP_DIR:-/home/ubuntu/mzc/ant/workflow/cmig-workflow/conf/private/E2E결과/통합시나리오-v060}"
+# 회차마다 폴더를 가른다. 한 폴더에 계속 쌓으면 다시 찍을 때 앞 회차를 지우게 되고, 그러면 견줄
+# 대상이 없어진다 — 실제로 그렇게 한 벌을 잃었다.
+KEEP_ROOT="/home/ubuntu/mzc/ant/workflow/cmig-workflow/conf/private/E2E결과"
+KEEP_DIR="${KEEP_DIR:-$KEEP_ROOT/통합시나리오-v060-${E2E_TAKE_DIR:-$(date +%Y%m%d)}}"
 
 mkdir -p "$KEEP_DIR"
 

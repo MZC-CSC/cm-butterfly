@@ -92,7 +92,7 @@ export class WorkflowPage {
       .locator('.p-query-search-tags .delete-btn')
       .first();
     if (await deleteAll.isVisible({ timeout: 1_000 }).catch(() => false)) {
-      await deleteAll.click().catch(() => {});
+      await humanClick(deleteAll).catch(() => {});
     }
   }
 
@@ -111,8 +111,8 @@ export class WorkflowPage {
   private async revealWorkflowBySearch(query: string): Promise<number> {
     await expect(this.workflowTable).toBeVisible({ timeout: 15_000 });
     await this.clearWorkflowSearch();
-    await this.workflowSearchInput.click();
-    await this.workflowSearchInput.fill(query);
+    await humanClick(this.workflowSearchInput);
+    await humanFill(this.workflowSearchInput, query);
     await this.workflowSearchInput.press('Enter');
     await expect(this.rowByText(query)).toBeVisible({ timeout: 15_000 });
     return 1;
@@ -158,8 +158,8 @@ export class WorkflowPage {
   /** Pick a workflow and open the Run Status tab */
   async openRunViewer(workflowName: string): Promise<void> {
     await this.revealWorkflow(workflowName);
-    await this.rowByText(workflowName).click();
-    await this.page.getByRole('tab', { name: 'Run Status' }).click();
+    await humanClick(this.rowByText(workflowName));
+    await humanClick(this.page.getByRole('tab', { name: 'Run Status' }));
     await expect(this.page.getByTestId('workflow-run-viewer')).toBeVisible({
       timeout: 15_000,
     });
@@ -183,7 +183,7 @@ export class WorkflowPage {
   }
 
   async selectTask(taskName: string): Promise<void> {
-    await this.runNode(taskName).click();
+    await humanClick(this.runNode(taskName));
     await expect(
       this.page.getByTestId('workflow-run-task-detail'),
     ).toBeVisible();
@@ -196,9 +196,9 @@ export class WorkflowPage {
           `[data-testid="workflow-run-log-try"][data-try="${tryNumber}"]`,
         )
       : this.page.getByTestId('workflow-run-log-try').first();
-    await button.click();
+    await humanClick(button);
     // The full log is collapsed. It must be expanded to see the content.
-    await this.page.getByText('Full log').click();
+    await humanClick(this.page.getByText('Full log'));
     const log = this.page.getByTestId('workflow-run-log');
     await expect(log).toBeVisible({ timeout: 20_000 });
     return log;
@@ -267,9 +267,11 @@ export class WorkflowPage {
    * returns that list.
    */
   async previewRerun(scope: 'only' | 'after'): Promise<Locator> {
-    await this.page
-      .locator(`[data-testid="workflow-rerun-scope"][data-scope="${scope}"]`)
-      .click();
+    await humanClick(
+      this.page.locator(
+        `[data-testid="workflow-rerun-scope"][data-scope="${scope}"]`,
+      ),
+    );
     await expect(this.page.getByTestId('workflow-rerun-confirm')).toBeVisible({
       timeout: 20_000,
     });
@@ -281,7 +283,7 @@ export class WorkflowPage {
    * run-level actions (not the task detail panel).
    */
   async previewRerunFailed(): Promise<Locator> {
-    await this.page.getByTestId('workflow-rerun-failed-btn').click();
+    await humanClick(this.page.getByTestId('workflow-rerun-failed-btn'));
     await expect(this.page.getByTestId('workflow-rerun-confirm')).toBeVisible({
       timeout: 20_000,
     });
@@ -289,18 +291,18 @@ export class WorkflowPage {
   }
 
   async confirmRerun(): Promise<void> {
-    await this.page.getByTestId('workflow-rerun-ok').click();
+    await humanClick(this.page.getByTestId('workflow-rerun-ok'));
     await expect(this.page.getByTestId('workflow-rerun-confirm')).toBeHidden();
   }
 
   async cancelRerun(): Promise<void> {
-    await this.page.getByTestId('workflow-rerun-cancel').click();
+    await humanClick(this.page.getByTestId('workflow-rerun-cancel'));
     await expect(this.page.getByTestId('workflow-rerun-confirm')).toBeHidden();
   }
 
   /** New run — not re-running the selected run, but running the workflow from scratch */
   async openNewRunConfirm(): Promise<Locator> {
-    await this.page.getByTestId('workflow-viewer-run-btn').click();
+    await humanClick(this.page.getByTestId('workflow-viewer-run-btn'));
     const modal = this.page.getByTestId('workflow-run-confirm');
     await expect(modal).toBeVisible();
     return modal;
@@ -308,19 +310,19 @@ export class WorkflowPage {
 
   /** Cloning creates another workflow, so it goes through a confirmation */
   async openCloneConfirm(): Promise<Locator> {
-    await this.page.getByTestId('workflow-clone-edit-btn').click();
+    await humanClick(this.page.getByTestId('workflow-clone-edit-btn'));
     const modal = this.page.getByTestId('workflow-clone-confirm');
     await expect(modal).toBeVisible();
     return modal;
   }
 
   async cancelClone(): Promise<void> {
-    await this.page.getByTestId('workflow-clone-confirm-cancel').click();
+    await humanClick(this.page.getByTestId('workflow-clone-confirm-cancel'));
     await expect(this.page.getByTestId('workflow-clone-confirm')).toBeHidden();
   }
 
   async cancelNewRun(): Promise<void> {
-    await this.page.getByTestId('workflow-run-confirm-cancel').click();
+    await humanClick(this.page.getByTestId('workflow-run-confirm-cancel'));
     await expect(this.page.getByTestId('workflow-run-confirm')).toBeHidden();
   }
 
@@ -354,7 +356,7 @@ export class WorkflowPage {
   /** Select a row → show the detail panel */
   async selectWorkflow(name: string): Promise<void> {
     await this.revealWorkflow(name);
-    await this.rowByText(name).click();
+    await humanClick(this.rowByText(name));
     // ★ Tab-independent anchor. The detail panel now defaults to the Run Status tab
     //   (WorkflowsPage.vue mainTabState.activeTab='runViewer', commits 3d38731/29ba0f5), so waiting
     //   for "Workflow Information" (the Details tab body) no longer fires. Wait for the run viewer
@@ -403,7 +405,7 @@ export class WorkflowPage {
    */
   async openDesigner(): Promise<void> {
     const createBtn = this.page.getByTestId('workflow-create');
-    await createBtn.first().click();
+    await humanClick(createBtn.first());
     await expect(this.designer).toBeVisible({ timeout: 15_000 });
   }
 
@@ -417,11 +419,12 @@ export class WorkflowPage {
   }
 
   async selectTemplate(templateName: string): Promise<void> {
-    await this.designerTemplateDropdown.click();
-    await this.page
-      .getByRole('option', { name: templateName })
-      .or(this.page.getByText(templateName, { exact: false }).last())
-      .click();
+    await humanClick(this.designerTemplateDropdown);
+    await humanClick(
+      this.page
+        .getByRole('option', { name: templateName })
+        .or(this.page.getByText(templateName, { exact: false }).last()),
+    );
   }
 
   async saveWorkflow(): Promise<void> {
@@ -451,10 +454,11 @@ export class WorkflowPage {
    */
   async selectTaskInDesigner(taskComponentName: string): Promise<void> {
     await expect(this.designer).toBeVisible({ timeout: 20_000 });
-    await this.designer
-      .locator(`.sqd-step-task.sqd-type-${taskComponentName}`)
-      .first()
-      .click();
+    await humanClick(
+      this.designer
+        .locator(`.sqd-step-task.sqd-type-${taskComponentName}`)
+        .first(),
+    );
     await expect(this.taskEditor).toBeVisible({ timeout: 15_000 });
   }
 
@@ -519,17 +523,93 @@ export class WorkflowPage {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Run a workflow from the list. If a name is given, Run that row; otherwise Run the first row.
-   * (WorkflowList's col-run-format slot = style-type=tertiary "Run" button)
+   * Run a workflow from Run Status - open the row, press Run there, confirm.
+   *
+   * ★ Not the list's Run button. Both start the same run, but they leave you in different places:
+   *   the list button fires and leaves you looking at the list, so the run is already under way by
+   *   the time anyone opens the detail. Pressing Run inside Run Status means the graph is already
+   *   on screen when the tasks start turning, which is both what a person would do and the only way
+   *   the progress is actually watchable.
+   *
+   * The button's testid depends on whether the workflow has run before: a first run offers only
+   * "Run", a workflow with history offers "Start new run" beside re-run and clone. Either is taken.
    */
   async runWorkflow(name?: string): Promise<void> {
     if (!name) {
       await humanClick(this.page.getByTestId('workflow-run-btn'));
       return;
     }
-    await this.revealWorkflow(name);
-    // Grab the Run button inside the row by testid (so it does not break when the text changes).
-    await humanClick(this.rowByText(name).getByTestId('workflow-run-btn'));
+
+    await this.selectWorkflow(name);
+
+    // The buttons only render once the viewer knows the workflow is runnable ('ready').
+    const runButton = this.page
+      .getByTestId('workflow-viewer-run-first-btn')
+      .or(this.page.getByTestId('workflow-viewer-run-btn'))
+      .first();
+    await expect(runButton).toBeVisible({ timeout: 60_000 });
+    await expect(runButton).toBeEnabled({ timeout: 60_000 });
+    await humanClick(runButton);
+
+    await expect(this.page.getByTestId('workflow-run-confirm')).toBeVisible({
+      timeout: 15_000,
+    });
+    await humanClick(this.page.getByTestId('workflow-run-confirm-ok'));
+    await expect(this.page.getByTestId('workflow-run-confirm')).toBeHidden({
+      timeout: 15_000,
+    });
+
+    await this.revealWholeRunGraph();
+  }
+
+  /**
+   * Scroll down until the whole run graph is on screen.
+   *
+   * The graph sits below the run header, so at the top of the page only its first tasks show and
+   * the tasks that run later are off the bottom - the part worth watching is the part you cannot
+   * see. Scrolled with the wheel, a notch at a time, because that is how it is done by hand and
+   * because the graph is still laying itself out while the run starts.
+   */
+  async revealWholeRunGraph(): Promise<void> {
+    const graph = this.page.getByTestId('workflow-run-graph');
+    if (!(await graph.isVisible({ timeout: 30_000 }).catch(() => false)))
+      return;
+
+    // The wheel turns whatever is under the pointer, and the pointer was last on the confirmation
+    // button. Put it on the graph first, or the notches go to something that does not scroll.
+    const box = await graph.boundingBox();
+    if (box) {
+      await this.page.mouse.move(
+        box.x + box.width / 2,
+        box.y + Math.min(box.height / 2, 200),
+      );
+    }
+
+    const lastNode = this.page.getByTestId('workflow-run-node').last();
+    const bottomOf = () =>
+      lastNode
+        .evaluate((el: Element) => el.getBoundingClientRect().bottom)
+        .catch(() => 0);
+
+    let previous = await bottomOf();
+    for (let i = 0; i < 12; i++) {
+      const visible = await lastNode
+        .evaluate((el: Element) => {
+          const r = el.getBoundingClientRect();
+          return r.bottom > 0 && r.bottom <= window.innerHeight;
+        })
+        .catch(() => false);
+      if (visible) return;
+
+      await this.page.mouse.wheel(0, 260);
+      await this.page.waitForTimeout(200);
+
+      const now = await bottomOf();
+      // Nothing moved twice running - the view is as far down as it goes, and turning the wheel
+      // at a wall for another ten notches only makes the recording sit still.
+      if (Math.abs(now - previous) < 2 && i > 0) return;
+      previous = now;
+    }
   }
 
   /**
@@ -570,7 +650,7 @@ export class WorkflowPage {
 
   /** Switch Details/History tabs — mirinae PTab selected uniquely by ARIA role(tab) (a text fallback double-matches spans) */
   async openHistoryTab(): Promise<void> {
-    await this.page.getByRole('tab', { name: /History/i }).click();
+    await humanClick(this.page.getByRole('tab', { name: /History/i }));
     await expect(
       this.page.getByText('Workflow History', { exact: false }).first(),
     ).toBeVisible({ timeout: 10_000 });
@@ -601,13 +681,17 @@ export class WorkflowPage {
       `^(${workflowData.terminalStates.join('|')})$`,
       'i',
     );
+    // Just watch. Run Status refreshes itself every three seconds ("Auto-refreshing · 3s",
+    // workflowRunViewerModel's useIntervalFn), so reloading the page to see the state change is
+    // both unnecessary and destructive: each reload throws the screen away and redraws it, which is
+    // the white flash that runs through the recording, and it lands back on the default tab.
     let state = '';
     while (Date.now() < deadline) {
       state = (await this.latestRunStateText()).trim().toLowerCase();
       if (terminal.test(state)) return state;
+      // Each redraw returns the page to the top; put the graph back where it can be seen.
+      await this.revealWholeRunGraph().catch(() => {});
       await this.page.waitForTimeout(3_000);
-      await this.page.reload();
-      await this.openHistoryTab().catch(() => {});
     }
     return state;
   }
@@ -669,9 +753,8 @@ export class WorkflowPage {
         return true;
       }
       if (Date.now() > deadline) return false;
+      // Same reason as pollLatestRunState - the viewer keeps itself current.
       await this.page.waitForTimeout(3_000);
-      await this.page.reload().catch(() => {});
-      await this.openHistoryTab().catch(() => {});
     }
   }
 
@@ -683,7 +766,7 @@ export class WorkflowPage {
     overlayTimeoutMs = 20_000,
     contentTimeoutMs = 60_000,
   ): Promise<void> {
-    await this.viewSwButton.click();
+    await humanClick(this.viewSwButton);
     await expect(this.swOverlay).toBeVisible({ timeout: overlayTimeoutMs });
     // Either the table is drawn, or if it could not be fetched an error appears — one of the two must show.
     await expect(this.swTable.or(this.swError).first()).toBeVisible({
@@ -793,11 +876,14 @@ export class WorkflowPage {
   /** Select a workflow and press "View Workflow JSON" in the detail to open the viewer */
   async openJsonViewer(name: string): Promise<void> {
     await this.revealWorkflow(name);
-    await this.rowByText(name).evaluate((el: HTMLElement) => el.click());
+    await humanClick(this.rowByText(name));
     const link = this.page.getByTestId('workflow-json-view').first();
     await expect(link).toBeVisible({ timeout: 15_000 });
-    // The detail panel may be outside the viewport, so open it with a DOM click
-    await link.evaluate((el: HTMLElement) => el.click());
+    // Scroll it into view and press it. It used to be opened with a DOM-level click because the
+    // detail panel can sit outside the viewport - but that skips the pointer entirely, and a
+    // recording then shows the screen operating itself. Bringing it into view is what a person does.
+    await link.scrollIntoViewIfNeeded();
+    await humanClick(link);
     await expect(this.page.getByTestId('workflow-json-viewer')).toBeVisible({
       timeout: 15_000,
     });

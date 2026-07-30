@@ -66,5 +66,17 @@ for x in ws or []: print(x['id'])" 2>/dev/null); do
 done
 echo "  워크플로우    $w 건 삭제"
 
+# 알림도 비운다.
+#
+# 알림 목록은 지난 실행의 기록을 그대로 들고 있다. 지금은 자원 이름을 업무형으로 바꿨지만
+# 그 전에 만든 알림에는 `e2e-wf-…` 가 그대로 적혀 있고, 촬영 중 알림 창을 열면 **화면에 나온다** —
+# 이름을 바꾼 이유가 통째로 무너진다.
+#
+# 화면의 "Mark all read" 가 실제로 하는 일도 삭제다(handler 의 ReadAllNotifications →
+# repository 의 DeleteAllByUser). 여기서는 사람이 눌러 줄 사람이 없으니 저장소에서 직접 비운다.
+n=$(docker exec cm-butterfly-db psql -U butterflyadmin -d butterfly-db -tAc \
+      "DELETE FROM notifications RETURNING 1" 2>/dev/null | wc -l)
+echo "  알림          $n 건 삭제"
+
 echo "  남은 인프라   $(curl -s -u "$AUTH" "$TB/ns/mig01/infra?option=id")"
 REMOTE

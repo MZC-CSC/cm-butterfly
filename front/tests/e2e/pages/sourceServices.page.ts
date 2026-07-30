@@ -284,10 +284,10 @@ export class SourceServicesPage {
 
   /** 소스그룹만 생성(연결정보 없이) — register-source-group */
   async createSourceGroup(name: string, description = ''): Promise<void> {
-    await this.addGroupButton.click();
-    await this.serviceNameInput.fill(name);
-    if (description) await this.serviceDescriptionInput.fill(description);
-    await this.groupConfirmButton.click();
+    await humanClick(this.addGroupButton);
+    await humanFill(this.serviceNameInput, name);
+    if (description) await humanFill(this.serviceDescriptionInput, description);
+    await humanClick(this.groupConfirmButton);
   }
 
   /** 연결정보 폼 채우기(현재 열린 폼 기준) */
@@ -350,9 +350,9 @@ export class SourceServicesPage {
     const rows = connNames.map(n => `${n},,10.0.0.1,22,ubuntu,e2e-dummy-pass,`);
     const csv = '\uFEFF' + [header, ...rows].join('\n') + '\n';
 
-    await this.addGroupButton.click();
-    await this.serviceNameInput.fill(name);
-    await this.withConnectionToggle.click();
+    await humanClick(this.addGroupButton);
+    await humanFill(this.serviceNameInput, name);
+    await humanClick(this.withConnectionToggle);
 
     await this.page.getByTestId('source-import-input').setInputFiles({
       name: 'bulk.csv',
@@ -365,7 +365,7 @@ export class SourceServicesPage {
       String(connNames.length),
       { timeout: 15_000 },
     );
-    await this.groupConfirmButton.click();
+    await humanClick(this.groupConfirmButton);
     await this.expectGroupListed(name);
   }
 
@@ -449,13 +449,13 @@ export class SourceServicesPage {
   /** 이름으로 소스그룹 선택(상세 진입) */
   async selectGroup(name: string): Promise<void> {
     await this.revealGroup(name);
-    await this.groupRow(name).first().click();
+    await humanClick(this.groupRow(name).first());
   }
 
   /** 연결 탭 열기 + 특정 연결정보 선택 */
   async openConnection(connName: string): Promise<void> {
-    await this.connectionsTab.click();
-    await this.connectionRow(connName).first().click();
+    await humanClick(this.connectionsTab);
+    await humanClick(this.connectionRow(connName).first());
   }
 
   // ───────────────────────── 연결정보 익스포트 ─────────────────────────
@@ -466,11 +466,12 @@ export class SourceServicesPage {
    *    (Export 버튼 활성화)으로 판정한다. */
   async checkConnection(connName: string): Promise<void> {
     await this.openConnectionsTab();
-    await this.connectionRow(connName)
-      .first()
-      .locator('td.select-checkbox .p-checkbox, input[type="checkbox"]')
-      .first()
-      .click();
+    await humanClick(
+      this.connectionRow(connName)
+        .first()
+        .locator('td.select-checkbox .p-checkbox, input[type="checkbox"]')
+        .first(),
+    );
   }
 
   /** ★ mirinae PButton은 비활성을 class로만 표현한다(표준 disabled 속성이 붙지 않는다).
@@ -489,7 +490,7 @@ export class SourceServicesPage {
   private async openConnectionsTab(): Promise<void> {
     if (await this.exportConnectionButton.isVisible().catch(() => false))
       return;
-    await this.connectionsTab.click();
+    await humanClick(this.connectionsTab);
     await expect(this.exportConnectionButton).toBeVisible({ timeout: 15_000 });
   }
 
@@ -509,15 +510,15 @@ export class SourceServicesPage {
 
   /** Export 클릭 → 확인 모달이 열린다(안내 문구로 판정). */
   async openExportConfirm(): Promise<void> {
-    await this.exportConnectionButton.click();
+    await humanClick(this.exportConnectionButton);
     await expect(this.exportNotice).toBeVisible({ timeout: 10_000 });
   }
 
   /** 확인 모달에서 파일 형식을 고른다(기본은 CSV). */
   async selectExportFormat(format: 'csv' | 'xlsx'): Promise<void> {
-    await this.page
-      .getByTestId(`source-connection-export-format-${format}`)
-      .click();
+    await humanClick(
+      this.page.getByTestId(`source-connection-export-format-${format}`),
+    );
   }
 
   /** 암호화 컬럼이 빠진다는 안내가 실제로 보이는지. */
@@ -534,7 +535,7 @@ export class SourceServicesPage {
     const downloadEvent = this.page.waitForEvent('download', {
       timeout: 30_000,
     });
-    await this.exportConfirmButton.click();
+    await humanClick(this.exportConfirmButton);
     const download = await downloadEvent;
 
     const stream = await download.createReadStream();
@@ -552,13 +553,13 @@ export class SourceServicesPage {
 
   /** 취소를 누르면 아무 일도 일어나지 않는다(안내 문구가 사라진다). */
   async cancelExport(): Promise<void> {
-    await this.exportCancelButton.click();
+    await humanClick(this.exportCancelButton);
     await expect(this.exportNotice).toBeHidden({ timeout: 10_000 });
   }
 
   /** 연결 상태 점검(Refresh) — 정상이어야 Collect 버튼 활성화. 상세가 열린 상태에서 호출. */
   async refreshGroupStatus(): Promise<void> {
-    await this.groupRefreshButton.click();
+    await humanClick(this.groupRefreshButton);
     // 상태 반영(로딩 종료) 대기 후 Collect가 활성화됨
     await expect(this.collectInfraButton).toBeEnabled({ timeout: 30_000 });
   }

@@ -1,4 +1,5 @@
 import { Page, expect, Locator } from '@playwright/test';
+import { humanClick } from '../support/humanize';
 
 /**
  * NotificationPage — the top-bar notification badge (BAR-1536 stage 1~3).
@@ -29,7 +30,7 @@ export class NotificationPage {
   async open(): Promise<void> {
     await expect(this.badge).toBeVisible({ timeout: 15_000 });
     if (await this.menu.isVisible()) return;
-    await this.badge.click();
+    await humanClick(this.badge);
     await expect(this.menu).toBeVisible({ timeout: 10_000 });
   }
 
@@ -57,11 +58,9 @@ export class NotificationPage {
     level: 'Info' | 'Error',
   ): Promise<void> {
     // The list truncates long text; match on the row, then open its detail for the full string.
-    const row = this.items
-      .filter({ hasText: message.slice(0, 24) })
-      .first();
+    const row = this.items.filter({ hasText: message.slice(0, 24) }).first();
     await expect(row).toBeVisible({ timeout: 20_000 });
-    await row.getByRole('button').first().click();
+    await humanClick(row.getByRole('button').first());
     const detail = row.getByTestId('notification-detail');
     await expect(detail).toContainText(message, { timeout: 10_000 });
 

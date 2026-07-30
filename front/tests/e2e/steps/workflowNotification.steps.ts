@@ -180,9 +180,7 @@ Given(
     ];
 
     runSeq[wfId] =
-      result === 'running-then-success'
-        ? ['running', 'success']
-        : [result];
+      result === 'running-then-success' ? ['running', 'success'] : [result];
   },
 );
 

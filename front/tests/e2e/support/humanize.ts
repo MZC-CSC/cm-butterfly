@@ -44,24 +44,26 @@ const LONG_TEXT_THRESHOLD = 24; // chars above which a value counts as "long"
   before the run moves on.
 */
 /** Held after the pointer arrives, before the click. `E2E_DEMO_CLICK_MS` overrides it. */
-const DEMO_CLICK_MS = Number(process.env.E2E_DEMO_CLICK_MS ?? 120);
+const DEMO_CLICK_MS = Number(process.env.E2E_DEMO_CLICK_MS ?? 90);
 /** Held after a value has been entered. `E2E_DEMO_BEAT_MS` overrides it. */
-const DEMO_BEAT_MS = Number(process.env.E2E_DEMO_BEAT_MS ?? 200);
+const DEMO_BEAT_MS = Number(process.env.E2E_DEMO_BEAT_MS ?? 150);
 /*
   Playwright's `steps` option sends the intermediate mousemove events back to back, so the
   pointer arrives in a few milliseconds - on screen that still reads as a jump. The glide
   below walks the same path but waits between the steps, which is what makes the travel
   visible at all.
 */
-const DEMO_TRAVEL_MS = 450; // time the pointer spends travelling
-const DEMO_TRAVEL_STEPS = 30; // points along the way
+const DEMO_TRAVEL_MS = 340; // time for a journey across the whole screen
+const DEMO_TRAVEL_MIN_MS = 90; // time for a hop to the neighbouring control
+const DEMO_TRAVEL_STEPS = 30; // points along the longest journey
+const DEMO_TRAVEL_REFERENCE_REACH = 2200; // screen diagonal to fall back on, in pixels
 /*
   A field should never hold the camera for long. Short values are typed, which reads as
   someone entering them; anything long enough that typing would drag is pasted instead and
   simply held for a beat, which is how the values get entered in practice anyway. Either
   way the time spent in the field stays under this budget.
 */
-const DEMO_TYPE_BUDGET_MS = 2_000;
+const DEMO_TYPE_BUDGET_MS = 1_400;
 const DEMO_MIN_TYPE_DELAY_MS = 25; // below this, typing looks like a paste anyway
 
 export function isDemoPace(): boolean {
@@ -104,18 +106,88 @@ let pointerAt: { x: number; y: number } | null = null;
 const ease = (t: number): number =>
   t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
 
+/**
+ * Where a person would put the pointer on this element.
+ *
+ * The first line of text inside it, a little in from its start — that is what the eye goes to and
+ * what the finger follows. Falls back to the middle of the element when it holds no text.
+ */
+async function aimPoint(
+  locator: Locator,
+  box: { x: number; y: number; width: number; height: number },
+): Promise<{ x: number; y: number }> {
+  const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+  const text = await locator
+    .evaluate((el: Element) => {
+      // The first non-empty text node's own rectangle - not the element's, which spans the
+      // whole control including its padding and any empty space beside the label.
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let node = walker.nextNode();
+      while (node) {
+        if ((node.textContent ?? '').trim()) {
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          const r = range.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) {
+            return { x: r.x, y: r.y, width: r.width, height: r.height };
+          }
+        }
+        node = walker.nextNode();
+      }
+      return null;
+    })
+    .catch(() => null);
+
+  if (!text) return middle;
+
+  // A short way in from the left edge of the words, so the pointer sits on a letter rather than on
+  // the boundary. Never past the middle of the label.
+  const intoText = Math.min(14, text.width / 2);
+  return { x: text.x + intoText, y: text.y + text.height / 2 };
+}
+
 async function travelTo(locator: Locator): Promise<void> {
   const page: Page = locator.page();
   await locator.scrollIntoViewIfNeeded().catch(() => {});
   const box = await locator.boundingBox().catch(() => null);
   if (!box) return;
 
-  const to = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  // Aim where the words are, not at the middle of the box.
+  //
+  // A wide control - a full-width row, a link that stretches across the panel - has its label at the
+  // left and empty space to the right. Clicking the box's centre lands well past the end of the
+  // text, which is not where anyone would put the pointer: the recording shows a click into blank
+  // space several centimetres from what it is supposedly pressing.
+  //
+  // So the target is the start of the label. `textBox()` measures the text itself; when there is no
+  // text to measure (an icon button) the box's centre is right anyway.
+  const to = await aimPoint(locator, box);
   const from = pointerAt ?? { x: to.x, y: Math.max(0, to.y - 200) };
-  const perStep = Math.max(8, Math.round(DEMO_TRAVEL_MS / DEMO_TRAVEL_STEPS));
 
-  for (let i = 1; i <= DEMO_TRAVEL_STEPS; i++) {
-    const t = ease(i / DEMO_TRAVEL_STEPS);
+  // Time the journey by how far it is, not by a fixed budget.
+  //
+  // Every move used to take the same 450ms, so crossing the window and hopping to the next field
+  // looked equally urgent - and the short hop, covering a few dozen pixels over that long, crawled.
+  // A hand moves a short distance quickly and takes longer only when there is ground to cover.
+  //
+  // Distance is measured against the window's diagonal so the pacing holds at any viewport.
+  const distance = Math.hypot(to.x - from.x, to.y - from.y);
+  const viewport = page.viewportSize();
+  const reach = viewport
+    ? Math.hypot(viewport.width, viewport.height)
+    : DEMO_TRAVEL_REFERENCE_REACH;
+  const share = Math.min(1, distance / reach);
+
+  const duration =
+    DEMO_TRAVEL_MIN_MS + (DEMO_TRAVEL_MS - DEMO_TRAVEL_MIN_MS) * share;
+  // Fewer points for a short hop - thirty of them across forty pixels is finer than the screen can
+  // show, and each one still costs a round trip to the browser.
+  const steps = Math.max(6, Math.round(DEMO_TRAVEL_STEPS * share));
+  const perStep = Math.max(6, Math.round(duration / steps));
+
+  for (let i = 1; i <= steps; i++) {
+    const t = ease(i / steps);
     await page.mouse.move(
       from.x + (to.x - from.x) * t,
       from.y + (to.y - from.y) * t,

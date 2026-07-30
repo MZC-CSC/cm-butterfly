@@ -1,4 +1,5 @@
 import { Page, expect } from '@playwright/test';
+import { openScreen } from '../support/navigate';
 
 /**
  * NavigationPage — the "where to go / what to verify" layer for the routing smoke test of the
@@ -19,6 +20,8 @@ interface NavTarget {
   path: string;
   /** URL regex for judging a successful load (based on the parent route) */
   urlPattern: RegExp;
+  /** Route name of the sidebar item that leads here (data-testid="menu-{id}") */
+  menuId: string;
 }
 
 const CATEGORY_ALIASES: Record<string, NavTarget> = {};
@@ -30,6 +33,7 @@ function register(target: NavTarget, ...names: string[]) {
 register(
   {
     path: '/main/source-computing/source-services',
+    menuId: 'sourcecomputing',
     urlPattern: /\/main\/source-computing/,
   },
   'Source Computing',
@@ -42,7 +46,11 @@ register(
   '소스 서비스',
 );
 register(
-  { path: '/main/models/source-models', urlPattern: /\/main\/models/ },
+  {
+    path: '/main/models/source-models',
+    menuId: 'models',
+    urlPattern: /\/main\/models/,
+  },
   'Models',
   '모델',
   'models',
@@ -51,6 +59,7 @@ register(
 register(
   {
     path: '/main/workflow-management/workflows',
+    menuId: 'workflowmanagement',
     urlPattern: /\/main\/workflow-management/,
   },
   'Workflow Management',
@@ -62,6 +71,7 @@ register(
 register(
   {
     path: '/main/workload-operations/workloads',
+    menuId: 'workloadoperations',
     urlPattern: /\/main\/workload-operations/,
   },
   'Workload Operations',
@@ -84,9 +94,10 @@ export class NavigationPage {
     return t;
   }
 
-  /** Navigate to the category's landing screen */
+  /** Navigate to the category's landing screen - by the sidebar, as a person would. */
   async gotoCategory(name: string): Promise<void> {
-    await this.page.goto(this.resolve(name).path);
+    const target = this.resolve(name);
+    await openScreen(this.page, target.menuId, target.path);
   }
 
   /** Verify the category screen loaded correctly (URL entered + not NotFound) */

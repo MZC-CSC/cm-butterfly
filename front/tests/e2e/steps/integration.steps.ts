@@ -444,7 +444,10 @@ When(
     const seed = trackSeed(track);
     const models = new ModelsPage(page);
     const wf = new WorkflowPage(page);
-    const name = `${workflowData.createNamePrefix}-${seed}-${Date.now()}`;
+    // The seed already carries the day and the time to the second, which is what keeps two runs
+    // apart. Appending the epoch on top of it put `migrate-t1-260730-064253-1785393773057` on
+    // screen - the same moment written twice, in a form nobody reads.
+    const name = `${workflowData.createNamePrefix}-${seed}`;
 
     await models.openWorkflowEditorFromTarget(uniqueName(targetModelName));
     await wf.expectDesignerOpen();
@@ -468,7 +471,7 @@ When(
     // from the prefix plus whatever the target model carries, so guessing it is a rule that holds
     // only until the naming changes - and it cannot tell this run's infrastructure from one left
     // behind by an earlier one. The id is read back and handed to the segments that follow.
-    const infraId = await waitForInfraCreated(page, seed);
+    const infraId = await waitForInfraCreated(page, seed, wf);
     scenarioState.infraName = infraId;
     scenarioState.infraId = infraId;
     remember(`infra:${track}`, infraId);
@@ -482,7 +485,11 @@ When(
  * given to the workflow precisely so that the names do not collide - so it is what we match on,
  * and the id that comes back is what everything downstream uses.
  */
-async function waitForInfraCreated(page: Page, seed: string): Promise<string> {
+async function waitForInfraCreated(
+  page: Page,
+  seed: string,
+  wf?: WorkflowPage,
+): Promise<string> {
   const token = await getSessionToken(page);
   const deadline = Date.now() + 20 * 60_000;
   while (Date.now() < deadline) {
@@ -498,7 +505,17 @@ async function waitForInfraCreated(page: Page, seed: string): Promise<string> {
       String(i?.id ?? '').startsWith(`${seed}-`),
     );
     if (mine?.id) return mine.id;
-    await page.waitForTimeout(20_000);
+
+    // Keep the graph in view while the wait goes on, and keep doing it.
+    //
+    // The viewer redraws itself every three seconds and the page returns to the top each time, so
+    // the tasks turning green scroll off the bottom - the one thing worth watching during these
+    // minutes leaves the screen. Putting it back once per poll is not enough: the view is at the
+    // top for most of the twenty seconds in between. So the wait is spent watching, not sleeping.
+    for (let i = 0; i < 7; i++) {
+      await wf?.revealWholeRunGraph().catch(() => {});
+      await page.waitForTimeout(3_000);
+    }
   }
   throw new Error(`"${seed}" 접두어로 만들어진 인프라를 찾지 못했다`);
 }
@@ -661,6 +678,16 @@ Then(
  * runs on the same day cannot land on the same one. Prefixes take at most 20 characters of
  * alphanumerics and hyphens, which this stays inside: `t1-260729-184430`.
  */
+/** Day and time to the second - enough to tell two runs apart, short enough to read on screen. */
+function stamp(): string {
+  const d = new Date();
+  const p2 = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${String(d.getFullYear()).slice(2)}${p2(d.getMonth() + 1)}${p2(d.getDate())}` +
+    `-${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}`
+  );
+}
+
 function trackSeed(track: string): string {
   const d = new Date();
   const p2 = (n: number) => String(n).padStart(2, '0');
@@ -721,7 +748,7 @@ When(
     scenarioState.swRunStartedAt = Date.now();
     const models = new ModelsPage(page);
     const wf = new WorkflowPage(page);
-    const name = `${workflowData.createNamePrefix}-sw-${Date.now()}`;
+    const name = `${workflowData.createNamePrefix}-sw-${stamp()}`;
 
     await models.openWorkflowEditorFromTarget(uniqueName(swModelName));
     await wf.expectDesignerOpen();
