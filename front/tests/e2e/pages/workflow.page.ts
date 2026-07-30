@@ -689,6 +689,8 @@ export class WorkflowPage {
     while (Date.now() < deadline) {
       state = (await this.latestRunStateText()).trim().toLowerCase();
       if (terminal.test(state)) return state;
+      // Each redraw returns the page to the top; put the graph back where it can be seen.
+      await this.revealWholeRunGraph().catch(() => {});
       await this.page.waitForTimeout(3_000);
     }
     return state;

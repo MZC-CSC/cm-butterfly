@@ -493,10 +493,6 @@ async function waitForInfraCreated(
   const token = await getSessionToken(page);
   const deadline = Date.now() + 20 * 60_000;
   while (Date.now() < deadline) {
-    // Keep the graph in view while the wait goes on. The viewer redraws itself every three seconds
-    // and the page comes back to the top each time, so the tasks turning green scroll off the
-    // bottom - the one thing worth watching during these minutes disappears from the recording.
-    await wf?.revealWholeRunGraph().catch(() => {});
     const infras = await page.request
       .post(`${config.baseURL}/api/cm-beetle/ListInfra`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -509,7 +505,17 @@ async function waitForInfraCreated(
       String(i?.id ?? '').startsWith(`${seed}-`),
     );
     if (mine?.id) return mine.id;
-    await page.waitForTimeout(20_000);
+
+    // Keep the graph in view while the wait goes on, and keep doing it.
+    //
+    // The viewer redraws itself every three seconds and the page returns to the top each time, so
+    // the tasks turning green scroll off the bottom - the one thing worth watching during these
+    // minutes leaves the screen. Putting it back once per poll is not enough: the view is at the
+    // top for most of the twenty seconds in between. So the wait is spent watching, not sleeping.
+    for (let i = 0; i < 7; i++) {
+      await wf?.revealWholeRunGraph().catch(() => {});
+      await page.waitForTimeout(3_000);
+    }
   }
   throw new Error(`"${seed}" 접두어로 만들어진 인프라를 찾지 못했다`);
 }
