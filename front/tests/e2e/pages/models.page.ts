@@ -184,7 +184,7 @@ export class ModelsPage {
   /** Select a model row from the list (reveals the detail tab) */
   async selectModel(name: string): Promise<void> {
     await this.revealModel(name);
-    await this.modelRow(name).click();
+    await humanClick(this.modelRow(name));
   }
 
   /** Select the first model in the list (e.g. the latest source right after collection) */
@@ -192,7 +192,7 @@ export class ModelsPage {
     const first = this.listTable.locator('tbody tr').first();
     await expect(first).toBeVisible({ timeout: 15_000 });
     const name = (await first.innerText()).trim().split(/\s+/)[0] ?? '';
-    await first.click();
+    await humanClick(first);
     return name;
   }
 
@@ -216,7 +216,7 @@ export class ModelsPage {
       timeout: 15_000,
     });
     const name = (await row.innerText()).trim().split(/\s+/)[0] ?? '';
-    await row.click();
+    await humanClick(row);
     return name;
   }
 
@@ -247,29 +247,31 @@ export class ModelsPage {
 
   /** Select CSP (Provider) — mirinae PSelectDropdown */
   async selectProvider(csp: string): Promise<void> {
-    await this.providerDropdown.click();
-    await this.page
-      .getByRole('menuitem', { name: csp, exact: false })
-      .or(this.page.getByRole('option', { name: csp, exact: false }))
-      .or(this.page.getByText(csp, { exact: true }))
-      .first()
-      .click();
+    await humanClick(this.providerDropdown);
+    await humanClick(
+      this.page
+        .getByRole('menuitem', { name: csp, exact: false })
+        .or(this.page.getByRole('option', { name: csp, exact: false }))
+        .or(this.page.getByText(csp, { exact: true }))
+        .first(),
+    );
   }
 
   /** Select Region — the label is in "display / regionName" form, so match by partial match */
   async selectRegion(region: string): Promise<void> {
-    await this.regionDropdown.click();
-    await this.page
-      .getByRole('menuitem', { name: region, exact: false })
-      .or(this.page.getByRole('option', { name: region, exact: false }))
-      .or(this.page.getByText(region, { exact: false }))
-      .first()
-      .click();
+    await humanClick(this.regionDropdown);
+    await humanClick(
+      this.page
+        .getByRole('menuitem', { name: region, exact: false })
+        .or(this.page.getByRole('option', { name: region, exact: false }))
+        .or(this.page.getByText(region, { exact: false }))
+        .first(),
+    );
   }
 
   /** Set the candidate count (optional) */
   async setCandidateLimit(limit: number): Promise<void> {
-    await this.candidateLimitInput.fill(String(limit));
+    await humanFill(this.candidateLimitInput, String(limit));
   }
 
   /** Put focus on the Minimum Match Rate number field (without changing the value) */
@@ -284,12 +286,12 @@ export class ModelsPage {
 
   /** Type a Minimum Match Rate (the screen clamps it to 0-100) */
   async setMinimumMatchRate(rate: number | string): Promise<void> {
-    await this.matchRateInput.fill(String(rate));
+    await humanFill(this.matchRateInput, String(rate));
   }
 
   /** Drag the Minimum Match Rate slider to a value */
   async slideMinimumMatchRate(rate: number): Promise<void> {
-    await this.matchRateSlider.fill(String(rate));
+    await humanFill(this.matchRateSlider, String(rate));
   }
 
   /** Clear the Minimum Match Rate so the server default applies again */
@@ -449,7 +451,7 @@ export class ModelsPage {
     }
 
     // Single-select table — click the cheapest row (among complete candidates)
-    await rows.nth(minIndex).click();
+    await humanClick(rows.nth(minIndex));
     return {
       spec: minSpec,
       monthlyPrice: Number.isFinite(minPrice) ? minPrice : 0,
@@ -505,7 +507,7 @@ export class ModelsPage {
       );
     }
 
-    await rows.nth(bestIndex).click();
+    await humanClick(rows.nth(bestIndex));
     console.log(
       `[recommend] selected the largest spec at or below "${maxClass}" class: ${bestSpec}`,
     );
@@ -587,7 +589,7 @@ export class ModelsPage {
       );
     }
 
-    await rows.nth(bestIndex).click();
+    await humanClick(rows.nth(bestIndex));
     console.log(
       `[recommend] selected a complete candidate (by marker): ${bestSpec} — complete ${completeCount}/${count}, incomplete ${incompleteCount}`,
     );
@@ -625,13 +627,13 @@ export class ModelsPage {
 
   /** Open the SW recommend modal from the source SW model detail (corresponds to infra openRecommend) */
   async openSoftwareRecommend(): Promise<void> {
-    await this.viewRecommendLink.click();
+    await humanClick(this.viewRecommendLink);
     await expect(this.swRecommendModal).toBeVisible({ timeout: 15_000 });
   }
 
   /** Run the SW migration recommendation (Get Migration Recommendations) */
   async runSoftwareRecommend(): Promise<void> {
-    await this.swGetRecommendButton.click();
+    await humanClick(this.swGetRecommendButton);
     // Wait generously for the recommendation result area to fill
     await this.page.waitForTimeout(2_000);
   }

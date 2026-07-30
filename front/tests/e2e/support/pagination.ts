@@ -1,4 +1,5 @@
 import { Locator, Page, expect } from '@playwright/test';
+import { humanClick } from './humanize';
 
 /**
  * Helper for list-table pagination (mirinae PToolboxTable).
@@ -38,7 +39,7 @@ export class TablePagination {
     const { current, total } = await this.status();
     if (current >= total) return false;
     // the right arrow of text-pagination (the last button)
-    await this.nav.locator('button').last().click();
+    await humanClick(this.nav.locator('button').last());
     await expect
       .poll(async () => (await this.status()).current, { timeout: 10_000 })
       .toBe(current + 1);

@@ -79,7 +79,7 @@ export const testNamespace = {
  *   the private one does not.
  */
 export const sourceServer = {
-  name: process.env.TEST_SOURCE_NAME || 'e2e-nano-source',
+  name: process.env.TEST_SOURCE_NAME || 'onprem-web-01',
   ip: process.env.TEST_SOURCE_IP || '',
   privateIp: process.env.TEST_SOURCE_PRIVATE_IP || '',
   sshPort: process.env.TEST_SOURCE_SSH_PORT || '22',
@@ -117,7 +117,7 @@ export const sourceServers: Record<
   }
 > = {
   nano: {
-    name: process.env.TEST_SOURCE_NANO_NAME || 'e2e-nano-source',
+    name: process.env.TEST_SOURCE_NANO_NAME || 'onprem-web-01',
     ip: process.env.TEST_SOURCE_NANO_IP || process.env.TEST_SOURCE_IP || '',
     sshPort: process.env.TEST_SOURCE_SSH_PORT || '22',
     sshUser: process.env.TEST_SOURCE_SSH_USER || 'ubuntu',
@@ -128,7 +128,7 @@ export const sourceServers: Record<
       '',
   },
   micro: {
-    name: process.env.TEST_SOURCE_MICRO_NAME || 'e2e-micro-source',
+    name: process.env.TEST_SOURCE_MICRO_NAME || 'onprem-app-01',
     ip: process.env.TEST_SOURCE_MICRO_IP || '',
     sshPort: process.env.TEST_SOURCE_SSH_PORT || '22',
     sshUser: process.env.TEST_SOURCE_SSH_USER || 'ubuntu',
@@ -168,10 +168,10 @@ export const workload = {
   // name = 'infra101'.
   infraName: process.env.TEST_INFRA_NAME || 'infra101',
   /** Node (VM) name within the infra */
-  nodeName: process.env.TEST_NODE_NAME || 'e2e-target-node',
+  nodeName: process.env.TEST_NODE_NAME || 'target-node',
   /** Load test default settings (cost protection: short and light) */
   loadTest: {
-    scenarioName: process.env.TEST_LOADTEST_NAME || 'e2e-smoke-load',
+    scenarioName: process.env.TEST_LOADTEST_NAME || 'web-load-check',
     targetHost: process.env.TEST_LOADTEST_HOST || '127.0.0.1',
     /**
      * The port the load test *aims at* on the migrated infrastructure.
@@ -250,7 +250,7 @@ export const workflowData = {
     process.env.TEST_WF_SW_TASK || 'grasshopper_task_software_migration',
 
   /** Name of the workflow the create unit test will make (the suffix is assigned in the step) */
-  createNamePrefix: process.env.TEST_WF_CREATE_PREFIX || 'e2e-wf',
+  createNamePrefix: process.env.TEST_WF_CREATE_PREFIX || 'migrate',
 
   /** Terminal states for run-status polling (success/failure) */
   terminalStates: ['success', 'failed'] as const,

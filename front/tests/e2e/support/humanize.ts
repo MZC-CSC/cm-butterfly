@@ -106,13 +106,63 @@ let pointerAt: { x: number; y: number } | null = null;
 const ease = (t: number): number =>
   t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
 
+/**
+ * Where a person would put the pointer on this element.
+ *
+ * The first line of text inside it, a little in from its start — that is what the eye goes to and
+ * what the finger follows. Falls back to the middle of the element when it holds no text.
+ */
+async function aimPoint(
+  locator: Locator,
+  box: { x: number; y: number; width: number; height: number },
+): Promise<{ x: number; y: number }> {
+  const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+  const text = await locator
+    .evaluate((el: Element) => {
+      // The first non-empty text node's own rectangle - not the element's, which spans the
+      // whole control including its padding and any empty space beside the label.
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let node = walker.nextNode();
+      while (node) {
+        if ((node.textContent ?? '').trim()) {
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          const r = range.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) {
+            return { x: r.x, y: r.y, width: r.width, height: r.height };
+          }
+        }
+        node = walker.nextNode();
+      }
+      return null;
+    })
+    .catch(() => null);
+
+  if (!text) return middle;
+
+  // A short way in from the left edge of the words, so the pointer sits on a letter rather than on
+  // the boundary. Never past the middle of the label.
+  const intoText = Math.min(14, text.width / 2);
+  return { x: text.x + intoText, y: text.y + text.height / 2 };
+}
+
 async function travelTo(locator: Locator): Promise<void> {
   const page: Page = locator.page();
   await locator.scrollIntoViewIfNeeded().catch(() => {});
   const box = await locator.boundingBox().catch(() => null);
   if (!box) return;
 
-  const to = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  // Aim where the words are, not at the middle of the box.
+  //
+  // A wide control - a full-width row, a link that stretches across the panel - has its label at the
+  // left and empty space to the right. Clicking the box's centre lands well past the end of the
+  // text, which is not where anyone would put the pointer: the recording shows a click into blank
+  // space several centimetres from what it is supposedly pressing.
+  //
+  // So the target is the start of the label. `textBox()` measures the text itself; when there is no
+  // text to measure (an icon button) the box's centre is right anyway.
+  const to = await aimPoint(locator, box);
   const from = pointerAt ?? { x: to.x, y: Math.max(0, to.y - 200) };
 
   // Time the journey by how far it is, not by a fixed budget.

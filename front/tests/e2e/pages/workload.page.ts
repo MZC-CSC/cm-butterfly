@@ -44,12 +44,11 @@ export class WorkloadPage {
   /**
    * Navigate to the PMK (Kubernetes) workload screen.
    *
-   * Reached by address rather than by the menu: PMK has no sidebar entry of its own, and no
-   * recorded segment goes here, so there is nothing to be gained from working out which control on
-   * the workloads screen switches to it.
+   * Same route as MCI - the workloads screen carries both in its own side list
+   * (api/conf/menu.yaml has `mciwls` and `pmkwls` as children of `workloads`).
    */
   async gotoPmk(): Promise<void> {
-    await this.page.goto(WorkloadPage.pmkPath);
+    await openSubScreen(this.page, 'workloads', 'pmkwls', WorkloadPage.pmkPath);
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -336,7 +335,7 @@ export class WorkloadPage {
 
   /** [Close] on the progress/error stage. Return to the list and look at the delete-status column. */
   async closeDeleteModal(): Promise<void> {
-    await this.deleteCloseButton.click();
+    await humanClick(this.deleteCloseButton);
   }
 
   /**
@@ -364,7 +363,7 @@ export class WorkloadPage {
 
   /** [Retry] on the error stage — returns to the selection screen. */
   async retryDelete(): Promise<void> {
-    await this.deleteRetryButton.click();
+    await humanClick(this.deleteRetryButton);
     await expect(this.deleteConfirmInput.first()).toBeVisible({
       timeout: 10_000,
     });
@@ -372,7 +371,7 @@ export class WorkloadPage {
 
   /** [Force delete] on the error stage. */
   async forceDeleteFromError(): Promise<void> {
-    await this.deleteForceEnterButton.click();
+    await humanClick(this.deleteForceEnterButton);
   }
 
   /**
@@ -420,7 +419,7 @@ export class WorkloadPage {
    * That is because if the target is already being deleted, the modal opens straight into the progress stage rather than confirm.
    */
   async triggerDeleteMenu(): Promise<void> {
-    await this.actionDropdown.click();
+    await humanClick(this.actionDropdown);
     // ★ If the selection has been cleared, Delete is disabled, so pressing it does not open the modal.
     //   Proceeding as-is would misdiagnose "the modal does not appear" as a product defect, so we cut it off here.
     //   (mirinae expresses disabled only via class, so it is not caught by isEnabled() — DESIGN-MIRINAE §1.6)
@@ -437,7 +436,7 @@ export class WorkloadPage {
       disabled,
       'Action > Delete is disabled — the row selection has been cleared (you must select again first).',
     ).toBeFalsy();
-    await this.deleteMenuItem.click();
+    await humanClick(this.deleteMenuItem);
   }
 
   /**
@@ -695,7 +694,7 @@ export class WorkloadPage {
 
   /** Open the scenario template (catalog) management modal */
   async openScenarioTemplates(): Promise<void> {
-    await this.scenarioTemplatesButton.click();
+    await humanClick(this.scenarioTemplatesButton);
     await expect(this.scenarioTemplateModal).toBeVisible();
   }
 
@@ -703,13 +702,14 @@ export class WorkloadPage {
   async saveScenarioTemplate(name: string): Promise<void> {
     const m = this.scenarioTemplateModal;
     // testid only — do not rely on on-screen wording (placeholder).
-    await m
-      .locator(
+    await humanFill(
+      m.locator(
         'input[data-testid="scenario-template-name"], textarea[data-testid="scenario-template-name"]',
-      )
-      .fill(name);
+      ),
+      name,
+    );
     // We used to only build the locator here and stop (no .click()), so the save never actually happened.
-    await m.getByTestId('scenario-template-save').click();
+    await humanClick(m.getByTestId('scenario-template-save'));
   }
 
   /** Verify a given template is shown in the list tab */
