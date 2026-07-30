@@ -118,7 +118,11 @@ export async function spotlight(
   const box = await textBox(locator);
   if (!box) return;
 
-  await drawOutline(page, box);
+  // 테두리는 그리지 않는다.
+  //
+  // ★ 빨간 사각형을 씌워 두고 그대로 멈춰 있으면 화면이 잘못된 것처럼 보인다. 가리키는 일은
+  //   커서가 잠깐 도는 것으로 충분하고, 그 편이 사람이 하는 동작에 가깝다 (2026-07-30 사용자 판단).
+  void drawOutline;
 
   // Go round the outside of it. The radius follows the element's own size so a wide row gets a wide
   // sweep and a short cell gets a tight one.
@@ -140,8 +144,8 @@ export async function spotlight(
 
   // Rest on it, so the last thing seen is the value itself.
   await page.mouse.move(box.x + Math.min(12, box.width / 2), cy);
-  await page.waitForTimeout(900);
+  await page.waitForTimeout(500);
 
-  await clearOutline(page);
+  void clearOutline;
   await page.waitForTimeout(200);
 }

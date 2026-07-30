@@ -57,7 +57,6 @@
         <div class="params-content">
           <textarea
             v-model="description"
-            data-testid="workflow-description-input"
             @input="handleDescriptionChange"
             class="param-input"
             style="min-height: 80px; resize: vertical"

@@ -455,7 +455,13 @@ export class WorkflowPage {
     if (description) {
       await writeDescription(
         this.page,
-        this.page.getByTestId('workflow-description-input').first(),
+        // mirinae 의 PTextInput 은 겉을 한 겹 감싼다. data-testid 는 그 껍데기에 붙으므로 값을
+        // 넣을 수 있는 것은 안쪽 input 이다. 폴백으로 껍데기를 함께 두면 문서 순서상 껍데기가
+        // 먼저 잡혀 계속 같은 오류가 난다.
+        this.page
+          .getByTestId('workflow-description-input')
+          .locator('input')
+          .first(),
         description,
       );
     }
@@ -712,6 +718,36 @@ export class WorkflowPage {
     ).toBeVisible({ timeout: 15_000 });
 
     await spotlight(this.page, hit);
+    await this.scrollThroughParams(params);
+  }
+
+  /**
+   * Scroll down through the parameter panel so the rest of the values are seen.
+   *
+   * Pointing at one value and stopping there leaves a viewer wondering what else is in the list.
+   * The panel is what the workflow will run with, so it is worth reading to the end.
+   */
+  private async scrollThroughParams(params: Locator): Promise<void> {
+    const box = await params.boundingBox().catch(() => null);
+    if (!box) return;
+
+    await this.page.mouse.move(
+      box.x + box.width / 2,
+      box.y + Math.min(box.height / 2, 240),
+    );
+
+    let previous = -1;
+    for (let i = 0; i < 10; i++) {
+      const at = await this.page
+        .evaluate(() => window.scrollY)
+        .catch(() => previous);
+      if (at === previous) break;
+      previous = at;
+
+      await this.page.mouse.wheel(0, 220);
+      await this.page.waitForTimeout(320);
+    }
+    await this.page.waitForTimeout(600);
   }
 
   /** A task node in the run graph, by its name. */
