@@ -106,10 +106,23 @@ export class NotificationPage {
    * Used to close out a long job when the exact wording is not the point. The point is that the job
    * announced itself, someone read it, and the badge went quiet.
    */
-  async readAndClearFirst(): Promise<void> {
+  async readAndClearFirst(waitForArrival = 10 * 60_000): Promise<void> {
+    // Wait for it to arrive *before* opening the panel.
+    //
+    // ★ Opening first and then waiting means the panel sits open and empty for as long as it takes,
+    //   which on screen reads as checking the corner over and over for a message that has not been
+    //   sent. `notification-count` is drawn only when there is something to count, so that is what
+    //   says it has arrived. If it never does, we leave without touching anything.
+    const count = this.page.getByTestId('notification-count');
+    if (
+      !(await count.isVisible({ timeout: waitForArrival }).catch(() => false))
+    ) {
+      return;
+    }
+
     await this.open();
     const row = this.items.first();
-    if (!(await row.isVisible({ timeout: 60_000 }).catch(() => false))) return;
+    if (!(await row.isVisible({ timeout: 15_000 }).catch(() => false))) return;
 
     // ★ Hold on to *which* notice this is before touching it.
     //   `items.first()` is a position, not a thing. Once the notice is marked read it leaves the

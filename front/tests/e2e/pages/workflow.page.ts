@@ -172,6 +172,24 @@ export class WorkflowPage {
 
   /** Pick a workflow and open the Run Status tab */
   async openRunViewer(workflowName: string): Promise<void> {
+    // Already looking at it? Then stop.
+    //
+    // ★ After running a workflow we are on its Run Status, and this went back to the list, found the
+    //   row again, clicked it and re-opened the tab - on screen it reads as running the thing a
+    //   second time. If the viewer is up and the selected row is this workflow, there is nothing
+    //   to open.
+    const viewer = this.page.getByTestId('workflow-run-viewer');
+    if (await viewer.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      const selected = this.rowByText(workflowName).first();
+      const cls = (await selected.getAttribute('class').catch(() => '')) ?? '';
+      if (cls.includes('selected')) {
+        await expect(this.page.getByTestId('workflow-run-graph')).toBeVisible({
+          timeout: 15_000,
+        });
+        return;
+      }
+    }
+
     await this.revealWorkflow(workflowName);
     await humanClick(this.rowByText(workflowName));
     await humanClick(this.page.getByRole('tab', { name: 'Run Status' }));
