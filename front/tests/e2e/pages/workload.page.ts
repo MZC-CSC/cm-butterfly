@@ -113,11 +113,34 @@ export class WorkloadPage {
 
   /** Select an infra row (checkbox) — selecting it enables the detail/server tabs. Limited to the single checkbox in the row. */
   async selectMci(infraName: string): Promise<void> {
+    // Selecting is a toggle, so pressing an already-selected row *deselects* it - and the detail
+    // panel goes with it.
+    //
+    // ★ This used to be hidden. Every step began by navigating to the list again, which threw the
+    //   selection away, so a second `selectMci` always started from nothing. Now that navigating to
+    //   the screen you are already on does nothing, the selection survives between steps and the
+    //   second press was turning it off. Nobody clicks a row they have already chosen.
+    if (await this.isMciSelected(infraName)) return;
+
     await humanClick(
       this.mciRow(infraName)
         .locator('td.select-checkbox .p-checkbox, input[type="checkbox"]')
         .first(),
     );
+  }
+
+  /**
+   * Is this row already chosen?
+   *
+   * mirinae does not put the state on a standard input - the row carries a `selected` class
+   * (DESIGN-MIRINAE §1.5), so that is what is read rather than `isChecked()`.
+   */
+  private async isMciSelected(infraName: string): Promise<boolean> {
+    const cls = await this.mciRow(infraName)
+      .first()
+      .getAttribute('class')
+      .catch(() => null);
+    return (cls ?? '').includes('selected');
   }
 
   // ─────────────────────────────────────────────────────────────
