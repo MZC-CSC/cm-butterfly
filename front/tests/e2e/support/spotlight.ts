@@ -15,34 +15,56 @@ import { Locator, Page } from '@playwright/test';
 
 const OUTLINE_ID = 'e2e-spotlight';
 
-const OUTLINE_SCRIPT = `(box) => {
-  let el = document.getElementById('${OUTLINE_ID}');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = '${OUTLINE_ID}';
-    el.style.cssText = [
-      'position:fixed',
-      'pointer-events:none',
-      'z-index:2147483646',
-      'border:3px solid #e11d48',
-      'border-radius:6px',
-      'box-shadow:0 0 0 3px rgba(225,29,72,.18)',
-      'transition:opacity .18s ease',
-    ].join(';');
-    document.body.appendChild(el);
-  }
-  const pad = 4;
-  el.style.left = (box.x - pad) + 'px';
-  el.style.top = (box.y - pad) + 'px';
-  el.style.width = (box.width + pad * 2) + 'px';
-  el.style.height = (box.height + pad * 2) + 'px';
-  el.style.opacity = '1';
-}`;
+type Box = { x: number; y: number; width: number; height: number };
 
-const CLEAR_SCRIPT = `() => {
-  const el = document.getElementById('${OUTLINE_ID}');
-  if (el) el.style.opacity = '0';
-}`;
+/**
+ * Draw the outline over the given rectangle.
+ *
+ * ★ Passed as a *function*, not a string. `page.evaluate` given a string evaluates it as an
+ *   expression and **ignores the argument** - so a string holding `(box) => {…}` simply produced a
+ *   function object and returned it, never calling it. The pointer circled correctly and no outline
+ *   ever appeared; nothing failed, because there was nothing to fail. Only looking at the recording
+ *   showed it.
+ */
+async function drawOutline(page: Page, box: Box): Promise<void> {
+  await page
+    .evaluate(
+      ({ id, b }: { id: string; b: Box }) => {
+        let el = document.getElementById(id);
+        if (!el) {
+          el = document.createElement('div');
+          el.id = id;
+          el.style.cssText = [
+            'position:fixed',
+            'pointer-events:none',
+            'z-index:2147483646',
+            'border:3px solid #e11d48',
+            'border-radius:6px',
+            'box-shadow:0 0 0 3px rgba(225,29,72,.18)',
+            'transition:opacity .18s ease',
+          ].join(';');
+          document.body.appendChild(el);
+        }
+        const pad = 4;
+        el.style.left = `${b.x - pad}px`;
+        el.style.top = `${b.y - pad}px`;
+        el.style.width = `${b.width + pad * 2}px`;
+        el.style.height = `${b.height + pad * 2}px`;
+        el.style.opacity = '1';
+      },
+      { id: OUTLINE_ID, b: box },
+    )
+    .catch(() => {});
+}
+
+async function clearOutline(page: Page): Promise<void> {
+  await page
+    .evaluate((id: string) => {
+      const el = document.getElementById(id);
+      if (el) el.style.opacity = '0';
+    }, OUTLINE_ID)
+    .catch(() => {});
+}
 
 /**
  * The rectangle of the text inside, not of the box around it.
@@ -96,7 +118,7 @@ export async function spotlight(
   const box = await textBox(locator);
   if (!box) return;
 
-  await page.evaluate(OUTLINE_SCRIPT, box).catch(() => {});
+  await drawOutline(page, box);
 
   // Go round the outside of it. The radius follows the element's own size so a wide row gets a wide
   // sweep and a short cell gets a tight one.
@@ -120,6 +142,6 @@ export async function spotlight(
   await page.mouse.move(box.x + Math.min(12, box.width / 2), cy);
   await page.waitForTimeout(900);
 
-  await page.evaluate(CLEAR_SCRIPT).catch(() => {});
+  await clearOutline(page);
   await page.waitForTimeout(200);
 }

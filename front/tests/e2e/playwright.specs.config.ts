@@ -16,7 +16,12 @@ export default defineConfig({
     ...devices['Desktop Chrome'],
     baseURL: process.env.BASE_URL,
     viewport: { width: 1920, height: 1080 },
-    video: process.env.E2E_VIDEO === 'off' ? 'off' : 'retain-on-failure',
+    // 통과했을 때도 남긴다 — 이 설정으로 도는 것 중에는 *영상을 보려고* 도는 것이 있다
+    // (강조가 값 위에 그려지는지 같은 것은 통과 여부로는 알 수 없다).
+    video:
+      process.env.E2E_VIDEO === 'off'
+        ? 'off'
+        : { mode: 'on', size: { width: 1920, height: 1080 } },
   },
   reporter: [['list']],
 });

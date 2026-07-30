@@ -55,6 +55,16 @@ scripts/check-env.sh || {
   exit 1
 }
 
+# 촬영 전에 치워 둘 것 — 알림함 비우기. 녹화하지 않는다.
+#
+# 지난 작업의 알림이 남아 있으면 첫 화면부터 그것이 뜨는데, 지우는 장면 자체는 보여줄 내용이
+# 아니다. 그래서 구간이 아니라 준비 단계에 둔다.
+echo
+echo "════════ 사전 작업 ════════"
+E2E_VIDEO=off npx playwright test --project=integration --grep "@prep" || {
+  echo "사전 작업이 실패했지만 촬영은 계속한다 — 알림이 남아 있을 수 있다" >&2
+}
+
 failed=()
 for seg in "${SEGMENTS[@]}"; do
   echo
