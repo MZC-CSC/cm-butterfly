@@ -2,7 +2,7 @@ import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 import { workflowData } from '../fixtures/test-data';
 import { humanClick, humanFill } from '../support/humanize';
-import { spotlight } from '../support/spotlight';
+import { spotlight, spotlightText } from '../support/spotlight';
 import { describe as writeDescription } from '../support/describe';
 import { openScreen } from '../support/navigate';
 
@@ -901,7 +901,14 @@ export class WorkflowPage {
       `워크플로우 파라미터에 "${value}" 가 없다 — 앞 단계에서 바꾼 값이 여기까지 오지 않았다`,
     ).toBeVisible({ timeout: 15_000 });
 
-    await spotlight(this.page, hit);
+    // ★ 덩어리가 아니라 *그 값이 있는 줄*을 짚는다.
+    //
+    //   파라미터는 path·query·body 세 덩어리이고 각 덩어리가 JSON 통째로 한 <pre> 에 들어 있다.
+    //   "값이 들어 있는 요소"를 두르면 요청 본문 전체를 두르게 되고, 화면에서는 아무것도 가리키지
+    //   않은 채 스크롤만 하는 것으로 보인다. (2026-07-31)
+    const pointed = await spotlightText(this.page, hit, value);
+    if (!pointed) await spotlight(this.page, hit);
+
     await this.scrollThroughParams(params);
   }
 

@@ -105,6 +105,81 @@ async function textBox(
 }
 
 /**
+ * Circle a *piece of text inside* an element.
+ *
+ * ★ Some values are not elements. The run viewer prints each parameter group - path, query, body -
+ *   as one `<pre>` holding the whole JSON, so ringing "the element containing 5555" rings the
+ *   entire request body. On screen that reads as pointing at nothing in particular and then
+ *   scrolling, which is exactly what it was. The line the value sits on is found by walking the
+ *   text and measuring a range over it. (2026-07-31)
+ *
+ * @returns whether the text was found and circled
+ */
+export async function spotlightText(
+  page: Page,
+  container: Locator,
+  needle: string,
+  laps = 2,
+): Promise<boolean> {
+  await container.scrollIntoViewIfNeeded().catch(() => {});
+
+  const box = await container
+    .evaluate((el: Element, text: string) => {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let node = walker.nextNode();
+      while (node) {
+        const content = node.textContent ?? '';
+        const at = content.indexOf(text);
+        if (at >= 0) {
+          // The whole line reads better than the bare value - `"Ports": "5555"` says what it is.
+          const lineStart = content.lastIndexOf('\n', at) + 1;
+          let lineEnd = content.indexOf('\n', at);
+          if (lineEnd < 0) lineEnd = content.length;
+
+          const range = document.createRange();
+          range.setStart(node, lineStart);
+          range.setEnd(node, lineEnd);
+          const r = range.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) {
+            // Bring it into view first - a rect off screen cannot be pointed at.
+            const el2 = range.startContainer.parentElement;
+            el2?.scrollIntoView({ block: 'center' });
+            const after = range.getBoundingClientRect();
+            return {
+              x: after.x,
+              y: after.y,
+              width: after.width,
+              height: after.height,
+            };
+          }
+        }
+        node = walker.nextNode();
+      }
+      return null;
+    }, needle)
+    .catch(() => null);
+
+  if (!box) return false;
+
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  const rx = Math.min(220, Math.max(30, box.width / 2 + 14));
+  const ry = Math.min(40, Math.max(14, box.height / 2 + 12));
+
+  const stepsPerLap = 28;
+  for (let lap = 0; lap < laps; lap++) {
+    for (let i = 0; i <= stepsPerLap; i++) {
+      const t = (i / stepsPerLap) * Math.PI * 2;
+      await page.mouse.move(cx + rx * Math.cos(t), cy + ry * Math.sin(t));
+      await page.waitForTimeout(12);
+    }
+  }
+  await page.mouse.move(box.x + Math.min(12, box.width / 2), cy);
+  await page.waitForTimeout(450);
+  return true;
+}
+
+/**
  * Circle the element with the pointer, outline it, hold, then let go.
  *
  * @param laps how many times to go round - two reads as deliberate, more reads as fidgeting
