@@ -656,6 +656,16 @@ When(
 
     await wf.saveWorkflow();
     await waitForDagRegistered(page, name);
+
+    // ★ 저장한 뒤에도 화면이 *원본* 에 남아 있을 수 있다.
+    //
+    //   새 워크플로우를 만들 때는 저장이 끝나면 앱이 그것을 골라 Run Status 로 옮겨 준다. 복제본을
+    //   편집해 저장한 경우에는 앞서 고른 행(원본)이 그대로 남았고, 그 자리에서 Run 을 누르면
+    //   **원본이 다시 돌아간다.** 실제로 그렇게 원본의 두 번째 실행이 시작됐고, 판정은 원본의
+    //   파라미터를 읽어 "바꾼 값이 없다"고 했다 — 정작 복제본에는 제대로 들어가 있었다.
+    //   그래서 복제본을 이름으로 명시해 연 다음 실행한다. (2026-07-31)
+    await wf.gotoWorkflows();
+    await wf.openRunViewer(name);
     await wf.runHere();
 
     remember(`workflow:${track}`, name);
