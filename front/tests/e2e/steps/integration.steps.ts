@@ -191,22 +191,25 @@ When(
   },
 );
 
-Then('설치된 소프트웨어를 워크플로우 화면에서 확인한다', async ({ page }) => {
-  const wf = new WorkflowPage(page);
-  const name = recall('sw-workflow') ?? scenarioState.softwareWorkflowName;
-  expect(
-    name,
-    '소프트웨어 마이그레이션 워크플로우를 알 수 없다 — 앞 구간이 먼저 실행돼야 한다',
-  ).toBeTruthy();
+Then(
+  '설치된 소프트웨어를 {string} 작업에서 확인한다',
+  async ({ page }, taskName: string) => {
+    const wf = new WorkflowPage(page);
+    const name = recall('sw-workflow') ?? scenarioState.softwareWorkflowName;
+    expect(
+      name,
+      '소프트웨어 마이그레이션 워크플로우를 알 수 없다 — 앞 구간이 먼저 실행돼야 한다',
+    ).toBeTruthy();
 
-  await wf.gotoWorkflows();
-  await wf.openRunViewer(name as string);
-  const installed = await wf.showInstalledSoftware(
-    workflowData.softwareMigrationTask,
-  );
-  console.log(`[소프트웨어] 화면에서 확인한 설치 항목 ${installed} 건`);
-  expect(installed, '설치 목록이 비어 있다').toBeGreaterThan(0);
-});
+    await wf.gotoWorkflows();
+    await wf.openRunViewer(name as string);
+    // ★ 런 그래프의 노드는 *작업 이름*(run_software_migration)으로 그려진다. 컴포넌트 이름
+    //   (grasshopper_task_software_migration)은 디자이너 캔버스에서 쓰는 것이라 여기서는 잡히지 않는다.
+    const installed = await wf.showInstalledSoftware(taskName);
+    console.log(`[소프트웨어] 화면에서 확인한 설치 항목 ${installed} 건`);
+    expect(installed, '설치 목록이 비어 있다').toBeGreaterThan(0);
+  },
+);
 
 Then(
   '{string} 그룹의 연결 목록에 파일로 넣은 서버가 모두 보인다',

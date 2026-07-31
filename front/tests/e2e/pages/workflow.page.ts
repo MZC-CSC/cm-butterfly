@@ -580,7 +580,19 @@ export class WorkflowPage {
    * way it is done in the model editor.
    */
   async setSpecInWorkflow(size: string): Promise<string> {
-    const fields = this.page.locator('[data-testid^="wf-field-body_params."]');
+    // ★ Only the node's own spec counts, and it is found by its *path*.
+    //
+    //   This used to take the first field whose value looked like `provider+region+size`. What it
+    //   found was `targetSpecList[0].id` - an entry in the candidate catalogue, which decides
+    //   nothing. The machine's spec is `targetInfra.nodeGroups[].specId`, and that stayed as it
+    //   was. The check then passed because it only asked whether the string appeared *somewhere*
+    //   in the parameters, and it did: in the box this method had just typed it into.
+    //
+    //   So the search is by path now, and a miss is an error rather than a silent fallback onto
+    //   something else that happens to match. (2026-07-31)
+    const fields = this.page.locator(
+      '[data-testid^="wf-field-body_params."][data-testid*="nodeGroups"][data-testid$="specId"]',
+    );
     const count = await fields.count();
 
     for (let i = 0; i < count; i++) {
@@ -608,7 +620,9 @@ export class WorkflowPage {
     }
 
     throw new Error(
-      '워크플로우 본문에서 스펙 필드를 찾지 못했다 — provider+region+size 형태의 값이 없다',
+      '워크플로우 편집기에 노드 스펙 칸(targetInfra.nodeGroups[].specId)이 없다.\n' +
+        '편집기는 객체 배열 안의 객체 배열을 펼치지 않아 이 값을 그리지 않는다 — ' +
+        '카탈로그(targetSpecList)의 비슷한 값을 대신 고치면 아무 일도 일어나지 않는다.',
     );
   }
 

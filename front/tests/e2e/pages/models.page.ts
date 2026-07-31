@@ -185,7 +185,15 @@ export class ModelsPage {
   /** Select a model row from the list (reveals the detail tab) */
   async selectModel(name: string): Promise<void> {
     await this.revealModel(name);
-    await humanClick(this.modelRow(name));
+
+    // ★ Same as the source group: a selected row that is clicked again comes unselected, and the
+    //   detail that the next step needs goes with it. Saving a model leaves it selected, and that
+    //   is precisely when a scenario turns around and "selects" it.
+    const row = this.modelRow(name).first();
+    const cls = (await row.getAttribute('class').catch(() => '')) ?? '';
+    if (/selected/.test(cls)) return;
+
+    await humanClick(row);
   }
 
   /** Select the first model in the list (e.g. the latest source right after collection) */

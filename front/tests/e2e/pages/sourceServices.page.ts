@@ -461,7 +461,19 @@ export class SourceServicesPage {
   /** 이름으로 소스그룹 선택(상세 진입) */
   async selectGroup(name: string): Promise<void> {
     await this.revealGroup(name);
-    await humanClick(this.groupRow(name).first());
+
+    // ★ Already the chosen row? Then leave it alone.
+    //
+    //   Clicking a selected row toggles it *off* and the detail pane below it closes with it, so the
+    //   tabs that were about to be used are simply gone. Nothing errors - the next step waits for a
+    //   tab that no longer exists and times out somewhere else entirely. Creating a group leaves it
+    //   selected, which is exactly when this is reached (DESIGN-MIRINAE §1.5: the state is a class
+    //   on the row, not a standard input).
+    const row = this.groupRow(name).first();
+    const cls = (await row.getAttribute('class').catch(() => '')) ?? '';
+    if (/selected/.test(cls)) return;
+
+    await humanClick(row);
   }
 
   /** 연결 탭 열기 + 특정 연결정보 선택 */
