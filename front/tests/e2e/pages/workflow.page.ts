@@ -916,48 +916,62 @@ export class WorkflowPage {
     if (!(await params.isVisible({ timeout: 5_000 }).catch(() => false)))
       return;
 
-    const box = await params.boundingBox().catch(() => null);
-    if (!box) return;
-
-    await this.page.mouse.move(
-      box.x + box.width / 2,
-      box.y + Math.min(box.height / 2, 240),
-    );
-
-    // Which element actually scrolls, and how far is left.
+    // Which element actually scrolls.
     //
     // ★ This used to watch `window.scrollY`. The body does not move - the request body is long but
     //   it scrolls *inside its own box* - so the reading was 0 before and 0 after, the loop decided
-    //   nothing had happened and stopped after a single notch. On screen the panel opened, twitched
-    //   once and sat there for the rest of the run, with the spec and the ports below the fold the
-    //   whole time. Watching the panel's own scrollTop is what makes the wheel measurable.
+    //   nothing had happened and stopped after a single notch.
+    const scrollable = await params
+      .evaluateHandle((el: Element) => {
+        const find = (node: Element | null): Element | null => {
+          while (node) {
+            if (node.scrollHeight - node.clientHeight > 8) return node;
+            const inner = Array.from(node.querySelectorAll('*')).find(
+              c => c.scrollHeight - c.clientHeight > 8,
+            );
+            if (inner) return inner;
+            node = node.parentElement;
+          }
+          return null;
+        };
+        return find(el);
+      })
+      .catch(() => null);
+
+    const target = scrollable?.asElement() ?? null;
+    if (!target) {
+      // Everything already fits.
+      await this.page.waitForTimeout(600);
+      return;
+    }
+
+    // ★ Put the pointer *on the thing that moves*.
+    //
+    //   The pointer used to be parked over the middle of the panel while the list underneath
+    //   scrolled - on the recording the content slides on its own with the cursor sitting
+    //   somewhere else entirely, which reads as the screen moving by itself rather than as
+    //   someone scrolling it. The wheel also only turns what is under the pointer, so aiming at
+    //   the scrolling element is what makes the wheel work at all. (2026-07-31)
+    const box = await target.boundingBox().catch(() => null);
+    if (box) {
+      await this.page.mouse.move(
+        box.x + box.width / 2,
+        box.y + Math.min(box.height / 2, 260),
+      );
+      await this.page.waitForTimeout(250);
+    }
+
     const progress = () =>
-      params
-        .evaluate((el: Element) => {
-          const scrollable = (node: Element | null): Element | null => {
-            while (node) {
-              if (node.scrollHeight - node.clientHeight > 8) return node;
-              const inner = Array.from(node.querySelectorAll('*')).find(
-                c => c.scrollHeight - c.clientHeight > 8,
-              );
-              if (inner) return inner;
-              node = node.parentElement;
-            }
-            return null;
-          };
-          const target = scrollable(el);
-          if (!target) return null;
-          return {
-            top: target.scrollTop,
-            max: target.scrollHeight - target.clientHeight,
-          };
-        })
+      target
+        .evaluate((el: Element) => ({
+          top: el.scrollTop,
+          max: el.scrollHeight - el.clientHeight,
+        }))
         .catch(() => null);
 
     const start = await progress();
     if (!start || start.max <= 8) {
-      // Nothing to scroll - everything already fits.
-      await this.page.waitForTimeout(800);
+      await this.page.waitForTimeout(600);
       return;
     }
 
@@ -967,22 +981,11 @@ export class WorkflowPage {
       if (!at) break;
       if (at.top >= at.max - 4) break;
       if (at.top === previous) {
-        // The wheel is not reaching it - drive the element itself rather than give up.
-        await params
+        // The wheel is not reaching it - drive the element itself. The pointer is already on it,
+        // so what moves and what is being pointed at still agree.
+        await target
           .evaluate((el: Element) => {
-            const find = (node: Element | null): Element | null => {
-              while (node) {
-                if (node.scrollHeight - node.clientHeight > 8) return node;
-                const inner = Array.from(node.querySelectorAll('*')).find(
-                  c => c.scrollHeight - c.clientHeight > 8,
-                );
-                if (inner) return inner;
-                node = node.parentElement;
-              }
-              return null;
-            };
-            const target = find(el);
-            if (target) target.scrollTop += 200;
+            el.scrollTop += 200;
           })
           .catch(() => {});
       } else {
@@ -990,12 +993,12 @@ export class WorkflowPage {
       }
       previous = at.top;
       // Slow enough to read on the way down.
-      await this.page.waitForTimeout(500);
+      await this.page.waitForTimeout(420);
     }
 
     // Rest at the bottom. The spec and the ports are down here, and stopping mid-scroll reads as
     // the screen having got stuck.
-    await this.page.waitForTimeout(1_200);
+    await this.page.waitForTimeout(1_000);
   }
 
   /** A task node in the run graph, by its name. */

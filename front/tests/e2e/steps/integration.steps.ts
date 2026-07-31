@@ -97,17 +97,25 @@ Then('도움말에 현재 화면 설명이 보인다', async ({ page }) => {
   await expect(page.getByTestId('help-body')).not.toBeEmpty();
 });
 
+/**
+ * 폭을 넓혔다 줄인다 — 다만 *천천히*.
+ *
+ * ★ 끄는 동안 화면 대부분이 매 프레임 바뀌는데, 녹화기의 비트레이트가 낮아 그 순간 글자가 뭉개진다.
+ *   정지 화면은 깨끗한데(색 있는 화소 0개) 끄는 13~15초 구간만 2천 개가 넘게 나왔다. 나중에 다시
+ *   인코딩해도 복구되지 않으므로 *찍을 때* 프레임 간 변화량을 줄이는 수밖에 없다. 걸음을 잘게 나눠
+ *   조금씩 움직이면 같은 거리를 가도 한 프레임이 담는 변화가 작아진다. (2026-07-31)
+ */
 Given('도움말 패널의 폭을 넓혔다 줄인다', async ({ page }) => {
   const box = await page.getByTestId('help-resizer').first().boundingBox();
   if (!box) return;
   const y = box.y + box.height / 2;
   await page.mouse.move(box.x + box.width / 2, y);
   await page.mouse.down();
-  await page.mouse.move(box.x - 220, y, { steps: 20 });
-  await page.waitForTimeout(400);
-  await page.mouse.move(box.x + 60, y, { steps: 20 });
+  await page.mouse.move(box.x - 220, y, { steps: 60 });
+  await page.waitForTimeout(500);
+  await page.mouse.move(box.x + 60, y, { steps: 60 });
   await page.mouse.up();
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(500);
 });
 
 When('도움말 도킹을 해제하면', async ({ page }) => {
@@ -132,7 +140,7 @@ Given('도움말 창을 다른 위치로 옮긴다', async ({ page }) => {
   if (!box) return;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
-  await page.mouse.move(box.x - 300, box.y + 180, { steps: 25 });
+  await page.mouse.move(box.x - 300, box.y + 180, { steps: 60 });
   await page.mouse.up();
   await page.waitForTimeout(400);
 });
@@ -142,7 +150,7 @@ Given('도움말 창의 크기를 키운다', async ({ page }) => {
   if (!box) return;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
-  await page.mouse.move(box.x - 240, box.y + 120, { steps: 20 });
+  await page.mouse.move(box.x - 240, box.y + 120, { steps: 60 });
   await page.mouse.up();
   await page.waitForTimeout(400);
 });
@@ -790,11 +798,21 @@ Then('워크플로우의 작업별 상태가 모두 정상이다', async ({ page
   // in the background; holding here would spend minutes watching a progress bar when the next piece
   // of work could be under way. A task that has already failed shows up now, and the rest is judged
   // later from what was actually built.
+  // ★ 이미 그 실행을 보고 있으면 아무 데도 가지 않는다.
+  //
+  //   여기까지 오는 길은 언제나 "워크플로우를 만들고 실행한" 직후라, 화면에는 그 실행 상태가 떠
+  //   있다. 그런데 목록에서 다시 찾아 열게 두었더니 — 목록이 여러 쪽으로 늘어나면서 그 행이 지금
+  //   쪽에 없으면 "선택돼 있지 않다"고 판단해 검색까지 갔다. 화면에 멀쩡히 떠 있는 것을 두고
+  //   목록으로 나갔다 검색해서 돌아오는 장면이 되고, 보는 쪽에서는 무엇을 하는지 알 수 없다.
+  //   (2026-07-31)
   const wf = new WorkflowPage(page);
-  await wf.openRunViewer(name as string);
-  const failed = page
-    .getByTestId('workflow-run-graph')
-    .locator('[data-state="failed"], [data-state="upstream_failed"]');
+  const graph = page.getByTestId('workflow-run-graph');
+  if (!(await graph.isVisible({ timeout: 2_000 }).catch(() => false))) {
+    await wf.openRunViewer(name as string);
+  }
+  const failed = graph.locator(
+    '[data-state="failed"], [data-state="upstream_failed"]',
+  );
   expect(
     await failed.count(),
     '워크플로우 전체 상태가 success 여도 개별 작업이 실패했을 수 있다 — Run Status 의 작업별 상태로 판정한다',
@@ -1393,27 +1411,52 @@ Given('실패한 인프라 마이그레이션 워크플로우를 연다', async 
   remember('workflow:failed', name as string);
 });
 
-Then('실패한 작업의 로그에 용량 부족 안내가 보인다', async ({ page }) => {
-  const wf = new WorkflowPage(page);
-  // 런 그래프의 노드는 *작업 이름*으로 그려진다 (컴포넌트 이름이 아니다).
-  await wf.pickTask('infra_migration', false);
-  await wf.openTaskLog();
+Then(
+  '실패한 작업의 로그에서 용량 부족과 대신 쓸 존을 읽는다',
+  async ({ page }) => {
+    const wf = new WorkflowPage(page);
+    // 런 그래프의 노드는 *작업 이름*으로 그려진다 (컴포넌트 이름이 아니다).
+    await wf.pickTask('infra_migration', false);
+    await wf.openTaskLog();
 
-  const log = page.getByTestId('workflow-run-log').first();
-  await expect(log).toBeVisible({ timeout: 15_000 });
-  const text = (await log.innerText().catch(() => '')) || '';
-  console.log(
-    `[구간11] 로그에서 읽은 것: ${text.match(/Insufficient\w*|ap-northeast-2[a-d]/g)?.slice(0, 4)}`,
-  );
-  expect(
-    text,
-    '실패 로그에 용량 부족 안내가 없다 — 다른 이유로 실패한 실행이다',
-  ).toMatch(/InsufficientInstanceCapacity|capacity/i);
-});
+    const log = page.getByTestId('workflow-run-log').first();
+    await expect(log).toBeVisible({ timeout: 15_000 });
+    const text = (await log.innerText().catch(() => '')) || '';
+
+    expect(
+      text,
+      '실패 로그에 용량 부족 안내가 없다 — 다른 이유로 실패한 실행이다',
+    ).toMatch(/InsufficientInstanceCapacity/i);
+
+    // ★ 쓸 존을 *메시지에서 읽는다*.
+    //
+    //   박아 넣으면 "읽고 판단한다"가 성립하지 않는다. AWS 는 어느 존이 비었고 어디로 가면 되는지를
+    //   응답에 함께 적어 준다 — "...(ap-northeast-2a). ... or choosing ap-northeast-2c."
+    //   그 문구 형식은 AWS 것이라 다른 CSP 에는 그대로 통하지 않는다. 그래서 이것을 제품 로직으로
+    //   삼지 않고, 사람이 하는 판단을 그대로 따라 하는 *선택적* 시나리오로만 둔다.
+    const requested = text.match(
+      /Availability Zone you requested\s*\(([^)]+)\)/i,
+    )?.[1];
+    const suggested = text.match(/choosing\s+([A-Za-z0-9-]+)/i)?.[1];
+
+    console.log(`[구간11] 요청했던 존: ${requested ?? '읽지 못함'}`);
+    console.log(`[구간11] 안내받은 존: ${suggested ?? '읽지 못함'}`);
+
+    expect(
+      suggested,
+      '로그에서 대신 쓸 존을 읽지 못했다 — 안내 문구 형식이 달라졌을 수 있다',
+    ).toBeTruthy();
+
+    remember('zone:suggested', suggested as string);
+  },
+);
 
 When(
-  '그 워크플로우를 복제해 서브넷 존을 {string} 로 지정하고 실행하면',
-  async ({ page }, zone: string) => {
+  '그 워크플로우를 복제해 안내받은 존으로 바꿔 실행하면',
+  async ({ page }) => {
+    const zone = recall('zone:suggested');
+    expect(zone, '앞 단계에서 읽은 존이 없다').toBeTruthy();
+
     const seed = trackSeed('z');
     const name = `${workflowData.createNamePrefix}-${seed}`;
     const wf = new WorkflowPage(page);
@@ -1424,7 +1467,7 @@ When(
     await wf.selectTaskInDesigner(workflowData.infraMigrationTask);
     await wf.setTaskParam('query', 'nameSeed', seed);
 
-    const subnets = await wf.setSubnetZone(zone);
+    const subnets = await wf.setSubnetZone(zone as string);
     console.log(`[구간11] 서브넷 ${subnets} 곳에 존 ${zone} 지정`);
 
     await wf.saveWorkflow();

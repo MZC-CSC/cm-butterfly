@@ -460,9 +460,16 @@ export class SourceServicesPage {
     const filename = this.page.getByTestId('source-import-filename');
     await expect(filename).toContainText('sources.csv', { timeout: 10_000 });
 
-    // Point at it. Nothing else on screen says a file arrived, and the name is small print next to
-    // a preview that draws the eye.
-    await spotlight(this.page, filename);
+    // Point at the name itself.
+    //
+    // ★ The line reads `Selected file: <strong>sources.csv</strong>`, so the element holds two runs
+    //   of text and the highlight measures the widest one - which was the label, not the file. The
+    //   ring went round "Selected file:" and said nothing about which file arrived.
+    const nameOnly = filename.locator('strong').first();
+    await spotlight(
+      this.page,
+      (await nameOnly.isVisible().catch(() => false)) ? nameOnly : filename,
+    );
 
     // The preview reports how many rows the server parsed - that count is what tells us the file
     // was read as a file rather than accepted and dropped.
