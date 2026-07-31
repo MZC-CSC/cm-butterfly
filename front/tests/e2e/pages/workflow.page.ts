@@ -171,15 +171,24 @@ export class WorkflowPage {
   }
 
   /** Pick a workflow and open the Run Status tab */
-  async openRunViewer(workflowName: string): Promise<void> {
+  async openRunViewer(workflowName: string, force = false): Promise<void> {
     // Already looking at it? Then stop.
+    //
+    // ★ `force` skips that shortcut. After saving a cloned workflow the list selects the copy while
+    //   the viewer below is still showing the workflow it was copied from, so "the row is already
+    //   selected" is true without the viewer having caught up - the run started was the copy's, but
+    //   the parameters on screen belonged to the original. Opening it the way a person does, by
+    //   pressing the row, loads the whole thing. (2026-07-31)
     //
     // ★ After running a workflow we are on its Run Status, and this went back to the list, found the
     //   row again, clicked it and re-opened the tab - on screen it reads as running the thing a
     //   second time. If the viewer is up and the selected row is this workflow, there is nothing
     //   to open.
     const viewer = this.page.getByTestId('workflow-run-viewer');
-    if (await viewer.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    if (
+      !force &&
+      (await viewer.isVisible({ timeout: 1_000 }).catch(() => false))
+    ) {
       const selected = this.rowByText(workflowName).first();
       const cls = (await selected.getAttribute('class').catch(() => '')) ?? '';
       if (cls.includes('selected')) {

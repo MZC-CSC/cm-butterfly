@@ -665,7 +665,8 @@ When(
     //   파라미터를 읽어 "바꾼 값이 없다"고 했다 — 정작 복제본에는 제대로 들어가 있었다.
     //   그래서 복제본을 이름으로 명시해 연 다음 실행한다. (2026-07-31)
     await wf.gotoWorkflows();
-    await wf.openRunViewer(name);
+    // 목록에서 복제본 행을 실제로 눌러 연다 — 선택 상태만 보고 건너뛰면 뷰어가 원본을 그린 채로 남는다.
+    await wf.openRunViewer(name, true);
     await wf.runHere();
 
     remember(`workflow:${track}`, name);
