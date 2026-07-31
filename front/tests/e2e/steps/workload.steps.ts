@@ -187,6 +187,21 @@ Then(
   },
 );
 
+/**
+ * Step "request the delete of {infra}" — go through the modal and confirm, without asserting
+ * what comes next.
+ *
+ * Separate from the in-progress step because this one is used where the request is *refused*:
+ * nothing goes into progress, so waiting for that screen would fail on the very thing the
+ * scenario is there to check.
+ */
+When('{string} 인프라의 삭제를 요청한다', async ({ page }, infraName: string) => {
+  const wl = new WorkloadPage(page);
+  await wl.selectMci(infraName);
+  await wl.openDeleteModal();
+  await wl.confirmDelete(infraName, 'normal');
+});
+
 /** Step "close the deletion-in-progress modal" — [Close] on the progress step. Return to the list and look at the delete-status column. */
 When('삭제 처리 중 모달을 닫는다', async ({ page }) => {
   await new WorkloadPage(page).closeDeleteModal();

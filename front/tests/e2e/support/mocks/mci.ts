@@ -1,4 +1,4 @@
-import { ApiMock, ok } from '../apiMock';
+import { ApiMock, ok, fail } from '../apiMock';
 
 /**
  * Workload (infra) mock — for verifying the delete screen's *state machine* without any infra.
@@ -76,8 +76,21 @@ export const MOCK_LIST_INFRA_IDS = [
   'mock-list-infra-4',
 ];
 
+/**
+ * An infra whose delete request is refused outright.
+ *
+ * Separate from MOCK_INFRA_ID because the two are opposite cases: that one imitates a slow
+ * delete that is genuinely under way, this one a request that never started. Sharing a name
+ * would leave the list holding a row in two contradictory states.
+ */
+export const MOCK_REJECTED_INFRA_ID = 'mock-refused-infra';
+
 /** Every infra name this mock puts in the list. */
-export const MOCK_ALL_INFRA_IDS = [MOCK_INFRA_ID, ...MOCK_LIST_INFRA_IDS];
+export const MOCK_ALL_INFRA_IDS = [
+  MOCK_INFRA_ID,
+  MOCK_REJECTED_INFRA_ID,
+  ...MOCK_LIST_INFRA_IDS,
+];
 
 export function registerMciMocks(mock: ApiMock): ApiMock {
   return mock.use({
@@ -112,12 +125,20 @@ export function registerMciMocks(mock: ApiMock): ApiMock {
     // The load-test contract is checked where it belongs, against the real lineup.
     'cm-ant/Getlastloadtestexecutionstate': () => ok({ result: null }),
 
-    // Delete request — **hold the response.**
+    // Delete request — **hold the response**, except for the one infra that is meant to be refused.
     //
     // ★ Do not respond immediately. The real DeleteInfra holds the response until completion, and the screen keeps
     //   the "in progress" (Handling) status the whole time. If the mock returns success immediately, it transitions
     //   straight to complete right after the request, the record is dropped, and the in-progress status we wanted to
     //   observe never exists (3 cases actually failed that way). A slow API must be imitated *down to being slow*.
-    'cm-beetle/DeleteInfra': () => new Promise(() => {}),
+    //
+    // MOCK_REJECTED_INFRA_ID is the exception: it is refused outright, which is a different thing
+    // from a slow delete. A refusal means nothing was started, so the record must not be left
+    // "in progress" — that status is what blocks a second attempt, and leaving it there would make
+    // the workload permanently undeletable even though nothing had happened to it.
+    'cm-beetle/DeleteInfra': ({ body }) =>
+      body?.pathParams?.infraId === MOCK_REJECTED_INFRA_ID
+        ? fail(400, 'mock: delete request refused')
+        : new Promise(() => {}),
   });
 }
