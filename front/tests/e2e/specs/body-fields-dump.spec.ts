@@ -53,6 +53,10 @@ test('what the workflow editor draws for the body @integration', async ({
   // empty list.
   await page.waitForTimeout(3_000);
 
+  const before = await page.locator('[data-testid^="wf-field-"]').count();
+  const opened = await wf.expandAllParams();
+  console.log(`[dump] 접혀 있던 것 ${opened} 개를 펼쳤다 (필드 ${before} → ?)`);
+
   const fields = page.locator('[data-testid^="wf-field-"]');
   const count = await fields.count();
   console.log(`[dump] 그려진 필드 ${count} 개`);

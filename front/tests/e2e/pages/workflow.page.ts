@@ -584,7 +584,52 @@ export class WorkflowPage {
    * value looks like a spec - `provider+region+size`. Only the size at the end is retyped, the same
    * way it is done in the model editor.
    */
+  /**
+   * Open everything the panel folded away.
+   *
+   * The editor collapses arrays and objects deeper than two levels so the form stays readable. For
+   * a migration that hides the two values that decide the outcome - the node's spec and the
+   * firewall ports - behind ▶ toggles, so a test that reads the rendered fields finds neither. That
+   * is the panel doing its job, not a defect: a person clicks to open them.
+   *
+   * So we click too. Keep pressing whatever still shows ▶ until nothing does, then the fields are
+   * in the DOM and can be read and edited like any other.
+   *
+   * The toggles carry no test identifier, so they are found by the component's own class names
+   * (`btn-collapse` for an array or object, `btn-item-collapse` for one item of an array).
+   */
+  async expandAllParams(maxRounds = 6): Promise<number> {
+    let opened = 0;
+
+    for (let round = 0; round < maxRounds; round++) {
+      const closed = this.taskEditor.locator(
+        'button.btn-collapse, button.btn-item-collapse',
+      );
+      const count = await closed.count().catch(() => 0);
+
+      let clickedThisRound = 0;
+      for (let i = 0; i < count; i++) {
+        const button = closed.nth(i);
+        const label = (await button.innerText().catch(() => '')).trim();
+        // ▶ is closed, ▼ is open.
+        if (!label.includes('\u25b6')) continue;
+        await button.click({ timeout: 5_000 }).catch(() => {});
+        clickedThisRound++;
+        opened++;
+        await this.page.waitForTimeout(80);
+      }
+
+      // Opening one level reveals the next, so go round again until a pass changes nothing.
+      if (clickedThisRound === 0) break;
+    }
+
+    await this.page.waitForTimeout(400);
+    return opened;
+  }
+
   async setSpecInWorkflow(size: string): Promise<string> {
+    await this.expandAllParams();
+
     // ★ Only the node's own spec counts, and it is found by its *path*.
     //
     //   This used to take the first field whose value looked like `provider+region+size`. What it
@@ -647,6 +692,8 @@ export class WorkflowPage {
    * @returns the port that was replaced
    */
   async setPortInWorkflow(from: string, to: string): Promise<string> {
+    await this.expandAllParams();
+
     const fields = this.page.locator('[data-testid^="wf-field-body_params."]');
     const count = await fields.count();
 
