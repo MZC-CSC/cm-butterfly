@@ -76,8 +76,16 @@ export class ApiMock {
         return route.fallback();
       }
       const result = await handler({ body, request: req, operationId });
+
+      // A handler may ask for a non-200 status (see `fail`). Everything else answers 200, which
+      // is what the console's own responses look like — errors carried inside a 200 envelope.
+      // Some paths, though, hand the underlying status straight through: the backend proxy
+      // passes cm-beetle's status as-is when cm-beetle answered, and substitutes 500 when it
+      // could not be reached. Code that tells those apart cannot be exercised without this.
+      const httpStatus =
+        (result as { __httpStatus?: number })?.__httpStatus ?? 200;
       await route.fulfill({
-        status: 200,
+        status: httpStatus,
         contentType: 'application/json',
         body: JSON.stringify(result ?? {}),
       });
@@ -104,4 +112,20 @@ export function extractOperationId(url: string): string {
 /** cm-butterfly standard success response wrapper */
 export function ok(responseData: unknown, code = 200) {
   return { status: { code, message: 'success' }, responseData };
+}
+
+/**
+ * A response that arrives with a real HTTP error status, not an error inside a 200.
+ *
+ * Needed where the code branches on the status itself. Delete tracking is the case: 404 means
+ * cm-beetle answered and does not know that request id, while 500 means it could not be reached
+ * — one ends the tracking, the other holds off on a verdict. Wrapping both in a 200 would make
+ * the two indistinguishable and the branch untestable.
+ */
+export function fail(code: number, message: string) {
+  return {
+    __httpStatus: code,
+    status: { code, message },
+    responseData: message,
+  };
 }
