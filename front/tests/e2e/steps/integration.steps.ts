@@ -398,6 +398,10 @@ Then('검색 결과에 5555 방화벽 규칙이 보인다', async ({ page }) => 
   await new JsonEditorPage(page).expectRowVisible('5555');
 });
 
+Given('JSON 편집기를 닫는다', async ({ page }) => {
+  await new JsonEditorPage(page).close();
+});
+
 Given('검색을 해제한다', async ({ page }) => {
   await new JsonEditorPage(page).closeSearch();
 });

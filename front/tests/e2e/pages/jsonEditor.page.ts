@@ -110,6 +110,27 @@ export class JsonEditorPage {
     await humanClick(this.page.getByTestId('json-grid-search-filter'));
   }
 
+  /**
+   * Leave the editor without saving.
+   *
+   * ★ The editor is an overlay on the model's own route, so the address does not change when it
+   *   opens. Anything that decides "am I on the models screen" by the URL says yes while this is
+   *   covering it, and the buttons underneath resolve but never become clickable - the step then
+   *   times out on an element that was there all along. Playwright counts an element behind an
+   *   overlay as visible, so a marker check does not catch it either. The editor has to be closed.
+   *   (2026-07-31)
+   */
+  async close(): Promise<void> {
+    const cancel = this.page
+      .getByTestId('target-custom-cancel')
+      .or(this.page.getByTestId('source-custom-cancel'))
+      .first();
+    if (await cancel.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await humanClick(cancel);
+      await expect(cancel).toBeHidden({ timeout: 15_000 });
+    }
+  }
+
   async closeSearch(): Promise<void> {
     await humanClick(this.page.getByTestId('json-grid-search-close'));
   }
