@@ -734,6 +734,42 @@ export class WorkflowPage {
   }
 
   /**
+   * Say which availability zone the subnet should sit in.
+   *
+   * The recommendation leaves this blank, so the connection's default zone is used - and if that
+   * zone has no capacity for the chosen machine type, every VM fails to create. The error names a
+   * zone that does have capacity, and this is where that answer goes.
+   *
+   * The field is `targetVNet.subnetInfoList[].zone`; it is folded away by default like everything
+   * else that deep, so the panel is opened first.
+   *
+   * @returns how many subnets were given the zone
+   */
+  async setSubnetZone(zone: string): Promise<number> {
+    await this.expandAllParams();
+
+    const fields = this.page.locator(
+      '[data-testid^="wf-field-body_params."][data-testid*="subnetInfoList"][data-testid$="zone"]',
+    );
+    const count = await fields.count();
+    if (count === 0) {
+      throw new Error(
+        '워크플로우 본문에 서브넷 존 칸(targetVNet.subnetInfoList[].zone)이 없다',
+      );
+    }
+
+    for (let i = 0; i < count; i++) {
+      const field = fields.nth(i);
+      await field.scrollIntoViewIfNeeded().catch(() => {});
+      await field.click();
+      await field.pressSequentially(zone, { delay: 55 });
+      await this.page.waitForTimeout(400);
+      await spotlight(this.page, field);
+    }
+    return count;
+  }
+
+  /**
    * Copy the workflow on screen and open the copy for editing.
    *
    * ★ The console has no "save as". Editing a workflow that has already run is blocked outright -

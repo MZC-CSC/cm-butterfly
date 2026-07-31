@@ -17,6 +17,9 @@ cd "$(dirname "$0")/.."
 
 SEGMENTS=("$@")
 if [ "${#SEGMENTS[@]}" -eq 0 ]; then
+  # 구간11 은 기본 목록에 넣지 않는다 — *이미 실패한 실행*이 있어야 성립하므로 늘 찍을 수 있는
+  # 것이 아니다. 필요할 때 이름을 지정해 따로 찍는다:
+  #   TEST_FAILED_WORKFLOW=<실패한 워크플로우> scripts/record-all.sh 11
   SEGMENTS=(1 2a 2 3 4 5 6 6b 7 8 8b 9 10)
 fi
 

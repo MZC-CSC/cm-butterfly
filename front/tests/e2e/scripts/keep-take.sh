@@ -31,6 +31,7 @@ seg_label() {
     8) SEG="seg8-nginx설치확인-부하테스트" ;;
     9) SEG="seg9-정리-인프라삭제" ;;
     10) SEG="seg10-알림-하나씩확인하고비우기" ;;
+    11) SEG="seg11-용량부족실패-존변경해다시생성" ;;
     *) SEG="seg$1" ;;
   esac
   printf '%s' "$SEG"

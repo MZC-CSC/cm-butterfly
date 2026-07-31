@@ -707,7 +707,17 @@ async function waitForInfraCreated(
     const mine = (infras as any[]).find((i: any) =>
       String(i?.id ?? '').startsWith(`${seed}-`),
     );
-    if (mine?.id) return mine.id;
+    // ★ 레코드가 생겼다고 다 된 것이 아니다.
+    //
+    //   인프라는 장비가 아직 하나도 뜨지 않아도 레코드로 먼저 남고, 전량 실패해도 남는다. 그것을
+    //   "만들어졌다"로 읽으면 뒤따르는 판정이 `Creating` 인 것을 붙잡고 "정상이 아니다"라고 하거나,
+    //   실패한 것을 성공으로 넘긴다. 실제로 둘 다 겪었다. 만들기가 끝날 때까지 기다린다 —
+    //   끝났는지는 상태가 Creating 을 벗어났는지로 본다. 실패로 끝난 것도 반환한다: 무엇이 잘못됐는지는
+    //   그 다음 판정이 말해야 하고, 여기서 삼키면 원인이 사라진다. (2026-07-31)
+    if (mine?.id && !/creating/i.test(String(mine.status ?? ''))) {
+      console.log(`[인프라] ${mine.id} = ${mine.status}`);
+      return mine.id;
+    }
 
     // Keep the graph in view while the wait goes on, and keep doing it.
     //
@@ -1363,6 +1373,100 @@ Then(
     await wf.scrollThroughParams();
   },
 );
+
+// ── 구간11: 용량 부족으로 실패한 인프라를 존을 바꿔 다시 만든다 ──────────
+//
+// 기존 로직은 그대로 둔다. 어느 존이 비었고 어디로 옮겨야 하는지는 CSP 마다 다르고 응답 문구에서
+// 읽어 내는 것이라, 자동으로 고르는 규칙을 둘 근거가 없다. 사람이 메시지를 읽고 판단하는 일이므로
+// 그 판단을 화면에서 보여 주는 것으로 갈음한다.
+
+Given('실패한 인프라 마이그레이션 워크플로우를 연다', async ({ page }) => {
+  const name = process.env.TEST_FAILED_WORKFLOW ?? recall('workflow:4');
+  expect(
+    name,
+    '실패한 워크플로우 이름이 필요하다 — TEST_FAILED_WORKFLOW 로 넘긴다',
+  ).toBeTruthy();
+
+  const wf = new WorkflowPage(page);
+  await wf.gotoWorkflows();
+  await wf.openRunViewer(name as string, true);
+  remember('workflow:failed', name as string);
+});
+
+Then('실패한 작업의 로그에 용량 부족 안내가 보인다', async ({ page }) => {
+  const wf = new WorkflowPage(page);
+  // 런 그래프의 노드는 *작업 이름*으로 그려진다 (컴포넌트 이름이 아니다).
+  await wf.pickTask('infra_migration', false);
+  await wf.openTaskLog();
+
+  const log = page.getByTestId('workflow-run-log').first();
+  await expect(log).toBeVisible({ timeout: 15_000 });
+  const text = (await log.innerText().catch(() => '')) || '';
+  console.log(
+    `[구간11] 로그에서 읽은 것: ${text.match(/Insufficient\w*|ap-northeast-2[a-d]/g)?.slice(0, 4)}`,
+  );
+  expect(
+    text,
+    '실패 로그에 용량 부족 안내가 없다 — 다른 이유로 실패한 실행이다',
+  ).toMatch(/InsufficientInstanceCapacity|capacity/i);
+});
+
+When(
+  '그 워크플로우를 복제해 서브넷 존을 {string} 로 지정하고 실행하면',
+  async ({ page }, zone: string) => {
+    const seed = trackSeed('z');
+    const name = `${workflowData.createNamePrefix}-${seed}`;
+    const wf = new WorkflowPage(page);
+
+    await wf.cloneAndEdit();
+    await wf.fillWorkflowName(name, descriptions.infraWorkflowZoneFixed);
+
+    await wf.selectTaskInDesigner(workflowData.infraMigrationTask);
+    await wf.setTaskParam('query', 'nameSeed', seed);
+
+    const subnets = await wf.setSubnetZone(zone);
+    console.log(`[구간11] 서브넷 ${subnets} 곳에 존 ${zone} 지정`);
+
+    await wf.saveWorkflow();
+    await waitForDagRegistered(page, name);
+    await wf.gotoWorkflows();
+    await wf.openRunViewer(name, true);
+    await wf.runHere();
+
+    remember('workflow:last', name);
+    const infraId = await waitForInfraCreated(page, seed, wf);
+    remember('infra:z', infraId);
+    scenarioState.infraName = infraId;
+    scenarioState.infraId = infraId;
+  },
+);
+
+Then('존을 바꿔 만든 인프라가 정상이다', async ({ page }) => {
+  const infraId = recall('infra:z');
+  expect(infraId, '존을 바꿔 만든 인프라를 알 수 없다').toBeTruthy();
+
+  const wl = new WorkloadPage(page);
+  await wl.gotoMci();
+  await wl.expectMciVisible(infraId as string);
+
+  const status = await getInfraStatus(page, infraId as string);
+  console.log(`[구간11] ${infraId} = ${status}`);
+  expect(
+    status,
+    `존을 바꿔 만든 인프라가 정상 상태가 아니다 (${status})`,
+  ).toMatch(/Running/i);
+});
+
+Given('존을 바꿔 만든 인프라를 삭제한다', async ({ page }) => {
+  const infraId = recall('infra:z');
+  if (!infraId) return;
+  const wl = new WorkloadPage(page);
+  await wl.gotoMci();
+  await wl.selectMci(infraId as string);
+  await wl.openDeleteModal();
+  await wl.confirmDelete(infraId as string, 'normal', 10_000);
+  await wl.waitUntilMciGone(infraId as string);
+});
 
 // ── 알림: 일이 끝났음을 확인하고 치우는 것까지가 그 작업의 마지막 ──────
 //
