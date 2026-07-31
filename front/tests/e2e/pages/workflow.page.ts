@@ -364,7 +364,12 @@ export class WorkflowPage {
   // ─────────────────────────────────────────────────────────────────────────
 
   async gotoWorkflows(): Promise<void> {
-    await openScreen(this.page, 'workflows', WorkflowPage.workflowsPath);
+    await openScreen(
+      this.page,
+      'workflows',
+      WorkflowPage.workflowsPath,
+      'workflow-list-table',
+    );
     await this.expectWorkflowsLoaded();
   }
 

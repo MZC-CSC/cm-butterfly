@@ -290,7 +290,12 @@ export class SourceServicesPage {
 
   /** 소스 서비스 화면으로 이동 */
   async goto(): Promise<void> {
-    await openScreen(this.page, 'sourceservices', SourceServicesPage.path);
+    await openScreen(
+      this.page,
+      'sourceservices',
+      SourceServicesPage.path,
+      'source-group-list-table',
+    );
     await expect(this.addGroupButton).toBeVisible({ timeout: 15_000 });
   }
 

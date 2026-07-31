@@ -20,13 +20,34 @@ export async function openScreen(
   page: Page,
   menuId: string,
   path: string,
+  marker?: string,
 ): Promise<void> {
   // Already here? Then there is nothing to do.
   //
   // A person on the source services list who wants to add a second one presses Add again - they do
   // not go back to the left menu and click their way in a second time. The recording was doing
   // exactly that, once per registration, and the same loop showed up around the workloads screen.
-  if (page.url().includes(path)) return;
+  //
+  // ★ "Here" means the screen, not the address. Sub-views keep the same path - the JSON editor
+  //   opened from a target model still reads `/models/target-models` - so a URL match alone said
+  //   "already there" while the editor was still on screen, and everything after it looked for
+  //   buttons that belong to the list. The caller passes a marker for what the screen itself shows;
+  //   without one the address is all there is to go on. (2026-07-31)
+  if (page.url().includes(path)) {
+    if (!marker) return;
+    const onScreen = await page
+      .getByTestId(marker)
+      .first()
+      .isVisible({ timeout: 2_000 })
+      .catch(() => false);
+    if (onScreen) return;
+    // Same address, different screen. Reload to get back to the list itself.
+    await page.goto(path);
+    await expect(page).toHaveURL(new RegExp(escapeForUrl(path)), {
+      timeout: 20_000,
+    });
+    return;
+  }
 
   const insideConsole = page.url().includes('/main/');
 

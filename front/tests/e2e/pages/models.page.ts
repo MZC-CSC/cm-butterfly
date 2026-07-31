@@ -38,9 +38,12 @@ export class ModelsPage {
 
   /** A model list row by name */
   private modelRow(name: string): Locator {
-    return this.page
+    // ★ 목록 표 안으로 한정한다 — 행은 화면 어디에 있든 role=row 로 잡히기 때문이다.
+    //   같은 이름을 담은 요소가 표 밖에도 있으면 `.first()` 가 그 쪽을 집어, 클릭은 성공하는데
+    //   아무 일도 일어나지 않는다. 소스 서비스 목록에서 실제로 그렇게 걸렸다. (2026-07-31)
+    return this.listTable
       .getByTestId(`model-row-${name}`)
-      .or(this.page.getByRole('row', { name }))
+      .or(this.listTable.getByRole('row', { name }))
       .first();
   }
 
@@ -164,12 +167,22 @@ export class ModelsPage {
   // ───────────────────────────────────────────────────────────────────
 
   async gotoSourceModels(): Promise<void> {
-    await openScreen(this.page, 'sourcemodels', ModelsPage.sourceModelsPath);
+    await openScreen(
+      this.page,
+      'sourcemodels',
+      ModelsPage.sourceModelsPath,
+      'model-list-table',
+    );
     await this.page.waitForURL(/\/models\/source-models/, { timeout: 15_000 });
   }
 
   async gotoTargetModels(): Promise<void> {
-    await openScreen(this.page, 'targetmodels', ModelsPage.targetModelsPath);
+    await openScreen(
+      this.page,
+      'targetmodels',
+      ModelsPage.targetModelsPath,
+      'model-list-table',
+    );
     await this.page.waitForURL(/\/models\/target-models/, { timeout: 15_000 });
   }
 
