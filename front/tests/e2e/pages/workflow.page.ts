@@ -1104,10 +1104,25 @@ export class WorkflowPage {
     await this.page.waitForTimeout(1_200);
     await this.scrollThroughParams(table);
 
-    return table
+    const rows = await table
       .locator('tbody tr')
       .count()
       .catch(() => 0);
+
+    // ★ Close it before leaving.
+    //
+    //   This is a full-screen overlay. Left open it covers the top bar, and the next step - reading
+    //   the notice that says the job finished - waits fifteen seconds for a bell it can see but
+    //   cannot reach. Nothing reports "an overlay is in the way"; the click simply never becomes
+    //   possible, and the timeout names the bell rather than what is covering it. Same shape as the
+    //   model editor. (2026-07-31)
+    const back = overlay.locator('.page-top button').first();
+    if (await back.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await humanClick(back);
+      await expect(overlay).toBeHidden({ timeout: 15_000 });
+    }
+
+    return rows;
   }
 
   /**
