@@ -730,6 +730,27 @@ async function waitForInfraCreated(
   throw new Error(`"${seed}" 접두어로 만들어진 인프라를 찾지 못했다`);
 }
 
+/**
+ * What state the infrastructure is actually in, asked of the thing that built it.
+ *
+ * The console's list shows a row whether or not any machine came up, so the row is not the answer.
+ */
+async function getInfraStatus(page: Page, infraId: string): Promise<string> {
+  const token = await getSessionToken(page);
+  return page.request
+    .post(`${config.baseURL}/api/cm-beetle/ListInfra`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { pathParams: { nsId: testNamespace.id } },
+    })
+    .then(r => r.json())
+    .then(b => b?.responseData?.data?.infra ?? [])
+    .then((list: any[]) => {
+      const mine = list.find((i: any) => String(i?.id ?? '') === infraId);
+      return String(mine?.status ?? '알 수 없음');
+    })
+    .catch(() => '조회 실패');
+}
+
 /** The infra a given track created, by the prefix its workflow was given. */
 function infraFor(track: string): string {
   const id = recall(`infra:${track}`);
@@ -927,9 +948,22 @@ function trackSeed(track: string): string {
 Then(
   '{string} 번 트랙이 만든 인프라가 목록에 보인다',
   async ({ page }, track: string) => {
+    const infraId = infraFor(track);
     const wl = new WorkloadPage(page);
     await wl.gotoMci();
-    await wl.expectMciVisible(infraFor(track));
+    await wl.expectMciVisible(infraId);
+
+    // ★ 목록에 있다는 것만으로는 아무것도 증명하지 못한다.
+    //
+    //   인프라는 장비가 한 대도 뜨지 않아도 *레코드*로 남는다. AWS 가 그 가용영역에 스펙 용량이
+    //   없어 전량 실패한 적이 있는데, 그때도 행은 그대로 목록에 있었고 이 검사는 통과했다 —
+    //   "네 대가 다 만들어졌다"고 말하면서 그중 하나는 빈 껍데기였다. 실제로 돌고 있는지까지 본다.
+    const status = await getInfraStatus(page, infraId);
+    console.log(`[인프라] ${infraId} = ${status}`);
+    expect(
+      status,
+      `${track} 번 트랙 인프라가 정상 상태가 아니다 (${status}) — 목록에 보이는 것과 실제로 떠 있는 것은 다르다`,
+    ).toMatch(/Running/i);
   },
 );
 
