@@ -50,9 +50,16 @@ export class SourceServicesPage {
    * 반드시 테이블 행(role=row)만 매칭한다(칩을 잘못 클릭하면 상세가 열리지 않음).
    */
   private groupRow(name: string): Locator {
-    return this.page
+    // ★ 목록 표 안으로 한정한다.
+    //
+    //   `getByRole('row')` 는 화면 어디에 있든 행이면 잡는다. 등록 모달을 닫은 직후에는 같은
+    //   이름을 담은 행이 표 밖에도 하나 남아 있어 매칭이 2개가 되고, `.first()` 가 그 쪽을
+    //   집었다 — 표 아래 빈 영역(y≈759)의 27px짜리 요소였다. 클릭은 성공하지만 *아무 일도
+    //   일어나지 않고*, 그 다음 단계가 열리지 않는 상세의 탭을 기다리다 엉뚱한 데서 시간 초과가
+    //   났다. 실패 화면에는 선택되지 않은 목록만 남아 원인이 보이지 않는다. (2026-07-31)
+    return this.groupTable
       .getByTestId(`source-group-row-${name}`)
-      .or(this.page.getByRole('row', { name: new RegExp(name) }));
+      .or(this.groupTable.getByRole('row', { name: new RegExp(name) }));
   }
 
   /** 소스그룹 목록 테이블 */
@@ -194,7 +201,11 @@ export class SourceServicesPage {
     return this.page.getByTestId('source-connection-add-edit');
   }
   private connectionRow(name: string): Locator {
-    return this.page.getByRole('row', { name: new RegExp(name) });
+    // 위 groupRow 와 같은 이유 — 행은 표 안에서만 찾는다.
+    const table = this.page
+      .getByTestId('source-connection-list-table')
+      .or(this.page.locator('table'));
+    return table.getByRole('row', { name: new RegExp(name) }).first();
   }
   /** 연결 목록의 "Export" 버튼 — 선택한 연결이 없으면 비활성 */
   private get exportConnectionButton(): Locator {
@@ -471,9 +482,27 @@ export class SourceServicesPage {
     //   on the row, not a standard input).
     const row = this.groupRow(name).first();
     const cls = (await row.getAttribute('class').catch(() => '')) ?? '';
-    if (/selected/.test(cls)) return;
+    if (process.env.E2E_DEBUG_SELECT) {
+      const n = await this.groupRow(name)
+        .count()
+        .catch(() => -1);
+      const box = await row.boundingBox().catch(() => null);
+      console.log(
+        `[선택] "${name}" 매칭 ${n}개 | class=${cls} | box=${JSON.stringify(box)}`,
+      );
+    }
+    if (/selected/.test(cls)) {
+      if (process.env.E2E_DEBUG_SELECT)
+        console.log('[선택] 이미 선택됨 — 건너뜀');
+      return;
+    }
 
     await humanClick(row);
+
+    if (process.env.E2E_DEBUG_SELECT) {
+      const after = (await row.getAttribute('class').catch(() => '')) ?? '';
+      console.log(`[선택] 클릭 후 class=${after}`);
+    }
   }
 
   /** 연결 탭 열기 + 특정 연결정보 선택 */
