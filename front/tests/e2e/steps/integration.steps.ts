@@ -245,6 +245,19 @@ Then('소스그룹 목록에 {string} 이 보인다', async ({ page }, name: str
   await source.expectGroupListed(uniqueName(name));
 });
 
+/**
+ * The size out of a spec id, in capitals, for putting in a description.
+ *
+ * A spec reads `aws+ap-northeast-2+t3a.medium`; what a person wants to see written down is the
+ * machine type. Naming it in the model's own description means the choice is readable from the
+ * list, without opening the JSON to find out which one this is.
+ */
+function specLabel(spec?: string): string {
+  if (!spec) return '';
+  const size = spec.split('+').pop() ?? spec;
+  return `\n선택한 스펙 : ${size.toUpperCase()}`;
+}
+
 // ── 구간3·4: recommending against a named CSP and region ────────────────
 
 /**
@@ -278,7 +291,7 @@ When(
     scenarioState.lastRecommendedSpec = picked.spec;
     await models.saveAsTargetModel(
       uniqueName(modelName),
-      descriptions.targetModelRecommended,
+      descriptions.targetModelRecommended + specLabel(picked.spec),
     );
   },
 );
@@ -369,11 +382,15 @@ When('{string} 커스텀 모델로 저장하면', async ({ page }, name: string)
 
 When('{string} 커스텀 타깃 모델로 저장하면', async ({ page }, name: string) => {
   // The two target models are saved for different reasons - one only opens a port, the other also
-  // raises the spec - so they do not get the same explanation.
+  // raises the spec - so they do not get the same explanation. Either way the spec that will be
+  // used is written into the description, so the list says which machine this model builds.
   const raisedSpec = name.includes('up');
   await new JsonEditorPage(page).saveAsCustom(
     uniqueName(name),
-    raisedSpec ? descriptions.targetModelSpecUp : descriptions.targetModel5555,
+    (raisedSpec
+      ? descriptions.targetModelSpecUp
+      : descriptions.targetModel5555) +
+      specLabel(scenarioState.lastRecommendedSpec),
   );
 });
 
@@ -430,6 +447,8 @@ When('타깃 모델의 스펙을 4GB 급으로 변경하면', async ({ page }) =
   const next =
     parts.length > 1 ? [...parts.slice(0, -1), size].join('+') : size;
   console.log(`[seg4] 스펙 ${current} → ${next}`);
+  // The model now builds this, so this is what its description should say.
+  scenarioState.lastRecommendedSpec = next;
 
   // Only the size at the end changes, so only that is retyped - the caret goes to the end, the old
   // size is backspaced away and the new one typed in its place.

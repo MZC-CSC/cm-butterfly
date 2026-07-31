@@ -148,10 +148,33 @@ export default defineConfig({
         // Only when the take is meant to be shown (E2E_HQ=1). Rendering at 2x costs memory and time,
         // and a run that only asks "does the scenario still work" gains nothing from it.
         deviceScaleFactor: process.env.E2E_HQ === '1' ? 2 : 1,
+
+        // Draw text in plain grey, not in colour.
+        //
+        // ★ Chromium antialiases glyph edges with the screen's red, green and blue subpixels, so
+        //   every letter carries a thin coloured fringe. H.264 keeps colour at a quarter of the
+        //   resolution (4:2:0), and those fringes are the first thing it smears - which is why the
+        //   text came out with a blue halo while flat backgrounds stayed clean. `--disable-lcd-text`
+        //   antialiases in grey instead, leaving nothing coloured for the encoder to lose.
+        //   The `font-render-hinting` flag keeps letterforms from shifting between frames.
+        launchOptions: {
+          args: [
+            '--disable-lcd-text',
+            '--font-render-hinting=none',
+            '--force-color-profile=srgb',
+          ],
+        },
+
         video:
           process.env.E2E_VIDEO === 'off'
             ? 'off'
-            : { mode: 'on', size: { width: 1920, height: 1080 } },
+            : {
+                mode: 'on',
+                size: {
+                  width: Number(process.env.E2E_VIDEO_WIDTH || 1920),
+                  height: Number(process.env.E2E_VIDEO_HEIGHT || 1080),
+                },
+              },
       },
       grep: /@integration/,
       // Provisioning and installing happen inside these segments.
