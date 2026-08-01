@@ -1076,11 +1076,16 @@ export class WorkflowPage {
    * so the list is left up for a moment before confirming.
    */
   async rerunFromSelected(scope: 'only' | 'after'): Promise<void> {
-    await humanClick(
-      this.page.locator(
-        `[data-testid="workflow-rerun-scope"][data-scope="${scope}"]`,
-      ),
+    const button = this.page.locator(
+      `[data-testid="workflow-rerun-scope"][data-scope="${scope}"]`,
     );
+
+    // ★ 누르기 전에 그 버튼 위에서 잠깐 멈춘다.
+    //
+    //   작업을 고르자마자 확인 창이 떠 버리면, 보는 사람은 *무엇을 눌러서* 그 창이 떴는지 알 수
+    //   없다. 커서가 버튼에 닿고 한 박자 쉬었다 눌러야 누른 것이 보인다. (2026-07-31)
+    await button.scrollIntoViewIfNeeded().catch(() => {});
+    await humanClick(button, { pauseBeforeMs: 700 });
 
     const confirm = this.page.getByTestId('workflow-rerun-confirm');
     await expect(confirm).toBeVisible({ timeout: 20_000 });
@@ -1098,7 +1103,8 @@ export class WorkflowPage {
     await expect(button).toBeVisible({ timeout: 20_000 });
     await expect(button).toBeEnabled({ timeout: 20_000 });
     await spotlight(this.page, button);
-    await humanClick(button);
+    // 같은 이유로 한 박자 두고 누른다 — 확인 창이 곧바로 뜨므로.
+    await humanClick(button, { pauseBeforeMs: 700 });
 
     const confirm = this.page.getByTestId('workflow-rerun-confirm');
     if (await confirm.isVisible({ timeout: 5_000 }).catch(() => false)) {

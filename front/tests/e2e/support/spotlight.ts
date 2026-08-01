@@ -196,8 +196,24 @@ export async function spotlight(
   laps = 2,
 ): Promise<void> {
   await locator.scrollIntoViewIfNeeded().catch(() => {});
-  const box = await textBox(locator);
+
+  // ★ 스크롤이 끝난 *뒤에* 다시 잰다.
+  //
+  //   위치를 한 번 재고 그대로 돌면, 그 사이 화면이 밀렸을 때 커서가 옛 자리를 돈다 — 실행 상태
+  //   화면은 몇 초마다 스스로 다시 그리며 위로 붙으므로 실제로 그렇게 어긋났다. 재는 것과 도는 것
+  //   사이에 화면이 움직일 틈을 주지 않는다. (2026-07-31)
+  await page.waitForTimeout(250);
+  let box = await textBox(locator);
   if (!box) return;
+
+  // 한 번 더 확인한다. 방금 잰 자리가 화면 밖으로 밀렸으면 다시 끌어와 다시 잰다.
+  const view = page.viewportSize();
+  if (view && (box.y < 0 || box.y + box.height > view.height)) {
+    await locator.scrollIntoViewIfNeeded().catch(() => {});
+    await page.waitForTimeout(250);
+    const again = await textBox(locator);
+    if (again) box = again;
+  }
 
   // 테두리는 그리지 않는다.
   //

@@ -210,18 +210,26 @@ async function travelTo(locator: Locator): Promise<void> {
  * `opts` is forwarded to `.click()` so callers can still pass e.g. a longer timeout. Do not route
  * special clicks (trial clicks, force) through here — keep those as direct `.click()` calls.
  */
+/**
+ * @param opts Playwright 의 click 옵션에 하나를 더 받는다.
+ *   `pauseBeforeMs` — 커서가 닿고 누르기까지 더 기다릴 시간.
+ *   ★ 누르자마자 확인 창이 뜨는 버튼이 있다. 기본 간격으로는 커서가 닿는 것과 창이 뜨는 것이 거의
+ *     같은 프레임이라, 보는 사람은 *무엇을 눌러서* 그 창이 떴는지 알 수 없다. 그런 자리에만 한
+ *     박자를 더 준다. (2026-07-31)
+ */
 export async function humanClick(
   locator: Locator,
-  opts?: Parameters<Locator['click']>[0],
+  opts?: Parameters<Locator['click']>[0] & { pauseBeforeMs?: number },
 ): Promise<void> {
+  const { pauseBeforeMs, ...clickOpts } = opts ?? {};
   if (!isHumanPace()) {
-    await locator.click(opts);
+    await locator.click(clickOpts);
     return;
   }
   if (isDemoPace()) {
     await travelTo(locator);
-    await pause(DEMO_CLICK_MS); // let the pointer be seen on the target before it presses
-    await locator.click(opts);
+    await pause(pauseBeforeMs ?? DEMO_CLICK_MS); // let the pointer be seen on the target
+    await locator.click(clickOpts);
     await pause(DEMO_CLICK_MS); // and let what the click did register
     return;
   }
@@ -230,7 +238,7 @@ export async function humanClick(
   await locator.hover({ timeout: opts?.timeout }).catch(() => {});
   await pause(HOVER_MS);
   await pause(PRECLICK_MS);
-  await locator.click(opts);
+  await locator.click(clickOpts);
   await pause(HOLD_MS);
 }
 
