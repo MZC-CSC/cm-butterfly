@@ -602,6 +602,19 @@ export class WorkflowPage {
    *   The browser can hand the whole lot over at once; the search then happens here, instantly, and
    *   only the field that matters is touched. (2026-07-31)
    */
+  /**
+   * The input carrying this identifier.
+   *
+   * ★ 앞머리(`wf-field-`)를 떼면 안 된다. 화면이 붙이는 식별자는 그것까지 포함한 전체이고
+   *   (`RecursiveFormField.vue`), 떼어 낸 이름을 가진 요소는 어디에도 없다. 그런데 클릭에는
+   *   시한이 없어서 *없는 것을 기다리다* 15초를 채우고 죽는다 — "못 찾았다"가 아니라 "눌리지
+   *   않는다"로 보이니 원인이 엉뚱한 곳(접힘·가려짐)으로 짚인다. 실제로 그렇게 두 번 헤맸다.
+   *   여기를 지나는 길은 트랙3(복제 후 편집)뿐이라 그동안 드러나지 않았다. (2026-08-01)
+   */
+  private bodyField(path: string): Locator {
+    return this.page.locator(`[data-testid="${path}"]`);
+  }
+
   private async readBodyFields(): Promise<{ path: string; value: string }[]> {
     return this.page
       .locator('[data-testid^="wf-field-body_params."]')
@@ -686,7 +699,7 @@ export class WorkflowPage {
     );
 
     if (found) {
-      const field = this.page.getByTestId(found.path.replace(/^wf-field-/, ''));
+      const field = this.bodyField(found.path);
       const value = found.value;
       {
         const parts = value.split('+');
@@ -733,17 +746,23 @@ export class WorkflowPage {
   async setPortInWorkflow(from: string, to: string): Promise<string> {
     await this.expandAllParams();
 
+    // 화면이 움직인다는 것을 먼저 한 번 보이고, 그 다음에 칸을 찾는다.
+    //
+    // 순서가 반대였다. 칸을 먼저 잡아 두고 굴렸더니, 굴리는 사이에 그 칸이 다시 접혀 눌리지
+    // 않았다 — 요소는 있는데 보이지 않으니 클릭이 끝나지 않고 15초를 채우고 죽었다. 굴리기를
+    // 끝낸 *뒤에* 찾으면 그 자리에 있는 것을 잡는다. (2026-08-01)
+    await this.scrollThroughParams();
+    await this.expandAllParams();
+
     const all = await this.readBodyFields();
     const found = all.find(
       f => /port/i.test(f.path) && f.value.trim() === from,
     );
 
     if (found) {
-      const field = this.page.getByTestId(found.path.replace(/^wf-field-/, ''));
+      const field = this.bodyField(found.path);
       const value = found.value.trim();
 
-      // 화면이 움직인다는 것만 한 번 보이고, 곧바로 그 칸으로 간다. 중간은 편집으로 잘린 것처럼.
-      await this.scrollThroughParams();
       await field.scrollIntoViewIfNeeded().catch(() => {});
       await field.click();
       await field.press('End');
