@@ -275,11 +275,18 @@ export class WorkloadPage {
   }
 
   /**
-   * Confirm deletion — after choosing the deletion method (normal/force), type the infra name as the confirm keyword and confirm.
-   * (For a single selection, the confirm keyword = the infra name.)
+   * Types the confirm phrase and presses Delete — and stops there.
+   *
+   * Kept apart from `confirmDelete` because that one goes on to close the progress dialog, which
+   * makes it unusable for anything that wants to *look* at the dialog. A step that asked for the
+   * progress screen and then asserted it was showing could never pass: it had already been
+   * closed on the way (three scenarios were red on that alone).
+   *
+   * The phrase is whatever the dialog is asking for — one target's name, several names, or a
+   * phrase carrying the count — so it is passed in rather than assumed (BAR-1717).
    */
-  async confirmDelete(
-    infraName: string,
+  async sendDelete(
+    keyword: string,
     method: 'normal' | 'force' = 'normal',
   ): Promise<void> {
     if (method === 'force') {
@@ -288,8 +295,19 @@ export class WorkloadPage {
       );
       await humanClick(forceRadio);
     }
-    await humanFill(this.deleteConfirmInput.first(), infraName);
+    await humanFill(this.deleteConfirmInput.first(), keyword);
     await humanClick(this.deleteConfirmButton.first());
+  }
+
+  /**
+   * Confirm deletion — after choosing the deletion method (normal/force), type the infra name as the confirm keyword and confirm.
+   * (For a single selection, the confirm keyword = the infra name.)
+   */
+  async confirmDelete(
+    infraName: string,
+    method: 'normal' | 'force' = 'normal',
+  ): Promise<void> {
+    await this.sendDelete(infraName, method);
 
     // Close the progress dialog once it appears.
     //
@@ -301,8 +319,35 @@ export class WorkloadPage {
     // The dialog says so itself: closing it does not stop the delete, and the list carries the
     // state in its Delete Status column. So this is what a person does here too.
     await expect(this.deleteProgress).toBeVisible({ timeout: 30_000 });
+    await this.waitDeleteCloseReleased();
     await humanClick(this.deleteCloseButton.first());
     await expect(this.deleteProgress).toBeHidden({ timeout: 15_000 });
+  }
+
+  /**
+   * Waits out the hold the dialog puts on Close right after a request goes out (BAR-1717).
+   *
+   * The dialog stays put for a few seconds so the request has time to be written down before
+   * anyone can walk away from it. Clicking through that hold does nothing — and mirinae marks a
+   * held button with a class rather than the standard `disabled` attribute, so `isEnabled()`
+   * answers "yes" the whole time (DESIGN-MIRINAE §1.6). The class is what has to be read.
+   */
+  private async waitDeleteCloseReleased(timeoutMs = 20_000): Promise<void> {
+    await expect
+      .poll(
+        async () => {
+          const button = this.deleteCloseButton.first();
+          if ((await button.count()) === 0) return true; // already gone
+          return button.evaluate(
+            el => !el.className.split(/\s+/).includes('disabled'),
+          );
+        },
+        {
+          timeout: timeoutMs,
+          message: 'the delete dialog never released its Close button',
+        },
+      )
+      .toBe(true);
   }
 
   /**
@@ -335,26 +380,68 @@ export class WorkloadPage {
 
   /** [Close] on the progress/error stage. Return to the list and look at the delete-status column. */
   async closeDeleteModal(): Promise<void> {
+    await this.waitDeleteCloseReleased();
     await humanClick(this.deleteCloseButton);
   }
 
+  // ── Deleting a mixed selection (BAR-1717) ──────────────────────────────
+
+  /** Selects several rows at once, in the order given. */
+  async selectMcis(infraNames: string[]): Promise<void> {
+    for (const name of infraNames) {
+      await this.selectMci(name);
+    }
+  }
+
+  /** Whether the dialog opened at the confirm step (rather than jumping to progress). */
+  async expectDeleteConfirmStep(): Promise<void> {
+    await expect(this.page.getByTestId('mci-delete-confirm')).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
+  /** Whether the confirm step says the given infra is being left out of this request. */
+  async expectDeleteExcluded(infraName: string): Promise<void> {
+    await expect(
+      this.page.getByTestId('mci-delete-excluded-notice'),
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(
+      this.page
+        .getByTestId('mci-delete-target-inflight')
+        .filter({ hasText: infraName })
+        .first(),
+    ).toBeVisible({ timeout: 10_000 });
+  }
+
+  /** How many workloads the confirm step says this request covers. */
+  async expectDeleteTargetCount(count: number): Promise<void> {
+    const noun = count === 1 ? '1 workload' : `${count} workloads`;
+    await expect(this.page.getByTestId('mci-delete-target-count')).toHaveText(
+      new RegExp(`${noun}\\s+will be deleted`),
+      { timeout: 10_000 },
+    );
+  }
+
   /**
-   * Whether the delete-status cell of a list row shows the given state.
+   * The delete status of one named row.
    *
-   * ★ The scenario names the state in Korean; the screen writes it in English. Matching the two
-   *   belongs here, not in the scenario — the wording on screen is a selector concern, and the
-   *   scenarios stay readable in Korean.
-   *
-   *   This mapping is why both delete-status scenarios were failing: the cell was translated to
-   *   English (BAR-1567) while the step still looked for `진행 중`, so it could never match. The
-   *   scenarios had been red on develop ever since, describing a screen that works.
+   * The unqualified check looks for the state anywhere in the column, which cannot tell one row
+   * from another — and a mixed selection is precisely a case where one row is already in that
+   * state before the request under test goes out.
    */
-  async expectRowDeleteStatus(text: '진행 중' | '에러'): Promise<void> {
+  async expectRowDeleteStatusOf(
+    infraName: string,
+    text: '진행 중' | '에러',
+  ): Promise<void> {
     const onScreen = text === '진행 중' ? /In progress/i : /Failed/i;
     await expect(
-      this.mciRowDeleteStatus().filter({ hasText: onScreen }).first(),
+      this.mciRow(infraName)
+        .getByTestId('wl-row-delete-status')
+        .filter({ hasText: onScreen })
+        .first(),
     ).toBeVisible({ timeout: 30_000 });
   }
+
 
   /** Whether it opened at the error stage (a prior deletion failed). */
   async expectDeleteErrorDialog(): Promise<void> {
