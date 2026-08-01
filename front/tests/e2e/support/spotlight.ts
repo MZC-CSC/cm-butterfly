@@ -13,6 +13,12 @@ import { Locator, Page } from '@playwright/test';
  * does not touch the product's own markup.
  */
 
+/**
+ * ★ 2026-07-31: 도는 속도를 두 배로 올렸다.
+ *
+ *   가리키는 데 필요한 것은 "저기를 짚었다"가 눈에 들어오는 것뿐인데, 천천히 두 바퀴를 돌면
+ *   기다리는 시간이 된다. 한 바퀴가 눈에 남을 만큼만 두고 나머지는 걷어낸다.
+ */
 const OUTLINE_ID = 'e2e-spotlight';
 
 type Box = { x: number; y: number; width: number; height: number };
@@ -171,11 +177,11 @@ export async function spotlightText(
     for (let i = 0; i <= stepsPerLap; i++) {
       const t = (i / stepsPerLap) * Math.PI * 2;
       await page.mouse.move(cx + rx * Math.cos(t), cy + ry * Math.sin(t));
-      await page.waitForTimeout(12);
+      await page.waitForTimeout(6);
     }
   }
   await page.mouse.move(box.x + Math.min(12, box.width / 2), cy);
-  await page.waitForTimeout(450);
+  await page.waitForTimeout(230);
   return true;
 }
 
@@ -213,14 +219,14 @@ export async function spotlight(
     for (let i = 0; i <= stepsPerLap; i++) {
       const t = (i / stepsPerLap) * Math.PI * 2;
       await page.mouse.move(cx + rx * Math.cos(t), cy + ry * Math.sin(t));
-      await page.waitForTimeout(14);
+      await page.waitForTimeout(7);
     }
   }
 
   // Rest on it, so the last thing seen is the value itself.
   await page.mouse.move(box.x + Math.min(12, box.width / 2), cy);
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(250);
 
   void clearOutline;
-  await page.waitForTimeout(200);
+  await page.waitForTimeout(100);
 }
