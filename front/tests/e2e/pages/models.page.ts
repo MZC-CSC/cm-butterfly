@@ -219,14 +219,38 @@ export class ModelsPage {
   async selectModel(name: string): Promise<void> {
     await this.revealModel(name);
 
-    // ★ Same as the source group: a selected row that is clicked again comes unselected, and the
-    //   detail that the next step needs goes with it. Saving a model leaves it selected, and that
-    //   is precisely when a scenario turns around and "selects" it.
+    // ★ 행에 붙은 표시만 보고 건너뛰지 않는다.
+    //
+    //   선택된 행을 다시 누르면 선택이 풀리고 상세도 같이 닫히므로 건너뛸 이유는 있다. 그런데
+    //   판정 근거를 *행의 selected 클래스*로 삼았더니, 모델을 저장한 직후 그 행에 표시만 붙고
+    //   화면이 그 모델을 실제로 잡지는 않은 상태가 생겼다. 클릭을 건너뛰면 그 상태가 그대로 남아
+    //   **다음 동작이 이전 모델로 나간다** — 커스텀 소스 모델을 골라 추천했는데 원본 기준으로
+    //   추천이 돌아온 것이 그것이다. 결과에 5555 가 없어 제품 결함으로 볼 뻔했다.
+    //
+    //   그래서 상세가 *그 모델의 것*인지까지 확인하고, 아니면 누른다. (2026-08-01)
     const row = this.modelRow(name).first();
     const cls = (await row.getAttribute('class').catch(() => '')) ?? '';
-    if (/selected/.test(cls)) return;
+    const detailShowsThis =
+      /selected/.test(cls) &&
+      (await this.detailNameFor(name)
+        .isVisible({ timeout: 1_000 })
+        .catch(() => false));
+    if (detailShowsThis) return;
 
     await humanClick(row);
+  }
+
+  /**
+   * The detail's own label for this model — proof that the detail below the list is *this* one.
+   *
+   * The list marking says a row is chosen; it does not say the screen followed. Only something the
+   * detail itself renders can say that.
+   */
+  private detailNameFor(name: string): Locator {
+    return this.page
+      .locator('.model-detail, [data-testid$="-detail"], .p-pane-layout')
+      .filter({ hasText: name })
+      .first();
   }
 
   /** Select the first model in the list (e.g. the latest source right after collection) */
