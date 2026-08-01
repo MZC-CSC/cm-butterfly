@@ -485,14 +485,18 @@ export class SourceServicesPage {
   async selectGroup(name: string): Promise<void> {
     await this.revealGroup(name);
 
-    // ★ Already the chosen row? Then leave it alone.
+    // ★ Leave it alone only when the detail is *actually open*.
     //
-    //   Clicking a selected row toggles it *off* and the detail pane below it closes with it, so the
-    //   tabs that were about to be used are simply gone. Nothing errors - the next step waits for a
-    //   tab that no longer exists and times out somewhere else entirely. Creating a group leaves it
-    //   selected, which is exactly when this is reached (DESIGN-MIRINAE §1.5: the state is a class
-    //   on the row, not a standard input).
+    //   Clicking a selected row toggles it off and takes the detail with it, so a selected row is
+    //   worth skipping - but the row's own marking is not proof the detail is open. It can carry the
+    //   selected class with nothing open beneath it, and skipping then means the tab never appears.
+    //   Clicks have no deadline here, so the run does not fail: it simply stands there. It stood for
+    //   forty-three minutes. What decides now is whether the detail is on screen.
+    //   (2026-08-01; the class alone was the rule until then, DESIGN-MIRINAE §1.5)
     const row = this.groupRow(name).first();
+    const detailOpen = await this.connectionsTab
+      .isVisible({ timeout: 1_000 })
+      .catch(() => false);
     const cls = (await row.getAttribute('class').catch(() => '')) ?? '';
     if (process.env.E2E_DEBUG_SELECT) {
       const n = await this.groupRow(name)
@@ -503,9 +507,9 @@ export class SourceServicesPage {
         `[선택] "${name}" 매칭 ${n}개 | class=${cls} | box=${JSON.stringify(box)}`,
       );
     }
-    if (/selected/.test(cls)) {
+    if (detailOpen && /selected/.test(cls)) {
       if (process.env.E2E_DEBUG_SELECT)
-        console.log('[선택] 이미 선택됨 — 건너뜀');
+        console.log('[선택] 이미 선택됐고 상세도 열려 있다 — 건너뜀');
       return;
     }
 
@@ -537,6 +541,12 @@ export class SourceServicesPage {
     expected: string[],
   ): Promise<string[]> {
     await this.selectGroup(group);
+
+    // 탭이 뜨는 것을 먼저 확인한다 — 클릭에는 시한이 없어, 없는 것을 누르려 하면 멈춘 채로 남는다.
+    await expect(
+      this.connectionsTab,
+      '연결 탭이 나오지 않는다 — 그룹 상세가 열리지 않았다',
+    ).toBeVisible({ timeout: 20_000 });
     await humanClick(this.connectionsTab);
 
     for (const name of expected) {
