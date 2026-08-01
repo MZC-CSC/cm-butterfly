@@ -489,13 +489,19 @@ async function waitForDagRegistered(page: Page, name: string): Promise<void> {
   const token = await getSessionToken(page);
   const auth = { Authorization: `Bearer ${token}` };
   const started = Date.now();
-  const deadline = started + 3 * 60_000;
+  // ★ 두 기다림은 각자의 시한을 갖는다.
+  //
+  //   하나로 묶어 두었더니, 앞의 기다림이 시한 가까이 쓰면 뒤의 기다림에는 남는 시간이 없었다.
+  //   그리고 파싱에 걸리는 시간은 그날 서버가 얼마나 바쁜지에 달려 있어 일정하지 않다 — 늘
+  //   1분 안쪽이던 것이 3분을 넘긴 날, 정작 워크플로우는 잠시 뒤 멀쩡히 등록됐는데 촬영만 한
+  //   구간을 잃었다. 사람이 기다려 주는 만큼은 기다린다. (2026-08-01)
+  const idDeadline = started + 6 * 60_000;
 
   // Ask for the id until it answers. A workflow that was saved a moment ago is not always there on
   // the first call, and a single attempt that missed used to drop into a blind two-minute sleep -
   // which is two minutes of a frozen screen in the recording, every time it happened.
   let wfId = '';
-  while (!wfId && Date.now() < deadline) {
+  while (!wfId && Date.now() < idDeadline) {
     wfId = await page.request
       .post(`${config.baseURL}/api/cm-cicada/Get-Workflow-By-Name`, {
         headers: auth,
@@ -512,11 +518,14 @@ async function waitForDagRegistered(page: Page, name: string): Promise<void> {
     // outright, and retrying is not an option - an attempt that does land builds another instance.
     throw new Error(
       `워크플로우 "${name}" 의 id 를 ${Math.round((Date.now() - started) / 1000)}초 동안 찾지 못했다. ` +
-        'DAG 가 등록되기 전에 실행하면 거부되므로 여기서 멈춘다.',
+        'DAG 가 등록되기 전에 실행하면 거부되므로 여기서 멈춘다. ' +
+        '몇 분을 기다려도 안 되면 기다림이 짧은 것이 아니라 airflow 의 dag-processor 가 죽어 ' +
+        '아무것도 읽어 가지 않는 것이다 — 08-주의사항 C-21.',
     );
   }
 
-  while (Date.now() < deadline) {
+  const readyDeadline = Date.now() + 3 * 60_000;
+  while (Date.now() < readyDeadline) {
     const ready = await page.request
       .post(`${config.baseURL}/api/cm-cicada/Get-Workflow-Runs`, {
         headers: auth,

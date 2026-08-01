@@ -161,4 +161,11 @@ for v in "${VIDEOS[@]}"; do
     -movflags +faststart \
     "$KEEP_DIR/$name.mp4"
   echo "[keep] $name.mp4  (${start}~${stop}초 구간, $(du -h "$KEEP_DIR/$name.mp4" | cut -f1))"
+
+  # 가운데에 남은 정지도 걷어 낸다.
+  #
+  # 앞뒤만 다듬으면 *기다리는 자리*가 그대로 남는다 — 인프라가 다 서기를, 워크플로우가 읽히기를
+  # 기다리는 동안 화면은 한 픽셀도 바뀌지 않는다. 한 구간은 257초 중 196초가 그런 자리였다.
+  # 사람이 편집한다면 잘라 낼 곳이라, 여기서 같이 잘라 낸다(앞머리 1.5초는 남긴다).
+  [ "${E2E_KEEP_STILL:-}" = "1" ] || "$(dirname "$0")/cut-still.sh" "$KEEP_DIR/$name.mp4" || true
 done
