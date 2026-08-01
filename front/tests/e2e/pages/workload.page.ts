@@ -208,11 +208,15 @@ export class WorkloadPage {
    * So we *narrow the scope to the dropdown that has the testid* and grab it by the design system's item class.
    * (The 'Delete' label comes from our own actionMenus array, so it is independent of on-screen wording changes.)
    */
-  private get deleteMenuItem(): Locator {
-    return this.actionDropdown
-      .locator('.p-context-menu-item')
-      .filter({ hasText: 'Delete' })
-      .first();
+  /**
+   * The delete button in the table toolbar.
+   *
+   * It used to be an item in the action dropdown; it now sits beside refresh, where every other
+   * list in the console keeps it. The toolbar has no slot for that spot, so the button is mounted
+   * into it at runtime — the testid travels with it, which is what this holds on to.
+   */
+  private get deleteToolbarButton(): Locator {
+    return this.page.getByTestId('mci-delete-action');
   }
   private get deleteModal(): Locator {
     return this.page.getByTestId('mci-delete-modal');
@@ -267,8 +271,7 @@ export class WorkloadPage {
    * (this is the same trap already hit with the load-config modal and the model save form, so we handle it the same way).
    */
   async openDeleteModal(): Promise<void> {
-    await humanClick(this.actionDropdown);
-    await humanClick(this.deleteMenuItem);
+    await this.triggerDeleteMenu();
     await expect(this.deleteConfirmInput.first()).toBeVisible({
       timeout: 15_000,
     });
@@ -502,28 +505,23 @@ export class WorkloadPage {
   }
 
   /**
-   * Open the modal via action dropdown → Delete, but do not wait for the confirm input.
-   * That is because if the target is already being deleted, the modal opens straight into the progress stage rather than confirm.
+   * Press the toolbar's delete button without waiting for the confirm input — if the target is
+   * already being deleted, the dialog opens on the progress step and there is no input to wait for.
+   *
+   * ★ The button does nothing while no row is selected, so pressing it would leave no dialog and
+   *   "the dialog did not appear" would be blamed on the product. The selection is checked here
+   *   instead, and a cleared one is reported as what it is.
    */
   async triggerDeleteMenu(): Promise<void> {
-    await humanClick(this.actionDropdown);
-    // ★ If the selection has been cleared, Delete is disabled, so pressing it does not open the modal.
-    //   Proceeding as-is would misdiagnose "the modal does not appear" as a product defect, so we cut it off here.
-    //   (mirinae expresses disabled only via class, so it is not caught by isEnabled() — DESIGN-MIRINAE §1.6)
-    const disabled = await this.deleteMenuItem
-      .first()
-      .evaluate(
-        el =>
-          !!el.closest(
-            '[class*="disabled"], [disabled], [aria-disabled="true"]',
-          ),
-      )
-      .catch(() => false);
+    await expect(this.deleteToolbarButton).toBeVisible({ timeout: 15_000 });
+    // mirinae marks a selected row with `tr-selected` (PDataTable) — a checkbox is not a real
+    // input here, so `isChecked()` would answer false either way (DESIGN-MIRINAE §1.5).
+    const selected = await this.mciTable.locator('tr.tr-selected').count();
     expect(
-      disabled,
-      'Action > Delete is disabled — the row selection has been cleared (you must select again first).',
-    ).toBeFalsy();
-    await humanClick(this.deleteMenuItem);
+      selected,
+      'nothing is selected — the delete button does nothing (select the rows again first)',
+    ).toBeGreaterThan(0);
+    await humanClick(this.deleteToolbarButton);
   }
 
   /**
