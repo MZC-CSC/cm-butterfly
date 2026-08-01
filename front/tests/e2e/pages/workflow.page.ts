@@ -742,6 +742,8 @@ export class WorkflowPage {
       const field = this.page.getByTestId(found.path.replace(/^wf-field-/, ''));
       const value = found.value.trim();
 
+      // 화면이 움직인다는 것만 한 번 보이고, 곧바로 그 칸으로 간다. 중간은 편집으로 잘린 것처럼.
+      await this.scrollThroughParams();
       await field.scrollIntoViewIfNeeded().catch(() => {});
       await field.click();
       await field.press('End');
@@ -1010,8 +1012,15 @@ export class WorkflowPage {
       return;
     }
 
+    // ★ 끝까지 내려가지 않는다.
+    //
+    //   화면이 움직인다는 것만 보이면 된다. 끝까지 훑으면 찾는 시간이 그대로 영상에 남는데, 사람이
+    //   실제로 하는 일은 한두 번 굴려 보고 필요한 자리로 바로 가는 것이다. 나머지는 편집으로 잘린
+    //   것처럼 보이면 되므로, 몇 칸만 굴리고 멈춘다. (2026-07-31)
+    const notches = Number(process.env.E2E_PARAM_SCROLL_NOTCHES || 6);
+
     let previous = -1;
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < notches; i++) {
       const at = await progress();
       if (!at) break;
       if (at.top >= at.max - 4) break;
@@ -1027,13 +1036,10 @@ export class WorkflowPage {
         await this.page.mouse.wheel(0, 200);
       }
       previous = at.top;
-      // Slow enough to read on the way down.
-      await this.page.waitForTimeout(420);
+      await this.page.waitForTimeout(180);
     }
 
-    // Rest at the bottom. The spec and the ports are down here, and stopping mid-scroll reads as
-    // the screen having got stuck.
-    await this.page.waitForTimeout(1_000);
+    await this.page.waitForTimeout(500);
   }
 
   /** A task node in the run graph, by its name. */
