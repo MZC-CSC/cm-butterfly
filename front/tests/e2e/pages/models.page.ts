@@ -60,6 +60,26 @@ export class ModelsPage {
    * find it by *paging through*, and record which page it was found on.
    */
   private async revealModel(name: string): Promise<number> {
+    // ★ 저장 직후의 목록은 아직 그 모델을 모를 수 있다.
+    //
+    //   방금 커스텀 모델을 저장하고 "목록에 보인다"를 확인하러 오면, 목록이 저장 전 상태 그대로인
+    //   경우가 있다 — 앞서 2페이지였던 목록이 확인 시점엔 1페이지로 줄어 있었고 새 모델은 어디에도
+    //   없었다. 없는 것을 페이지만 넘겨 봐야 나오지 않는다. 소스그룹 목록은 같은 이유로 이미 이렇게
+    //   하고 있었는데 모델 쪽에만 빠져 있었다. (2026-08-01)
+    const listed = await this.modelRow(name)
+      .isVisible()
+      .catch(() => false);
+
+    if (!listed) {
+      const found = await this.listPagination
+        .expectRowSomewhere(this.modelRow(name), name)
+        .catch(() => null);
+      if (found !== null) return found;
+
+      await this.page.reload({ waitUntil: 'domcontentloaded' });
+      await expect(this.listTable).toBeVisible({ timeout: 20_000 });
+    }
+
     return this.listPagination.expectRowSomewhere(this.modelRow(name), name);
   }
 

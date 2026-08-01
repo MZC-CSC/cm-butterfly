@@ -26,6 +26,21 @@ fi
 : "${BASE_URL:?BASE_URL 이 필요하다}"
 : "${TEST_SOURCE_PRIVATE_KEY:?TEST_SOURCE_PRIVATE_KEY 가 필요하다 (08-주의사항 C-11)}"
 
+# ★ 촬영 중에는 다른 playwright 를 돌리지 않는다 — 자물쇠로 막는다.
+#
+#   playwright 는 실행을 시작할 때 test-results 를 통째로 비운다. 촬영이 도는 중에 다른 spec 을
+#   하나 돌렸더니 그 폴더가 지워져, 그때 찍히던 구간의 영상이 통째로 날아갔다. 시나리오는 멀쩡히
+#   끝났는데 남은 것이 없었다 — 그 구간이 모델을 만드는 자리라 같은 이름표로 다시 찍을 수도 없어
+#   한 벌을 통째로 다시 찍어야 했다. (2026-08-01)
+LOCK="${TMPDIR:-/tmp}/cmig-e2e-recording.lock"
+if [ -e "$LOCK" ] && kill -0 "$(cat "$LOCK" 2>/dev/null)" 2>/dev/null; then
+  echo "❌ 이미 촬영이 돌고 있다 (pid $(cat "$LOCK")). 끝난 뒤에 다시 실행한다." >&2
+  echo "   촬영 중에 다른 playwright 를 돌리면 test-results 가 비워져 영상이 날아간다." >&2
+  exit 1
+fi
+echo $$ > "$LOCK"
+trap 'rm -f "$LOCK"' EXIT
+
 export E2E_DEMO_PACE=1
 
 # 한 벌 전체가 같은 이름표를 쓰게 한다.
