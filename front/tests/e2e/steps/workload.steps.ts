@@ -226,6 +226,73 @@ Then(
   },
 );
 
+// ── Sending several at once (BAR-1719) ───────────────────────────────────
+
+/** Step "pick {a}..{e} and open the delete dialog" — five at a time, the notice threshold. */
+When(
+  '{string} {string} {string} {string} {string} 를 골라 삭제 모달을 연다',
+  async ({ page }, a: string, b: string, c: string, d: string, e: string) => {
+    const wl = new WorkloadPage(page);
+    await wl.gotoMci();
+    await wl.expectMciListLoaded();
+    await wl.selectMcis([a, b, c, d, e]);
+    await wl.openDeleteModal();
+  },
+);
+
+/** Step "pick {a} and {b} and open the delete dialog" — below the notice threshold. */
+When(
+  '{string} {string} 를 골라 삭제 모달을 연다',
+  async ({ page }, a: string, b: string) => {
+    const wl = new WorkloadPage(page);
+    await wl.gotoMci();
+    await wl.expectMciListLoaded();
+    await wl.selectMcis([a, b]);
+    await wl.openDeleteModal();
+  },
+);
+
+/** Step "the notice about how long submitting takes is shown" */
+Then('접수 시간 안내가 보인다', async ({ page }) => {
+  await new WorkloadPage(page).expectSubmitNotice();
+});
+
+/** Step "cancel from the notice" */
+When('안내에서 취소한다', async ({ page }) => {
+  await new WorkloadPage(page).cancelFromNotice();
+});
+
+/** Step "no delete request went out for {infra}" — the notice was declined. */
+Then(
+  '{string} 에는 삭제 요청이 나가지 않았다',
+  // eslint-disable-next-line no-empty-pattern
+  async ({}, infraName: string) => {
+    expect(
+      mockCalls().calls.filter(
+        c =>
+          c.operationId === DELETE_INFRA_OP &&
+          c.body?.pathParams?.infraId === infraName,
+      ).length,
+      'cancelling the notice must not send anything',
+    ).toBe(0);
+  },
+);
+
+/** Step "the submitting screen is up" */
+Then('접수 진행 화면이 뜬다', async ({ page }) => {
+  await new WorkloadPage(page).expectDispatchStep();
+});
+
+/** Step "you cannot navigate away while submitting" */
+Then('접수 중에는 다른 화면으로 이동할 수 없다', async ({ page }) => {
+  await new WorkloadPage(page).expectBackgroundBlocked();
+});
+
+/** Step "once submitting finishes it turns into the deleting screen" */
+Then('접수가 끝나면 삭제 처리 중 화면으로 바뀐다', async ({ page }) => {
+  await new WorkloadPage(page).expectDeleteInProgress();
+});
+
 // ── Deleting a mixed selection (BAR-1717) ────────────────────────────────
 
 /** Step "pick {a} and {b} together and open the delete dialog" */

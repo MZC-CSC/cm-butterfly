@@ -396,6 +396,40 @@ export class WorkloadPage {
     }
   }
 
+  // ── Sending several at once (BAR-1719) ───────────────────────────────
+
+  /** The notice shown before a large selection is sent. */
+  async expectSubmitNotice(): Promise<void> {
+    await expect(this.page.getByTestId('mci-delete-notice')).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
+  /** [Cancel] on the notice — nothing has been sent at this point. */
+  async cancelFromNotice(): Promise<void> {
+    await humanClick(this.page.getByTestId('wl-delete-notice-cancel'));
+    await expect(this.page.getByTestId('mci-delete-notice')).toBeHidden({
+      timeout: 10_000,
+    });
+  }
+
+  /** [Continue] on the notice. */
+  async continueFromNotice(): Promise<void> {
+    await humanClick(this.page.getByTestId('wl-delete-notice-continue'));
+  }
+
+  /**
+   * The submitting step, where the requests are going out one at a time.
+   *
+   * Short-lived by design — a couple of targets take a few seconds — so this is checked as soon
+   * as the request is sent rather than after anything else.
+   */
+  async expectDispatchStep(): Promise<void> {
+    await expect(this.page.getByTestId('mci-delete-dispatch')).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
   /** Whether the dialog opened at the confirm step (rather than jumping to progress). */
   async expectDeleteConfirmStep(): Promise<void> {
     await expect(this.page.getByTestId('mci-delete-confirm')).toBeVisible({

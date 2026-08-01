@@ -100,6 +100,21 @@ export const MOCK_REJECTED_INFRA_ID = 'mock-refused-infra';
 export const MOCK_REFRESH_INFRA_ID = 'mock-refresh-infra';
 export const MOCK_MIXED_INFRA_ID = 'mock-mixed-infra';
 
+/**
+ * A block of infras for the scenarios about picking several at once (BAR-1719).
+ *
+ * Kept apart from the fillers above because those are already targets elsewhere: a scenario that
+ * deletes one of them leaves it running, and a run that finds it in that state would be counting
+ * one target fewer than it picked — which is exactly the number these scenarios turn on.
+ */
+export const MOCK_BULK_INFRA_IDS = [
+  'mock-bulk-1',
+  'mock-bulk-2',
+  'mock-bulk-3',
+  'mock-bulk-4',
+  'mock-bulk-5',
+];
+
 /** Every infra name this mock puts in the list. */
 export const MOCK_ALL_INFRA_IDS = [
   MOCK_INFRA_ID,
@@ -107,6 +122,7 @@ export const MOCK_ALL_INFRA_IDS = [
   MOCK_REFRESH_INFRA_ID,
   MOCK_MIXED_INFRA_ID,
   ...MOCK_LIST_INFRA_IDS,
+  ...MOCK_BULK_INFRA_IDS,
 ];
 
 export function registerMciMocks(mock: ApiMock): ApiMock {
