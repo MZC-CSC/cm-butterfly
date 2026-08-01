@@ -282,6 +282,15 @@ When(
     // Saving the collected result leaves you on the source *services* screen. The recommendation
     // starts from the source model's own detail, so go there and open the model first.
     await models.gotoSourceModels();
+
+    // 화면을 한 번 새로 받고 고른다.
+    //
+    //   방금 저장한 커스텀 모델을 목록에서 골라 추천을 눌렀는데, 돌아온 결과에는 그 모델에만 있던
+    //   방화벽 5555 가 없었다. 추천 API 를 같은 모델로 직접 부르면 후보 스무 건 모두에 들어 있다 —
+    //   즉 화면은 커스텀 모델을 보여 주면서 요청은 *직전에 불러온* 모델로 나갔다. 파라미터 칸에서
+    //   본 것과 같은 종류다. (2026-08-01)
+    await page.reload({ waitUntil: 'domcontentloaded' });
+
     await models.selectModel(
       scenarioState.sourceModelName ?? uniqueName(modelName),
     );
