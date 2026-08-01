@@ -797,7 +797,8 @@ function infraFor(track: string): string {
  * workflow reported success; reading only the run state would have recorded that as a pass.
  */
 Then('워크플로우의 작업별 상태가 모두 정상이다', async ({ page }) => {
-  const name = scenarioState.softwareWorkflowName;
+  // 복제해서 만든 길은 이름을 `remember` 로만 남긴다 — 그쪽도 받아 준다.
+  const name = recall('workflow:last') ?? scenarioState.softwareWorkflowName;
   expect(
     name,
     '먼저 워크플로우를 생성·실행하는 단계가 있어야 한다',
@@ -1382,7 +1383,29 @@ Then('워크플로우는 여전히 실패로 남는다', async ({ page }) => {
 Then(
   '워크플로우의 {string} 작업에 {string} 값이 그대로 있다',
   async ({ page }, taskName: string, value: string) => {
-    await new WorkflowPage(page).showParamValue(taskName, value);
+    const wf = new WorkflowPage(page);
+
+    // ★ 어느 워크플로우를 보고 있는지 먼저 못 박는다.
+    //
+    //   복제본을 만들어 돌린 뒤에는 화면이 원본을 그린 채로 남아 있을 수 있다. 그러면 판정은
+    //   *원본의* 파라미터를 읽고 "바꾼 값이 없다"고 한다 — 정작 복제본에는 제대로 들어가 있고
+    //   만들어진 인스턴스도 바뀐 값을 쓴다(실제로 보안그룹에 6666 이 열려 있었다). 화면 하나
+    //   때문에 정상을 결함으로 부르는 자리라, 읽기 전에 그 워크플로우를 이름으로 열어 둔다.
+    //   (2026-08-01)
+    const opened = recall('workflow:last');
+    if (opened) {
+      // 화면을 한 번 새로 받는다.
+      //
+      //   파라미터 칸은 "현재 정의의 값"이라고 적어 두고도 *처음 불러온* 정의를 그대로 들고 있다.
+      //   복제본을 편집해 저장하고 그 복제본을 열어도, 저장된 정의(6666·t3a.small)가 아니라
+      //   복제의 바탕이 된 원본(5555·t3a.large)이 보인다 — 만들어진 인스턴스는 바뀐 값을 쓰는데
+      //   화면만 옛 값을 말한다. 사람이 그 화면에 처음 들어오는 것과 같은 상태로 만들어 읽는다.
+      //   (2026-08-01)
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await wf.openRunViewer(opened, true);
+    }
+
+    await wf.showParamValue(taskName, value);
   },
 );
 
