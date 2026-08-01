@@ -594,6 +594,27 @@ export class WorkflowPage {
    * way it is done in the model editor.
    */
   /**
+   * Read every body field's path and value in **one** round trip.
+   *
+   * ★ Asking each field separately is what made the recording crawl. After expanding there are
+   *   nearly eight hundred of them, and reading a path and a value from each is sixteen hundred
+   *   journeys to the browser and back - minutes of a screen doing nothing while the test hunts.
+   *   The browser can hand the whole lot over at once; the search then happens here, instantly, and
+   *   only the field that matters is touched. (2026-07-31)
+   */
+  private async readBodyFields(): Promise<{ path: string; value: string }[]> {
+    return this.page
+      .locator('[data-testid^="wf-field-body_params."]')
+      .evaluateAll(els =>
+        els.map(el => ({
+          path: el.getAttribute('data-testid') ?? '',
+          value: (el as HTMLInputElement | HTMLTextAreaElement).value ?? '',
+        })),
+      )
+      .catch(() => []);
+  }
+
+  /**
    * Open everything the panel folded away.
    *
    * The editor collapses arrays and objects deeper than two levels so the form stays readable. For
@@ -625,7 +646,13 @@ export class WorkflowPage {
         await button.click({ timeout: 5_000 }).catch(() => {});
         clickedThisRound++;
         opened++;
-        await this.page.waitForTimeout(80);
+        // ★ 여기서는 사람 흉내를 내지 않는다.
+        //
+        //   접힌 것이 이백 개 가까이라, 한 칸씩 사람처럼 열면 화면에는 *줄이 하나씩 색을 바꾸며
+        //   내려가는* 몇 분짜리 장면이 남는다. 사람이 휠을 굴릴 때 그런 그림은 나오지 않으므로
+        //   보는 쪽에서는 무슨 일인지 알 수 없다. 여는 것은 준비 과정이니 빨리 지나가고, 실제로
+        //   보여줄 것은 그 다음의 편집이다. (2026-07-31)
+        await this.page.waitForTimeout(12);
       }
 
       // Opening one level reveals the next, so go round again until a pass changes nothing.
@@ -649,33 +676,36 @@ export class WorkflowPage {
     //
     //   So the search is by path now, and a miss is an error rather than a silent fallback onto
     //   something else that happens to match. (2026-07-31)
-    const fields = this.page.locator(
-      '[data-testid^="wf-field-body_params."][data-testid*="nodeGroups"][data-testid$="specId"]',
+    const all = await this.readBodyFields();
+    const found = all.find(
+      f =>
+        /nodeGroups/.test(f.path) &&
+        /specId$/.test(f.path) &&
+        // `aws+ap-northeast-2+t3a.medium` - three parts, the last one the size.
+        /^[a-z0-9-]+\+[a-z0-9-]+\+\S+$/i.test(f.value),
     );
-    const count = await fields.count();
 
-    for (let i = 0; i < count; i++) {
-      const field = fields.nth(i);
-      const value = await field.inputValue().catch(() => '');
-      // `aws+ap-northeast-2+t3a.medium` - three parts, the last one the size.
-      if (!/^[a-z0-9-]+\+[a-z0-9-]+\+\S+$/i.test(value)) continue;
+    if (found) {
+      const field = this.page.getByTestId(found.path.replace(/^wf-field-/, ''));
+      const value = found.value;
+      {
+        const parts = value.split('+');
+        const oldSize = parts[parts.length - 1];
+        if (oldSize === size) return value;
 
-      const parts = value.split('+');
-      const oldSize = parts[parts.length - 1];
-      if (oldSize === size) return value;
+        await field.click();
+        await field.press('End');
+        for (let n = 0; n < oldSize.length; n++) {
+          await field.press('Backspace');
+          await this.page.waitForTimeout(26);
+        }
+        await field.pressSequentially(size, { delay: 55 });
+        await this.page.waitForTimeout(500);
 
-      await field.click();
-      await field.press('End');
-      for (let n = 0; n < oldSize.length; n++) {
-        await field.press('Backspace');
-        await this.page.waitForTimeout(26);
+        const next = [...parts.slice(0, -1), size].join('+');
+        await spotlight(this.page, field);
+        return next;
       }
-      await field.pressSequentially(size, { delay: 55 });
-      await this.page.waitForTimeout(500);
-
-      const next = [...parts.slice(0, -1), size].join('+');
-      await spotlight(this.page, field);
-      return next;
     }
 
     throw new Error(
@@ -703,16 +733,14 @@ export class WorkflowPage {
   async setPortInWorkflow(from: string, to: string): Promise<string> {
     await this.expandAllParams();
 
-    const fields = this.page.locator('[data-testid^="wf-field-body_params."]');
-    const count = await fields.count();
+    const all = await this.readBodyFields();
+    const found = all.find(
+      f => /port/i.test(f.path) && f.value.trim() === from,
+    );
 
-    for (let i = 0; i < count; i++) {
-      const field = fields.nth(i);
-      const path = (await field.getAttribute('data-testid')) ?? '';
-      if (!/port/i.test(path)) continue;
-
-      const value = (await field.inputValue().catch(() => '')).trim();
-      if (value !== from) continue;
+    if (found) {
+      const field = this.page.getByTestId(found.path.replace(/^wf-field-/, ''));
+      const value = found.value.trim();
 
       await field.scrollIntoViewIfNeeded().catch(() => {});
       await field.click();
