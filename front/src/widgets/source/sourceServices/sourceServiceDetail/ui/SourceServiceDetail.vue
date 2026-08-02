@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { PDefinitionTable, PButton, PStatus } from '@cloudforet-test/mirinae';
-import { computed, onBeforeMount, reactive, ref, watch, watchEffect } from 'vue';
+import {
+  computed,
+  onBeforeMount,
+  reactive,
+  ref,
+  watch,
+  watchEffect,
+} from 'vue';
 import type { ISourceConnectionOutcome } from '@/entities/sourceService/model/types';
 import { useSourceServiceDetailModel } from '@/widgets/source/sourceServices/sourceServiceDetail/model/sourceServiceDetailModel';
 import {
@@ -102,7 +109,8 @@ function hoverSummary(data: any): string {
   const failed = failedOnly(data).length;
   if (!all.length) return '';
   if (!failed) return `All ${all.length} connections answered.`;
-  if (failed === all.length) return `None of the ${all.length} connections answered.`;
+  if (failed === all.length)
+    return `None of the ${all.length} connections answered.`;
   return `${all.length - failed} of ${all.length} connections answered, ${failed} did not.`;
 }
 
@@ -339,6 +347,10 @@ function handleSoftwareModal() {
       <!--
         The status, and a glance at what is behind it.
 
+        `data-status` carries the raw value, not the styled text, so a test can wait for the state
+        itself rather than reading a label. Refresh has to report success here before Collect Infra
+        and Collect SW do anything.
+
         The hover only summarises. It closes when the pointer leaves, and the gap on the
         way to it is enough to close it, so nothing that needs scrolling can live here.
         The detail is opened from a button instead.
@@ -348,6 +360,7 @@ function handleSoftwareModal() {
           class="status-cell"
           tabindex="0"
           data-testid="source-group-status"
+          :data-status="data.status"
           @mouseenter="openStatusDetail"
           @mouseleave="closeStatusDetail"
           @focus="openStatusDetail"
@@ -358,7 +371,10 @@ function handleSoftwareModal() {
           <span
             v-if="statusDetailAt && outcomesOf(data).length"
             class="status-detail"
-            :style="{ top: `${statusDetailAt.top}px`, left: `${statusDetailAt.left}px` }"
+            :style="{
+              top: `${statusDetailAt.top}px`,
+              left: `${statusDetailAt.left}px`,
+            }"
             data-testid="source-group-status-detail"
           >
             <span class="status-detail-summary">{{ hoverSummary(data) }}</span>
@@ -373,22 +389,26 @@ function handleSoftwareModal() {
               >
               <span class="status-detail-line">
                 <span class="status-detail-label">Connection</span>
-                <span :class="`status-detail-value is-${outcome.connectionStatus}`"
+                <span
+                  :class="`status-detail-value is-${outcome.connectionStatus}`"
                   >{{ outcome.connectionStatus }}</span
                 >
               </span>
-              <span v-if="outcome.connectionMessage" class="status-detail-message"
+              <span
+                v-if="outcome.connectionMessage"
+                class="status-detail-message"
                 >{{ outcome.connectionMessage }}</span
               >
               <span class="status-detail-line">
                 <span class="status-detail-label">Agent</span>
-                <span :class="`status-detail-value is-${outcome.agentStatus}`"
+                <span
+                  :class="`status-detail-value is-${outcome.agentStatus}`"
                   >{{ outcome.agentStatus }}</span
                 >
               </span>
-              <span v-if="outcome.agentMessage" class="status-detail-message"
-                >{{ outcome.agentMessage }}</span
-              >
+              <span v-if="outcome.agentMessage" class="status-detail-message">{{
+                outcome.agentMessage
+              }}</span>
             </span>
 
             <span class="status-detail-hint"
@@ -527,22 +547,25 @@ function handleSoftwareModal() {
             >
             <span class="status-detail-line">
               <span class="status-detail-label">Connection</span>
-              <span :class="`status-detail-value is-${outcome.connectionStatus}`"
+              <span
+                :class="`status-detail-value is-${outcome.connectionStatus}`"
                 >{{ outcome.connectionStatus }}</span
               >
             </span>
-            <span v-if="outcome.connectionMessage" class="status-detail-message"
+            <span
+              v-if="outcome.connectionMessage"
+              class="status-detail-message"
               >{{ outcome.connectionMessage }}</span
             >
             <span class="status-detail-line">
               <span class="status-detail-label">Agent</span>
-              <span :class="`status-detail-value is-${outcome.agentStatus}`"
-                >{{ outcome.agentStatus }}</span
-              >
+              <span :class="`status-detail-value is-${outcome.agentStatus}`">{{
+                outcome.agentStatus
+              }}</span>
             </span>
-            <span v-if="outcome.agentMessage" class="status-detail-message"
-              >{{ outcome.agentMessage }}</span
-            >
+            <span v-if="outcome.agentMessage" class="status-detail-message">{{
+              outcome.agentMessage
+            }}</span>
           </div>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { Page, Locator, expect } from '@playwright/test';
 import { humanClick, humanFill } from '../support/humanize';
+import { describe as writeDescription } from '../support/describe';
 
 /**
  * JsonEditorPage — the model JSON editor (Custom & View).
@@ -107,6 +108,27 @@ export class JsonEditorPage {
   /** Narrow the grid to matching rows rather than only highlighting them. */
   async enableFilter(): Promise<void> {
     await humanClick(this.page.getByTestId('json-grid-search-filter'));
+  }
+
+  /**
+   * Leave the editor without saving.
+   *
+   * ★ The editor is an overlay on the model's own route, so the address does not change when it
+   *   opens. Anything that decides "am I on the models screen" by the URL says yes while this is
+   *   covering it, and the buttons underneath resolve but never become clickable - the step then
+   *   times out on an element that was there all along. Playwright counts an element behind an
+   *   overlay as visible, so a marker check does not catch it either. The editor has to be closed.
+   *   (2026-07-31)
+   */
+  async close(): Promise<void> {
+    const cancel = this.page
+      .getByTestId('target-custom-cancel')
+      .or(this.page.getByTestId('source-custom-cancel'))
+      .first();
+    if (await cancel.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await humanClick(cancel);
+      await expect(cancel).toBeHidden({ timeout: 15_000 });
+    }
   }
 
   async closeSearch(): Promise<void> {
@@ -230,6 +252,35 @@ export class JsonEditorPage {
     await input.press('Enter');
   }
 
+  /**
+   * Change only the end of a value - delete the tail, type the new one.
+   *
+   * ★ A spec reads `aws+ap-northeast-2+t3a.medium`, and only the size at the end changes. Retyping
+   *   the whole thing is what the recording was doing, and it looks like nothing anyone does: you
+   *   put the caret at the end, backspace over `t3a.medium`, and type `t3a.large`.
+   *
+   *   This is safe because the tail is not guessed - the caller read the current value and split it,
+   *   so the number of characters to remove is known exactly.
+   */
+  async replaceRowValueTail(
+    row: Locator,
+    oldTail: string,
+    newTail: string,
+  ): Promise<void> {
+    await row.locator('.pg-cell-value').dblclick();
+
+    const input = this.page.locator('.pg-edit-input');
+    await expect(input).toBeVisible({ timeout: 10_000 });
+
+    await input.press('End');
+    for (let i = 0; i < oldTail.length; i++) {
+      await input.press('Backspace');
+      await this.page.waitForTimeout(28);
+    }
+    await input.pressSequentially(newTail, { delay: 55 });
+    await input.press('Enter');
+  }
+
   // ── saving ─────────────────────────────────────────────────────────────
 
   /**
@@ -238,7 +289,7 @@ export class JsonEditorPage {
    * Saving from here never overwrites the original - it creates a new model under the name given.
    * That is the point of the custom pass: the collected model stays as collected.
    */
-  async saveAsCustom(name: string): Promise<void> {
+  async saveAsCustom(name: string, description?: string): Promise<void> {
     // The two custom-view screens name their save button differently - the source one has carried
     // `create-form-save` for a while, the target one had no identifier at all until now.
     await humanClick(
@@ -255,6 +306,26 @@ export class JsonEditorPage {
         .first(),
       name,
     );
+
+    // Say what it is for. A name on its own tells a viewer nothing about why this model exists,
+    // and the list they see later carries only these two fields.
+    if (description) {
+      await writeDescription(
+        this.page,
+        this.page.getByTestId('model-description-input').first(),
+        description,
+      );
+    }
+
     await humanClick(this.page.getByTestId('model-name-save'));
+
+    // ★ 저장했으면 편집기를 닫고 나온다.
+    //
+    //   이 편집기는 화면을 덮는데 주소는 모델 화면 그대로다. 열린 채로 두면 그 아래 것들이 *보이기는
+    //   하는데 눌리지 않고*, 다음 단계는 엉뚱한 데서 시간 초과가 난다 — 목록의 페이지 버튼을 기다리다
+    //   멈춘 적이 있고, 오류는 그 버튼을 가리키지 덮고 있는 것을 가리키지 않는다. 같은 모양으로 네 번
+    //   데였다(모델 편집기 두 번, 설치 목록 창, 복제한 워크플로우). 나가는 자리에서 닫는 것이
+    //   부르는 쪽마다 기억하는 것보다 낫다. (2026-08-01)
+    await this.close();
   }
 }

@@ -46,6 +46,27 @@ code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$BASE/" || echo 00
 if [ "$code" = "200" ]; then say "콘솔 $HOST" "OK ($code)"
 else say "콘솔 $HOST" "❌ 응답 $code — 서버가 꺼져 있을 수 있다"; fail=1; fi
 
+# 촬영 중에 서버가 내려가지 않는지.
+#
+# `Auto.StopHold=keep` 은 자동 종료를 건너뛰게 하는 스위치인데 **매일 06:00 에 시스템이 off 로
+# 되돌린다**(REMOTE-SERVER-LIFECYCLE §5.4). 어제 걸어 둔 것은 오늘 소용이 없다. 한 벌을 찍는 데
+# 25분이 걸리므로 그 사이에 종료 시각이 걸리면 중간부터 통째로 날아간다 — 실제로 그렇게
+# 구간 4~9 를 잃었다(2026-07-30, 도메인이 사라져 ERR_NAME_NOT_RESOLVED).
+if command -v aws >/dev/null 2>&1; then
+  hold="$(aws ec2 describe-instances --region ap-northeast-2 \
+      --filters "Name=tag:Auto.Dns,Values=$HOST" \
+      --query "Reservations[].Instances[].Tags[?Key=='Auto.StopHold']|[0][0].Value" \
+      --output text 2>/dev/null)"
+  case "$hold" in
+    keep) say "자동 종료 보류" "keep — 촬영 중 내려가지 않는다" ;;
+    "" | None)
+      say "자동 종료 보류" "❌ 걸려 있지 않다 — 촬영 도중 서버가 내려갈 수 있다"
+      echo "   aws ec2 create-tags --region ap-northeast-2 --resources <instance-id> --tags Key=Auto.StopHold,Value=keep"
+      fail=1 ;;
+    *) say "자동 종료 보류" "❌ '$hold' — keep 이어야 한다"; fail=1 ;;
+  esac
+fi
+
 # 라인업이 성해 있는지. 하나라도 restarting 이면 그 뒤 단계가 엉뚱하게 실패한다.
 #
 # 보는 대상은 **cloud-migrator 프로젝트의 컨테이너**뿐이다. 같은 호스트에서 다른 세션이 자기

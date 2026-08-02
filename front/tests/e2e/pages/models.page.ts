@@ -1,6 +1,7 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 import { humanClick, humanFill } from '../support/humanize';
+import { describe as writeDescription } from '../support/describe';
 import { openScreen } from '../support/navigate';
 
 /**
@@ -37,9 +38,12 @@ export class ModelsPage {
 
   /** A model list row by name */
   private modelRow(name: string): Locator {
-    return this.page
+    // ★ 목록 표 안으로 한정한다 — 행은 화면 어디에 있든 role=row 로 잡히기 때문이다.
+    //   같은 이름을 담은 요소가 표 밖에도 있으면 `.first()` 가 그 쪽을 집어, 클릭은 성공하는데
+    //   아무 일도 일어나지 않는다. 소스 서비스 목록에서 실제로 그렇게 걸렸다. (2026-07-31)
+    return this.listTable
       .getByTestId(`model-row-${name}`)
-      .or(this.page.getByRole('row', { name }))
+      .or(this.listTable.getByRole('row', { name }))
       .first();
   }
 
@@ -56,6 +60,26 @@ export class ModelsPage {
    * find it by *paging through*, and record which page it was found on.
    */
   private async revealModel(name: string): Promise<number> {
+    // ★ 저장 직후의 목록은 아직 그 모델을 모를 수 있다.
+    //
+    //   방금 커스텀 모델을 저장하고 "목록에 보인다"를 확인하러 오면, 목록이 저장 전 상태 그대로인
+    //   경우가 있다 — 앞서 2페이지였던 목록이 확인 시점엔 1페이지로 줄어 있었고 새 모델은 어디에도
+    //   없었다. 없는 것을 페이지만 넘겨 봐야 나오지 않는다. 소스그룹 목록은 같은 이유로 이미 이렇게
+    //   하고 있었는데 모델 쪽에만 빠져 있었다. (2026-08-01)
+    const listed = await this.modelRow(name)
+      .isVisible()
+      .catch(() => false);
+
+    if (!listed) {
+      const found = await this.listPagination
+        .expectRowSomewhere(this.modelRow(name), name)
+        .catch(() => null);
+      if (found !== null) return found;
+
+      await this.page.reload({ waitUntil: 'domcontentloaded' });
+      await expect(this.listTable).toBeVisible({ timeout: 20_000 });
+    }
+
     return this.listPagination.expectRowSomewhere(this.modelRow(name), name);
   }
 
@@ -191,12 +215,22 @@ export class ModelsPage {
   // ───────────────────────────────────────────────────────────────────
 
   async gotoSourceModels(): Promise<void> {
-    await openScreen(this.page, 'sourcemodels', ModelsPage.sourceModelsPath);
+    await openScreen(
+      this.page,
+      'sourcemodels',
+      ModelsPage.sourceModelsPath,
+      'model-list-table',
+    );
     await this.page.waitForURL(/\/models\/source-models/, { timeout: 15_000 });
   }
 
   async gotoTargetModels(): Promise<void> {
-    await openScreen(this.page, 'targetmodels', ModelsPage.targetModelsPath);
+    await openScreen(
+      this.page,
+      'targetmodels',
+      ModelsPage.targetModelsPath,
+      'model-list-table',
+    );
     await this.page.waitForURL(/\/models\/target-models/, { timeout: 15_000 });
   }
 
@@ -212,7 +246,39 @@ export class ModelsPage {
   /** Select a model row from the list (reveals the detail tab) */
   async selectModel(name: string): Promise<void> {
     await this.revealModel(name);
-    await humanClick(this.modelRow(name));
+
+    // ★ 행에 붙은 표시만 보고 건너뛰지 않는다.
+    //
+    //   선택된 행을 다시 누르면 선택이 풀리고 상세도 같이 닫히므로 건너뛸 이유는 있다. 그런데
+    //   판정 근거를 *행의 selected 클래스*로 삼았더니, 모델을 저장한 직후 그 행에 표시만 붙고
+    //   화면이 그 모델을 실제로 잡지는 않은 상태가 생겼다. 클릭을 건너뛰면 그 상태가 그대로 남아
+    //   **다음 동작이 이전 모델로 나간다** — 커스텀 소스 모델을 골라 추천했는데 원본 기준으로
+    //   추천이 돌아온 것이 그것이다. 결과에 5555 가 없어 제품 결함으로 볼 뻔했다.
+    //
+    //   그래서 상세가 *그 모델의 것*인지까지 확인하고, 아니면 누른다. (2026-08-01)
+    const row = this.modelRow(name).first();
+    const cls = (await row.getAttribute('class').catch(() => '')) ?? '';
+    const detailShowsThis =
+      /selected/.test(cls) &&
+      (await this.detailNameFor(name)
+        .isVisible({ timeout: 1_000 })
+        .catch(() => false));
+    if (detailShowsThis) return;
+
+    await humanClick(row);
+  }
+
+  /**
+   * The detail's own label for this model — proof that the detail below the list is *this* one.
+   *
+   * The list marking says a row is chosen; it does not say the screen followed. Only something the
+   * detail itself renders can say that.
+   */
+  private detailNameFor(name: string): Locator {
+    return this.page
+      .locator('.model-detail, [data-testid$="-detail"], .p-pane-layout')
+      .filter({ hasText: name })
+      .first();
   }
 
   /** Select the first model in the list (e.g. the latest source right after collection) */
@@ -625,9 +691,21 @@ export class ModelsPage {
   }
 
   /** Save the recommendation result as a target model (cloud model) with the given name */
-  async saveAsTargetModel(name: string): Promise<void> {
+  async saveAsTargetModel(name: string, description?: string): Promise<void> {
     await humanClick(this.saveAsTargetButton); // → SimpleEditForm(Save Target Model)
     await humanFill(this.modelNameInput, name);
+
+    // Say what it is for. This dialog is the *first* target model of a run - the one saved straight
+    // from the recommendation - and it was going in with an empty description while the custom ones
+    // explained themselves.
+    if (description) {
+      await writeDescription(
+        this.page,
+        this.page.getByTestId('model-description-input').first(),
+        description,
+      );
+    }
+
     await humanClick(this.modelNameConfirmButton);
     await expect(this.successConfirmButton).toBeVisible({ timeout: 15_000 });
     await humanClick(this.successConfirmButton);

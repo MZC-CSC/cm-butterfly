@@ -2,6 +2,7 @@ import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 import { humanClick, humanFill } from '../support/humanize';
 import { openScreen } from '../support/navigate';
+import { spotlight } from '../support/spotlight';
 
 /**
  * SourceServicesPage — 소스 서비스(소스 컴퓨팅, cm-honeybee) 화면의 "어디서/어떻게".
@@ -49,9 +50,16 @@ export class SourceServicesPage {
    * 반드시 테이블 행(role=row)만 매칭한다(칩을 잘못 클릭하면 상세가 열리지 않음).
    */
   private groupRow(name: string): Locator {
-    return this.page
+    // ★ 목록 표 안으로 한정한다.
+    //
+    //   `getByRole('row')` 는 화면 어디에 있든 행이면 잡는다. 등록 모달을 닫은 직후에는 같은
+    //   이름을 담은 행이 표 밖에도 하나 남아 있어 매칭이 2개가 되고, `.first()` 가 그 쪽을
+    //   집었다 — 표 아래 빈 영역(y≈759)의 27px짜리 요소였다. 클릭은 성공하지만 *아무 일도
+    //   일어나지 않고*, 그 다음 단계가 열리지 않는 상세의 탭을 기다리다 엉뚱한 데서 시간 초과가
+    //   났다. 실패 화면에는 선택되지 않은 목록만 남아 원인이 보이지 않는다. (2026-07-31)
+    return this.groupTable
       .getByTestId(`source-group-row-${name}`)
-      .or(this.page.getByRole('row', { name: new RegExp(name) }));
+      .or(this.groupTable.getByRole('row', { name: new RegExp(name) }));
   }
 
   /** 소스그룹 목록 테이블 */
@@ -193,7 +201,11 @@ export class SourceServicesPage {
     return this.page.getByTestId('source-connection-add-edit');
   }
   private connectionRow(name: string): Locator {
-    return this.page.getByRole('row', { name: new RegExp(name) });
+    // 위 groupRow 와 같은 이유 — 행은 표 안에서만 찾는다.
+    const table = this.page
+      .getByTestId('source-connection-list-table')
+      .or(this.page.locator('table'));
+    return table.getByRole('row', { name: new RegExp(name) }).first();
   }
   /** 연결 목록의 "Export" 버튼 — 선택한 연결이 없으면 비활성 */
   private get exportConnectionButton(): Locator {
@@ -278,7 +290,12 @@ export class SourceServicesPage {
 
   /** 소스 서비스 화면으로 이동 */
   async goto(): Promise<void> {
-    await openScreen(this.page, 'sourceservices', SourceServicesPage.path);
+    await openScreen(
+      this.page,
+      'sourceservices',
+      SourceServicesPage.path,
+      'source-group-list-table',
+    );
     await expect(this.addGroupButton).toBeVisible({ timeout: 15_000 });
   }
 
@@ -420,6 +437,15 @@ export class SourceServicesPage {
     // the browser asks for a file, this catches the request first and answers it.
     const chooser = this.page.waitForEvent('filechooser');
     await humanClick(this.page.getByTestId('source-import-file'));
+
+    // Stay on the button for a beat before the file turns up.
+    //
+    // ★ The chooser is the operating system's window and never appears in the recording. Answer it
+    //   the instant it opens and the filename lands in the same frame as the press, which reads as
+    //   the button having produced it. Holding the pointer there for a moment leaves a gap the
+    //   viewer fills in themselves - that is where the file was picked, off screen.
+    await this.page.waitForTimeout(1_500);
+
     await (
       await chooser
     ).setFiles({
@@ -431,9 +457,18 @@ export class SourceServicesPage {
     // The chosen file is named on screen before anything is read. This is the step that used to be
     // missing: rows appeared in the preview with nothing to say where they came from, and there was
     // no way to tell a file had been attached at all.
-    await expect(this.page.getByTestId('source-import-filename')).toContainText(
-      'sources.csv',
-      { timeout: 10_000 },
+    const filename = this.page.getByTestId('source-import-filename');
+    await expect(filename).toContainText('sources.csv', { timeout: 10_000 });
+
+    // Point at the name itself.
+    //
+    // ★ The line reads `Selected file: <strong>sources.csv</strong>`, so the element holds two runs
+    //   of text and the highlight measures the widest one - which was the label, not the file. The
+    //   ring went round "Selected file:" and said nothing about which file arrived.
+    const nameOnly = filename.locator('strong').first();
+    await spotlight(
+      this.page,
+      (await nameOnly.isVisible().catch(() => false)) ? nameOnly : filename,
     );
 
     // The preview reports how many rows the server parsed - that count is what tells us the file
@@ -449,13 +484,84 @@ export class SourceServicesPage {
   /** 이름으로 소스그룹 선택(상세 진입) */
   async selectGroup(name: string): Promise<void> {
     await this.revealGroup(name);
-    await humanClick(this.groupRow(name).first());
+
+    // ★ Leave it alone only when the detail is *actually open*.
+    //
+    //   Clicking a selected row toggles it off and takes the detail with it, so a selected row is
+    //   worth skipping - but the row's own marking is not proof the detail is open. It can carry the
+    //   selected class with nothing open beneath it, and skipping then means the tab never appears.
+    //   Clicks have no deadline here, so the run does not fail: it simply stands there. It stood for
+    //   forty-three minutes. What decides now is whether the detail is on screen.
+    //   (2026-08-01; the class alone was the rule until then, DESIGN-MIRINAE §1.5)
+    const row = this.groupRow(name).first();
+    const detailOpen = await this.connectionsTab
+      .isVisible({ timeout: 1_000 })
+      .catch(() => false);
+    const cls = (await row.getAttribute('class').catch(() => '')) ?? '';
+    if (process.env.E2E_DEBUG_SELECT) {
+      const n = await this.groupRow(name)
+        .count()
+        .catch(() => -1);
+      const box = await row.boundingBox().catch(() => null);
+      console.log(
+        `[선택] "${name}" 매칭 ${n}개 | class=${cls} | box=${JSON.stringify(box)}`,
+      );
+    }
+    if (detailOpen && /selected/.test(cls)) {
+      if (process.env.E2E_DEBUG_SELECT)
+        console.log('[선택] 이미 선택됐고 상세도 열려 있다 — 건너뜀');
+      return;
+    }
+
+    await humanClick(row);
+
+    if (process.env.E2E_DEBUG_SELECT) {
+      const after = (await row.getAttribute('class').catch(() => '')) ?? '';
+      console.log(`[선택] 클릭 후 class=${after}`);
+    }
   }
 
   /** 연결 탭 열기 + 특정 연결정보 선택 */
   async openConnection(connName: string): Promise<void> {
     await humanClick(this.connectionsTab);
     await humanClick(this.connectionRow(connName).first());
+  }
+
+  /**
+   * Open the group and show every connection the file brought in.
+   *
+   * ★ One file can carry many servers, and the group row only says a group exists. Stopping at
+   *   "the group is in the list" leaves the interesting part unshown - that several connections
+   *   arrived at once, which is the whole reason to import a file rather than type them in.
+   *
+   * @returns the connection names read off the tab
+   */
+  async showImportedConnections(
+    group: string,
+    expected: string[],
+  ): Promise<string[]> {
+    await this.selectGroup(group);
+
+    // 탭이 뜨는 것을 먼저 확인한다 — 클릭에는 시한이 없어, 없는 것을 누르려 하면 멈춘 채로 남는다.
+    await expect(
+      this.connectionsTab,
+      '연결 탭이 나오지 않는다 — 그룹 상세가 열리지 않았다',
+    ).toBeVisible({ timeout: 20_000 });
+    await humanClick(this.connectionsTab);
+
+    for (const name of expected) {
+      const row = this.connectionRow(name).first();
+      await expect(
+        row,
+        `연결 목록에 "${name}" 이 없다 — 파일이 일부만 읽힌 것이다`,
+      ).toBeVisible({ timeout: 20_000 });
+    }
+
+    // Rest on the list long enough to take it in. The rows are what the file produced, and they go
+    // by in a moment if the next step starts straight away.
+    await this.page.waitForTimeout(1_200);
+
+    return expected;
   }
 
   // ───────────────────────── 연결정보 익스포트 ─────────────────────────
@@ -557,11 +663,28 @@ export class SourceServicesPage {
     await expect(this.exportNotice).toBeHidden({ timeout: 10_000 });
   }
 
-  /** 연결 상태 점검(Refresh) — 정상이어야 Collect 버튼 활성화. 상세가 열린 상태에서 호출. */
+  /** Agent Status / Connection Status 값 (source-group-status 의 data-status) */
+  private get groupStatus(): Locator {
+    return this.page.getByTestId('source-group-status');
+  }
+
+  /**
+   * 연결 상태 점검(Refresh) — **상태가 success 가 된 뒤에야** 수집을 누른다.
+   *
+   * ★ 종전에는 Refresh 를 누르고 `collectInfraButton` 이 *enabled* 가 되기를 기다렸다. 그런데
+   *   미리내 PButton 은 비활성을 **class 로만** 표현해 표준 `disabled` 속성이 붙지 않는다
+   *   (DESIGN-MIRINAE §1.6). `toBeEnabled()` 는 언제나 참을 돌려주므로 그 기다림은 **아무것도
+   *   기다리지 않았다** — 녹화를 보면 Refresh 를 누른 직후 상태가 Unknown 인 채로 Collect 를
+   *   누르고 있다. 사람이라면 상태가 success 로 바뀌는 것을 보고 누른다.
+   *
+   *   기다릴 것은 버튼의 겉모습이 아니라 **화면이 말하는 상태**다. Refresh 는 서버에 다시 물어
+   *   Agent Status 를 갱신하고, 그 값이 success 여야 수집이 실제로 결과를 가져온다.
+   */
   async refreshGroupStatus(): Promise<void> {
     await humanClick(this.groupRefreshButton);
-    // 상태 반영(로딩 종료) 대기 후 Collect가 활성화됨
-    await expect(this.collectInfraButton).toBeEnabled({ timeout: 30_000 });
+    await expect(this.groupStatus).toHaveAttribute('data-status', 'Success', {
+      timeout: 60_000,
+    });
   }
 
   /** 인프라 수집 실행 (그룹단위 import-infra) — 선택된 그룹 상세에서 Refresh 후 Collect Infra */

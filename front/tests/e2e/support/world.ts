@@ -27,6 +27,8 @@ export const scenarioState: {
   /** Name of the software source model (SW collect → referenced by the SW recommend step) */
   softwareSourceModelName?: string;
   /** Name of the software migration workflow (run → referenced by the status-check step) */
+  /** 워크플로우에서 직접 바꾼 인스턴스 스펙 (트랙1) */
+  workflowSpec?: string;
   softwareWorkflowName?: string;
   /**
    * The *time the software migration workflow was run*.

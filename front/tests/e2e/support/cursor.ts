@@ -27,14 +27,14 @@ const CURSOR_SCRIPT = `
         left: 0;
         top: 0;
         z-index: 2147483647;
-        width: 22px;
-        height: 22px;
-        margin: -3px 0 0 -3px;
+        width: 17px;
+        height: 27px;
+        margin: -1px 0 0 -1px;
         pointer-events: none;
         transition: transform 60ms linear;
         will-change: transform;
       }
-      #e2e-cursor svg { display: block; filter: drop-shadow(0 1px 2px rgba(0,0,0,.45)); }
+      #e2e-cursor svg { display: block; }
       #e2e-cursor.is-down svg { transform: scale(.82); }
       #e2e-cursor-ring {
         position: fixed;
@@ -60,8 +60,14 @@ const CURSOR_SCRIPT = `
     const cursor = document.createElement('div');
     cursor.id = 'e2e-cursor';
     cursor.innerHTML =
-      '<svg viewBox="0 0 24 24" width="22" height="22">' +
-      '<path d="M5 2.5 19 12l-6.2 1.3L10.2 20 5 2.5Z" fill="#111827" stroke="#ffffff" stroke-width="1.4" stroke-linejoin="round"/>' +
+      // ★ 운영체제 기본 화살표와 같은 모양으로 둔다.
+      //
+      //   보는 사람은 이 커서를 자기 것과 견준다. 모양이 다르면 "저건 뭐지" 라는 질문이 먼저 나오고,
+      //   나중에 화면 전체를 찍는 촬영(운영체제 커서가 그대로 찍힌다)과 이어 붙일 때도 그 장면만
+      //   따로 논다. 흔한 left_ptr 윤곽 그대로 — 검은 채움에 흰 테두리. (2026-07-31)
+      '<svg viewBox="0 0 12 19" width="17" height="27">' +
+      '<path d="M1 1 L1 15.2 L4.6 11.9 L7 17.6 L9.4 16.6 L7 11 L11.2 11 Z" ' +
+      'fill="#000000" stroke="#ffffff" stroke-width="1.1" stroke-linejoin="round"/>' +
       '</svg>';
 
     const ring = document.createElement('div');

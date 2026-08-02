@@ -43,18 +43,24 @@ const LONG_TEXT_THRESHOLD = 24; // chars above which a value counts as "long"
   entry was already visible while it happened. A short beat only keeps the value on screen a moment
   before the run moves on.
 */
+/**
+ * ★ 2026-07-31: 데모 속도를 절반으로 줄였다(=두 배 빠르게).
+ *
+ *   사람처럼 보이게 하려고 넉넉히 잡았더니 보는 쪽에서는 늘어졌다. 커서가 눈에 띄고 무엇을 눌렀는지
+ *   읽히는 데 필요한 만큼만 남기고 나머지를 걷어낸다. 값은 환경변수로 여전히 조절할 수 있다.
+ */
 /** Held after the pointer arrives, before the click. `E2E_DEMO_CLICK_MS` overrides it. */
-const DEMO_CLICK_MS = Number(process.env.E2E_DEMO_CLICK_MS ?? 90);
+const DEMO_CLICK_MS = Number(process.env.E2E_DEMO_CLICK_MS ?? 45);
 /** Held after a value has been entered. `E2E_DEMO_BEAT_MS` overrides it. */
-const DEMO_BEAT_MS = Number(process.env.E2E_DEMO_BEAT_MS ?? 150);
+const DEMO_BEAT_MS = Number(process.env.E2E_DEMO_BEAT_MS ?? 75);
 /*
   Playwright's `steps` option sends the intermediate mousemove events back to back, so the
   pointer arrives in a few milliseconds - on screen that still reads as a jump. The glide
   below walks the same path but waits between the steps, which is what makes the travel
   visible at all.
 */
-const DEMO_TRAVEL_MS = 340; // time for a journey across the whole screen
-const DEMO_TRAVEL_MIN_MS = 90; // time for a hop to the neighbouring control
+const DEMO_TRAVEL_MS = 170; // time for a journey across the whole screen
+const DEMO_TRAVEL_MIN_MS = 45; // time for a hop to the neighbouring control
 const DEMO_TRAVEL_STEPS = 30; // points along the longest journey
 const DEMO_TRAVEL_REFERENCE_REACH = 2200; // screen diagonal to fall back on, in pixels
 /*
@@ -63,7 +69,7 @@ const DEMO_TRAVEL_REFERENCE_REACH = 2200; // screen diagonal to fall back on, in
   simply held for a beat, which is how the values get entered in practice anyway. Either
   way the time spent in the field stays under this budget.
 */
-const DEMO_TYPE_BUDGET_MS = 1_400;
+const DEMO_TYPE_BUDGET_MS = 700;
 const DEMO_MIN_TYPE_DELAY_MS = 25; // below this, typing looks like a paste anyway
 
 export function isDemoPace(): boolean {
@@ -204,18 +210,26 @@ async function travelTo(locator: Locator): Promise<void> {
  * `opts` is forwarded to `.click()` so callers can still pass e.g. a longer timeout. Do not route
  * special clicks (trial clicks, force) through here — keep those as direct `.click()` calls.
  */
+/**
+ * @param opts Playwright 의 click 옵션에 하나를 더 받는다.
+ *   `pauseBeforeMs` — 커서가 닿고 누르기까지 더 기다릴 시간.
+ *   ★ 누르자마자 확인 창이 뜨는 버튼이 있다. 기본 간격으로는 커서가 닿는 것과 창이 뜨는 것이 거의
+ *     같은 프레임이라, 보는 사람은 *무엇을 눌러서* 그 창이 떴는지 알 수 없다. 그런 자리에만 한
+ *     박자를 더 준다. (2026-07-31)
+ */
 export async function humanClick(
   locator: Locator,
-  opts?: Parameters<Locator['click']>[0],
+  opts?: Parameters<Locator['click']>[0] & { pauseBeforeMs?: number },
 ): Promise<void> {
+  const { pauseBeforeMs, ...clickOpts } = opts ?? {};
   if (!isHumanPace()) {
-    await locator.click(opts);
+    await locator.click(clickOpts);
     return;
   }
   if (isDemoPace()) {
     await travelTo(locator);
-    await pause(DEMO_CLICK_MS); // let the pointer be seen on the target before it presses
-    await locator.click(opts);
+    await pause(pauseBeforeMs ?? DEMO_CLICK_MS); // let the pointer be seen on the target
+    await locator.click(clickOpts);
     await pause(DEMO_CLICK_MS); // and let what the click did register
     return;
   }
@@ -224,7 +238,7 @@ export async function humanClick(
   await locator.hover({ timeout: opts?.timeout }).catch(() => {});
   await pause(HOVER_MS);
   await pause(PRECLICK_MS);
-  await locator.click(opts);
+  await locator.click(clickOpts);
   await pause(HOLD_MS);
 }
 
