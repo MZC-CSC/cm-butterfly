@@ -15,6 +15,7 @@ import { RoleType } from '@/shared/libs/accessControl/pageAccessHelper/types';
 import { tempRoutes } from '@/app/providers/router/routes/temp';
 import { migrationGuideRoutes } from '@/app/providers/router/routes/migrationGuide';
 import NotFound from '@/pages/error/404/NotFound.vue';
+import { installFirstVisitRedirect } from '@/features/guidedSetup';
 //TODO consider the admin part
 
 export class McmpRouter {
@@ -107,6 +108,10 @@ export class McmpRouter {
 
         next();
       });
+
+      // Someone with nothing here yet lands on an empty list, which explains nothing.
+      // Send them to the guide instead - once, and never again once the welcome is spent.
+      installFirstVisitRedirect(McmpRouter.router);
 
       // getMinimalPageAccessPermissionList(userRole).forEach(
       //   (menuId: MenuId) => {

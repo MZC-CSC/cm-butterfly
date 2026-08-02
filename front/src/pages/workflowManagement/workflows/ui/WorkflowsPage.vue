@@ -21,6 +21,7 @@ import {
   toErrorMessage,
 } from '@/shared/utils';
 import WorkflowEditor from '@/features/workflow/workflowEditor/ui/WorkflowEditor.vue';
+import { GuidedStepBanner } from '@/features/guidedSetup';
 
 const getWorkflow = useGetWorkflow(null);
 const updateWorkflow = useUpdateWorkflow(null, null);
@@ -228,6 +229,8 @@ async function handleUpdateWorkflow(updatedData: object) {
     <header>
       <p data-testid="workflow-page-header">{{ pageName }}</p>
     </header>
+    <!-- Step 5 continues here - a workflow built from a target model is run and watched. -->
+    <guided-step-banner step="workflow" />
     <section :class="`${pageName}-page-body`">
       <workflow-list
         :trigger="modalState.addWorkflow.trigger"

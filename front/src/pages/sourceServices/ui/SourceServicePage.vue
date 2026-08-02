@@ -16,6 +16,7 @@ import EditSourceConnectionModal from '@/widgets/source/sourceConnections/source
 import { showSuccessMessage } from '@/shared/utils';
 import AddSourceServiceModal from '@/features/sourceServices/addSourceServiceModal/ui/AddSourceServiceModal.vue';
 import EditSourceServiceModal from '@/features/sourceServices/editSourceServiceModal/ui/EditSourceServiceModal.vue';
+import { GuidedStepBanner } from '@/features/guidedSetup';
 
 const sourceConnectionName = ref<string>('');
 const multiSelectedConnectionIds = ref<string[]>([]);
@@ -156,6 +157,10 @@ const data = computed(() => {
     >
       <p data-testid="source-services-header">{{ pageName }}</p>
     </header>
+    <!-- Three steps are done here: register the servers, collect from them, then save that as a source model. -->
+    <guided-step-banner step="source-service" />
+    <guided-step-banner step="collect" />
+    <guided-step-banner step="source-model" />
     <section :class="`${pageName}-page-body`">
       <SourceServiceList
         :add-modal-state="modalStates.addServiceGroup.open"
