@@ -51,6 +51,10 @@ export const useSourceServiceStore = defineStore(NAMESPACE, () => {
         service.connection_info_status_count.connection_info_total,
       connectionIds: [],
       status: deriveSourceServiceStatus(service.connection_info_status_count),
+      // Declared here even though it is filled in later: a property added to an existing
+      // object after the fact is not observed, so anything watching it would never see it
+      // arrive.
+      connectionOutcomes: [],
     }));
   }
 
