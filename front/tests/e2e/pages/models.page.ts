@@ -182,6 +182,34 @@ export class ModelsPage {
     return this.page.getByTestId('recommend-save-target');
   }
 
+  /**
+   * OS / Architecture cells of the recommendation result table.
+   *
+   * These two are read by their own identifier rather than by column position: the columns
+   * move as the table changes, and these are the cells that regressed before — they showed
+   * "n/a" on every provider but AWS, because the values were taken from the provider's own
+   * fields instead of the normalized ones the image list provides.
+   */
+  private get recommendOsCells(): Locator {
+    return this.page.getByTestId('recommend-os');
+  }
+
+  private get recommendArchitectureCells(): Locator {
+    return this.page.getByTestId('recommend-architecture');
+  }
+
+  /** Text of every OS cell currently shown (empty table gives an empty array). */
+  async recommendOsTexts(): Promise<string[]> {
+    return (await this.recommendOsCells.allTextContents()).map(t => t.trim());
+  }
+
+  /** Text of every Architecture cell currently shown. */
+  async recommendArchitectureTexts(): Promise<string[]> {
+    return (await this.recommendArchitectureCells.allTextContents()).map(t =>
+      t.trim(),
+    );
+  }
+
   // ───────────────────────────────────────────────────────────────────
   // Navigation
   // ───────────────────────────────────────────────────────────────────

@@ -1,18 +1,19 @@
-import { ApiMock, ok } from '../apiMock';
+import { ApiMock, ok, fail } from '../apiMock';
 
 /**
  * Workload (infra) mock — for verifying the delete screen's *state machine* without any infra.
  *
  * ★ What is mocked and what is not (BAR-1530)
  *
- *   mocked     — `ListInfra` (a minimal list of rows) · `GetInfra` (echo the requested infra) · `DeleteInfra` (accept the request)
- *   not mocked — `GetRequest`
+ *   mocked     — `ListInfra` (a minimal list of rows) · `GetInfra` (echo the requested infra) · `DeleteInfra` (accept the request) · `GetRequest` (**"still running" only**)
+ *   not mocked — the delete status *transitions* (`Success`/`Error`)
  *
- *   `GetRequest` is the basis for **transitioning** the delete status to `Success`/`Error`, and parsing its
- *   response structure is **the contract with the linked framework**, not our own code. Mocking it would mean
- *   verifying *our parser against our own assumptions*, so the test would pass even if the real response structure
- *   changed. That is a textbook case of a mock hiding a defect, so it is deliberately excluded (the real-infra
- *   scenario takes that on).
+ *   Those transitions are read out of cm-beetle's response structure, which is **the contract with the linked
+ *   framework**, not our own code. Faking them would mean verifying *our parser against our own assumptions*, so
+ *   the test would keep passing after the real structure changed — a textbook case of a mock hiding a defect. They
+ *   are therefore never produced here; the real-infra scenario takes them on. `GetRequest` answers only that
+ *   nothing has changed yet, which is what makes "a delete is under way" a state a scenario can stand on (see the
+ *   handler below).
  *
  *   Un-mocked operationIds pass through to the real backend, so keep the scenario short to prevent the in-progress
  *   status from arbitrarily flipping to complete.
@@ -76,8 +77,53 @@ export const MOCK_LIST_INFRA_IDS = [
   'mock-list-infra-4',
 ];
 
+/**
+ * An infra whose delete request is refused outright.
+ *
+ * Separate from MOCK_INFRA_ID because the two are opposite cases: that one imitates a slow
+ * delete that is genuinely under way, this one a request that never started. Sharing a name
+ * would leave the list holding a row in two contradictory states.
+ */
+export const MOCK_REJECTED_INFRA_ID = 'mock-refused-infra';
+
+/**
+ * One slow-delete infra per scenario, rather than one shared between them.
+ *
+ * A delete that is meant to stay in flight never finishes here, and the record of it lives on
+ * the server — so the scenario that starts one leaves it running for whatever comes next. The
+ * next scenario would then find its target already being deleted and open on the progress step
+ * instead of the confirm step, failing on a state the *previous* scenario left behind.
+ *
+ * Giving each its own target is what keeps them independent. (Records still outlive the run
+ * itself; clearing them between runs is a separate matter — see the run command in the report.)
+ */
+export const MOCK_REFRESH_INFRA_ID = 'mock-refresh-infra';
+export const MOCK_MIXED_INFRA_ID = 'mock-mixed-infra';
+
+/**
+ * A block of infras for the scenarios about picking several at once (BAR-1719).
+ *
+ * Kept apart from the fillers above because those are already targets elsewhere: a scenario that
+ * deletes one of them leaves it running, and a run that finds it in that state would be counting
+ * one target fewer than it picked — which is exactly the number these scenarios turn on.
+ */
+export const MOCK_BULK_INFRA_IDS = [
+  'mock-bulk-1',
+  'mock-bulk-2',
+  'mock-bulk-3',
+  'mock-bulk-4',
+  'mock-bulk-5',
+];
+
 /** Every infra name this mock puts in the list. */
-export const MOCK_ALL_INFRA_IDS = [MOCK_INFRA_ID, ...MOCK_LIST_INFRA_IDS];
+export const MOCK_ALL_INFRA_IDS = [
+  MOCK_INFRA_ID,
+  MOCK_REJECTED_INFRA_ID,
+  MOCK_REFRESH_INFRA_ID,
+  MOCK_MIXED_INFRA_ID,
+  ...MOCK_LIST_INFRA_IDS,
+  ...MOCK_BULK_INFRA_IDS,
+];
 
 export function registerMciMocks(mock: ApiMock): ApiMock {
   return mock.use({
@@ -112,12 +158,36 @@ export function registerMciMocks(mock: ApiMock): ApiMock {
     // The load-test contract is checked where it belongs, against the real lineup.
     'cm-ant/Getlastloadtestexecutionstate': () => ok({ result: null }),
 
-    // Delete request — **hold the response.**
+    // Delete request — **hold the response**, except for the one infra that is meant to be refused.
     //
     // ★ Do not respond immediately. The real DeleteInfra holds the response until completion, and the screen keeps
     //   the "in progress" (Handling) status the whole time. If the mock returns success immediately, it transitions
     //   straight to complete right after the request, the record is dropped, and the in-progress status we wanted to
     //   observe never exists (3 cases actually failed that way). A slow API must be imitated *down to being slow*.
-    'cm-beetle/DeleteInfra': () => new Promise(() => {}),
+    //
+    // MOCK_REJECTED_INFRA_ID is the exception: it is refused outright, which is a different thing
+    // from a slow delete. A refusal means nothing was started, so the record must not be left
+    // "in progress" — that status is what blocks a second attempt, and leaving it there would make
+    // the workload permanently undeletable even though nothing had happened to it.
+    'cm-beetle/DeleteInfra': ({ body }) =>
+      body?.pathParams?.infraId === MOCK_REJECTED_INFRA_ID
+        ? fail(400, 'mock: delete request refused')
+        : new Promise(() => {}),
+
+    // Request tracking — answer "still running", and nothing else.
+    //
+    // ★ Why this one *is* mocked now, when the note above says it is deliberately not.
+    //   That note is about the **transitions** — Success and Error. Those are read out of
+    //   cm-beetle's response structure, so faking them would check our parser against our own
+    //   assumptions and keep passing after the real structure changed. That still holds: the
+    //   two terminal states are never produced here.
+    //
+    //   What is answered is the *absence* of a transition. Without it these scenarios cannot
+    //   exist at all: the request ids are invented by this mock, so a real cm-beetle answers 404,
+    //   and the console — correctly — concludes the outcome cannot be learned and stops treating
+    //   the delete as running. That happens within a poll or two, which left "a delete is under
+    //   way" as a state that survived a few seconds and then vanished. Scenarios about that state
+    //   passed or failed on how quickly the browser got there.
+    'cm-beetle/GetRequest': () => ok({ data: { status: 'Handling' } }),
   });
 }

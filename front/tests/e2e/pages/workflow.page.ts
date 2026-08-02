@@ -358,6 +358,96 @@ export class WorkflowPage {
     return modal;
   }
 
+  /**
+   * Copy the workflow on screen and open the copy for editing.
+   *
+   * The console has no "save as", and a workflow that has already run cannot be edited in place -
+   * so this is the only way to keep the original and vary it. The button appears once there is
+   * run history. The backend names the copy `{original}_copy`; the caller renames it.
+   */
+  async cloneAndEdit(): Promise<void> {
+    const button = this.page.getByTestId('workflow-clone-edit-btn');
+    await expect(
+      button,
+      'Clone & Edit 버튼이 없다 — 실행 이력이 있는 워크플로우에서만 나타난다',
+    ).toBeVisible({ timeout: 30_000 });
+    await humanClick(button);
+
+    const confirm = this.page.getByTestId('workflow-clone-confirm');
+    await expect(confirm).toBeVisible({ timeout: 15_000 });
+    await humanClick(this.page.getByTestId('workflow-clone-confirm-ok'));
+
+    await this.expectDesignerOpen();
+  }
+
+  /**
+   * Open everything the panel folded away.
+   *
+   * The editor collapses arrays and objects deeper than two levels so the form stays readable, so a
+   * test that reads the rendered fields cannot see the values that decide the outcome. A person
+   * clicks to open them; so do we.
+   *
+   * The toggles carry no test identifier, so they are found by the component's own class names.
+   */
+  async expandAllParams(maxRounds = 6): Promise<number> {
+    let opened = 0;
+    for (let round = 0; round < maxRounds; round++) {
+      const closed = this.page.locator(
+        '[data-testid="wf-task-editor"] button.btn-collapse, [data-testid="wf-task-editor"] button.btn-item-collapse',
+      );
+      const count = await closed.count().catch(() => 0);
+      let clickedThisRound = 0;
+      for (let i = 0; i < count; i++) {
+        const button = closed.nth(i);
+        const label = (await button.innerText().catch(() => '')).trim();
+        if (!label.includes('\u25b6')) continue;
+        await button.click({ timeout: 5_000 }).catch(() => {});
+        clickedThisRound++;
+        opened++;
+        await this.page.waitForTimeout(12);
+      }
+      if (clickedThisRound === 0) break;
+    }
+    await this.page.waitForTimeout(400);
+    return opened;
+  }
+
+  /** Rename the task whose edit panel is open. */
+  async renameSelectedTask(name: string): Promise<void> {
+    const field = this.page.getByTestId('wf-task-name');
+    await expect(field).toBeVisible({ timeout: 15_000 });
+    await humanFill(field, name);
+    await this.page.waitForTimeout(400);
+  }
+
+  /** Set a value on the open edit panel, addressed by the spec key it belongs to. */
+  async setTaskSpec(key: string, value: string): Promise<void> {
+    const field = this.page.getByTestId(`wf-task-spec-${key}`);
+    await expect(field).toBeVisible({ timeout: 15_000 });
+    await humanFill(field, value);
+    await this.page.waitForTimeout(400);
+  }
+
+  /** A task node in the run graph, by its name. */
+  taskNode(name: string): Locator {
+    return this.page
+      .getByTestId('workflow-run-node')
+      .filter({ hasText: name })
+      .first();
+  }
+
+  /** Select a task in the run graph so its detail and parameters open. */
+  async pickTask(name: string): Promise<void> {
+    const node = this.taskNode(name);
+    await node.scrollIntoViewIfNeeded().catch(() => {});
+    await humanClick(node);
+    await expect(this.page.getByTestId('workflow-run-task-detail')).toBeVisible(
+      {
+        timeout: 15_000,
+      },
+    );
+  }
+
   async cancelClone(): Promise<void> {
     await humanClick(this.page.getByTestId('workflow-clone-confirm-cancel'));
     await expect(this.page.getByTestId('workflow-clone-confirm')).toBeHidden();
@@ -515,13 +605,27 @@ export class WorkflowPage {
    * name is *our data* (task_component), not screen text, so it does not wobble when the screen changes.
    * We target it with that.
    */
-  async selectTaskInDesigner(taskComponentName: string): Promise<void> {
+  async selectTaskInDesigner(
+    taskComponentName: string,
+    taskName?: string,
+  ): Promise<void> {
     await expect(this.designer).toBeVisible({ timeout: 20_000 });
-    await humanClick(
-      this.designer
-        .locator(`.sqd-step-task.sqd-type-${taskComponentName}`)
-        .first(),
-    );
+    // 같은 컴포넌트를 쓰는 작업이 여럿이면 첫 번째가 원하는 그것이 아니다 — 이름으로 좁힌다.
+    //
+    // 이름으로 고를 때는 컴포넌트 클래스를 함께 걸지 않는다. 클래스는 컴포넌트 이름을 그대로
+    // 붙인 것이라 `_` 로 시작하는 예제 컴포넌트에서는 잡히지 않는 경우가 있었다 — 노드에 적힌
+    // 이름이 우리가 아는 값이므로 그것으로 충분하다.
+    // 이름으로 거르면 그 이름을 *품고 있는* 바깥 상자(TaskGroup·Parallel)까지 함께 걸린다.
+    // 바깥을 누르면 아무 일도 일어나지 않으므로 가장 안쪽 것을 잡는다.
+    const step = taskName
+      ? this.designer
+          .locator('.sqd-step-task')
+          .filter({ hasText: taskName })
+          .last()
+      : this.designer
+          .locator(`.sqd-step-task.sqd-type-${taskComponentName}`)
+          .first();
+    await humanClick(step);
     await expect(this.taskEditor).toBeVisible({ timeout: 15_000 });
   }
 

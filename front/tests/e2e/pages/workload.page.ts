@@ -231,11 +231,15 @@ export class WorkloadPage {
    * So we *narrow the scope to the dropdown that has the testid* and grab it by the design system's item class.
    * (The 'Delete' label comes from our own actionMenus array, so it is independent of on-screen wording changes.)
    */
-  private get deleteMenuItem(): Locator {
-    return this.actionDropdown
-      .locator('.p-context-menu-item')
-      .filter({ hasText: 'Delete' })
-      .first();
+  /**
+   * The delete button in the table toolbar.
+   *
+   * It used to be an item in the action dropdown; it now sits beside refresh, where every other
+   * list in the console keeps it. The toolbar has no slot for that spot, so the button is mounted
+   * into it at runtime — the testid travels with it, which is what this holds on to.
+   */
+  private get deleteToolbarButton(): Locator {
+    return this.page.getByTestId('mci-delete-action');
   }
   private get deleteModal(): Locator {
     return this.page.getByTestId('mci-delete-modal');
@@ -290,11 +294,35 @@ export class WorkloadPage {
    * (this is the same trap already hit with the load-config modal and the model save form, so we handle it the same way).
    */
   async openDeleteModal(): Promise<void> {
-    await humanClick(this.actionDropdown);
-    await humanClick(this.deleteMenuItem);
+    await this.triggerDeleteMenu();
     await expect(this.deleteConfirmInput.first()).toBeVisible({
       timeout: 15_000,
     });
+  }
+
+  /**
+   * Types the confirm phrase and presses Delete — and stops there.
+   *
+   * Kept apart from `confirmDelete` because that one goes on to close the progress dialog, which
+   * makes it unusable for anything that wants to *look* at the dialog. A step that asked for the
+   * progress screen and then asserted it was showing could never pass: it had already been
+   * closed on the way (three scenarios were red on that alone).
+   *
+   * The phrase is whatever the dialog is asking for — one target's name, several names, or a
+   * phrase carrying the count — so it is passed in rather than assumed (BAR-1717).
+   */
+  async sendDelete(
+    keyword: string,
+    method: 'normal' | 'force' = 'normal',
+  ): Promise<void> {
+    if (method === 'force') {
+      const forceRadio = this.deleteModal.getByTestId(
+        'mci-delete-method-force',
+      );
+      await humanClick(forceRadio);
+    }
+    await humanFill(this.deleteConfirmInput.first(), keyword);
+    await humanClick(this.deleteConfirmButton.first());
   }
 
   /**
@@ -347,14 +375,7 @@ export class WorkloadPage {
     method: 'normal' | 'force' = 'normal',
     holdMs = 1_500,
   ): Promise<void> {
-    if (method === 'force') {
-      const forceRadio = this.deleteModal.getByTestId(
-        'mci-delete-method-force',
-      );
-      await humanClick(forceRadio);
-    }
-    await humanFill(this.deleteConfirmInput.first(), infraName);
-    await humanClick(this.deleteConfirmButton.first());
+    await this.sendDelete(infraName, method);
 
     // Close the progress dialog once it appears.
     //
@@ -366,8 +387,10 @@ export class WorkloadPage {
     // The dialog says so itself: closing it does not stop the delete, and the list carries the
     // state in its Delete Status column. So this is what a person does here too.
     await expect(this.deleteProgress).toBeVisible({ timeout: 30_000 });
+    // Wait out the hold the dialog puts on Close (BAR-1717).
+    await this.waitDeleteCloseReleased();
 
-    // Let it be seen before closing it.
+    // Then let it be seen before closing it.
     //
     // The dialog is where a person learns that deleting keeps going after the dialog is gone - and
     // the recording used to close it the instant it appeared, so nobody could read it. `hold` is
@@ -376,6 +399,32 @@ export class WorkloadPage {
 
     await humanClick(this.deleteCloseButton.first());
     await expect(this.deleteProgress).toBeHidden({ timeout: 15_000 });
+  }
+
+  /**
+   * Waits out the hold the dialog puts on Close right after a request goes out (BAR-1717).
+   *
+   * The dialog stays put for a few seconds so the request has time to be written down before
+   * anyone can walk away from it. Clicking through that hold does nothing — and mirinae marks a
+   * held button with a class rather than the standard `disabled` attribute, so `isEnabled()`
+   * answers "yes" the whole time (DESIGN-MIRINAE §1.6). The class is what has to be read.
+   */
+  private async waitDeleteCloseReleased(timeoutMs = 20_000): Promise<void> {
+    await expect
+      .poll(
+        async () => {
+          const button = this.deleteCloseButton.first();
+          if ((await button.count()) === 0) return true; // already gone
+          return button.evaluate(
+            el => !el.className.split(/\s+/).includes('disabled'),
+          );
+        },
+        {
+          timeout: timeoutMs,
+          message: 'the delete dialog never released its Close button',
+        },
+      )
+      .toBe(true);
   }
 
   /**
@@ -408,24 +457,99 @@ export class WorkloadPage {
 
   /** [Close] on the progress/error stage. Return to the list and look at the delete-status column. */
   async closeDeleteModal(): Promise<void> {
+    await this.waitDeleteCloseReleased();
     await humanClick(this.deleteCloseButton);
   }
 
+  // ── Deleting a mixed selection (BAR-1717) ──────────────────────────────
+
+  /** Selects several rows at once, in the order given. */
+  async selectMcis(infraNames: string[]): Promise<void> {
+    for (const name of infraNames) {
+      await this.selectMci(name);
+    }
+  }
+
+  // ── Sending several at once (BAR-1719) ───────────────────────────────
+
+  /** The notice shown before a large selection is sent. */
+  async expectSubmitNotice(): Promise<void> {
+    await expect(this.page.getByTestId('mci-delete-notice')).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
+  /** [Cancel] on the notice — nothing has been sent at this point. */
+  async cancelFromNotice(): Promise<void> {
+    await humanClick(this.page.getByTestId('wl-delete-notice-cancel'));
+    await expect(this.page.getByTestId('mci-delete-notice')).toBeHidden({
+      timeout: 10_000,
+    });
+  }
+
+  /** [Continue] on the notice. */
+  async continueFromNotice(): Promise<void> {
+    await humanClick(this.page.getByTestId('wl-delete-notice-continue'));
+  }
+
   /**
-   * Whether the delete-status cell of a list row shows the given state.
+   * The submitting step, where the requests are going out one at a time.
    *
-   * ★ The scenario names the state in Korean; the screen writes it in English. Matching the two
-   *   belongs here, not in the scenario — the wording on screen is a selector concern, and the
-   *   scenarios stay readable in Korean.
-   *
-   *   This mapping is why both delete-status scenarios were failing: the cell was translated to
-   *   English (BAR-1567) while the step still looked for `진행 중`, so it could never match. The
-   *   scenarios had been red on develop ever since, describing a screen that works.
+   * Short-lived by design — a couple of targets take a few seconds — so this is checked as soon
+   * as the request is sent rather than after anything else.
    */
-  async expectRowDeleteStatus(text: '진행 중' | '에러'): Promise<void> {
+  async expectDispatchStep(): Promise<void> {
+    await expect(this.page.getByTestId('mci-delete-dispatch')).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
+  /** Whether the dialog opened at the confirm step (rather than jumping to progress). */
+  async expectDeleteConfirmStep(): Promise<void> {
+    await expect(this.page.getByTestId('mci-delete-confirm')).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
+  /** Whether the confirm step says the given infra is being left out of this request. */
+  async expectDeleteExcluded(infraName: string): Promise<void> {
+    await expect(
+      this.page.getByTestId('mci-delete-excluded-notice'),
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(
+      this.page
+        .getByTestId('mci-delete-target-inflight')
+        .filter({ hasText: infraName })
+        .first(),
+    ).toBeVisible({ timeout: 10_000 });
+  }
+
+  /** How many workloads the confirm step says this request covers. */
+  async expectDeleteTargetCount(count: number): Promise<void> {
+    const noun = count === 1 ? '1 workload' : `${count} workloads`;
+    await expect(this.page.getByTestId('mci-delete-target-count')).toHaveText(
+      new RegExp(`${noun}\\s+will be deleted`),
+      { timeout: 10_000 },
+    );
+  }
+
+  /**
+   * The delete status of one named row.
+   *
+   * The unqualified check looks for the state anywhere in the column, which cannot tell one row
+   * from another — and a mixed selection is precisely a case where one row is already in that
+   * state before the request under test goes out.
+   */
+  async expectRowDeleteStatusOf(
+    infraName: string,
+    text: '진행 중' | '에러',
+  ): Promise<void> {
     const onScreen = text === '진행 중' ? /In progress/i : /Failed/i;
     await expect(
-      this.mciRowDeleteStatus().filter({ hasText: onScreen }).first(),
+      this.mciRow(infraName)
+        .getByTestId('wl-row-delete-status')
+        .filter({ hasText: onScreen })
+        .first(),
     ).toBeVisible({ timeout: 30_000 });
   }
 
@@ -488,28 +612,23 @@ export class WorkloadPage {
   }
 
   /**
-   * Open the modal via action dropdown → Delete, but do not wait for the confirm input.
-   * That is because if the target is already being deleted, the modal opens straight into the progress stage rather than confirm.
+   * Press the toolbar's delete button without waiting for the confirm input — if the target is
+   * already being deleted, the dialog opens on the progress step and there is no input to wait for.
+   *
+   * ★ The button does nothing while no row is selected, so pressing it would leave no dialog and
+   *   "the dialog did not appear" would be blamed on the product. The selection is checked here
+   *   instead, and a cleared one is reported as what it is.
    */
   async triggerDeleteMenu(): Promise<void> {
-    await humanClick(this.actionDropdown);
-    // ★ If the selection has been cleared, Delete is disabled, so pressing it does not open the modal.
-    //   Proceeding as-is would misdiagnose "the modal does not appear" as a product defect, so we cut it off here.
-    //   (mirinae expresses disabled only via class, so it is not caught by isEnabled() — DESIGN-MIRINAE §1.6)
-    const disabled = await this.deleteMenuItem
-      .first()
-      .evaluate(
-        el =>
-          !!el.closest(
-            '[class*="disabled"], [disabled], [aria-disabled="true"]',
-          ),
-      )
-      .catch(() => false);
+    await expect(this.deleteToolbarButton).toBeVisible({ timeout: 15_000 });
+    // mirinae marks a selected row with `tr-selected` (PDataTable) — a checkbox is not a real
+    // input here, so `isChecked()` would answer false either way (DESIGN-MIRINAE §1.5).
+    const selected = await this.mciTable.locator('tr.tr-selected').count();
     expect(
-      disabled,
-      'Action > Delete is disabled — the row selection has been cleared (you must select again first).',
-    ).toBeFalsy();
-    await humanClick(this.deleteMenuItem);
+      selected,
+      'nothing is selected — the delete button does nothing (select the rows again first)',
+    ).toBeGreaterThan(0);
+    await humanClick(this.deleteToolbarButton);
   }
 
   /**

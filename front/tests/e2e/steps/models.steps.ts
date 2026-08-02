@@ -109,6 +109,35 @@ When('저비용 타깃 인프라를 추천받으면', async ({ page }) => {
   lastRecommendedSpec = spec;
 });
 
+/**
+ * "추천 결과의 {string} 이(가) 모두 채워져 있다" — every OS / Architecture cell holds a value.
+ *
+ * These two columns come from the image list's normalized fields. They used to be parsed out
+ * of the fields the provider itself returned, whose shape differs per provider, so everything
+ * except AWS showed "n/a". Asserting "not n/a and not empty" is what catches that returning.
+ */
+Then(
+  '추천 결과의 {string} 가 모두 채워져 있다',
+  async ({ page }, column: string) => {
+    const models = new ModelsPage(page);
+    const values =
+      column === 'OS'
+        ? await models.recommendOsTexts()
+        : await models.recommendArchitectureTexts();
+
+    expect(
+      values.length,
+      `추천 결과 표에 ${column} 셀이 하나도 없음 — 추천이 비었거나 식별자가 사라졌다`,
+    ).toBeGreaterThan(0);
+
+    const unfilled = values.filter(v => v === '' || v === 'n/a');
+    expect(
+      unfilled.length,
+      `${column} 이(가) 채워지지 않은 후보 ${unfilled.length}건 (전체 ${values.length}건) — 값: ${JSON.stringify(values)}`,
+    ).toBe(0);
+  },
+);
+
 /** "추천 스펙이 {string} 급 이하이다" — verify the lowest-cost candidate spec is at or below maxClass */
 // The first argument is the fixture-object slot. This step doesn't use a fixture, but playwright-bdd
 // parses the first argument to decide which fixtures to inject, so an empty destructure must be present.

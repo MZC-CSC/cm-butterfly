@@ -174,7 +174,9 @@ When(
     const wl = new WorkloadPage(page);
     await wl.selectMci(infraName);
     await wl.openDeleteModal();
-    await wl.confirmDelete(infraName, 'normal');
+    // Sent without closing what comes up — this step is about the progress screen being there,
+    // and `confirmDelete` closes it on the way out (BAR-1717).
+    await wl.sendDelete(infraName, 'normal');
     await wl.expectDeleteInProgress();
   },
 );
@@ -187,19 +189,191 @@ Then(
   },
 );
 
+/**
+ * Step "request the delete of {infra}" — go through the modal and confirm, without asserting
+ * what comes next.
+ *
+ * Separate from the in-progress step because this one is used where the request is *refused*:
+ * nothing goes into progress, so waiting for that screen would fail on the very thing the
+ * scenario is there to check.
+ */
+When('{string} 인프라의 삭제를 요청한다', async ({ page }, infraName: string) => {
+  const wl = new WorkloadPage(page);
+  await wl.selectMci(infraName);
+  await wl.openDeleteModal();
+  await wl.confirmDelete(infraName, 'normal');
+});
+
 /** Step "close the deletion-in-progress modal" — [Close] on the progress step. Return to the list and look at the delete-status column. */
 When('삭제 처리 중 모달을 닫는다', async ({ page }) => {
   await new WorkloadPage(page).closeDeleteModal();
 });
 
-/** Step "in the list, the delete status of {infra} shows as \"in progress\"" */
+/**
+ * Step "in the list, the delete status of {infra} shows as \"in progress\""
+ *
+ * Read from that infra's own row. Looking for the state anywhere in the column cannot tell one
+ * row from another, and a mixed selection is exactly the case where another row is already in
+ * that state before the request under test goes out (BAR-1717).
+ */
 Then(
   '목록에서 {string} 의 삭제 상태가 {string} 으로 보인다',
-  async ({ page }, _infraName: string, status: string) => {
+  async ({ page }, infraName: string, status: string) => {
     const wl = new WorkloadPage(page);
     await wl.gotoMci();
     await wl.expectMciListLoaded();
-    await wl.expectRowDeleteStatus(status as '진행 중' | '에러');
+    await wl.expectRowDeleteStatusOf(infraName, status as '진행 중' | '에러');
+  },
+);
+
+// ── Sending several at once (BAR-1719) ───────────────────────────────────
+
+/** Step "pick {a}..{e} and open the delete dialog" — five at a time, the notice threshold. */
+When(
+  '{string} {string} {string} {string} {string} 를 골라 삭제 모달을 연다',
+  async ({ page }, a: string, b: string, c: string, d: string, e: string) => {
+    const wl = new WorkloadPage(page);
+    await wl.gotoMci();
+    await wl.expectMciListLoaded();
+    await wl.selectMcis([a, b, c, d, e]);
+    await wl.openDeleteModal();
+  },
+);
+
+/** Step "pick {a} and {b} and open the delete dialog" — below the notice threshold. */
+When(
+  '{string} {string} 를 골라 삭제 모달을 연다',
+  async ({ page }, a: string, b: string) => {
+    const wl = new WorkloadPage(page);
+    await wl.gotoMci();
+    await wl.expectMciListLoaded();
+    await wl.selectMcis([a, b]);
+    await wl.openDeleteModal();
+  },
+);
+
+/** Step "the notice about how long submitting takes is shown" */
+Then('접수 시간 안내가 보인다', async ({ page }) => {
+  await new WorkloadPage(page).expectSubmitNotice();
+});
+
+/** Step "cancel from the notice" */
+When('안내에서 취소한다', async ({ page }) => {
+  await new WorkloadPage(page).cancelFromNotice();
+});
+
+/** Step "no delete request went out for {infra}" — the notice was declined. */
+Then(
+  '{string} 에는 삭제 요청이 나가지 않았다',
+  // eslint-disable-next-line no-empty-pattern
+  async ({}, infraName: string) => {
+    expect(
+      mockCalls().calls.filter(
+        c =>
+          c.operationId === DELETE_INFRA_OP &&
+          c.body?.pathParams?.infraId === infraName,
+      ).length,
+      'cancelling the notice must not send anything',
+    ).toBe(0);
+  },
+);
+
+/** Step "the submitting screen is up" */
+Then('접수 진행 화면이 뜬다', async ({ page }) => {
+  await new WorkloadPage(page).expectDispatchStep();
+});
+
+/** Step "you cannot navigate away while submitting" */
+Then('접수 중에는 다른 화면으로 이동할 수 없다', async ({ page }) => {
+  await new WorkloadPage(page).expectBackgroundBlocked();
+});
+
+/** Step "once submitting finishes it turns into the deleting screen" */
+Then('접수가 끝나면 삭제 처리 중 화면으로 바뀐다', async ({ page }) => {
+  await new WorkloadPage(page).expectDeleteInProgress();
+});
+
+// ── Deleting a mixed selection (BAR-1717) ────────────────────────────────
+
+/** Step "pick {a} and {b} together and open the delete dialog" */
+When(
+  '{string} 와 {string} 를 함께 골라 삭제 모달을 연다',
+  async ({ page }, first: string, second: string) => {
+    const wl = new WorkloadPage(page);
+    await wl.gotoMci();
+    await wl.expectMciListLoaded();
+    await wl.selectMcis([first, second]);
+    await wl.openDeleteModal();
+  },
+);
+
+/** Step "the confirm step opens and covers {n} workloads" */
+Then(
+  '확인 단계가 열리고 삭제 대상은 {int}건이다',
+  async ({ page }, count: number) => {
+    const wl = new WorkloadPage(page);
+    await wl.expectDeleteConfirmStep();
+    await wl.expectDeleteTargetCount(count);
+  },
+);
+
+/** Step "{infra} is said to be left out of this request" */
+Then(
+  '{string} 는 이번 요청에서 빠진다고 안내한다',
+  async ({ page }, infraName: string) => {
+    await new WorkloadPage(page).expectDeleteExcluded(infraName);
+  },
+);
+
+/** Step "type {phrase} as the confirm phrase and send the delete" */
+When(
+  '{string} 를 확인 문구로 입력해 삭제를 요청한다',
+  async ({ page }, keyword: string) => {
+    await new WorkloadPage(page).sendDelete(keyword, 'normal');
+  },
+);
+
+/**
+ * Step "a delete request went out for {infra}"
+ *
+ * Read from what left the browser, not from the list.
+ *
+ * The list would be the roundabout way here — its delete-status cell is driven by the tracker
+ * polling cm-beetle for a request id the mock invented, so on a machine with a real cm-beetle
+ * the status resolves to "cannot say" within a poll or two and the cell empties. That says
+ * nothing about whether the request went out, which is the whole question.
+ */
+Then(
+  '{string} 에 삭제 요청이 나갔다',
+  // eslint-disable-next-line no-empty-pattern
+  async ({}, infraName: string) => {
+    await expect
+      .poll(
+        () =>
+          mockCalls().calls.filter(
+            c =>
+              c.operationId === DELETE_INFRA_OP &&
+              c.body?.pathParams?.infraId === infraName,
+          ).length,
+        { timeout: 15_000 },
+      )
+      .toBe(1);
+  },
+);
+
+/** Step "no second delete request went out for {infra}" — the duplicate guard held. */
+Then(
+  '{string} 에는 삭제 요청이 다시 나가지 않았다',
+  // eslint-disable-next-line no-empty-pattern
+  async ({}, infraName: string) => {
+    expect(
+      mockCalls().calls.filter(
+        c =>
+          c.operationId === DELETE_INFRA_OP &&
+          c.body?.pathParams?.infraId === infraName,
+      ).length,
+      'a delete already running must not be requested again',
+    ).toBe(1);
   },
 );
 
@@ -255,11 +429,11 @@ Then('화면이 잠기지 않고 조작할 수 있다', async ({ page }) => {
 /** A synonymous step to absorb the Korean particle difference "ro/euro" (the "shows as error" phrasing). */
 Then(
   '목록에서 {string} 의 삭제 상태가 {string} 로 보인다',
-  async ({ page }, _infraName: string, status: string) => {
+  async ({ page }, infraName: string, status: string) => {
     const wl = new WorkloadPage(page);
     await wl.gotoMci();
     await wl.expectMciListLoaded();
-    await wl.expectRowDeleteStatus(status as '진행 중' | '에러');
+    await wl.expectRowDeleteStatusOf(infraName, status as '진행 중' | '에러');
   },
 );
 
@@ -314,6 +488,7 @@ Then('강제 삭제로 남은 CSP 리소스를 결과서에 기록한다', async
 // workload", which turns a routing slip into a phantom resource problem.
 // ─────────────────────────────────────────────────────────────
 
+const DELETE_INFRA_OP = 'cm-beetle/DeleteInfra';
 const CONTROL_INFRA_OP = 'cb-tumblebug/GetControlInfra';
 const CONTROL_NODE_OP = 'cb-tumblebug/GetControlInfraNode';
 
