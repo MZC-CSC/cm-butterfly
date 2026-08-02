@@ -23,9 +23,11 @@ Press **Refresh** on the source service. The status shown is for the whole group
 
 ## 2. Seeing each server on its own
 
-Point at the status, or move focus to it, and it opens to show every server under the group.
+Point at the status for a quick answer. With a couple of servers it shows each one; beyond that it only counts how many answered, because a layer that closes when the pointer leaves cannot be scrolled.
 
-For each one it separates two things:
+**View Messages**, next to Refresh, opens every server under the group. It stays until it is closed and scrolls when the list is long.
+
+For each server it separates two things:
 
 - **Connection** - whether the machine answered on SSH at all
 - **Agent** - whether the agent could be checked once the machine answered

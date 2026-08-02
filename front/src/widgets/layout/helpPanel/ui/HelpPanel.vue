@@ -173,7 +173,8 @@ const HELP: Array<{ path: string; help: Help }> = [
               steps: [
                 'Press Refresh on the source service. Each server is contacted over SSH and the agent is checked, and the result is shown as the status.',
                 'success means every server answered. failed means none did. partialSuccess means some did and some did not - the group can still be worked with, but only the servers that answered will be collected from.',
-                'Point at the status, or move focus to it, to see each server on its own: whether the connection succeeded, whether the agent succeeded, and what the server said when either failed.',
+                'Point at the status for a summary - with a couple of servers it shows each one, and beyond that it counts how many answered.',
+                'Select View Messages, next to Refresh, for every server on its own: whether the connection succeeded, whether the agent succeeded, and what the server said when either failed.',
                 'When a server failed, read that message first - it usually names the cause. Then check the connection details you registered: address, SSH port, user, and the password or private key.',
                 'Check that the server is reachable from here at all - that it is running, and that its network and firewall allow SSH from this system.',
                 'Once the cause is dealt with, press Refresh again. The status is re-read from the servers, so it changes as soon as they answer.',
