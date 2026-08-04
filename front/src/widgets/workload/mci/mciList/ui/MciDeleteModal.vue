@@ -605,7 +605,7 @@ watch(
             <b data-testid="mci-delete-retry-seconds">{{
               state.retry.seconds
             }}</b>
-            seconds</span
+            {{ state.retry.seconds === 1 ? 'second' : 'seconds' }}</span
           >
           <span class="retry-count" data-testid="mci-delete-retry-count"
             >Retry {{ state.retry.attempt }}/{{ state.retry.maxRetries }}</span

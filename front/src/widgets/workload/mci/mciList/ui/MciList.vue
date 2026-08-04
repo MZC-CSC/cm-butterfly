@@ -292,7 +292,7 @@ onBeforeUnmount(() => {
                 <b data-testid="mci-list-retry-seconds">{{
                   retryNotice.seconds
                 }}</b>
-                seconds</span
+                {{ retryNotice.seconds === 1 ? 'second' : 'seconds' }}</span
               >
               <span class="list-retry-count" data-testid="mci-list-retry-count"
                 >Retry {{ retryNotice.attempt }}/{{
