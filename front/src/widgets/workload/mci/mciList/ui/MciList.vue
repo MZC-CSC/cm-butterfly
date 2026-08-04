@@ -49,6 +49,7 @@ const {
   fetchMciList,
   followTransition,
   stopFollowing,
+  stopFollowingDeletes,
   loading,
   retryNotice,
 } = useMciListModel(props);
@@ -227,8 +228,11 @@ watch(hasActiveDeletes, active => {
   }
 });
 
-// This screen does not poll for status. deleteTracker runs app-wide, so results arrive even
-// while another screen is open; here they are only displayed.
+// Whether a delete has *finished* is decided by deleteTracker, which runs app-wide so results
+// arrive even while another screen is open. What this screen adds is re-reading the list while
+// any row is being deleted — a finished delete has to leave the table, and the row's status has
+// to stop saying "In progress". Without it the screen stays as it was when it opened, which is
+// what the dialog's "you can leave and follow it in the list" would otherwise be promising.
 
 onBeforeMount(() => {
   initToolBoxTableModel();
@@ -254,6 +258,7 @@ watch(
 // Leaving the screen ends the transition watch. It only exists to keep *this* list honest.
 onBeforeUnmount(() => {
   stopFollowing();
+  stopFollowingDeletes();
 });
 </script>
 

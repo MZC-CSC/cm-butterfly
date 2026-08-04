@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useToolboxTableModel } from '@/shared/hooks/table/toolboxTable/useToolboxTableModel';
 import { IMci, McisTableType, useMCIStore } from '@/entities/mci/model';
@@ -6,6 +6,7 @@ import { useGetMciList } from '@/entities/mci/api';
 import { getCloudProvidersInVms } from '@/shared/hooks/vm';
 import { showErrorMessage, toErrorMessage } from '@/shared/utils';
 import { isTransitioning } from '@/features/workload/lifecycleControl/model';
+import { isDeleteInProgress } from '@/entities/mci/lib/deleteTracker';
 import { registerPoller } from '@/shared/libs/polling';
 import { isRefusedForNow, withRefusalRetry } from '@/shared/libs';
 
@@ -220,6 +221,62 @@ export function useMciListModel(props: IProps) {
     followTimer = setTimeout(() => void tick(), FOLLOW_INTERVAL_MS);
   }
 
+  // ── Following a delete ─────────────────────────────────────────────────────
+  //
+  // A delete now answers as soon as it has been taken, and the deleting itself runs for minutes
+  // afterwards. The dialog says so and invites the user to leave and watch the `Delete Status`
+  // column — which only means anything if the list keeps up. Left alone it does not: the list is
+  // read once when the screen opens, so a finished delete stays on screen as "In progress"
+  // indefinitely, and the workload it removed stays in the table (observed on the development
+  // server: gone from the server for ten minutes, still listed).
+  //
+  // ★ The list, and only the list — the same rule as the lifecycle follow above. One list call
+  //   carries every row; asking each workload separately is the fan-out that broke this screen.
+  const DELETE_FOLLOW_INTERVAL_MS = 10_000;
+  // A stuck delete should not keep this calling for ever. The tracker concludes a delete on its
+  // own, so reaching this means something else went wrong.
+  const DELETE_FOLLOW_TIMEOUT_MS = 30 * 60_000;
+  let deleteTimer: ReturnType<typeof setTimeout> | null = null;
+  let unregisterDeletePoller: (() => void) | null = null;
+
+  /** Whether any workload on screen is being deleted, per the records the tracker holds. */
+  const anyDeleting = computed(() =>
+    mcis.value.some(mci => isDeleteInProgress((mci as any).uid)),
+  );
+
+  function stopFollowingDeletes() {
+    if (deleteTimer) {
+      clearTimeout(deleteTimer);
+      deleteTimer = null;
+    }
+    unregisterDeletePoller?.();
+    unregisterDeletePoller = null;
+  }
+
+  function followDeletes() {
+    if (deleteTimer) return; // already following
+    unregisterDeletePoller = registerPoller(stopFollowingDeletes);
+    const deadline = Date.now() + DELETE_FOLLOW_TIMEOUT_MS;
+
+    const tick = async () => {
+      // Quietly — a background re-read that announces itself would put a notice on screen every
+      // few seconds throughout a bulk delete.
+      await fetchMciList({ quiet: true });
+      if (Date.now() > deadline || !anyDeleting.value) {
+        stopFollowingDeletes();
+        return;
+      }
+      deleteTimer = setTimeout(() => void tick(), DELETE_FOLLOW_INTERVAL_MS);
+    };
+
+    deleteTimer = setTimeout(() => void tick(), DELETE_FOLLOW_INTERVAL_MS);
+  }
+
+  watch(anyDeleting, deleting => {
+    if (deleting) followDeletes();
+    else stopFollowingDeletes();
+  });
+
   watch(
     mcis,
     nv => {
@@ -238,6 +295,8 @@ export function useMciListModel(props: IProps) {
     fetchMciList,
     followTransition,
     stopFollowing,
+    followDeletes,
+    stopFollowingDeletes,
     resMciList,
     loading,
     retryNotice,

@@ -85,9 +85,17 @@ export function isDeleteInProgress(uid: string): boolean {
   return state.records[uid]?.status === 'Handling';
 }
 
-/** Records a delete request on the server; an earlier record for the same infra is replaced. */
+/**
+ * Records a delete request on the server; an earlier record for the same infra is replaced.
+ *
+ * ★ The map is replaced rather than written into. Vue 2 cannot see a key being *added* to a
+ *   plain object, so writing one in leaves anything reading it — the list's `Delete Status`
+ *   column — showing what it read last. It happened to look right because the list refreshes
+ *   right after a delete goes out and re-renders for that reason; nothing was relying on the
+ *   record itself. Replacing the map means it no longer has to be a coincidence.
+ */
 export async function putDeleteRecord(rec: DeleteRecord): Promise<void> {
-  state.records[rec.uid] = rec;
+  state.records = { ...state.records, [rec.uid]: rec };
   try {
     await useSaveDeleteRequest({
       uid: rec.uid,
@@ -119,9 +127,16 @@ export async function markDeleteSucceeded(uid: string): Promise<void> {
   await clearDeleteRecord(uid);
 }
 
-/** Drops the record — the delete succeeded, or the infra is gone from the list. */
+/**
+ * Drops the record — the delete succeeded, or the infra is gone from the list.
+ *
+ * ★ Rebuilt without the key rather than `delete`d out of. Vue 2 cannot see a key being removed
+ *   either, and this is the side that showed: a finished delete left `In progress` on the row
+ *   for as long as the screen stayed open, because nothing told it to look again.
+ */
 export async function clearDeleteRecord(uid: string): Promise<void> {
-  delete state.records[uid];
+  const { [uid]: _removed, ...rest } = state.records;
+  state.records = rest;
   try {
     await useRemoveDeleteRequest(uid).execute();
   } catch (e) {
