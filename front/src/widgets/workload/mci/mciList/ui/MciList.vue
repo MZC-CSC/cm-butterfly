@@ -50,6 +50,7 @@ const {
   followTransition,
   stopFollowing,
   loading,
+  retryNotice,
 } = useMciListModel(props);
 
 const { dynamicHeight, minHeight, maxHeight } = useDynamicTableHeight(
@@ -134,7 +135,11 @@ function handleAction(item: string) {
 function mountDeleteButton() {
   const table = toolboxTableRef.value?.$el as HTMLElement | undefined;
   const toolGroup = table?.querySelector('.right-tool-group');
-  if (!toolGroup || toolGroup.querySelector('[data-testid="mci-delete-action"]')) return;
+  if (
+    !toolGroup ||
+    toolGroup.querySelector('[data-testid="mci-delete-action"]')
+  )
+    return;
 
   insertDynamicComponent(
     DynamicTableIconButton,
@@ -256,12 +261,43 @@ onBeforeUnmount(() => {
   <div>
     <p-horizontal-layout :key="tableKey" :height="adjustedDynamicHeight">
       <template #container="{ height }">
-        <!-- spinner while loading -->
+        <!--
+          Loading, and while it is waiting to ask again, why.
+
+          The lookup shares a per-second allowance with everything else that reaches the linked
+          system through cm-beetle — including its own work while a delete or a migration runs.
+          Being turned away is ordinary and resolves itself, so it belongs *in* the loading
+          state rather than in a notice beside it: the screen is still working, and a separate
+          banner would read as though it had stopped.
+        -->
         <table-loading-spinner
           :loading="loading"
           :height="height"
-          message="Loading Infra list..."
-        />
+          :message="
+            retryNotice
+              ? 'The server is handling as many lookups as it can.'
+              : 'Loading Infra list...'
+          "
+        >
+          <template #detail>
+            <p
+              v-if="retryNotice"
+              class="list-retry-detail"
+              data-testid="mci-list-retry-notice"
+            >
+              Retrying in
+              <b data-testid="mci-list-retry-seconds">{{
+                retryNotice.seconds
+              }}</b>
+              seconds
+              <span class="list-retry-count" data-testid="mci-list-retry-count"
+                >Retry {{ retryNotice.attempt }}/{{
+                  retryNotice.maxRetries
+                }}</span
+              >
+            </p>
+          </template>
+        </table-loading-spinner>
 
         <!-- table once loading has finished -->
         <p-toolbox-table
@@ -449,5 +485,19 @@ onBeforeUnmount(() => {
 }
 .delete-status.error-cell:hover .error-popover {
   display: block;
+}
+
+/* Sits under the spinner message. Amber rather than red: nothing has failed. */
+.list-retry-detail {
+  margin-top: -4px;
+  font-size: 13px;
+  color: #92400e;
+  line-height: 1.5;
+  text-align: center;
+}
+.list-retry-count {
+  margin-left: 8px;
+  font-family: monospace;
+  color: #6b7280;
 }
 </style>

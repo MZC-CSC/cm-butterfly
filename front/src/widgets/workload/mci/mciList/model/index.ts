@@ -7,23 +7,10 @@ import { getCloudProvidersInVms } from '@/shared/hooks/vm';
 import { showErrorMessage, toErrorMessage } from '@/shared/utils';
 import { isTransitioning } from '@/features/workload/lifecycleControl/model';
 import { registerPoller } from '@/shared/libs/polling';
+import { isRefusedForNow, withRefusalRetry } from '@/shared/libs';
 
 interface IProps {
   nsId: string;
-}
-
-/**
- * Whether the lookup was turned away because too many arrived at once.
- *
- * cb-tumblebug caps the infra lookup at two in-flight requests and answers 429 beyond that.
- * cm-beetle relays that as a 500 whose message still carries the original status, so the status
- * code alone never says "rate limited" — the text is the only signal. Worth telling apart because
- * the fix is simply to try again, which a generic failure message gives no hint of.
- */
-function isRateLimited(e: any): boolean {
-  if (e?.error?.value?.response?.status === 429) return true;
-  const msg = toErrorMessage(e, '').toLowerCase();
-  return msg.includes('rate limit') || msg.includes('status: 429');
 }
 
 export function useMciListModel(props: IProps) {
@@ -37,6 +24,20 @@ export function useMciListModel(props: IProps) {
   // valid options; the old tumblebug 'normal' is rejected (400 "invalid option") → '' (fetch all).
   const resMciList = useGetMciList(props.nsId, '');
   const loading = ref<boolean>(true);
+
+  /**
+   * Set while the lookup is waiting to go out again after being turned away.
+   *
+   * The lookup shares a per-second allowance with everything else that reaches cb-tumblebug
+   * through cm-beetle — including cm-beetle's own work while a delete or a migration runs. So
+   * being turned away is ordinary, and the screen says it is waiting rather than showing an
+   * error for something that is about to succeed.
+   */
+  const retryNotice = ref<{
+    attempt: number;
+    maxRetries: number;
+    seconds: number;
+  } | null>(null);
 
   function initToolBoxTableModel() {
     mciTableModel.tableState.fields = [
@@ -97,8 +98,19 @@ export function useMciListModel(props: IProps) {
    */
   function fetchMciList(options?: { quiet?: boolean }) {
     if (!options?.quiet) loading.value = true;
-    return resMciList
-      .execute()
+    return withRefusalRetry(() => resMciList.execute(), {
+      onRetry: (info, remainingMs) => {
+        // Say so only when someone is waiting on this lookup. A background re-check that
+        // retries is doing the right thing quietly; announcing it would put a banner on
+        // screen every few seconds during a bulk delete, which is when it is least wanted.
+        if (options?.quiet) return;
+        retryNotice.value = {
+          attempt: info.attempt,
+          maxRetries: info.maxRetries,
+          seconds: Math.ceil(remainingMs / 1000),
+        };
+      },
+    })
       .then(res => {
         if (res.data.responseData) {
           // tb-0.12.9 update: the MCI list now goes through cm-beetle ListInfra, so the response
@@ -132,14 +144,19 @@ export function useMciListModel(props: IProps) {
         // caller is always cm-beetle — so other users and other tabs draw from the same budget.
         // Being turned away is not a broken list, and saying so keeps the user from hunting a
         // problem that is not there.
+        //
+        // Reaching here after a refusal means the retries ran out. Saying so plainly matters:
+        // the list is not broken and nothing needs fixing, it was busy — and the next attempt
+        // is now the user's to make.
         showErrorMessage(
           'Error',
-          isRateLimited(e)
+          isRefusedForNow(e)
             ? 'The infrastructure list could not be loaded because too many lookups arrived at once. Please try again in a moment.'
             : toErrorMessage(e, 'Failed to load the infrastructure list.'),
         );
       })
       .finally(() => {
+        retryNotice.value = null;
         if (!options?.quiet) loading.value = false;
       });
   }
@@ -223,5 +240,6 @@ export function useMciListModel(props: IProps) {
     stopFollowing,
     resMciList,
     loading,
+    retryNotice,
   };
 }

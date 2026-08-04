@@ -504,6 +504,58 @@ export class WorkloadPage {
     });
   }
 
+  /**
+   * Whether the screen says a request is waiting to go out again.
+   *
+   * Being turned away is not a failure, and a pause with nothing on screen is the same thing
+   * to look at as one that has stopped — so the wait is what is checked, by its own marker
+   * rather than by the wording, which is free to change.
+   */
+  async expectRetryNotice(): Promise<void> {
+    await expect(this.page.getByTestId('mci-delete-retry-notice')).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
+  /** Which attempt the screen says it is on, as shown ("Retry 1/3"). */
+  async expectRetryCount(attempt: number, maxRetries: number): Promise<void> {
+    await expect(this.page.getByTestId('mci-delete-retry-count')).toHaveText(
+      `Retry ${attempt}/${maxRetries}`,
+      { timeout: 15_000 },
+    );
+  }
+
+  /**
+   * Whether the seconds left actually move.
+   *
+   * A number that never changes is the same thing to look at as a screen that has stopped, so
+   * what is checked is that it *counts* — read once, then read again and expect it lower. A
+   * frozen counter passes any check that only looks at it once.
+   */
+  async expectRetrySecondsCountingDown(testId: string): Promise<void> {
+    const seconds = this.page.getByTestId(testId);
+    await expect(seconds).toBeVisible({ timeout: 15_000 });
+    const first = Number(await seconds.innerText());
+    expect(first).toBeGreaterThan(1);
+    await expect
+      .poll(async () => Number(await seconds.innerText()), { timeout: 10_000 })
+      .toBeLessThan(first);
+  }
+
+  /**
+   * Whether the submitting reached every target it set out to.
+   *
+   * The count moves as each acceptance arrives, so reaching the total is the screen saying the
+   * server has taken them all — not that a loop finished. Reading it is what would catch a
+   * request that was quietly dropped.
+   */
+  async expectDispatchComplete(total: number): Promise<void> {
+    await expect(this.page.getByTestId('mci-delete-dispatch-count')).toHaveText(
+      `${total} of ${total}`,
+      { timeout: 30_000 },
+    );
+  }
+
   /** Whether the dialog opened at the confirm step (rather than jumping to progress). */
   async expectDeleteConfirmStep(): Promise<void> {
     await expect(this.page.getByTestId('mci-delete-confirm')).toBeVisible({

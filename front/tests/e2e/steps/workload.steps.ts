@@ -197,12 +197,15 @@ Then(
  * nothing goes into progress, so waiting for that screen would fail on the very thing the
  * scenario is there to check.
  */
-When('{string} 인프라의 삭제를 요청한다', async ({ page }, infraName: string) => {
-  const wl = new WorkloadPage(page);
-  await wl.selectMci(infraName);
-  await wl.openDeleteModal();
-  await wl.confirmDelete(infraName, 'normal');
-});
+When(
+  '{string} 인프라의 삭제를 요청한다',
+  async ({ page }, infraName: string) => {
+    const wl = new WorkloadPage(page);
+    await wl.selectMci(infraName);
+    await wl.openDeleteModal();
+    await wl.confirmDelete(infraName, 'normal');
+  },
+);
 
 /** Step "close the deletion-in-progress modal" — [Close] on the progress step. Return to the list and look at the delete-status column. */
 When('삭제 처리 중 모달을 닫는다', async ({ page }) => {
@@ -262,6 +265,11 @@ When('안내에서 취소한다', async ({ page }) => {
   await new WorkloadPage(page).cancelFromNotice();
 });
 
+/** Step "acknowledge the notice and carry on" */
+When('안내를 확인하고 계속한다', async ({ page }) => {
+  await new WorkloadPage(page).continueFromNotice();
+});
+
 /** Step "no delete request went out for {infra}" — the notice was declined. */
 Then(
   '{string} 에는 삭제 요청이 나가지 않았다',
@@ -291,6 +299,33 @@ Then('접수 중에는 다른 화면으로 이동할 수 없다', async ({ page 
 /** Step "once submitting finishes it turns into the deleting screen" */
 Then('접수가 끝나면 삭제 처리 중 화면으로 바뀐다', async ({ page }) => {
   await new WorkloadPage(page).expectDeleteInProgress();
+});
+
+// ── Taken on acceptance, and sent again when turned away (BAR-1722) ──────
+
+/** Step "the retry notice is shown" */
+Then('재시도 안내가 보인다', async ({ page }) => {
+  await new WorkloadPage(page).expectRetryNotice();
+});
+
+/** Step "the retry count reads {n} of {max}" */
+Then(
+  '재시도 횟수가 {int}\\/{int} 로 보인다',
+  async ({ page }, attempt: number, maxRetries: number) => {
+    await new WorkloadPage(page).expectRetryCount(attempt, maxRetries);
+  },
+);
+
+/** Step "all {n} requests were taken" */
+Then('접수가 {int} 건 모두 완료된다', async ({ page }, total: number) => {
+  await new WorkloadPage(page).expectDispatchComplete(total);
+});
+
+/** Step "the seconds left tick down" — on the delete dialog. */
+Then('남은 시간이 1초씩 줄어든다', async ({ page }) => {
+  await new WorkloadPage(page).expectRetrySecondsCountingDown(
+    'mci-delete-retry-seconds',
+  );
 });
 
 // ── Deleting a mixed selection (BAR-1717) ────────────────────────────────

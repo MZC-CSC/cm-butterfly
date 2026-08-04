@@ -180,6 +180,26 @@ export async function markDeleteFailed(
   if (rec) await notifyFailed(rec, errorReason);
 }
 
+/**
+ * Records a delete that was never taken.
+ *
+ * `markDeleteFailed` updates a record that already exists, and until the request has been
+ * accepted there is none — the record is written from the 202, so that the thing being
+ * followed is a request the server has actually acknowledged.
+ *
+ * A refusal still has to be visible. Without a record the list shows nothing in `Delete
+ * Status` and the only sign is a modal the user may already have closed, which reads as
+ * though the delete were quietly under way. So one is written, already in `Error`.
+ */
+export async function recordDeleteRejected(
+  rec: DeleteRecord,
+  errorReason?: string,
+): Promise<void> {
+  await putDeleteRecord({ ...rec, status: 'Error', errorReason });
+  const stored = state.records[rec.uid];
+  if (stored) await notifyFailed(stored, errorReason);
+}
+
 /** Loads the tracking records kept on the server (on app start and on login). */
 export async function loadDeleteRecords(): Promise<void> {
   try {
