@@ -128,6 +128,37 @@ test('workload screens, quiet and busy @integration', async ({ page }) => {
   await wl.expectMciListLoaded();
   await shot(page, '10-정상-워크로드-목록');
 
+  // Just the list, for a shot of how it stands. Nothing is deleted.
+  if (process.env.BAR1722_SHOT_ONLY === '1') return;
+
+  /**
+   * Delete one workload while something *outside* this run is holding the far side busy.
+   *
+   * The load this script makes on its own trips the request-rate limit, which answers 429 and
+   * says nothing about how long to wait. The other limit — the one that does say, with
+   * `Retry-After` — is on how many background jobs may run at once, and reaching it means
+   * occupying those jobs from elsewhere. That is done outside this file, and this mode is what
+   * photographs the screen while it holds.
+   */
+  if (process.env.BAR1722_MODE === 'external-load') {
+    await wl.selectMci(QUIET_TARGET);
+    await wl.openDeleteModal();
+    await wl.sendDelete(QUIET_TARGET, 'normal');
+    await catchRetryNotice(
+      page,
+      'mci-delete-retry-notice',
+      '50-외부부하-삭제-재시도',
+      60_000,
+    );
+    await page.waitForTimeout(1_500);
+    await shot(page, '51-외부부하-삭제-재시도-카운트다운');
+    await expect(page.getByTestId('mci-delete-progress')).toBeVisible({
+      timeout: 5 * 60_000,
+    });
+    await shot(page, '52-외부부하-접수완료');
+    return;
+  }
+
   // ── 2. Busy: the list waiting its turn ───────────────────────────────
   load.start();
   await page.waitForTimeout(1_500);
