@@ -285,11 +285,15 @@ onBeforeUnmount(() => {
               class="list-retry-detail"
               data-testid="mci-list-retry-notice"
             >
-              Retrying in
-              <b data-testid="mci-list-retry-seconds">{{
-                retryNotice.seconds
-              }}</b>
-              seconds
+              <!-- The count and its unit are kept on one line; split apart they read as
+                   two separate things rather than as a time. -->
+              <span class="list-retry-wait"
+                >Retrying in
+                <b data-testid="mci-list-retry-seconds">{{
+                  retryNotice.seconds
+                }}</b>
+                seconds</span
+              >
               <span class="list-retry-count" data-testid="mci-list-retry-count"
                 >Retry {{ retryNotice.attempt }}/{{
                   retryNotice.maxRetries
@@ -494,6 +498,9 @@ onBeforeUnmount(() => {
   color: #92400e;
   line-height: 1.5;
   text-align: center;
+}
+.list-retry-wait {
+  white-space: nowrap;
 }
 .list-retry-count {
   margin-left: 8px;

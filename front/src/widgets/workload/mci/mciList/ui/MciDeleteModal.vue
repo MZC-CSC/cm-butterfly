@@ -594,11 +594,19 @@ watch(
           class="retry-notice"
           data-testid="mci-delete-retry-notice"
         >
-          The server is handling as many requests as it can. Retrying in
-          <b data-testid="mci-delete-retry-seconds">{{
-            state.retry.seconds
-          }}</b>
-          seconds
+          The server is handling as many requests as it can.
+          <!--
+            The count and its unit are held together. Left to wrap on their own they were
+            split across the line — the number ending one line and "seconds" beginning the
+            next — which reads as two separate things rather than as a time.
+          -->
+          <span class="retry-wait"
+            >Retrying in
+            <b data-testid="mci-delete-retry-seconds">{{
+              state.retry.seconds
+            }}</b>
+            seconds</span
+          >
           <span class="retry-count" data-testid="mci-delete-retry-count"
             >Retry {{ state.retry.attempt }}/{{ state.retry.maxRetries }}</span
           >
@@ -702,10 +710,17 @@ watch(
         >
           {{ exclusionNotice }}
         </p>
+        <!--
+          Named apart from the dispatch step's retry notice. Both said `mci-delete-retry-notice`
+          while meaning different things — this one that a target failed before and is being
+          asked for again, the other that a request is waiting to go out. They belong to
+          different steps so only ever one is drawn, which is precisely why the collision would
+          have gone unnoticed until a test picked up the wrong one.
+        -->
         <p
           v-if="retryNotice"
           class="hint"
-          data-testid="mci-delete-retry-notice"
+          data-testid="mci-delete-retry-target-notice"
         >
           {{ retryNotice }}
         </p>
@@ -963,6 +978,9 @@ watch(
     font-size: 13px;
     color: #92400e;
     line-height: 1.5;
+  }
+  .retry-wait {
+    white-space: nowrap;
   }
   .retry-count {
     margin-left: 8px;

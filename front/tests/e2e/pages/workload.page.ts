@@ -526,6 +526,31 @@ export class WorkloadPage {
   }
 
   /**
+   * Whether the *list* says its lookup is waiting to go out again.
+   *
+   * Checked in its own right rather than through the dialog's marker: the wait belongs to the
+   * loading state here — it is drawn inside the spinner, not beside it — and putting it there
+   * is the point. A notice next to a screen that is still working reads as though it had
+   * stopped.
+   */
+  async expectListRetryNotice(): Promise<void> {
+    await expect(this.page.getByTestId('mci-list-retry-notice')).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
+  /** Which attempt the list says it is on, as shown ("Retry 1/3"). */
+  async expectListRetryCount(
+    attempt: number,
+    maxRetries: number,
+  ): Promise<void> {
+    await expect(this.page.getByTestId('mci-list-retry-count')).toHaveText(
+      `Retry ${attempt}/${maxRetries}`,
+      { timeout: 15_000 },
+    );
+  }
+
+  /**
    * Whether the seconds left actually move.
    *
    * A number that never changes is the same thing to look at as a screen that has stopped, so
@@ -540,20 +565,6 @@ export class WorkloadPage {
     await expect
       .poll(async () => Number(await seconds.innerText()), { timeout: 10_000 })
       .toBeLessThan(first);
-  }
-
-  /**
-   * Whether the submitting reached every target it set out to.
-   *
-   * The count moves as each acceptance arrives, so reaching the total is the screen saying the
-   * server has taken them all — not that a loop finished. Reading it is what would catch a
-   * request that was quietly dropped.
-   */
-  async expectDispatchComplete(total: number): Promise<void> {
-    await expect(this.page.getByTestId('mci-delete-dispatch-count')).toHaveText(
-      `${total} of ${total}`,
-      { timeout: 30_000 },
-    );
   }
 
   /** Whether the dialog opened at the confirm step (rather than jumping to progress). */
