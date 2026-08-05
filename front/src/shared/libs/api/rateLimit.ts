@@ -19,17 +19,26 @@ import { toErrorMessage } from '@/shared/utils';
  * apart, the sentence is the only signal, and it is matched on the fixed parts of it.
  */
 
-/** Wordings that mean "not taken this time", each from a known source. */
+/**
+ * Wordings that mean "not taken this time".
+ *
+ * Only one source produces these: cm-beetle spacing its own calls out cannot prevent every
+ * refusal — it may not be the only client behind its address — and when its own retries are
+ * spent, what it passes on is an ordinary 500 carrying the original status in the text. The
+ * console also reaches the infrastructure service directly on some screens, and that path is
+ * outside the spacing entirely.
+ *
+ * These go the day a refusal that got through arrives with a status of its own.
+ */
 const REFUSAL_MARKERS = [
-  'status: 429', // cm-beetle wrapping a cb-tumblebug refusal — its format string is fixed
+  'status: 429', // the fixed format cm-beetle wraps the underlying refusal in
   'rate limit', // the body of that refusal
-  'queue is full', // cm-beetle's own queue, when more arrive than it will hold
 ] as const;
 
 /** Statuses that mean the same thing on their own. */
 const REFUSAL_STATUSES = [
-  429, // too many requests
-  503, // at capacity for now — cm-beetle answers this when its async jobs are all busy
+  429, // too many requests — the per-address cap, and the SSH check's own cooldown
+  503, // at capacity for now — the call spacer's wait budget, or the async job pool
 ];
 
 /** Used when the server did not say how long to wait. */
