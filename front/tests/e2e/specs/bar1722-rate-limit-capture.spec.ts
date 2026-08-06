@@ -46,7 +46,9 @@ class Load {
 
   constructor(
     private token: string,
-    private concurrency = 12,
+    // How many at once. The far side admits a fixed number of waiting callers before it starts
+    // turning them away, so this is the knob that decides whether a refusal happens at all.
+    private concurrency = Number(process.env.BAR1722_LOAD || 12),
   ) {}
 
   start(): void {
@@ -130,6 +132,31 @@ test('workload screens, quiet and busy @integration', async ({ page }) => {
 
   // Just the list, for a shot of how it stands. Nothing is deleted.
   if (process.env.BAR1722_SHOT_ONLY === '1') return;
+
+  /**
+   * The list waiting its turn, and nothing else. Deletes nothing, so it needs no workloads.
+   *
+   * Useful on its own because the wait the list shows is the one thing that changes when the
+   * far side starts answering these refusals with a status and a time of its own.
+   */
+  if (process.env.BAR1722_MODE === 'list-only') {
+    load.start();
+    await page.waitForTimeout(1_500);
+    const reloading = page.reload();
+    await catchRetryNotice(
+      page,
+      'mci-list-retry-notice',
+      '60-목록조회-대기',
+      60_000,
+    );
+    await page.waitForTimeout(1_200);
+    await shot(page, '61-목록조회-대기-카운트다운');
+    await reloading.catch(() => undefined);
+    await load.end();
+    await wl.expectMciListLoaded().catch(() => undefined);
+    await shot(page, '62-부하해제-복구');
+    return;
+  }
 
   /**
    * Delete one workload while something *outside* this run is holding the far side busy.
