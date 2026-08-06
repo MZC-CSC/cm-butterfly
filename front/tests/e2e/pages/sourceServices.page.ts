@@ -102,10 +102,8 @@ export class SourceServicesPage {
 
   private get serviceNameInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-service-name"], textarea[data-testid="source-service-name"]',
-      )
-      .or(this.page.getByPlaceholder('Source Service Name'));
+      .locator('input[data-testid="source-service-name"]')
+      .first();
   }
   private get serviceDescriptionInput(): Locator {
     return this.page
@@ -140,45 +138,33 @@ export class SourceServicesPage {
 
   private get connNameInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-connection-name"], textarea[data-testid="source-connection-name"]',
-      )
-      .or(this.page.getByPlaceholder('Source Connection Name'));
+      .locator('input[data-testid="source-connection-name"]')
+      .first();
   }
   private get connIpInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-connection-ip"], textarea[data-testid="source-connection-ip"]',
-      )
-      .or(this.page.getByPlaceholder('###.###.###.###'));
+      .locator('input[data-testid="source-connection-ip"]')
+      .first();
   }
   private get connPortInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-connection-ssh-port"], textarea[data-testid="source-connection-ssh-port"]',
-      )
-      .or(this.page.getByPlaceholder('1~65535'));
+      .locator('input[data-testid="source-connection-ssh-port"]')
+      .first();
   }
   private get connUserInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-connection-user"], textarea[data-testid="source-connection-user"]',
-      )
-      .or(this.page.getByPlaceholder('User ID'));
+      .locator('input[data-testid="source-connection-user"]')
+      .first();
   }
   private get connPasswordInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-connection-password"], textarea[data-testid="source-connection-password"]',
-      )
-      .or(this.page.getByPlaceholder('Password'));
+      .locator('input[data-testid="source-connection-password"]')
+      .first();
   }
   private get connPrivateKeyInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-connection-private-key"], textarea[data-testid="source-connection-private-key"]',
-      )
-      .or(this.page.locator('.private-key textarea'));
+      .locator('textarea[data-testid="source-connection-private-key"]')
+      .first();
   }
   /** 연결정보 폼 적용 "Apply" → 소스그룹 등록 모달로 복귀 */
   private get connApplyButton(): Locator {
@@ -578,6 +564,228 @@ export class SourceServicesPage {
         .locator('td.select-checkbox .p-checkbox, input[type="checkbox"]')
         .first(),
     );
+  }
+
+  // ── 연결정보 추가·수정 화면 (Connection 탭 > "Add / Edit") ─────────────
+
+  /** 입력 행 하나 = SourceConnectionForm 하나. 같은 testid가 행마다 반복되므로
+   *  필드는 항상 행으로 좁힌 뒤에 잡는다. */
+  private get connectionFormRows(): Locator {
+    return this.page.getByTestId('source-connection-row');
+  }
+  /** "+ Add Source Connection" — 입력 행을 하나 더 붙인다 */
+  private get addConnectionRowButton(): Locator {
+    return this.page.getByTestId('create-form-add-row');
+  }
+  /** 추가·수정 화면 우측 하단 "Save" */
+  private get connectionSaveButton(): Locator {
+    return this.page.getByTestId('source-connection-save');
+  }
+
+  /** 연결 목록의 "Add / Edit" 로 연결정보 추가·수정 화면을 연다(빈 입력 행 1개로 열린다). */
+  async openAddEditConnections(): Promise<void> {
+    await this.openConnectionsTab();
+    await humanClick(this.addEditConnectionButton);
+    await expect(this.connectionFormRows.first()).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
+  /** index(0-base) 번째 입력 행을 채운다.
+   *  mirinae PTextInput 은 wrapper 에도 같은 testid 를 달아 두므로 태그까지 지정한다(§1.3). */
+  private async fillConnectionRow(
+    index: number,
+    conn: Connection,
+  ): Promise<void> {
+    const row = this.connectionFormRows.nth(index);
+    await humanFill(
+      row.locator('input[data-testid="source-connection-name"]'),
+      conn.name,
+    );
+    await humanFill(
+      row.locator('input[data-testid="source-connection-ip"]'),
+      conn.ip,
+    );
+    await this.fillIfDifferent(
+      row.locator('input[data-testid="source-connection-ssh-port"]'),
+      String(conn.sshPort ?? '22'),
+    );
+    await humanFill(
+      row.locator('input[data-testid="source-connection-user"]'),
+      conn.user,
+    );
+    if (conn.password)
+      await humanFill(
+        row.locator('input[data-testid="source-connection-password"]'),
+        conn.password,
+      );
+    if (conn.privateKey)
+      await humanFill(
+        row.locator('textarea[data-testid="source-connection-private-key"]'),
+        conn.privateKey,
+      );
+  }
+
+  /** 연결정보를 이어서 여러 건 입력한다. 화면이 열릴 때 빈 행이 하나 있으므로 첫 건은 그 행을 쓴다.
+   *  각 건을 채운 직후의 Save 활성 여부를 순서대로 돌려준다 — 몇 건째부터 막히는지가 확인 대상이다. */
+  async addConnectionsInOneGo(conns: Connection[]): Promise<boolean[]> {
+    const saveStates: boolean[] = [];
+    for (const [index, conn] of conns.entries()) {
+      if (index > 0) await humanClick(this.addConnectionRowButton);
+      await expect(this.connectionFormRows).toHaveCount(index + 1);
+      await this.fillConnectionRow(index, conn);
+      saveStates.push(await this.saveEnabledWithin(5_000));
+    }
+    return saveStates;
+  }
+
+  /** index(0-base) 번째 입력 행을 × 로 지운다 */
+  async deleteConnectionRow(index: number): Promise<void> {
+    const before = await this.connectionFormRows.count();
+    await humanClick(
+      this.connectionFormRows
+        .nth(index)
+        .getByTestId('source-connection-remove-row'),
+    );
+    await expect(this.connectionFormRows).toHaveCount(before - 1);
+  }
+
+  /** Save 가 주어진 시간 안에 열리는지. 열리지 않으면 false — 화면 반영을 기다리다 생기는
+   *  거짓 실패를 막되, 끝까지 닫혀 있으면 그대로 결함으로 잡는다. */
+  private async saveEnabledWithin(timeout: number): Promise<boolean> {
+    try {
+      await expect
+        .poll(() => this.isConnectionSaveEnabled(), { timeout })
+        .toBe(true);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async isConnectionSaveEnabled(): Promise<boolean> {
+    return !(await this.isMirinaeButtonDisabled(this.connectionSaveButton));
+  }
+
+  async expectConnectionSaveEnabled(): Promise<void> {
+    await expect
+      .poll(() => this.isConnectionSaveEnabled(), { timeout: 10_000 })
+      .toBe(true);
+  }
+
+  async expectConnectionSaveDisabled(): Promise<void> {
+    await expect
+      .poll(() => this.isConnectionSaveEnabled(), { timeout: 10_000 })
+      .toBe(false);
+  }
+
+  /** Save — 화면이 닫히고 연결 목록으로 돌아오는 데까지.
+   *  연결 하나를 등록할 때마다 연계 시스템이 그 주소로 SSH 접속을 시도하고,
+   *  닿지 않는 주소면 시간 초과까지 약 10초를 기다린다(등록은 그래도 성공한다).
+   *  화면은 건을 순차로 보내므로 대기 시간을 행 수에 맞춰 잡는다. */
+  async saveConnections(): Promise<void> {
+    const rowCount = await this.connectionFormRows.count();
+    await humanClick(this.connectionSaveButton);
+    await expect(this.connectionFormRows.first()).toBeHidden({
+      timeout: 20_000 * rowCount + 20_000,
+    });
+  }
+
+  // ── 그룹 편집 · 커넥션 삭제 · 커넥션 상세 (2026-08-06 식별자 부여) ─────
+
+  /** 그룹 상세의 "Edit" — 편집 화면을 연다 */
+  private get groupEditButton(): Locator {
+    return this.page.getByRole('button', { name: 'Edit', exact: true });
+  }
+  /** 편집 모달 확정 */
+  private get groupEditConfirmButton(): Locator {
+    return this.page.locator('button', {
+      has: this.page.getByTestId('source-service-edit-confirm'),
+    });
+  }
+  /** 커넥션 표의 삭제 아이콘 (선택한 행을 지운다) */
+  private get connectionDeleteButton(): Locator {
+    return this.page.getByTestId('source-connection-delete');
+  }
+  private get connectionDeleteConfirmButton(): Locator {
+    return this.page.locator('button', {
+      has: this.page.getByTestId('source-connection-delete-confirm'),
+    });
+  }
+  /** 커넥션 상세 — Information 패널 */
+  private get connectionDetailInformation(): Locator {
+    return this.page.getByTestId('source-connection-detail-information');
+  }
+
+  /** 그룹 이름을 바꾼다 */
+  async renameGroup(from: string, to: string): Promise<void> {
+    await this.selectGroup(from);
+    await humanClick(this.groupEditButton.first());
+    await expect(this.serviceNameInput).toBeVisible({ timeout: 15_000 });
+    await humanFill(this.serviceNameInput, to);
+    await humanClick(this.groupEditConfirmButton);
+    await this.expectGroupListed(to);
+  }
+
+  /** 커넥션 한 건을 골라 지운다 */
+  async deleteConnection(connName: string): Promise<void> {
+    await this.checkConnection(connName);
+    await humanClick(this.connectionDeleteButton);
+    await humanClick(this.connectionDeleteConfirmButton);
+    await expect(this.connectionRow(connName)).toBeHidden({ timeout: 30_000 });
+  }
+
+  /** 커넥션 상세를 열고 Information 패널이 값을 보여주는지 본다 */
+  async expectConnectionDetail(connName: string, ip: string): Promise<void> {
+    await this.openConnectionsTab();
+    await humanClick(this.connectionRow(connName).first());
+    await expect(this.connectionDetailInformation).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(this.connectionDetailInformation).toContainText(connName);
+    await expect(this.connectionDetailInformation).toContainText(ip);
+  }
+
+  /** 커넥션 목록에 그 이름이 보이는지 */
+  async expectConnectionListed(connName: string): Promise<void> {
+    await this.openConnectionsTab();
+    await expect(this.connectionRow(connName)).toBeVisible({ timeout: 20_000 });
+  }
+
+  /** 커넥션 목록에서 사라졌는지 */
+  async expectConnectionAbsent(connName: string): Promise<void> {
+    await this.openConnectionsTab();
+    await expect(this.connectionRow(connName)).toBeHidden({ timeout: 20_000 });
+  }
+
+  /** 열린 추가·수정 화면의 index 행 한 필드만 바꾼다 (수정 시나리오용) */
+  async setConnectionRowField(
+    index: number,
+    field: 'name' | 'ip' | 'ssh-port' | 'user' | 'password',
+    value: string,
+  ): Promise<void> {
+    await humanFill(
+      this.connectionFormRows
+        .nth(index)
+        .locator(`input[data-testid="source-connection-${field}"]`),
+      value,
+    );
+  }
+
+  /** 열려 있는 입력 행 수 */
+  async connectionRowCount(): Promise<number> {
+    return this.connectionFormRows.count();
+  }
+
+  /** 목록 행에 그 값이 보이는지 (수정 결과 확인용) */
+  async expectConnectionRowContains(
+    connName: string,
+    value: string,
+  ): Promise<void> {
+    await this.openConnectionsTab();
+    await expect(this.connectionRow(connName)).toContainText(value, {
+      timeout: 20_000,
+    });
   }
 
   /** ★ mirinae PButton은 비활성을 class로만 표현한다(표준 disabled 속성이 붙지 않는다).
