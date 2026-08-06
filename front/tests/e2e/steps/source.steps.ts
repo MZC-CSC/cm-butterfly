@@ -200,6 +200,152 @@ When(
   },
 );
 
+/** "그리고 \"a,b\" 연결정보를 가진 \"그룹\" 소스그룹을 만든다" — 그룹과 커넥션을 한 번에 */
+Given(
+  '{string} 연결정보를 가진 {string} 소스그룹을 만든다',
+  async ({ page }, connCsv: string, groupName: string) => {
+    const source = new SourceServicesPage(page);
+    await source.goto();
+    const group = uniqueName(groupName);
+    await source.createSourceGroup(group);
+    scenarioState.sourceGroupName = group;
+    await source.selectGroup(group);
+    await source.openAddEditConnections();
+    const conns: Connection[] = connCsv.split(',').map(n => ({
+      name: uniqueName(n.trim()),
+      ip: '10.0.0.1',
+      sshPort: '22',
+      user: 'ubuntu',
+      password: 'e2e-dummy-pass',
+    }));
+    await source.addConnectionsInOneGo(conns);
+    await source.saveConnections();
+  },
+);
+
+/** "그러면 연결정보 목록에 \"a,b,c\" 이(가) 모두 보인다" */
+Then(
+  '연결정보 목록에 {string} 이\\(가\\) 모두 보인다',
+  async ({ page }, connCsv: string) => {
+    const source = new SourceServicesPage(page);
+    for (const n of connCsv.split(',')) {
+      await source.expectConnectionListed(uniqueName(n.trim()));
+    }
+  },
+);
+
+/** "만약 \"e2e-conn\" 연결정보의 IP 를 \"10.0.0.9\" 로 바꾸면" — 단건 선택 수정 */
+When(
+  '{string} 연결정보의 IP 를 {string} 로 바꾸면',
+  async ({ page }, connName: string, ip: string) => {
+    const source = new SourceServicesPage(page);
+    await source.checkConnection(uniqueName(connName));
+    await source.openAddEditConnections();
+    await source.setConnectionRowField(0, 'ip', ip);
+    await source.saveConnections();
+  },
+);
+
+/** "만약 \"a,b\" 연결정보의 포트를 \"2222\" 로 바꾸면" — 다건 선택 수정 */
+When(
+  '{string} 연결정보의 포트를 {string} 로 바꾸면',
+  async ({ page }, connCsv: string, port: string) => {
+    const source = new SourceServicesPage(page);
+    for (const n of connCsv.split(',')) {
+      await source.checkConnection(uniqueName(n.trim()));
+    }
+    await source.openAddEditConnections();
+    const rows = await source.connectionRowCount();
+    expect(rows, '선택한 건수만큼 입력 행이 열려야 한다').toBe(
+      connCsv.split(',').length,
+    );
+    for (let i = 0; i < rows; i++) {
+      await source.setConnectionRowField(i, 'ssh-port', port);
+    }
+    await source.saveConnections();
+  },
+);
+
+/** "그러면 \"e2e-conn\" 연결정보 행에 \"10.0.0.9\" 이(가) 보인다" */
+Then(
+  '{string} 연결정보 행에 {string} 이\\(가\\) 보인다',
+  async ({ page }, connName: string, value: string) => {
+    await new SourceServicesPage(page).expectConnectionRowContains(
+      uniqueName(connName),
+      value,
+    );
+  },
+);
+
+/** "만약 \"e2e-conn\" 연결정보를 지우면" */
+When('{string} 연결정보를 지우면', async ({ page }, connName: string) => {
+  await new SourceServicesPage(page).deleteConnection(uniqueName(connName));
+});
+
+/** "그러면 연결정보 목록에 \"e2e-conn\" 이(가) 없다" */
+Then(
+  '연결정보 목록에 {string} 이\\(가\\) 없다',
+  async ({ page }, connName: string) => {
+    await new SourceServicesPage(page).expectConnectionAbsent(
+      uniqueName(connName),
+    );
+  },
+);
+
+/** "그러면 \"e2e-conn\" 연결정보 상세에 \"10.0.0.1\" 이(가) 보인다" */
+Then(
+  '{string} 연결정보 상세에 {string} 이\\(가\\) 보인다',
+  async ({ page }, connName: string, ip: string) => {
+    await new SourceServicesPage(page).expectConnectionDetail(
+      uniqueName(connName),
+      ip,
+    );
+  },
+);
+
+/** "만약 소스그룹 이름을 \"e2e-src\" 에서 \"e2e-src2\" 로 바꾸면" */
+When(
+  '소스그룹 이름을 {string} 에서 {string} 로 바꾸면',
+  async ({ page }, from: string, to: string) => {
+    const source = new SourceServicesPage(page);
+    await source.goto();
+    await source.renameGroup(uniqueName(from), uniqueName(to));
+    scenarioState.sourceGroupName = uniqueName(to);
+  },
+);
+
+/** "만약 연결정보 입력 행에 IP 를 \"999.999.999.999\" 로 넣으면" — 검증용 */
+When(
+  '연결정보 입력 행에 IP 를 {string} 로 넣으면',
+  async ({ page }, ip: string) => {
+    await new SourceServicesPage(page).setConnectionRowField(0, 'ip', ip);
+  },
+);
+
+/** "만약 연결정보 입력 행에 포트를 \"65536\" 으로 넣으면" */
+When(
+  '연결정보 입력 행에 포트를 {string} 으로 넣으면',
+  async ({ page }, port: string) => {
+    await new SourceServicesPage(page).setConnectionRowField(
+      0,
+      'ssh-port',
+      port,
+    );
+  },
+);
+
+/** "만약 연결정보 입력 행에 \"이름\" 만 채우면" — 인증 정보 없이 */
+When(
+  '연결정보 입력 행에 {string} 만 인증 없이 채우면',
+  async ({ page }, connName: string) => {
+    const source = new SourceServicesPage(page);
+    await source.setConnectionRowField(0, 'name', uniqueName(connName));
+    await source.setConnectionRowField(0, 'ip', '10.0.0.1');
+    await source.setConnectionRowField(0, 'ssh-port', '22');
+    await source.setConnectionRowField(0, 'user', 'ubuntu');
+  },
+);
+
 /** "그러면 연결정보 저장 버튼이 활성이다" */
 Then('연결정보 저장 버튼이 활성이다', async ({ page }) => {
   await new SourceServicesPage(page).expectConnectionSaveEnabled();

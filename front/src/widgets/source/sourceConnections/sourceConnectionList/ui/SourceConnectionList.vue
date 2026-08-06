@@ -14,7 +14,15 @@ import {
   showSuccessMessage,
   toErrorMessage,
 } from '@/shared/utils';
-import { onBeforeMount, onMounted, reactive, watch, computed, ref, nextTick } from 'vue';
+import {
+  onBeforeMount,
+  onMounted,
+  reactive,
+  watch,
+  computed,
+  ref,
+  nextTick,
+} from 'vue';
 import TableLoadingSpinner from '@/shared/ui/LoadingSpinner/TableLoadingSpinner.vue';
 import { useSourceConnectionListModel } from '@/widgets/source/sourceConnections/sourceConnectionList/model/sourceConnectionListModel';
 import { useBulkDeleteSourceConnection } from '@/entities/sourceConnection/api';
@@ -100,17 +108,19 @@ onMounted(function () {
   // addDeleteIconAtTable will be called after data loaded
 });
 
-watch(isDataLoaded, (nv) => {
+watch(isDataLoaded, nv => {
   if (nv && toolboxTableRef.value) {
     nextTick(() => {
-      addDeleteIconAtTable.call({ $refs: { toolboxTable: toolboxTableRef.value } });
+      addDeleteIconAtTable.call({
+        $refs: { toolboxTable: toolboxTableRef.value },
+      });
     });
   }
 });
 
 function getSourceConnectionList() {
   isDataLoaded.value = false;
-  
+
   resSourceConnectionList
     .execute({
       pathParams: { sgId: props.selectedServiceId },
@@ -120,9 +130,9 @@ function getSourceConnectionList() {
       // Absent means none, not broken, so treat it as an empty list.
       sourceConnectionStore.setConnections(res.data.responseData);
 
-      const connectionIds = (
-        res.data.responseData?.connection_info ?? []
-      ).map(el => el.id);
+      const connectionIds = (res.data.responseData?.connection_info ?? []).map(
+        el => el.id,
+      );
       setTargetConnections(connectionIds);
 
       nextTick(() => {
@@ -286,6 +296,8 @@ function addDeleteIconAtTable() {
     targetElement,
     'prepend',
   );
+  // Give the dynamically injected delete icon a data-testid for e2e selectors
+  instance.$el.setAttribute('data-testid', 'source-connection-delete');
   return instance;
 }
 
@@ -319,14 +331,20 @@ function handleSourceConnectionList() {
         <template #container="{ height }">
           <!-- Show a spinner while loading -->
           <table-loading-spinner
-            :loading="resSourceConnectionList.isLoading.value || tableModel.tableState.loading"
+            :loading="
+              resSourceConnectionList.isLoading.value ||
+              tableModel.tableState.loading
+            "
             :height="height"
             message="Loading source connections..."
           />
-          
+
           <!-- Show the table after loading completes -->
           <p-toolbox-table
-            v-if="!resSourceConnectionList.isLoading.value && !tableModel.tableState.loading"
+            v-if="
+              !resSourceConnectionList.isLoading.value &&
+              !tableModel.tableState.loading
+            "
             ref="toolboxTableRef"
             :items="tableModel.tableState.displayItems"
             :fields="tableModel.tableState.fields"
@@ -388,7 +406,11 @@ function handleSourceConnectionList() {
           handleDeleteConnections();
         }
       "
-    />
+    >
+      <template #confirm-button>
+        <span data-testid="source-connection-delete-confirm">OK</span>
+      </template>
+    </p-button-modal>
     <!-- Asked before the download so nobody is surprised by the blank
          credential columns after opening the file. -->
     <p-button-modal

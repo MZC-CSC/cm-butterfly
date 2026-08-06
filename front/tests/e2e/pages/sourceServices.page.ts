@@ -102,10 +102,8 @@ export class SourceServicesPage {
 
   private get serviceNameInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-service-name"], textarea[data-testid="source-service-name"]',
-      )
-      .or(this.page.getByPlaceholder('Source Service Name'));
+      .locator('input[data-testid="source-service-name"]')
+      .first();
   }
   private get serviceDescriptionInput(): Locator {
     return this.page
@@ -140,45 +138,33 @@ export class SourceServicesPage {
 
   private get connNameInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-connection-name"], textarea[data-testid="source-connection-name"]',
-      )
-      .or(this.page.getByPlaceholder('Source Connection Name'));
+      .locator('input[data-testid="source-connection-name"]')
+      .first();
   }
   private get connIpInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-connection-ip"], textarea[data-testid="source-connection-ip"]',
-      )
-      .or(this.page.getByPlaceholder('###.###.###.###'));
+      .locator('input[data-testid="source-connection-ip"]')
+      .first();
   }
   private get connPortInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-connection-ssh-port"], textarea[data-testid="source-connection-ssh-port"]',
-      )
-      .or(this.page.getByPlaceholder('1~65535'));
+      .locator('input[data-testid="source-connection-ssh-port"]')
+      .first();
   }
   private get connUserInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-connection-user"], textarea[data-testid="source-connection-user"]',
-      )
-      .or(this.page.getByPlaceholder('User ID'));
+      .locator('input[data-testid="source-connection-user"]')
+      .first();
   }
   private get connPasswordInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-connection-password"], textarea[data-testid="source-connection-password"]',
-      )
-      .or(this.page.getByPlaceholder('Password'));
+      .locator('input[data-testid="source-connection-password"]')
+      .first();
   }
   private get connPrivateKeyInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-connection-private-key"], textarea[data-testid="source-connection-private-key"]',
-      )
-      .or(this.page.locator('.private-key textarea'));
+      .locator('textarea[data-testid="source-connection-private-key"]')
+      .first();
   }
   /** 연결정보 폼 적용 "Apply" → 소스그룹 등록 모달로 복귀 */
   private get connApplyButton(): Locator {
@@ -702,6 +688,103 @@ export class SourceServicesPage {
     await humanClick(this.connectionSaveButton);
     await expect(this.connectionFormRows.first()).toBeHidden({
       timeout: 20_000 * rowCount + 20_000,
+    });
+  }
+
+  // ── 그룹 편집 · 커넥션 삭제 · 커넥션 상세 (2026-08-06 식별자 부여) ─────
+
+  /** 그룹 상세의 "Edit" — 편집 화면을 연다 */
+  private get groupEditButton(): Locator {
+    return this.page.getByRole('button', { name: 'Edit', exact: true });
+  }
+  /** 편집 모달 확정 */
+  private get groupEditConfirmButton(): Locator {
+    return this.page.locator('button', {
+      has: this.page.getByTestId('source-service-edit-confirm'),
+    });
+  }
+  /** 커넥션 표의 삭제 아이콘 (선택한 행을 지운다) */
+  private get connectionDeleteButton(): Locator {
+    return this.page.getByTestId('source-connection-delete');
+  }
+  private get connectionDeleteConfirmButton(): Locator {
+    return this.page.locator('button', {
+      has: this.page.getByTestId('source-connection-delete-confirm'),
+    });
+  }
+  /** 커넥션 상세 — Information 패널 */
+  private get connectionDetailInformation(): Locator {
+    return this.page.getByTestId('source-connection-detail-information');
+  }
+
+  /** 그룹 이름을 바꾼다 */
+  async renameGroup(from: string, to: string): Promise<void> {
+    await this.selectGroup(from);
+    await humanClick(this.groupEditButton.first());
+    await expect(this.serviceNameInput).toBeVisible({ timeout: 15_000 });
+    await humanFill(this.serviceNameInput, to);
+    await humanClick(this.groupEditConfirmButton);
+    await this.expectGroupListed(to);
+  }
+
+  /** 커넥션 한 건을 골라 지운다 */
+  async deleteConnection(connName: string): Promise<void> {
+    await this.checkConnection(connName);
+    await humanClick(this.connectionDeleteButton);
+    await humanClick(this.connectionDeleteConfirmButton);
+    await expect(this.connectionRow(connName)).toBeHidden({ timeout: 30_000 });
+  }
+
+  /** 커넥션 상세를 열고 Information 패널이 값을 보여주는지 본다 */
+  async expectConnectionDetail(connName: string, ip: string): Promise<void> {
+    await this.openConnectionsTab();
+    await humanClick(this.connectionRow(connName).first());
+    await expect(this.connectionDetailInformation).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(this.connectionDetailInformation).toContainText(connName);
+    await expect(this.connectionDetailInformation).toContainText(ip);
+  }
+
+  /** 커넥션 목록에 그 이름이 보이는지 */
+  async expectConnectionListed(connName: string): Promise<void> {
+    await this.openConnectionsTab();
+    await expect(this.connectionRow(connName)).toBeVisible({ timeout: 20_000 });
+  }
+
+  /** 커넥션 목록에서 사라졌는지 */
+  async expectConnectionAbsent(connName: string): Promise<void> {
+    await this.openConnectionsTab();
+    await expect(this.connectionRow(connName)).toBeHidden({ timeout: 20_000 });
+  }
+
+  /** 열린 추가·수정 화면의 index 행 한 필드만 바꾼다 (수정 시나리오용) */
+  async setConnectionRowField(
+    index: number,
+    field: 'name' | 'ip' | 'ssh-port' | 'user' | 'password',
+    value: string,
+  ): Promise<void> {
+    await humanFill(
+      this.connectionFormRows
+        .nth(index)
+        .locator(`input[data-testid="source-connection-${field}"]`),
+      value,
+    );
+  }
+
+  /** 열려 있는 입력 행 수 */
+  async connectionRowCount(): Promise<number> {
+    return this.connectionFormRows.count();
+  }
+
+  /** 목록 행에 그 값이 보이는지 (수정 결과 확인용) */
+  async expectConnectionRowContains(
+    connName: string,
+    value: string,
+  ): Promise<void> {
+    await this.openConnectionsTab();
+    await expect(this.connectionRow(connName)).toContainText(value, {
+      timeout: 20_000,
     });
   }
 

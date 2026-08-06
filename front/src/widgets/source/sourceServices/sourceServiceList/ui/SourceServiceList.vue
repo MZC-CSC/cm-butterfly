@@ -5,7 +5,15 @@ import {
   PButton,
   PButtonModal,
 } from '@cloudforet-test/mirinae';
-import { onBeforeMount, onMounted, reactive, watch, computed, ref, nextTick } from 'vue';
+import {
+  onBeforeMount,
+  onMounted,
+  reactive,
+  watch,
+  computed,
+  ref,
+  nextTick,
+} from 'vue';
 import TableLoadingSpinner from '@/shared/ui/LoadingSpinner/TableLoadingSpinner.vue';
 import {
   insertDynamicComponent,
@@ -65,10 +73,12 @@ onMounted(function () {
   getSourceServiceList();
 });
 
-watch(isDataLoaded, (nv) => {
+watch(isDataLoaded, nv => {
   if (nv && toolboxTableRef.value) {
     nextTick(() => {
-      addDeleteIconAtTable.call({ $refs: { toolboxTable: toolboxTableRef.value } });
+      addDeleteIconAtTable.call({
+        $refs: { toolboxTable: toolboxTableRef.value },
+      });
     });
   }
 });
@@ -117,14 +127,14 @@ function handleDeleteSourceServices() {
 
 function getSourceServiceList() {
   isDataLoaded.value = false;
-  
+
   resSourceServiceList
     .execute()
     .then(res => {
       if (res.data.responseData) {
         sourceServicesStore.setService(res.data.responseData);
       }
-      
+
       nextTick(() => {
         isDataLoaded.value = true;
         // Re-render the component after the data loads
@@ -132,7 +142,10 @@ function getSourceServiceList() {
       });
     })
     .catch(e => {
-      showErrorMessage('Error', toErrorMessage(e, 'Failed to load the source group list.'));
+      showErrorMessage(
+        'Error',
+        toErrorMessage(e, 'Failed to load the source group list.'),
+      );
       isDataLoaded.value = true;
     });
 }
@@ -178,7 +191,7 @@ watch(
           :height="height"
           message="Loading source services..."
         />
-        
+
         <!-- Show the table once loading completes -->
         <p-toolbox-table
           data-testid="source-group-list-table"
@@ -236,7 +249,11 @@ watch(
           handleDeleteSourceServices();
         }
       "
-    />
+    >
+      <template #confirm-button>
+        <span data-testid="source-group-delete-confirm">OK</span>
+      </template>
+    </p-button-modal>
   </div>
 </template>
 
