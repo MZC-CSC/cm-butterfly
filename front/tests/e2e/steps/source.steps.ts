@@ -179,9 +179,15 @@ When('연결정보 추가·수정 화면을 연다', async ({ page }) => {
 When(
   '{string} 연결정보를 한 번에 입력하면',
   async ({ page }, connCsv: string) => {
-    const conns = connCsv
-      .split(',')
-      .map(name => connectionFromFixture(name.trim()));
+    // 저장 버튼이 열리는지가 확인 대상이라 주소가 실제로 닿을 필요는 없다.
+    // fixtures 의 소스서버 주소는 실행 환경이 넣어 주지 않으면 비어 있어 그대로 쓸 수 없다.
+    const conns: Connection[] = connCsv.split(',').map(name => ({
+      name: uniqueName(name.trim()),
+      ip: '10.0.0.1',
+      sshPort: '22',
+      user: 'ubuntu',
+      password: 'e2e-dummy-pass',
+    }));
     const saveStates = await new SourceServicesPage(page).addConnectionsInOneGo(
       conns,
     );

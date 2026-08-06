@@ -648,7 +648,7 @@ export class SourceServicesPage {
       if (index > 0) await humanClick(this.addConnectionRowButton);
       await expect(this.connectionFormRows).toHaveCount(index + 1);
       await this.fillConnectionRow(index, conn);
-      saveStates.push(await this.isConnectionSaveEnabled());
+      saveStates.push(await this.saveEnabledWithin(5_000));
     }
     return saveStates;
   }
@@ -662,6 +662,19 @@ export class SourceServicesPage {
         .getByTestId('source-connection-remove-row'),
     );
     await expect(this.connectionFormRows).toHaveCount(before - 1);
+  }
+
+  /** Save 가 주어진 시간 안에 열리는지. 열리지 않으면 false — 화면 반영을 기다리다 생기는
+   *  거짓 실패를 막되, 끝까지 닫혀 있으면 그대로 결함으로 잡는다. */
+  private async saveEnabledWithin(timeout: number): Promise<boolean> {
+    try {
+      await expect
+        .poll(() => this.isConnectionSaveEnabled(), { timeout })
+        .toBe(true);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async isConnectionSaveEnabled(): Promise<boolean> {
@@ -680,11 +693,15 @@ export class SourceServicesPage {
       .toBe(false);
   }
 
-  /** Save — 화면이 닫히고 연결 목록으로 돌아오는 데까지 */
+  /** Save — 화면이 닫히고 연결 목록으로 돌아오는 데까지.
+   *  연결 하나를 등록할 때마다 연계 시스템이 그 주소로 SSH 접속을 시도하고,
+   *  닿지 않는 주소면 시간 초과까지 약 10초를 기다린다(등록은 그래도 성공한다).
+   *  화면은 건을 순차로 보내므로 대기 시간을 행 수에 맞춰 잡는다. */
   async saveConnections(): Promise<void> {
+    const rowCount = await this.connectionFormRows.count();
     await humanClick(this.connectionSaveButton);
     await expect(this.connectionFormRows.first()).toBeHidden({
-      timeout: 30_000,
+      timeout: 20_000 * rowCount + 20_000,
     });
   }
 

@@ -11,7 +11,10 @@ import {
   connectionRowKey,
   newConnectionRowId,
 } from '@/shared/utils/connectionRows';
-import { isConnectionRowValid } from '@/shared/utils/connectionValidation';
+import {
+  DEFAULT_SSH_PORT,
+  isConnectionRowValid,
+} from '@/shared/utils/connectionValidation';
 import { useUpdateConnectionInfo } from '@/entities/sourceConnection/api';
 
 const sourceConnectionStore = useSourceConnectionStore();
@@ -60,7 +63,10 @@ const emptyConnection = () => ({
   name: '',
   description: '',
   ip_address: '',
-  ssh_port: 22,
+  // A string, like the other registration screen. The linked system declares
+  // ssh_port as a string and rejects a number outright ("expected=string,
+  // got=number"), so a row whose port was never retyped could not be saved.
+  ssh_port: DEFAULT_SSH_PORT,
   user: '',
   password: '',
   private_key: '',
@@ -231,7 +237,8 @@ const handleAddSourceConnection = async () => {
           name: info.name,
           password: info.password,
           private_key: info.private_key,
-          ssh_port: info.ssh_port,
+          // Always a string — see emptyConnection above.
+          ssh_port: String(info.ssh_port ?? DEFAULT_SSH_PORT),
           user: info.user,
         },
       });
