@@ -162,6 +162,58 @@ When(
   },
 );
 
+// ───────────────────────── 연결정보 여러 건 추가 (Connection 탭 > Add / Edit) ─────────────────────────
+
+/** "만약 연결정보 추가·수정 화면을 연다" — 선택한 소스그룹의 Connection 탭 > "Add / Edit" */
+When('연결정보 추가·수정 화면을 연다', async ({ page }) => {
+  await new SourceServicesPage(page).openAddEditConnections();
+});
+
+/**
+ * "그리고 \"a,b,c\" 연결정보를 한 번에 입력하면"
+ *
+ * 한 화면에서 이어서 여러 건을 채운다. 각 건을 채운 직후의 Save 활성 여부를 함께 확인한다 —
+ * 이 화면은 3건째부터 Save 가 열리지 않은 적이 있어(BAR-1750), 마지막 상태만 보면
+ * 중간에 한 번 닫혔다 열린 것을 놓친다.
+ */
+When(
+  '{string} 연결정보를 한 번에 입력하면',
+  async ({ page }, connCsv: string) => {
+    const conns = connCsv
+      .split(',')
+      .map(name => connectionFromFixture(name.trim()));
+    const saveStates = await new SourceServicesPage(page).addConnectionsInOneGo(
+      conns,
+    );
+    saveStates.forEach((enabled, index) => {
+      expect(
+        enabled,
+        `${index + 1}건째를 채운 뒤 Save 가 열려 있어야 한다`,
+      ).toBe(true);
+    });
+  },
+);
+
+/** "그러면 연결정보 저장 버튼이 활성이다" */
+Then('연결정보 저장 버튼이 활성이다', async ({ page }) => {
+  await new SourceServicesPage(page).expectConnectionSaveEnabled();
+});
+
+/** "그러면 연결정보 저장 버튼이 비활성이다" */
+Then('연결정보 저장 버튼이 비활성이다', async ({ page }) => {
+  await new SourceServicesPage(page).expectConnectionSaveDisabled();
+});
+
+/** "만약 {int}번째 입력 행을 지우면" (1-base — 시나리오에서 사람이 세는 순서) */
+When('{int}번째 입력 행을 지우면', async ({ page }, position: number) => {
+  await new SourceServicesPage(page).deleteConnectionRow(position - 1);
+});
+
+/** "만약 연결정보를 저장하면" */
+When('연결정보를 저장하면', async ({ page }) => {
+  await new SourceServicesPage(page).saveConnections();
+});
+
 /** "그리고 \"e2e-conn\" 연결정보를 체크한다" (목록 체크박스 선택) */
 Given('{string} 연결정보를 체크한다', async ({ page }, connName: string) => {
   await new SourceServicesPage(page).checkConnection(uniqueName(connName));

@@ -137,7 +137,7 @@ const handleDelete = () => {
 </script>
 
 <template>
-  <div class="source-connection-layout">
+  <div class="source-connection-layout" data-testid="source-connection-row">
     <p-pane-layout class="source-connection-info">
       <div class="left-layer">
         <p-field-group

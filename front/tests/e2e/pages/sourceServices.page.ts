@@ -580,6 +580,114 @@ export class SourceServicesPage {
     );
   }
 
+  // ── 연결정보 추가·수정 화면 (Connection 탭 > "Add / Edit") ─────────────
+
+  /** 입력 행 하나 = SourceConnectionForm 하나. 같은 testid가 행마다 반복되므로
+   *  필드는 항상 행으로 좁힌 뒤에 잡는다. */
+  private get connectionFormRows(): Locator {
+    return this.page.getByTestId('source-connection-row');
+  }
+  /** "+ Add Source Connection" — 입력 행을 하나 더 붙인다 */
+  private get addConnectionRowButton(): Locator {
+    return this.page.getByTestId('create-form-add-row');
+  }
+  /** 추가·수정 화면 우측 하단 "Save" */
+  private get connectionSaveButton(): Locator {
+    return this.page.getByTestId('source-connection-save');
+  }
+
+  /** 연결 목록의 "Add / Edit" 로 연결정보 추가·수정 화면을 연다(빈 입력 행 1개로 열린다). */
+  async openAddEditConnections(): Promise<void> {
+    await this.openConnectionsTab();
+    await humanClick(this.addEditConnectionButton);
+    await expect(this.connectionFormRows.first()).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
+  /** index(0-base) 번째 입력 행을 채운다.
+   *  mirinae PTextInput 은 wrapper 에도 같은 testid 를 달아 두므로 태그까지 지정한다(§1.3). */
+  private async fillConnectionRow(
+    index: number,
+    conn: Connection,
+  ): Promise<void> {
+    const row = this.connectionFormRows.nth(index);
+    await humanFill(
+      row.locator('input[data-testid="source-connection-name"]'),
+      conn.name,
+    );
+    await humanFill(
+      row.locator('input[data-testid="source-connection-ip"]'),
+      conn.ip,
+    );
+    await this.fillIfDifferent(
+      row.locator('input[data-testid="source-connection-ssh-port"]'),
+      String(conn.sshPort ?? '22'),
+    );
+    await humanFill(
+      row.locator('input[data-testid="source-connection-user"]'),
+      conn.user,
+    );
+    if (conn.password)
+      await humanFill(
+        row.locator('input[data-testid="source-connection-password"]'),
+        conn.password,
+      );
+    if (conn.privateKey)
+      await humanFill(
+        row.locator('textarea[data-testid="source-connection-private-key"]'),
+        conn.privateKey,
+      );
+  }
+
+  /** 연결정보를 이어서 여러 건 입력한다. 화면이 열릴 때 빈 행이 하나 있으므로 첫 건은 그 행을 쓴다.
+   *  각 건을 채운 직후의 Save 활성 여부를 순서대로 돌려준다 — 몇 건째부터 막히는지가 확인 대상이다. */
+  async addConnectionsInOneGo(conns: Connection[]): Promise<boolean[]> {
+    const saveStates: boolean[] = [];
+    for (const [index, conn] of conns.entries()) {
+      if (index > 0) await humanClick(this.addConnectionRowButton);
+      await expect(this.connectionFormRows).toHaveCount(index + 1);
+      await this.fillConnectionRow(index, conn);
+      saveStates.push(await this.isConnectionSaveEnabled());
+    }
+    return saveStates;
+  }
+
+  /** index(0-base) 번째 입력 행을 × 로 지운다 */
+  async deleteConnectionRow(index: number): Promise<void> {
+    const before = await this.connectionFormRows.count();
+    await humanClick(
+      this.connectionFormRows
+        .nth(index)
+        .getByTestId('source-connection-remove-row'),
+    );
+    await expect(this.connectionFormRows).toHaveCount(before - 1);
+  }
+
+  async isConnectionSaveEnabled(): Promise<boolean> {
+    return !(await this.isMirinaeButtonDisabled(this.connectionSaveButton));
+  }
+
+  async expectConnectionSaveEnabled(): Promise<void> {
+    await expect
+      .poll(() => this.isConnectionSaveEnabled(), { timeout: 10_000 })
+      .toBe(true);
+  }
+
+  async expectConnectionSaveDisabled(): Promise<void> {
+    await expect
+      .poll(() => this.isConnectionSaveEnabled(), { timeout: 10_000 })
+      .toBe(false);
+  }
+
+  /** Save — 화면이 닫히고 연결 목록으로 돌아오는 데까지 */
+  async saveConnections(): Promise<void> {
+    await humanClick(this.connectionSaveButton);
+    await expect(this.connectionFormRows.first()).toBeHidden({
+      timeout: 30_000,
+    });
+  }
+
   /** ★ mirinae PButton은 비활성을 class로만 표현한다(표준 disabled 속성이 붙지 않는다).
    *  toBeDisabled()·isEnabled()는 항상 "활성"으로 답하므로 클래스로 판정한다. */
   private async isMirinaeButtonDisabled(locator: Locator): Promise<boolean> {

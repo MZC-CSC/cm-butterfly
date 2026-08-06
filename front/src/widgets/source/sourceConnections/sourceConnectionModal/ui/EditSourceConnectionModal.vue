@@ -306,6 +306,7 @@ const handleAddSourceConnection = async () => {
           {{ i18n.t('COMPONENT.BUTTON_MODAL.CANCEL') }}
         </p-button>
         <p-button
+          data-testid="source-connection-save"
           :disabled="!isSaveEnabled"
           :loading="saveLoading"
           @click="handleAddSourceConnection"
