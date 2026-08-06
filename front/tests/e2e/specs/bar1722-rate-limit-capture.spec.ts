@@ -159,6 +159,67 @@ test('workload screens, quiet and busy @integration', async ({ page }) => {
   }
 
   /**
+   * Delete one workload while the far side is too busy to take the work behind the acceptance.
+   *
+   * This is the case the request record was extended for. The request is accepted, so nothing is
+   * refused on the way out; the refusal happens later, inside the job, and reaches the console
+   * only through the record. What the screen must not do is call that a failure of the delete —
+   * nothing was started, so the workload is still there to be deleted again.
+   *
+   * The load has to come from outside: it is built out of deletes, which is the only thing that
+   * queues deeply enough, and this run has one workload to spare rather than fifty.
+   */
+  if (process.env.BAR1722_MODE === 'async-refusal') {
+    await wl.selectMci(QUIET_TARGET);
+    await wl.openDeleteModal();
+
+    // The backlog is built *here*, not before, and taken down again straight after. Everything
+    // that reaches the far side shares one queue, so a backlog deep enough to turn the delete
+    // away also stops the list from loading — and then there is no screen to photograph. The
+    // dialog is already open by this point and needs nothing from the far side.
+    load.start();
+    await page.waitForTimeout(12_000);
+    await wl.sendDelete(QUIET_TARGET, 'normal');
+    await expect(page.getByTestId('mci-delete-progress')).toBeVisible({
+      timeout: 60_000,
+    });
+    await shot(page, '70-비동기거절-접수됨');
+    await load.end();
+    await wl.closeDeleteModal();
+
+    // The tracker is what learns the outcome, so this waits on the row rather than the dialog.
+    await expect
+      .poll(
+        async () => {
+          await wl.gotoMci().catch(() => undefined);
+          await wl.expectMciListLoaded().catch(() => undefined);
+          return page
+            .getByRole('row', { name: new RegExp(QUIET_TARGET) })
+            .first()
+            .innerText()
+            .catch(() => '');
+        },
+        { timeout: 5 * 60_000, intervals: [5_000] },
+      )
+      .toContain('Failed');
+    await shot(page, '71-비동기거절-목록-실패표시');
+
+    await page
+      .getByRole('row', { name: new RegExp(QUIET_TARGET) })
+      .first()
+      .hover();
+    await page.waitForTimeout(800);
+    await shot(page, '72-비동기거절-사유');
+
+    // The notification is where the console says what to do about it, and that sentence is the
+    // point of the whole exchange: nothing was started, so this is not a retry of half-done work.
+    await page.getByTestId('notification-badge').click();
+    await page.waitForTimeout(1_500);
+    await shot(page, '73-비동기거절-알림');
+    return;
+  }
+
+  /**
    * Delete one workload while something *outside* this run is holding the far side busy.
    *
    * The load this script makes on its own trips the request-rate limit, which answers 429 and
