@@ -1,44 +1,26 @@
-import { toErrorMessage } from '@/shared/utils';
-
 /**
  * Telling "wait and send it again" apart from a real failure, in one place.
  *
- * cb-tumblebug caps its infrastructure lookups at two a second, and cm-beetle queues what it
- * sends there. Either can turn a request away for a moment. Nothing was started when that
- * happens — the work simply was not taken — so the right response is to wait and ask again,
- * not to tell the user it failed.
+ * The infrastructure service caps its lookups, and cm-beetle spaces out what it sends there.
+ * Either can turn a request away for a moment. Nothing was started when that happens — the work
+ * simply was not taken — so the right response is to wait and ask again, not to tell the user it
+ * failed.
  *
  * **Why one place.** The judgement used to live inside the workload list screen, and all it did
  * there was pick a different sentence. As more callers need it, a copy in each of them means
- * that the day the server starts marking these refusals with a status code of its own, the
- * change is a hunt rather than an edit. It is one function so that day is one edit.
+ * that the day the server changes how it marks these, the change is a hunt rather than an edit.
  *
- * **Why the wording is read at all.** A refusal from cb-tumblebug reaches us through cm-beetle,
- * which wraps it as `API request failed with status: 429, body: {"message":"rate limit exceeded"}`
- * and answers 500 — so the status code alone says nothing. Until the subsystem marks these
- * apart, the sentence is the only signal, and it is matched on the fixed parts of it.
+ * **The status code is now enough.** It was not always: a refusal used to reach us wrapped in an
+ * ordinary 500 that carried the original status only in its text, so the sentence was the one
+ * signal there was and this file matched on it. cm-beetle now answers every one of them with a
+ * status of its own, so that matching is gone — nothing here depends on the wording of someone
+ * else's message any more.
  */
 
-/**
- * Wordings that mean "not taken this time".
- *
- * Only one source produces these: cm-beetle spacing its own calls out cannot prevent every
- * refusal — it may not be the only client behind its address — and when its own retries are
- * spent, what it passes on is an ordinary 500 carrying the original status in the text. The
- * console also reaches the infrastructure service directly on some screens, and that path is
- * outside the spacing entirely.
- *
- * These go the day a refusal that got through arrives with a status of its own.
- */
-const REFUSAL_MARKERS = [
-  'status: 429', // the fixed format cm-beetle wraps the underlying refusal in
-  'rate limit', // the body of that refusal
-] as const;
-
-/** Statuses that mean the same thing on their own. */
+/** Statuses that mean the request was not taken this time. */
 const REFUSAL_STATUSES = [
   429, // too many requests — the per-address cap, and the SSH check's own cooldown
-  503, // at capacity for now — the call spacer's wait budget, or the async job pool
+  503, // at capacity for now — the call spacing's wait limit, or the async job pool
 ];
 
 /** Used when the server did not say how long to wait. */
@@ -65,10 +47,7 @@ export function httpStatusOf(e: any): number | undefined {
 /** Whether the request was turned away for the moment rather than refused outright. */
 export function isRefusedForNow(e: any): boolean {
   const status = httpStatusOf(e);
-  if (status !== undefined && REFUSAL_STATUSES.includes(status)) return true;
-
-  const message = toErrorMessage(e, '').toLowerCase();
-  return REFUSAL_MARKERS.some(marker => message.includes(marker));
+  return status !== undefined && REFUSAL_STATUSES.includes(status);
 }
 
 /**

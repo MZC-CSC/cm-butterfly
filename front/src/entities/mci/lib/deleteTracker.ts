@@ -278,16 +278,46 @@ async function notifyDone(rec: DeleteRecord): Promise<void> {
   });
 }
 
-async function notifyFailed(rec: DeleteRecord, reason?: string): Promise<void> {
+/**
+ * What the server says about a finished request, as one sentence.
+ *
+ * Two fields carry it, and they are not the same thing. `retryReason` is the cause in a few
+ * words — short enough to head a message — while `errorResponse` is the sentence describing
+ * what happened. Read together they say "this, because of that"; read alone, either is thinner
+ * than it needs to be.
+ */
+function reasonFromDetails(details: any): string | undefined {
+  const cause = details?.retry?.retryReason || '';
+  const detail = details?.errorResponse || '';
+  if (cause && detail) return `${cause}: ${detail}`;
+  return cause || detail || undefined;
+}
+
+async function notifyFailed(
+  rec: DeleteRecord,
+  reason?: string,
+  retry?: { retryable?: boolean; retryAfter?: number },
+): Promise<void> {
   // Carry the reason in the notification. The status cell is narrow and shows only the
   // start of it, and this notification is often where the failure is first noticed. When no
   // reason came back, say where one can be obtained instead.
+  //
+  // When the server says the request can simply be sent again, say that instead of leaving the
+  // user to guess from the wording. Nothing was started in that case, so deleting again is not
+  // a second attempt at a half-done job — it is the first one.
+  const wait = retry?.retryAfter;
+  const again = retry?.retryable
+    ? wait
+      ? `\n\nNothing was started. It can be deleted again in about ${wait} seconds.`
+      : '\n\nNothing was started. It can simply be deleted again.'
+    : '\n\nDeleting it again shows the same reason before it starts.';
+
   await notify({
     category: 'Workload',
     level: 'Error',
     message: `Failed to delete infra "${rec.infraId}".`,
     detail: reason
-      ? `${reason}\n\nDeleting it again shows the same reason before it starts.`
+      ? `${reason}${again}`
       : 'No reason was returned. Deleting it again shows the reason before it starts.',
     dedupKey: `delete:${rec.reqId}:error`,
   });
@@ -353,9 +383,8 @@ async function checkOne(rec: DeleteRecord): Promise<void> {
       // nothing left to show it against.
       await clearDeleteRecord(rec.uid);
     } else if (status === 'error') {
-      const reason = details?.errorResponse || undefined;
-      await markStatus(rec.uid, 'Error', reason);
-      await notifyFailed(rec, reason);
+      await markStatus(rec.uid, 'Error', reasonFromDetails(details));
+      await notifyFailed(rec, reasonFromDetails(details), details?.retry);
     }
     // Still Handling: leave it and look again on the next pass.
   } catch (e) {
