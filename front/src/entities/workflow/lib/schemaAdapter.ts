@@ -93,6 +93,11 @@ export function normalizeTaskComponentInPlace(tc: any): any {
     body_params: spec.body_params_schema ?? undefined,
     path_params: { properties: spec.path_params_schema ?? null },
     query_params: { properties: spec.query_params_schema ?? null },
+    // Response body schema of the successful call, published by cm-cicada from
+    // the target Swagger. It tells the editor what a downstream task can pull
+    // out of this task's result. Absent for hand-made components and for APIs
+    // whose success response has no body (204).
+    response_params: spec.response_schema ?? undefined,
   };
   return tc;
 }

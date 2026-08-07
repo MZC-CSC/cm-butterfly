@@ -34,3 +34,122 @@ export function isReferenceRequestBody(requestBodyString: unknown): boolean {
     return true; // cannot parse → treated as a runtime reference
   }
 }
+
+/**
+ * A single field bound to a previous task's output.
+ *
+ * `task` is the upstream task name, `path` the JSONPath fragment written after
+ * it. cm-cicada prefixes a fragment that does not start with `$` with `$.`, so
+ * `A.targetInfra` and `A.$.targetInfra` mean the same thing; we keep whatever
+ * was written and let the engine normalize.
+ */
+export interface IFieldBinding {
+  task: string;
+  path: string;
+}
+
+/** Matches a value that is *entirely* one `${<task>.<jsonpath>}` reference. */
+const WHOLE_VALUE_BINDING = /^\$\{([^}]+)\}$/;
+
+/**
+ * Reads one field value and reports the binding it carries, or null.
+ *
+ * Only a value that is entirely a single reference counts. A value that mixes a
+ * reference with other text (`"prefix-${A.$.id}"`) is left alone: the engine
+ * substitutes it fine, but the editor cannot render it as a chip without losing
+ * the surrounding text, so it stays literal text.
+ */
+export function parseFieldBinding(value: unknown): IFieldBinding | null {
+  if (typeof value !== 'string') return null;
+  const match = WHOLE_VALUE_BINDING.exec(value.trim());
+  if (!match) return null;
+  const ref = match[1].trim();
+  // cm-cicada splits the reference at the FIRST dot, so a task name containing
+  // a dot cannot be referenced at all. Mirror that split here.
+  const dot = ref.indexOf('.');
+  if (dot <= 0) return null;
+  const task = ref.slice(0, dot);
+  const path = ref.slice(dot + 1);
+  if (!task || !path) return null;
+  return { task, path };
+}
+
+/** Builds the stored value for a binding. Inverse of `parseFieldBinding`. */
+export function buildFieldBinding(binding: IFieldBinding): string {
+  return `\${${binding.task}.${binding.path}}`;
+}
+
+/**
+ * Walks a parsed request body and collects every field that is bound to a
+ * previous task's output, keyed by dotted field path (`targetInfra.vNetId`,
+ * `targetInfra.nodeGroups[0].specId`).
+ *
+ * The editor needs this because `isReferenceRequestBody` cannot see these:
+ * a body carrying `${...}` is still valid JSON, so it is classified as a
+ * literal and the references render as plain text a user can silently break.
+ */
+export function extractFieldBindings(
+  body: unknown,
+  basePath = '',
+): Map<string, IFieldBinding> {
+  const found = new Map<string, IFieldBinding>();
+
+  const walk = (node: unknown, path: string): void => {
+    if (Array.isArray(node)) {
+      node.forEach((item, index) => walk(item, `${path}[${index}]`));
+      return;
+    }
+    if (node && typeof node === 'object') {
+      Object.entries(node as Record<string, unknown>).forEach(
+        ([key, value]) => {
+          walk(value, path ? `${path}.${key}` : key);
+        },
+      );
+      return;
+    }
+    const binding = parseFieldBinding(node);
+    if (binding && path) found.set(path, binding);
+  };
+
+  walk(body, basePath);
+  return found;
+}
+
+/**
+ * Every upstream task referenced by a request body, whichever form it takes:
+ * a whole-body reference (`"A"` / `"A.$.x"`) or field bindings (`${A.$.x}`).
+ *
+ * Used to keep `dependencies` in step with what the body actually reads — the
+ * engine only checks that a referenced task exists somewhere in the workflow,
+ * so a missing edge is not caught until the run fails on a missing XCom.
+ */
+export function referencedTaskNames(
+  requestBodyString: string,
+  isKnownTask: (name: string) => boolean,
+): string[] {
+  const names = new Set<string>();
+  const trimmed = (requestBodyString ?? '').trim();
+  if (!trimmed) return [];
+
+  if (isReferenceRequestBody(trimmed)) {
+    // Whole-body reference: the task name is the string, or its head up to the
+    // first dot. Try the full string first — a task name may look like a path.
+    if (isKnownTask(trimmed)) {
+      names.add(trimmed);
+    } else {
+      const dot = trimmed.indexOf('.');
+      const head = dot > 0 ? trimmed.slice(0, dot) : '';
+      if (head && isKnownTask(head)) names.add(head);
+    }
+    return [...names];
+  }
+
+  try {
+    extractFieldBindings(JSON.parse(trimmed)).forEach(({ task }) => {
+      if (isKnownTask(task)) names.add(task);
+    });
+  } catch {
+    // not JSON and not a reference — nothing to read
+  }
+  return [...names];
+}
