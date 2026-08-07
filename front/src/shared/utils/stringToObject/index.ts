@@ -43,25 +43,25 @@ export function isReferenceRequestBody(requestBodyString: unknown): boolean {
  * `A.targetInfra` and `A.$.targetInfra` mean the same thing; we keep whatever
  * was written and let the engine normalize.
  */
-export interface IFieldBinding {
+export interface IFieldReference {
   task: string;
   path: string;
 }
 
 /** Matches a value that is *entirely* one `${<task>.<jsonpath>}` reference. */
-const WHOLE_VALUE_BINDING = /^\$\{([^}]+)\}$/;
+const WHOLE_VALUE_REFERENCE = /^\$\{([^}]+)\}$/;
 
 /**
- * Reads one field value and reports the binding it carries, or null.
+ * Reads one field value and reports the reference it carries, or null.
  *
  * Only a value that is entirely a single reference counts. A value that mixes a
  * reference with other text (`"prefix-${A.$.id}"`) is left alone: the engine
  * substitutes it fine, but the editor cannot render it as a chip without losing
  * the surrounding text, so it stays literal text.
  */
-export function parseFieldBinding(value: unknown): IFieldBinding | null {
+export function parseFieldReference(value: unknown): IFieldReference | null {
   if (typeof value !== 'string') return null;
-  const match = WHOLE_VALUE_BINDING.exec(value.trim());
+  const match = WHOLE_VALUE_REFERENCE.exec(value.trim());
   if (!match) return null;
   const ref = match[1].trim();
   // cm-cicada splits the reference at the FIRST dot, so a task name containing
@@ -74,9 +74,9 @@ export function parseFieldBinding(value: unknown): IFieldBinding | null {
   return { task, path };
 }
 
-/** Builds the stored value for a binding. Inverse of `parseFieldBinding`. */
-export function buildFieldBinding(binding: IFieldBinding): string {
-  return `\${${binding.task}.${binding.path}}`;
+/** Builds the stored value for a reference. Inverse of `parseFieldReference`. */
+export function buildFieldReference(reference: IFieldReference): string {
+  return `\${${reference.task}.${reference.path}}`;
 }
 
 /**
@@ -88,11 +88,11 @@ export function buildFieldBinding(binding: IFieldBinding): string {
  * a body carrying `${...}` is still valid JSON, so it is classified as a
  * literal and the references render as plain text a user can silently break.
  */
-export function extractFieldBindings(
+export function extractFieldReferences(
   body: unknown,
   basePath = '',
-): Map<string, IFieldBinding> {
-  const found = new Map<string, IFieldBinding>();
+): Map<string, IFieldReference> {
+  const found = new Map<string, IFieldReference>();
 
   const walk = (node: unknown, path: string): void => {
     if (Array.isArray(node)) {
@@ -107,8 +107,8 @@ export function extractFieldBindings(
       );
       return;
     }
-    const binding = parseFieldBinding(node);
-    if (binding && path) found.set(path, binding);
+    const reference = parseFieldReference(node);
+    if (reference && path) found.set(path, reference);
   };
 
   walk(body, basePath);
@@ -117,7 +117,7 @@ export function extractFieldBindings(
 
 /**
  * Every upstream task referenced by a request body, whichever form it takes:
- * a whole-body reference (`"A"` / `"A.$.x"`) or field bindings (`${A.$.x}`).
+ * a whole-body reference (`"A"` / `"A.$.x"`) or field references (`${A.$.x}`).
  *
  * Used to keep `dependencies` in step with what the body actually reads — the
  * engine only checks that a referenced task exists somewhere in the workflow,
@@ -145,7 +145,7 @@ export function referencedTaskNames(
   }
 
   try {
-    extractFieldBindings(JSON.parse(trimmed)).forEach(({ task }) => {
+    extractFieldReferences(JSON.parse(trimmed)).forEach(({ task }) => {
       if (isKnownTask(task)) names.add(task);
     });
   } catch {

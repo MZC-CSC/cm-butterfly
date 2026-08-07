@@ -10,7 +10,7 @@
 import type {
   IOutputSource,
   TypeVerdict,
-} from '../composables/useValueBinding';
+} from '../composables/useTaskReference';
 
 const props = defineProps<{
   /** Field this value is going into. Empty string means the whole body. */
@@ -39,11 +39,11 @@ const title = (): string =>
 </script>
 
 <template>
-  <div class="vb-pop" data-testid="wf-binding-popover">
-    <div class="vb-head">{{ title() }}</div>
+  <div class="rp-pop" data-testid="wf-ref-popover">
+    <div class="rp-head">{{ title() }}</div>
 
-    <label class="vb-search">
-      <svg viewBox="0 0 16 16" class="vb-mag" aria-hidden="true">
+    <label class="rp-search">
+      <svg viewBox="0 0 16 16" class="rp-mag" aria-hidden="true">
         <circle
           cx="7"
           cy="7"
@@ -60,7 +60,7 @@ const title = (): string =>
         />
       </svg>
       <input
-        data-testid="wf-binding-search"
+        data-testid="wf-ref-search"
         :value="search"
         placeholder="이름으로 찾기"
         @input="
@@ -69,19 +69,19 @@ const title = (): string =>
       />
     </label>
 
-    <div class="vb-tree">
+    <div class="rp-tree">
       <div
         v-for="(source, index) in sources"
         :key="source.task"
-        class="vb-source"
+        class="rp-source"
       >
-        <div class="vb-group">
-          <span class="vb-ord">{{ index + 1 }}</span>
-          <span class="vb-task">{{ source.task }}</span>
-          <span class="vb-anc">앞선 태스크</span>
+        <div class="rp-group">
+          <span class="rp-ord">{{ index + 1 }}</span>
+          <span class="rp-task">{{ source.task }}</span>
+          <span class="rp-anc">앞선 태스크</span>
         </div>
 
-        <p v-if="!source.hasSchema" class="vb-empty">
+        <p v-if="!source.hasSchema" class="rp-empty">
           이 태스크는 결과 정보를 알려 주지 않습니다. 아래에서 경로를 직접 적어
           주세요.
         </p>
@@ -91,61 +91,61 @@ const title = (): string =>
           v-else
           :key="`${source.task}:${node.path}`"
           type="button"
-          class="vb-node"
+          class="rp-node"
           :class="{
             on: selectedTask === source.task && selectedPath === node.path,
           }"
           :style="{ paddingLeft: `${10 + node.depth * 13}px` }"
-          :data-testid="`wf-binding-node-${source.task}-${node.path}`"
+          :data-testid="`wf-ref-node-${source.task}-${node.path}`"
           :title="node.description || node.path"
           @click="emit('pick', source.task, node.path)"
         >
-          <span class="vb-name">{{ node.label }}</span>
-          <span class="vb-type">{{ node.type }}</span>
-          <span class="vb-ex">{{ node.example ?? '' }}</span>
+          <span class="rp-name">{{ node.label }}</span>
+          <span class="rp-type">{{ node.type }}</span>
+          <span class="rp-ex">{{ node.example ?? '' }}</span>
         </button>
       </div>
 
-      <p v-if="!sources.length" class="vb-empty">앞선 태스크가 없습니다.</p>
+      <p v-if="!sources.length" class="rp-empty">앞선 태스크가 없습니다.</p>
     </div>
 
-    <div class="vb-foot">
-      <div class="vb-kv">
-        <span class="vb-k">저장될 값</span>
-        <span class="vb-v strong" data-testid="wf-binding-preview">{{
+    <div class="rp-foot">
+      <div class="rp-kv">
+        <span class="rp-k">저장될 값</span>
+        <span class="rp-v strong" data-testid="wf-ref-preview">{{
           preview || '값을 고르세요'
         }}</span>
       </div>
-      <div class="vb-kv">
-        <span class="vb-k">형식</span>
-        <span class="vb-v" data-testid="wf-binding-typecheck">
+      <div class="rp-kv">
+        <span class="rp-k">형식</span>
+        <span class="rp-v" data-testid="wf-ref-typecheck">
           {{ selectedType || '—' }} → {{ targetType || '—' }}
-          <span v-if="typeVerdict === 'match'" class="vb-pill ok">맞음</span>
-          <span v-else-if="typeVerdict === 'mismatch'" class="vb-pill warn"
+          <span v-if="typeVerdict === 'match'" class="rp-pill ok">맞음</span>
+          <span v-else-if="typeVerdict === 'mismatch'" class="rp-pill warn"
             >안 맞음</span
           >
-          <span v-else class="vb-pill">확인 못 함</span>
+          <span v-else class="rp-pill">확인 못 함</span>
         </span>
       </div>
 
-      <p v-if="typeVerdict === 'mismatch'" class="vb-warn">
+      <p v-if="typeVerdict === 'mismatch'" class="rp-warn">
         덩어리를 글자 칸에 넣으면 모양이 깨질 수 있습니다. 그대로 넣으려면
         넣기를 누르세요.
       </p>
-      <p v-if="selectedMultiple" class="vb-warn">
+      <p v-if="selectedMultiple" class="rp-warn">
         여러 건이 잡히면 목록으로 들어옵니다.
       </p>
 
-      <details class="vb-manual">
+      <details class="rp-manual">
         <summary>경로 직접 입력</summary>
-        <p class="vb-manual-help">
+        <p class="rp-manual-help">
           트리로 표현되지 않는 값은 여기에 적습니다. 고른 것과 같은 모양으로
           저장됩니다.
         </p>
-        <div class="vb-manual-row">
+        <div class="rp-manual-row">
           <input
-            data-testid="wf-binding-manual-task"
-            class="vb-manual-task"
+            data-testid="wf-ref-manual-task"
+            class="rp-manual-task"
             placeholder="태스크 이름"
             :value="selectedTask"
             @input="
@@ -157,8 +157,8 @@ const title = (): string =>
             "
           />
           <input
-            data-testid="wf-binding-path-input"
-            class="vb-manual-path"
+            data-testid="wf-ref-path-input"
+            class="rp-manual-path"
             placeholder="$.result.id"
             :value="selectedPath"
             @input="
@@ -173,19 +173,19 @@ const title = (): string =>
       </details>
     </div>
 
-    <div class="vb-btns">
+    <div class="rp-btns">
       <button
         type="button"
-        class="vb-btn"
-        data-testid="wf-binding-cancel"
+        class="rp-btn"
+        data-testid="wf-ref-cancel"
         @click="emit('cancel')"
       >
         취소
       </button>
       <button
         type="button"
-        class="vb-btn primary"
-        data-testid="wf-binding-apply"
+        class="rp-btn primary"
+        data-testid="wf-ref-apply"
         :disabled="!preview"
         @click="emit('apply')"
       >
@@ -196,7 +196,7 @@ const title = (): string =>
 </template>
 
 <style scoped>
-.vb-pop {
+.rp-pop {
   width: 340px;
   max-width: 100%;
   background: #fff;
@@ -207,14 +207,14 @@ const title = (): string =>
   display: flex;
   flex-direction: column;
 }
-.vb-head {
+.rp-head {
   padding: 9px 11px;
   border-bottom: 1px solid #ebeef3;
   font-size: 12px;
   font-weight: 650;
   color: #141821;
 }
-.vb-search {
+.rp-search {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -223,13 +223,13 @@ const title = (): string =>
   border: 1px solid #dfe3ea;
   border-radius: 6px;
 }
-.vb-mag {
+.rp-mag {
   width: 12px;
   height: 12px;
   color: #98a2b3;
   flex: none;
 }
-.vb-search input {
+.rp-search input {
   border: 0;
   outline: 0;
   flex: 1;
@@ -237,15 +237,15 @@ const title = (): string =>
   font-size: 12px;
   color: #141821;
 }
-.vb-tree {
+.rp-tree {
   max-height: 230px;
   overflow: auto;
   padding: 0 4px 6px;
 }
-.vb-source {
+.rp-source {
   display: contents;
 }
-.vb-group {
+.rp-group {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -255,26 +255,26 @@ const title = (): string =>
   color: #3d4655;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
-.vb-ord {
+.rp-ord {
   background: #f1f3f7;
   border-radius: 3px;
   padding: 0 4px;
   font-size: 9.5px;
   color: #6b7688;
 }
-.vb-task {
+.rp-task {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.vb-anc {
+.rp-anc {
   margin-left: auto;
   font-family: inherit;
   font-size: 9.5px;
   color: #98a2b3;
   flex: none;
 }
-.vb-node {
+.rp-node {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 48px minmax(0, 76px);
   gap: 6px;
@@ -288,29 +288,29 @@ const title = (): string =>
   font-size: 11.5px;
   cursor: pointer;
 }
-.vb-node:hover {
+.rp-node:hover {
   background: #f5f6fa;
 }
-.vb-node.on {
+.rp-node.on {
   background: #eeeefc;
 }
-.vb-node.on .vb-name {
+.rp-node.on .rp-name {
   color: #4b4ddb;
   font-weight: 650;
 }
-.vb-node:focus-visible {
+.rp-node:focus-visible {
   outline: 2px solid #4b4ddb;
   outline-offset: -2px;
 }
-.vb-name {
+.rp-name {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color: #3d4655;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.vb-type,
-.vb-ex {
+.rp-type,
+.rp-ex {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 10px;
   color: #98a2b3;
@@ -318,10 +318,10 @@ const title = (): string =>
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.vb-ex {
+.rp-ex {
   color: #6b7688;
 }
-.vb-empty {
+.rp-empty {
   margin: 4px 8px 8px;
   padding: 8px 9px;
   background: #f1f3f7;
@@ -330,35 +330,35 @@ const title = (): string =>
   color: #6b7688;
   line-height: 1.5;
 }
-.vb-foot {
+.rp-foot {
   border-top: 1px solid #ebeef3;
   padding: 9px 11px;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.vb-kv {
+.rp-kv {
   display: flex;
   gap: 8px;
   align-items: baseline;
   font-size: 11px;
 }
-.vb-k {
+.rp-k {
   color: #6b7688;
   flex: none;
   width: 60px;
 }
-.vb-v {
+.rp-v {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color: #3d4655;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.vb-v.strong {
+.rp-v.strong {
   color: #4b4ddb;
 }
-.vb-pill {
+.rp-pill {
   font-size: 10.5px;
   padding: 1px 6px;
   border-radius: 4px;
@@ -367,37 +367,37 @@ const title = (): string =>
   color: #6b7688;
   font-family: inherit;
 }
-.vb-pill.ok {
+.rp-pill.ok {
   background: #e7f4ed;
   color: #1b7a4b;
 }
-.vb-pill.warn {
+.rp-pill.warn {
   background: #fbf0de;
   color: #9a5b08;
 }
-.vb-warn {
+.rp-warn {
   margin: 0;
   font-size: 11px;
   color: #9a5b08;
   line-height: 1.5;
 }
-.vb-manual > summary {
+.rp-manual > summary {
   font-size: 11.5px;
   color: #6b7688;
   cursor: pointer;
 }
-.vb-manual-help {
+.rp-manual-help {
   margin: 6px 0 5px;
   font-size: 11px;
   color: #98a2b3;
   line-height: 1.5;
 }
-.vb-manual-row {
+.rp-manual-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
   gap: 6px;
 }
-.vb-manual-row input {
+.rp-manual-row input {
   border: 1px solid #dfe3ea;
   border-radius: 5px;
   padding: 4px 7px;
@@ -405,13 +405,13 @@ const title = (): string =>
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   min-width: 0;
 }
-.vb-btns {
+.rp-btns {
   display: flex;
   gap: 7px;
   justify-content: flex-end;
   padding: 0 11px 10px;
 }
-.vb-btn {
+.rp-btn {
   font-size: 11.5px;
   padding: 5px 12px;
   border-radius: 6px;
@@ -420,17 +420,17 @@ const title = (): string =>
   color: #3d4655;
   cursor: pointer;
 }
-.vb-btn.primary {
+.rp-btn.primary {
   background: #4b4ddb;
   border-color: #4b4ddb;
   color: #fff;
   font-weight: 600;
 }
-.vb-btn:disabled {
+.rp-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.vb-btn:focus-visible {
+.rp-btn:focus-visible {
   outline: 2px solid #4b4ddb;
   outline-offset: 1px;
 }

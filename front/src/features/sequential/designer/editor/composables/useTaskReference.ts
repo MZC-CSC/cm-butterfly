@@ -1,5 +1,5 @@
 /**
- * Value binding — picking a value out of a previous task's result.
+ * Value reference — picking a value out of a previous task's result.
  *
  * cm-cicada decides how to build a task's request body from the *shape* of its
  * `request_body` string: a bare task name sends that task's whole response, a
@@ -22,8 +22,8 @@ import { computed, ref } from 'vue';
 import type { ITaskGroupResponse } from '@/entities/workflow/model/types';
 import { orderedAncestorsOf } from '@/entities/workflow/lib/designerTopology';
 import {
-  buildFieldBinding,
-  type IFieldBinding,
+  buildFieldReference,
+  type IFieldReference,
 } from '@/shared/utils/stringToObject';
 import taskSchemaStore from '../store/taskSchemaStore';
 
@@ -139,7 +139,7 @@ export function compareTypes(
   return 'mismatch';
 }
 
-export function useValueBinding(
+export function useTaskReference(
   taskGroups: () => Array<ITaskGroupResponse> | undefined,
   currentTaskName: () => string,
 ) {
@@ -215,7 +215,7 @@ export function useValueBinding(
 
   const preview = computed(() =>
     selectedTask.value && selectedPath.value
-      ? buildFieldBinding({
+      ? buildFieldReference({
           task: selectedTask.value,
           path: selectedPath.value,
         })
@@ -263,7 +263,7 @@ export function useValueBinding(
     selectedPath.value = path;
   };
 
-  const result = (): IFieldBinding | null =>
+  const result = (): IFieldReference | null =>
     selectedTask.value && selectedPath.value
       ? { task: selectedTask.value, path: selectedPath.value }
       : null;

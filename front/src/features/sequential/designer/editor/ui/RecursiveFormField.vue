@@ -9,20 +9,20 @@
       >
         {{ fieldName }}<span v-if="isRequired" class="required-mark">*</span>
       </label>
-      <!-- Bound to a previous task: rendered as a token, not editable text. A
+      <!-- Filled from a previous task: rendered as a reference, not editable text. A
            `${task.path}` reference is ordinary JSON text, so left in an input a user
            edits it by accident and it breaks with nothing to say so. -->
-      <BindingToken
-        v-if="binding"
-        :task="binding.task"
-        :path="binding.path"
-        :field="bindingKey"
-        :multiple="binding.multiple"
-        @edit="$emit('bind', bindingKey, fieldSchema.type)"
-        @clear="$emit('unbind', bindingKey)"
+      <TaskReferenceValue
+        v-if="reference"
+        :task="reference.task"
+        :path="reference.path"
+        :field="referenceKey"
+        :multiple="reference.multiple"
+        @edit="$emit('reference', referenceKey, fieldSchema.type)"
+        @clear="$emit('reference-clear', referenceKey)"
       />
       <textarea
-        v-if="!binding && fieldSchema.type === 'string' && shouldUseTextarea"
+        v-if="!reference && fieldSchema.type === 'string' && shouldUseTextarea"
         :data-testid="fieldTestId"
         :value="fieldValue || ''"
         :class="['field-textarea', { 'field-invalid': isInvalid }]"
@@ -31,7 +31,7 @@
         @input="handleInput($event)"
       />
       <input
-        v-else-if="!binding && fieldSchema.type === 'string'"
+        v-else-if="!reference && fieldSchema.type === 'string'"
         :data-testid="fieldTestId"
         type="text"
         :value="fieldValue || ''"
@@ -41,7 +41,7 @@
       />
       <input
         v-else-if="
-          !binding &&
+          !reference &&
           (fieldSchema.type === 'number' || fieldSchema.type === 'integer')
         "
         :data-testid="fieldTestId"
@@ -52,7 +52,7 @@
         @input="handleInput($event)"
       />
       <input
-        v-else-if="!binding && fieldSchema.type === 'boolean'"
+        v-else-if="!reference && fieldSchema.type === 'boolean'"
         :data-testid="fieldTestId"
         type="checkbox"
         :checked="!!fieldValue"
@@ -62,17 +62,17 @@
       <!-- Pull a value out of a previous task. Dragging it onto the canvas lights up
            the tasks that may be picked; clicking opens the same picker. -->
       <button
-        v-if="!binding && canBind"
+        v-if="!reference && canBind"
         type="button"
-        class="btn-bind"
+        class="btn-ref-add"
         draggable="true"
-        :data-testid="`wf-field-bind-${bindingKey}`"
+        :data-testid="`wf-field-ref-add-${referenceKey}`"
         title="앞선 태스크에서 값 가져오기"
-        @click="$emit('bind', bindingKey, fieldSchema.type)"
-        @dragstart="$emit('bind-drag-start', bindingKey, fieldSchema.type)"
-        @dragend="$emit('bind-drag-end')"
+        @click="$emit('reference', referenceKey, fieldSchema.type)"
+        @dragstart="$emit('ref-drag-start', referenceKey, fieldSchema.type)"
+        @dragend="$emit('ref-drag-end')"
       >
-        <svg viewBox="0 0 16 16" class="bind-icon" aria-hidden="true">
+        <svg viewBox="0 0 16 16" class="ref-add-icon" aria-hidden="true">
           <circle
             cx="8"
             cy="8"
@@ -92,7 +92,7 @@
       <p
         v-if="isInvalid"
         class="field-invalid-note"
-        :data-testid="`wf-field-invalid-${bindingKey}`"
+        :data-testid="`wf-field-ref-invalid-${referenceKey}`"
       >
         이 값은 앞서 실행되지 않는 태스크를 가리키고 있어 실행할 때 실패합니다.
       </p>
@@ -192,17 +192,17 @@
                 :task-name="taskName"
                 :current-path="`${currentPath}[]`"
                 :index-path="childIndexPath(String(propName), index)"
-                :bindings="bindings"
+                :references="references"
                 :invalid-paths="invalidPaths"
                 :can-bind="canBind"
                 :depth="depth + 1"
                 @update="
                   updateObjectArrayItemProperty(index, String(propName), $event)
                 "
-                @bind="(k, t) => $emit('bind', k, t)"
-                @unbind="k => $emit('unbind', k)"
-                @bind-drag-start="(k, t) => $emit('bind-drag-start', k, t)"
-                @bind-drag-end="$emit('bind-drag-end')"
+                @reference="(k, t) => $emit('reference', k, t)"
+                @reference-clear="k => $emit('reference-clear', k)"
+                @ref-drag-start="(k, t) => $emit('ref-drag-start', k, t)"
+                @ref-drag-end="$emit('ref-drag-end')"
               />
             </div>
             <div v-else class="item-collapsed-indicator">
@@ -266,15 +266,15 @@
           :task-name="taskName"
           :current-path="computedChildPath(propName)"
           :index-path="childIndexPath(String(propName))"
-          :bindings="bindings"
+          :references="references"
           :invalid-paths="invalidPaths"
           :can-bind="canBind"
           :depth="depth + 1"
           @update="updateObjectProperty(String(propName), $event)"
-          @bind="(k, t) => $emit('bind', k, t)"
-          @unbind="k => $emit('unbind', k)"
-          @bind-drag-start="(k, t) => $emit('bind-drag-start', k, t)"
-          @bind-drag-end="$emit('bind-drag-end')"
+          @reference="(k, t) => $emit('reference', k, t)"
+          @reference-clear="k => $emit('reference-clear', k)"
+          @ref-drag-start="(k, t) => $emit('ref-drag-start', k, t)"
+          @ref-drag-end="$emit('ref-drag-end')"
         />
       </div>
       <div v-else class="collapsed-indicator">
@@ -293,11 +293,11 @@ import {
   getPropertyOrder,
   sortPropertiesByOrder,
 } from '../config/taskPropertyOrderConfig';
-import BindingToken from './BindingToken.vue';
+import TaskReferenceValue from './TaskReferenceValue.vue';
 
 export default defineComponent({
   name: 'RecursiveFormField',
-  components: { BindingToken },
+  components: { TaskReferenceValue },
   props: {
     fieldName: {
       type: String,
@@ -342,8 +342,8 @@ export default defineComponent({
       default: '',
     },
     // Fields bound to a previous task's output, keyed by the same path the test ids
-    // use. Threaded down the recursion so any depth can render a token.
-    bindings: {
+    // use. Threaded down the recursion so any depth can render a reference.
+    references: {
       type: Object,
       default: () => ({}),
     },
@@ -358,7 +358,13 @@ export default defineComponent({
       default: false,
     },
   },
-  emits: ['update', 'bind', 'unbind', 'bind-drag-start', 'bind-drag-end'],
+  emits: [
+    'update',
+    'reference',
+    'reference-clear',
+    'ref-drag-start',
+    'ref-drag-end',
+  ],
   setup(props, { emit }) {
     // Every leaf input gets a stable id built from its path in the schema, e.g.
     // `wf-field-body_params.targetInfra.name`. The label text is the only other thing that identifies
@@ -369,19 +375,20 @@ export default defineComponent({
         `wf-field-${props.indexPath || props.currentPath || props.fieldName}`,
     );
 
-    /** Key this field is known by in the binding map — the same path the test ids use. */
-    const bindingKey = computed(
+    /** Key this field is known by in the reference map — the same path the test ids use. */
+    const referenceKey = computed(
       () => props.indexPath || props.currentPath || props.fieldName,
     );
 
-    /** The binding on this field, if any. */
-    const binding = computed(
-      () => (props.bindings as Record<string, any>)[bindingKey.value] || null,
+    /** The reference on this field, if any. */
+    const reference = computed(
+      () =>
+        (props.references as Record<string, any>)[referenceKey.value] || null,
     );
 
     /** True when this field references a task that does not run before this one. */
     const isInvalid = computed(() =>
-      (props.invalidPaths as string[]).includes(bindingKey.value),
+      (props.invalidPaths as string[]).includes(referenceKey.value),
     );
 
     /** Child path for the test id, keeping the array index so siblings do not collide. */
@@ -781,8 +788,8 @@ export default defineComponent({
 
     return {
       fieldTestId,
-      bindingKey,
-      binding,
+      referenceKey,
+      reference,
       isInvalid,
       childIndexPath,
       arrayItemTestId,
@@ -1237,8 +1244,8 @@ export default defineComponent({
   padding: 0.375rem 0.5rem;
 }
 
-/* --- value binding --- */
-.btn-bind {
+/* --- value reference --- */
+.btn-ref-add {
   flex: none;
   border: 1px solid #c6c7f5;
   background: #eeeefc;
@@ -1248,17 +1255,17 @@ export default defineComponent({
   cursor: grab;
   line-height: 0;
 }
-.btn-bind:hover {
+.btn-ref-add:hover {
   background: #e2e2fa;
 }
-.btn-bind:active {
+.btn-ref-add:active {
   cursor: grabbing;
 }
-.btn-bind:focus-visible {
+.btn-ref-add:focus-visible {
   outline: 2px solid #4b4ddb;
   outline-offset: 1px;
 }
-.bind-icon {
+.ref-add-icon {
   width: 13px;
   height: 13px;
 }
