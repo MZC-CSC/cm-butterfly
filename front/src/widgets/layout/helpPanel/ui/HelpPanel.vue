@@ -13,6 +13,16 @@ import { computed, ref, watch, onBeforeUnmount, getCurrentInstance } from 'vue';
 import { useRoute } from 'vue-router/composables';
 import { DOC_LINKS, openDocLink } from '@/shared/constants/docLinks';
 import { isJsonEditorOpen } from '@/shared/ui/EnhancedJsonEditor/editorPresence';
+import { helpPanelOpenRequests } from '@/widgets/layout/helpPanel/model/helpPanelPresence';
+import {
+  evaluateProgress,
+  currentGuidedStep,
+  progressKnown,
+  isFinished,
+  guidanceOff,
+} from '@/features/guidedSetup';
+import { MENU_ID } from '@/entities';
+import { GUIDED_STEPS } from '@/features/guidedSetup';
 
 type Section = {
   heading: string;
@@ -898,6 +908,42 @@ function close() {
   applyDock();
 }
 
+/* Opened from elsewhere - the guide screen offers "Show help" so the reader does not
+   have to find the icon. Already open stays open rather than toggling shut. */
+watch(helpPanelOpenRequests, () => {
+  open.value = true;
+  applyDock();
+});
+
+/*
+  Where you are in the migration, said at the top of the help wherever you open it.
+
+  The guide screen knows this, but only while you are on it - once you leave to do the
+  step, nothing follows you and the thread is dropped. The help is the one thing reachable
+  from every screen, so it is where the thread can be picked up again.
+
+  Worked out when the help is first opened, not on every screen change: it is the same
+  answer either way, and the reader has just asked for an explanation, so a moment's work
+  is what they came for.
+*/
+watch(open, async (isOpen) => {
+  if (isOpen && !progressKnown.value) {
+    await evaluateProgress().catch(() => undefined);
+  }
+});
+
+const guidedLine = computed(() => {
+  if (guidanceOff.value || !progressKnown.value || isFinished.value) return null;
+  const step = currentGuidedStep.value;
+  if (!step) return null;
+  return { no: step.no, total: GUIDED_STEPS.length, title: step.title };
+});
+
+function openGuide() {
+  const router = (getCurrentInstance()!.proxy as any).$router;
+  router?.push({ name: MENU_ID.MIGRATION_GUIDE }).catch(() => undefined);
+}
+
 /* Drag the left edge to resize. The pointer is tracked on the document so the
    drag survives the cursor leaving the narrow handle. */
 function startResize(event: MouseEvent) {
@@ -1047,6 +1093,24 @@ onBeforeUnmount(() => {
         </span>
       </header>
       <div class="help-body" data-testid="help-body">
+        <!--
+          Kept above the screen's own help on purpose: it answers "why am I here at all",
+          which comes before "what does this screen do".
+        -->
+        <button
+          v-if="guidedLine"
+          class="help-guided"
+          data-testid="help-guided-step"
+          @click="openGuide"
+        >
+          <span class="help-guided-badge"
+            >Step {{ guidedLine.no }} of {{ guidedLine.total }}</span
+          >
+          <span class="help-guided-text"
+            >Next: {{ guidedLine.title }} &mdash; open the guide</span
+          >
+        </button>
+
         <p v-for="(line, i) in help.paragraphs" :key="i">{{ line }}</p>
 
         <!-- What this menu does, as a list you can jump from. -->
@@ -1182,6 +1246,36 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped lang="postcss">
+.help-guided {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background: #eff6ff;
+  text-align: left;
+  cursor: pointer;
+}
+.help-guided:hover {
+  background: #dbeafe;
+}
+.help-guided-badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+.help-guided-text {
+  color: #1e40af;
+  font-size: 12px;
+}
+
 .help-button {
   display: flex;
   width: 32px;
