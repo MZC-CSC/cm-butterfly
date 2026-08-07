@@ -137,7 +137,44 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1920, height: 1080 },
-        video: { mode: 'on', size: { width: 1920, height: 1080 } },
+        // Render at twice the pixels and record at 1080p.
+        //
+        // The recorder's bitrate is not ours to set - it comes out around 700 kbps at 1080p, which
+        // is thin for a screen recording, and the first thing that suffers is the text. Rendering
+        // at 2x and letting the frame come down to 1080p means every recorded pixel is an average
+        // of four, so the letters arrive with clean edges instead of the ragged ones the encoder
+        // then has to spend bits on. The file is for showing to people; the words have to be
+        // readable.
+        // Only when the take is meant to be shown (E2E_HQ=1). Rendering at 2x costs memory and time,
+        // and a run that only asks "does the scenario still work" gains nothing from it.
+        deviceScaleFactor: process.env.E2E_HQ === '1' ? 2 : 1,
+
+        // Draw text in plain grey, not in colour.
+        //
+        // ★ Chromium antialiases glyph edges with the screen's red, green and blue subpixels, so
+        //   every letter carries a thin coloured fringe. H.264 keeps colour at a quarter of the
+        //   resolution (4:2:0), and those fringes are the first thing it smears - which is why the
+        //   text came out with a blue halo while flat backgrounds stayed clean. `--disable-lcd-text`
+        //   antialiases in grey instead, leaving nothing coloured for the encoder to lose.
+        //   The `font-render-hinting` flag keeps letterforms from shifting between frames.
+        launchOptions: {
+          args: [
+            '--disable-lcd-text',
+            '--font-render-hinting=none',
+            '--force-color-profile=srgb',
+          ],
+        },
+
+        video:
+          process.env.E2E_VIDEO === 'off'
+            ? 'off'
+            : {
+                mode: 'on',
+                size: {
+                  width: Number(process.env.E2E_VIDEO_WIDTH || 1920),
+                  height: Number(process.env.E2E_VIDEO_HEIGHT || 1080),
+                },
+              },
       },
       grep: /@integration/,
       // Provisioning and installing happen inside these segments.

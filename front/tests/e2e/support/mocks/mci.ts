@@ -89,13 +89,13 @@ export const MOCK_REJECTED_INFRA_ID = 'mock-refused-infra';
 /**
  * One slow-delete infra per scenario, rather than one shared between them.
  *
- * A delete that is meant to stay in flight never finishes here, and the record of it lives on
- * the server — so the scenario that starts one leaves it running for whatever comes next. The
- * next scenario would then find its target already being deleted and open on the progress step
- * instead of the confirm step, failing on a state the *previous* scenario left behind.
+ * A delete that is meant to stay in flight never finishes here, so the scenario that starts one
+ * leaves it running for whatever comes next. Sharing a target would mean the next scenario
+ * finds it already being deleted and opens on the progress step instead of the confirm step,
+ * failing on a state the *previous* scenario left behind.
  *
- * Giving each its own target is what keeps them independent. (Records still outlive the run
- * itself; clearing them between runs is a separate matter — see the run command in the report.)
+ * Giving each its own target is what keeps them independent. The records themselves no longer
+ * outlive the scenario — they are held here rather than on the server (see `deleteRecords`).
  */
 export const MOCK_REFRESH_INFRA_ID = 'mock-refresh-infra';
 export const MOCK_MIXED_INFRA_ID = 'mock-mixed-infra';
@@ -115,21 +115,149 @@ export const MOCK_BULK_INFRA_IDS = [
   'mock-bulk-5',
 ];
 
+/**
+ * A target the server turns away twice before taking it (BAR-1722).
+ *
+ * Being turned away is not a failure — the request was not taken, and sending it again is the
+ * whole of the remedy. It needs its own target because the point is what happens *before* the
+ * delete starts, and any other target is taken on the first ask.
+ */
+export const MOCK_BUSY_INFRA_ID = 'mock-busy-infra';
+
+/**
+ * A second one, for the scenario about the screen being held.
+ *
+ * One per scenario rather than one shared: what makes these targets useful is the wait before
+ * they are taken, and a scenario that inherited another's spent refusals would be looking at a
+ * request that went straight through.
+ */
+export const MOCK_BUSY_HOLD_INFRA_ID = 'mock-busyhold-infra';
+
+const BUSY_INFRA_IDS = [MOCK_BUSY_INFRA_ID, MOCK_BUSY_HOLD_INFRA_ID];
+
+/** How many times each busy target has been turned away in this run. */
+let busyRefusals: Record<string, number> = {};
+
+/**
+ * How many more list lookups to turn away (BAR-1722).
+ *
+ * Off unless a scenario asks for it. The list is loaded by every scenario's background, so
+ * refusing by default would put six seconds of waiting in front of all of them — and the
+ * waiting is the subject of only one.
+ */
+let listRefusalsRemaining = 0;
+
+/**
+ * Have the next `count` list lookups turned away before one is answered.
+ *
+ * The lookup shares a per-second allowance with everything else reaching cb-tumblebug through
+ * cm-beetle, including cm-beetle's own work while a delete runs — so being turned away is
+ * ordinary, and what it looks like on screen is worth checking.
+ */
+export function armListRefusals(count: number): void {
+  listRefusalsRemaining = count;
+}
+
+/** How many refusals before it is taken. Two is enough to show a count that moves. */
+const BUSY_REFUSALS_BEFORE_ACCEPT = 2;
+
 /** Every infra name this mock puts in the list. */
 export const MOCK_ALL_INFRA_IDS = [
   MOCK_INFRA_ID,
   MOCK_REJECTED_INFRA_ID,
   MOCK_REFRESH_INFRA_ID,
   MOCK_MIXED_INFRA_ID,
+  MOCK_BUSY_INFRA_ID,
+  MOCK_BUSY_HOLD_INFRA_ID,
   ...MOCK_LIST_INFRA_IDS,
   ...MOCK_BULK_INFRA_IDS,
 ];
 
+/**
+ * Taken for handling — what cm-beetle answers when asked to respond on acceptance.
+ *
+ * 202 with a request id, in a moment. Not the outcome: the deleting starts behind it and is
+ * followed through the request record.
+ */
+function accepted(infraId: string) {
+  return ok(
+    { data: { reqId: `mock-req-${infraId}`, status: 'Handling' } },
+    202,
+  );
+}
+
+/**
+ * Turned away for the moment, with how long to wait.
+ *
+ * Built by hand rather than with `fail` because the wait is the point: the screen counts it
+ * down and sends the request again when it reaches zero, and a refusal without it would leave
+ * that number to be invented.
+ */
+function refusedForNow() {
+  const message = 'mock: too many async jobs in progress; retry shortly';
+  return {
+    __httpStatus: 503,
+    // Three seconds rather than one, so the countdown is something a scenario — and anyone
+    // watching a recording of it — can actually see move: 3, 2, 1. At one second there is a
+    // single value and no way to tell a counter from a frozen number.
+    status: { code: 503, message, retryAfter: '3' },
+    responseData: message,
+  };
+}
+
+/**
+ * The delete-request records, kept here for the duration of one scenario.
+ *
+ * ★ These are the console's *own* store, not a linked framework, and they were the one thing
+ *   these scenarios still wrote to the real server. That made them poison their own next run:
+ *   a record left behind says the workload is already being deleted, and that status is what
+ *   blocks a second attempt — so the dialog opened straight into the deleting screen and the
+ *   confirm step was never reached. It also left rows for infra that only exist in this mock
+ *   sitting in a shared development database.
+ *
+ *   Held in memory instead. The scenario that reloads the page still finds its record, because
+ *   what it reloads from is this — which is the same thing the server would have done, minus
+ *   the residue.
+ */
+let deleteRecords: Record<string, any> = {};
+
 export function registerMciMocks(mock: ApiMock): ApiMock {
+  // Each run starts with the busy target able to turn requests away again.
+  busyRefusals = {};
+  deleteRecords = {};
+
   return mock.use({
+    // ── The console's own delete-request store ──────────────────────────
+    listdeleterequests: () => ok(Object.values(deleteRecords)),
+    savedeleterequest: ({ body }) => {
+      const rec = { error_reason: '', ...(body ?? {}) };
+      if (rec.uid) deleteRecords[rec.uid] = rec;
+      return ok(rec);
+    },
+    updatedeleterequeststatus: ({ body }) => {
+      const rec = deleteRecords[body?.uid];
+      if (rec) {
+        rec.status = body?.status;
+        rec.error_reason = body?.error_reason ?? '';
+      }
+      return ok('updated');
+    },
+    removedeleterequest: ({ body }) => {
+      delete deleteRecords[body?.uid];
+      return ok('removed');
+    },
+
     // List — the deletion target plus fillers, so the row count is realistic.
-    'cm-beetle/ListInfra': () =>
-      ok({ data: { infra: MOCK_ALL_INFRA_IDS.map(id => infraItem(id)) } }),
+    // Turned away first when a scenario has armed it; that wait is what the screen shows.
+    'cm-beetle/ListInfra': () => {
+      if (listRefusalsRemaining > 0) {
+        listRefusalsRemaining -= 1;
+        return refusedForNow();
+      }
+      return ok({
+        data: { infra: MOCK_ALL_INFRA_IDS.map(id => infraItem(id)) },
+      });
+    },
 
     // Detail — called when the server tab opens. Echo whichever infra was asked for; returning a
     // fixed one would let a test that looks up the wrong infra pass.
@@ -169,10 +297,35 @@ export function registerMciMocks(mock: ApiMock): ApiMock {
     // from a slow delete. A refusal means nothing was started, so the record must not be left
     // "in progress" — that status is what blocks a second attempt, and leaving it there would make
     // the workload permanently undeletable even though nothing had happened to it.
-    'cm-beetle/DeleteInfra': ({ body }) =>
-      body?.pathParams?.infraId === MOCK_REJECTED_INFRA_ID
-        ? fail(400, 'mock: delete request refused')
-        : new Promise(() => {}),
+    // Delete — answered on acceptance, which is what the console asks for.
+    //
+    // ★ This used to be a promise that never settled, and that was right while the call only
+    //   answered once the deleting had finished: a delete under way was a call still waiting.
+    //   The console now sends `Prefer: respond-async` and cm-beetle answers 202 straight away,
+    //   so a mock that never answers no longer stands for anything real — it would hang the
+    //   submitting step instead of letting it complete.
+    //
+    //   "A delete is under way" is now held by `GetRequest` answering Handling, below.
+    'cm-beetle/DeleteInfra': ({ body }) => {
+      const infraId = body?.pathParams?.infraId;
+
+      // Rejected outright: nothing was started and asking again will not change that.
+      if (infraId === MOCK_REJECTED_INFRA_ID) {
+        return fail(400, 'mock: delete request refused');
+      }
+
+      // Turned away while the far side is full, then taken. Nothing is started by a refusal,
+      // so each attempt arrives with a new request id and only the last one is recorded.
+      if (
+        BUSY_INFRA_IDS.includes(infraId) &&
+        (busyRefusals[infraId] ?? 0) < BUSY_REFUSALS_BEFORE_ACCEPT
+      ) {
+        busyRefusals[infraId] = (busyRefusals[infraId] ?? 0) + 1;
+        return refusedForNow();
+      }
+
+      return accepted(infraId ?? MOCK_INFRA_ID);
+    },
 
     // Request tracking — answer "still running", and nothing else.
     //

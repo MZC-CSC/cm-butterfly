@@ -61,7 +61,9 @@ w=0
 for id in $(curl -s "$CC/workflow" | python3 -c "
 import sys,json
 d=json.load(sys.stdin); ws=d if isinstance(d,list) else (d.get('workflows') or [])
-for x in ws or []: print(x['id'])" 2>/dev/null); do
+# 'sample-' 로 시작하는 것은 남긴다 — 우리가 미리 심어 둔 시연용이고, 지우면 그 구간이 통째로 못 돈다.
+for x in ws or []:
+    if not (x.get('name') or '').startswith('sample-'): print(x['id'])" 2>/dev/null); do
   curl -s -o /dev/null -X DELETE "$CC/workflow/$id" && w=$((w+1))
 done
 echo "  워크플로우    $w 건 삭제"

@@ -6,6 +6,7 @@ import type { LifecycleActionName } from '../pages/workload.page';
 import { workload, testNamespace } from '../fixtures/test-data';
 import { scenarioState } from '../support/world';
 import { snapshotCspResources, orphanReport } from '../support/orphanResources';
+import { armListRefusals, MOCK_BULK_INFRA_IDS } from '../support/mocks/mci';
 
 const { Given, When, Then } = createBdd(test);
 
@@ -197,12 +198,15 @@ Then(
  * nothing goes into progress, so waiting for that screen would fail on the very thing the
  * scenario is there to check.
  */
-When('{string} 인프라의 삭제를 요청한다', async ({ page }, infraName: string) => {
-  const wl = new WorkloadPage(page);
-  await wl.selectMci(infraName);
-  await wl.openDeleteModal();
-  await wl.confirmDelete(infraName, 'normal');
-});
+When(
+  '{string} 인프라의 삭제를 요청한다',
+  async ({ page }, infraName: string) => {
+    const wl = new WorkloadPage(page);
+    await wl.selectMci(infraName);
+    await wl.openDeleteModal();
+    await wl.confirmDelete(infraName, 'normal');
+  },
+);
 
 /** Step "close the deletion-in-progress modal" — [Close] on the progress step. Return to the list and look at the delete-status column. */
 When('삭제 처리 중 모달을 닫는다', async ({ page }) => {
@@ -262,6 +266,11 @@ When('안내에서 취소한다', async ({ page }) => {
   await new WorkloadPage(page).cancelFromNotice();
 });
 
+/** Step "acknowledge the notice and carry on" */
+When('안내를 확인하고 계속한다', async ({ page }) => {
+  await new WorkloadPage(page).continueFromNotice();
+});
+
 /** Step "no delete request went out for {infra}" — the notice was declined. */
 Then(
   '{string} 에는 삭제 요청이 나가지 않았다',
@@ -291,6 +300,99 @@ Then('접수 중에는 다른 화면으로 이동할 수 없다', async ({ page 
 /** Step "once submitting finishes it turns into the deleting screen" */
 Then('접수가 끝나면 삭제 처리 중 화면으로 바뀐다', async ({ page }) => {
   await new WorkloadPage(page).expectDeleteInProgress();
+});
+
+// ── Taken on acceptance, and sent again when turned away (BAR-1722) ──────
+
+/**
+ * Step "request the delete of {infra} and stay on the submitting screen".
+ *
+ * Separate from "request the delete" because that one waits for the deleting screen and closes
+ * it on the way out. Waiting for it means waiting out every refusal and every pause between
+ * them, so by the time the step returns there is nothing left to look at — which is exactly
+ * what the scenarios about the waiting need to see. This one clicks confirm and returns.
+ */
+When(
+  '{string} 인프라의 삭제를 요청하고 접수 화면에 머무른다',
+  async ({ page }, infraName: string) => {
+    const wl = new WorkloadPage(page);
+    await wl.selectMci(infraName);
+    await wl.openDeleteModal();
+    await wl.sendDelete(infraName, 'normal');
+  },
+);
+
+/** Step "the retry notice is shown" */
+Then('재시도 안내가 보인다', async ({ page }) => {
+  await new WorkloadPage(page).expectRetryNotice();
+});
+
+/** Step "the retry count reads {n} of {max}" */
+Then(
+  '재시도 횟수가 {int}\\/{int} 로 보인다',
+  async ({ page }, attempt: number, maxRetries: number) => {
+    await new WorkloadPage(page).expectRetryCount(attempt, maxRetries);
+  },
+);
+
+/**
+ * Step "a delete request went out for each of the {n} picked".
+ *
+ * Read from the requests themselves rather than from the count on the submitting screen. That
+ * count is right — it moves as each acceptance arrives — but the submitting is over in a moment
+ * now, so by the time anything reads it the screen has moved on. What a dropped request would
+ * look like is a target with no request against it, and that is what is checked.
+ */
+// eslint-disable-next-line no-empty-pattern
+Then('고른 {int} 건 모두 삭제 요청이 나갔다', async ({}, total: number) => {
+  const sent = mockCalls().calls.filter(c => c.operationId === DELETE_INFRA_OP);
+  const targets = MOCK_BULK_INFRA_IDS.slice(0, total);
+  const missing = targets.filter(
+    id => !sent.some(c => c.body?.pathParams?.infraId === id),
+  );
+  expect(missing, 'every picked workload must have been requested').toEqual([]);
+});
+
+/** Step "the seconds left tick down" — on the delete dialog. */
+Then('남은 시간이 1초씩 줄어든다', async ({ page }) => {
+  await new WorkloadPage(page).expectRetrySecondsCountingDown(
+    'mci-delete-retry-seconds',
+  );
+});
+
+/**
+ * Step "have the list lookup turned away {n} times, then reload".
+ *
+ * Armed and reloaded in one step because the arming has to be in place before the screen asks.
+ * The reload is what makes it ask: the background has already loaded the list, and a lookup
+ * that has been answered is not one that can be turned away.
+ */
+When(
+  '목록 조회가 {int} 번 거절되도록 하고 화면을 새로고침한다',
+  async ({ page }, count: number) => {
+    armListRefusals(count);
+    await page.reload();
+  },
+);
+
+/** Step "the list's retry notice is shown" */
+Then('목록 재시도 안내가 보인다', async ({ page }) => {
+  await new WorkloadPage(page).expectListRetryNotice();
+});
+
+/** Step "the list's retry count reads {n} of {max}" */
+Then(
+  '목록 재시도 횟수가 {int}\\/{int} 로 보인다',
+  async ({ page }, attempt: number, maxRetries: number) => {
+    await new WorkloadPage(page).expectListRetryCount(attempt, maxRetries);
+  },
+);
+
+/** Step "the list's seconds left tick down" */
+Then('목록의 남은 시간이 1초씩 줄어든다', async ({ page }) => {
+  await new WorkloadPage(page).expectRetrySecondsCountingDown(
+    'mci-list-retry-seconds',
+  );
 });
 
 // ── Deleting a mixed selection (BAR-1717) ────────────────────────────────

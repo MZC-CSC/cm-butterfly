@@ -204,6 +204,52 @@ export const workload = {
  * cm-cicada defines a TaskComponent with a type/spec schema.
  * 5 task types: http · http_xcom · bash · ssh · trigger_workflow.
  */
+/**
+ * What each thing is for, written the way someone actually types it into a description box.
+ *
+ * Short and practical. A paragraph of explanation in a field a person fills in by hand reads as
+ * written by something that is not a person, and the walkthrough is meant to look like ordinary use.
+ */
+export const descriptions = {
+  sourceModel5555:
+    '소스 모델에 방화벽 포트 추가\n소스 모델에 오픈하고 싶은 방화벽 포트(5555)를 미리 추가해 놓으면 타겟 모델과 워크플로우에서 이 설정을 그대로 사용함.',
+  targetModelRecommended: '추천받은 구성을 수정없이 그대로 사용함',
+  targetModel5555:
+    '타겟 모델에 방화벽 포트 추가\n타겟 모델에 오픈하고 싶은 방화벽 포트(5555)를 미리 추가해 놓으면 워크플로우에서 이 설정을 그대로 사용함',
+  targetModelSpecUp:
+    '타겟 모델에 방화벽 포트 추가 및 인스턴스 스펙 변경\n타겟 모델에 오픈하고 싶은 방화벽 포트(5555)를 추가하고 사용하고 싶은 인스턴스 스펙(t3a.large)으로 변경하면 워크플로우에서 이 설정을 그대로 사용함',
+  softwareTargetModel:
+    '소프트웨어 마이그레이션용 타겟 모델\n옮길 소프트웨어만 담고, 어느 인프라에 설치할지는 워크플로우에서 지정함',
+
+  /**
+   * 워크플로우는 *어떤 타겟 모델로 만들었는지* 까지 적는다.
+   *
+   * 워크플로우가 바라보는 것은 최종 타겟 모델 하나뿐이라, 그 모델에 무엇이 들어 있는지가
+   * 이 워크플로우가 무엇을 만드는지를 그대로 정한다. 기본 구성이면 굳이 덧붙일 것이 없고,
+   * 손댄 모델로 만들었으면 무엇을 손댔는지가 설명에 있어야 한다.
+   */
+  // ★ 워크플로우 설명란은 한 줄짜리 input 이다(모델 쪽은 textarea). 줄바꿈을 넣으면 사라지므로
+  //   한 문장으로 잇는다.
+  infraWorkflow: '인프라 마이그레이션 워크플로우',
+  /** 트랙1 — 아무것도 손대지 않은 길. 추천 결과가 그대로 인프라가 된다. */
+  infraWorkflowPlain:
+    '추천받은 타겟 모델을 수정 없이 그대로 사용하는 인프라 마이그레이션 워크플로우. 수집한 온프레미스 구성에 맞춰 추천된 스펙·이미지·네트워크 그대로 인스턴스가 생성된다.',
+  /** 트랙2 — 타겟 모델에서 고친 길. */
+  infraWorkflow5555SpecUp:
+    '5555 방화벽 포트 추가와 인스턴스 스펙이 변경된 타겟 모델로 생성된 인프라 마이그레이션 워크플로우. 모델에 미리 추가한 5555 방화벽 포트가 개방되고, 변경한 스펙으로 인스턴스가 생성된다.',
+  /** 트랙3 — 워크플로우에서 고친 길. 모델은 건드리지 않는다. */
+  infraWorkflowCloned:
+    '기존 워크플로우를 복제해 방화벽 포트와 인스턴스 스펙을 워크플로우에서 직접 변경한 인프라 마이그레이션 워크플로우. 타겟 모델은 그대로 두고 이 워크플로우의 값만 바꿔도 그 값대로 인스턴스가 생성된다.',
+  /** 용량이 없어 실패한 뒤, 존만 바꿔 다시 만드는 길. */
+  infraWorkflowZoneFixed:
+    '용량 부족으로 실패한 워크플로우를 복제해 서브넷의 가용영역만 지정한 인프라 마이그레이션 워크플로우. 모델은 그대로 두고 존만 바꿔 다시 실행하면 같은 구성으로 인프라가 생성된다.',
+  /** 트랙4 — 소스 모델에서 고친 길. 추천을 거쳐 여기까지 따라온다. */
+  infraWorkflow5555:
+    '5555 방화벽 포트가 추가된 소스 모델에서 추천받은 타겟 모델로 생성된 인프라 마이그레이션 워크플로우. 소스 모델에 미리 추가한 5555 방화벽 포트가 추천과 타겟 모델을 거쳐 그대로 개방된다.',
+  softwareWorkflow:
+    '소프트웨어 마이그레이션 워크플로우. 타겟 SW 모델이 무엇을 설치할지 정하고, 어느 인프라에 설치할지는 이 워크플로우에서 지정한다.',
+} as const;
+
 export const workflowData = {
   /** The 5 task types in cm-cicada's new schema (for create/palette verification) */
   taskTypes: ['http', 'http_xcom', 'bash', 'ssh', 'trigger_workflow'] as const,
@@ -215,6 +261,15 @@ export const workflowData = {
    */
   safeRunWorkflowName:
     process.env.TEST_WF_SAFE_RUN || 'e2e-sample-bash-workflow',
+  /**
+   * The parallel sample that always fails on one branch.
+   *
+   * Pre-registered on the environment from `fixtures/sample-parallel-failure-workflow.json`; the
+   * console cannot build one, and a real migration cannot be made to fail without leaving resources
+   * behind. Bash only, so running it costs nothing.
+   */
+  failureSampleName:
+    process.env.TEST_WF_FAILURE_SAMPLE || 'sample-parallel-partial-failure',
 
   /**
    * Name of the *template* used to create the charge-safe example workflow.

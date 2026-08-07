@@ -1,0 +1,45 @@
+{
+  "spec_version": "1.0",
+  "name": "sample-parallel-partial-failure",
+  "data": {
+    "description": "[Sample] Two branches run side by side and one of them fails - for showing what the re-run controls do. Bash only, so nothing is created and nothing is billed.",
+    "task_groups": [
+      {
+        "name": "parallel_checks",
+        "description": "start splits into two branches; branch A ends in a failure, branch B succeeds",
+        "tasks": [
+          {
+            "name": "start_notice",
+            "task_component": "_v2_bash_notice",
+            "dependencies": []
+          },
+          {
+            "name": "branch_a_collect",
+            "task_component": "_v2_bash_notice",
+            "dependencies": ["start_notice"]
+          },
+          {
+            "name": "branch_b_collect",
+            "task_component": "_v2_bash_notice",
+            "dependencies": ["start_notice"]
+          },
+          {
+            "name": "branch_a_verify",
+            "task_component": "_v2_bash_fail",
+            "dependencies": ["branch_a_collect"]
+          },
+          {
+            "name": "branch_b_report",
+            "task_component": "_v2_bash_notice",
+            "dependencies": ["branch_b_collect"]
+          },
+          {
+            "name": "finish_notice",
+            "task_component": "_v2_bash_notice",
+            "dependencies": ["branch_a_verify", "branch_b_report"]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -113,11 +113,34 @@ export class WorkloadPage {
 
   /** Select an infra row (checkbox) — selecting it enables the detail/server tabs. Limited to the single checkbox in the row. */
   async selectMci(infraName: string): Promise<void> {
+    // Selecting is a toggle, so pressing an already-selected row *deselects* it - and the detail
+    // panel goes with it.
+    //
+    // ★ This used to be hidden. Every step began by navigating to the list again, which threw the
+    //   selection away, so a second `selectMci` always started from nothing. Now that navigating to
+    //   the screen you are already on does nothing, the selection survives between steps and the
+    //   second press was turning it off. Nobody clicks a row they have already chosen.
+    if (await this.isMciSelected(infraName)) return;
+
     await humanClick(
       this.mciRow(infraName)
         .locator('td.select-checkbox .p-checkbox, input[type="checkbox"]')
         .first(),
     );
+  }
+
+  /**
+   * Is this row already chosen?
+   *
+   * mirinae does not put the state on a standard input - the row carries a `selected` class
+   * (DESIGN-MIRINAE §1.5), so that is what is read rather than `isChecked()`.
+   */
+  private async isMciSelected(infraName: string): Promise<boolean> {
+    const cls = await this.mciRow(infraName)
+      .first()
+      .getAttribute('class')
+      .catch(() => null);
+    return (cls ?? '').includes('selected');
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -306,9 +329,51 @@ export class WorkloadPage {
    * Confirm deletion — after choosing the deletion method (normal/force), type the infra name as the confirm keyword and confirm.
    * (For a single selection, the confirm keyword = the infra name.)
    */
+  /**
+   * The list's own refresh button (the circular arrow beside the paging count).
+   *
+   * mirinae's PToolboxTable draws it when `refreshable` is set - a `p-icon-button` in the last
+   * `.tool` slot of the toolbox. There is no testid to give it because the markup is the library's,
+   * so it is reached structurally, scoped to this table.
+   */
+  private get mciRefreshButton(): Locator {
+    return this.mciTable.locator('.p-toolbox .tool button').last();
+  }
+
+  /**
+   * Watch the list until the infrastructure is gone, refreshing it the way a person would.
+   *
+   * ★ The list does not update itself. It is read once when the screen opens and then left alone -
+   *   no polling, nothing pushed. So after a delete the row simply sits there saying "Deleting",
+   *   and the recording sat with it, giving no sign of whether anything finished.
+   *
+   *   Pressing refresh is what moves it. The row's state changes, and when the delete completes the
+   *   row leaves the list - which is the thing worth seeing.
+   */
+  async waitUntilMciGone(
+    infraName: string,
+    timeoutMs = 20 * 60_000,
+  ): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const stillThere = await this.mciRow(infraName)
+        .isVisible()
+        .catch(() => false);
+      if (!stillThere) return;
+
+      await humanClick(this.mciRefreshButton).catch(() => {});
+      await this.page.waitForTimeout(8_000);
+    }
+    await expect(
+      this.mciRow(infraName),
+      `"${infraName}" 인프라가 삭제되지 않았다 — 목록에 여전히 남아 있다`,
+    ).toBeHidden({ timeout: 10_000 });
+  }
+
   async confirmDelete(
     infraName: string,
     method: 'normal' | 'force' = 'normal',
+    holdMs = 1_500,
   ): Promise<void> {
     await this.sendDelete(infraName, method);
 
@@ -322,7 +387,16 @@ export class WorkloadPage {
     // The dialog says so itself: closing it does not stop the delete, and the list carries the
     // state in its Delete Status column. So this is what a person does here too.
     await expect(this.deleteProgress).toBeVisible({ timeout: 30_000 });
+    // Wait out the hold the dialog puts on Close (BAR-1717).
     await this.waitDeleteCloseReleased();
+
+    // Then let it be seen before closing it.
+    //
+    // The dialog is where a person learns that deleting keeps going after the dialog is gone - and
+    // the recording used to close it the instant it appeared, so nobody could read it. `hold` is
+    // longer on the last delete of a run, where there is nothing after it to watch.
+    await this.page.waitForTimeout(holdMs);
+
     await humanClick(this.deleteCloseButton.first());
     await expect(this.deleteProgress).toBeHidden({ timeout: 15_000 });
   }
@@ -430,6 +504,69 @@ export class WorkloadPage {
     });
   }
 
+  /**
+   * Whether the screen says a request is waiting to go out again.
+   *
+   * Being turned away is not a failure, and a pause with nothing on screen is the same thing
+   * to look at as one that has stopped — so the wait is what is checked, by its own marker
+   * rather than by the wording, which is free to change.
+   */
+  async expectRetryNotice(): Promise<void> {
+    await expect(this.page.getByTestId('mci-delete-retry-notice')).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
+  /** Which attempt the screen says it is on, as shown ("Retry 1/3"). */
+  async expectRetryCount(attempt: number, maxRetries: number): Promise<void> {
+    await expect(this.page.getByTestId('mci-delete-retry-count')).toHaveText(
+      `Retry ${attempt}/${maxRetries}`,
+      { timeout: 15_000 },
+    );
+  }
+
+  /**
+   * Whether the *list* says its lookup is waiting to go out again.
+   *
+   * Checked in its own right rather than through the dialog's marker: the wait belongs to the
+   * loading state here — it is drawn inside the spinner, not beside it — and putting it there
+   * is the point. A notice next to a screen that is still working reads as though it had
+   * stopped.
+   */
+  async expectListRetryNotice(): Promise<void> {
+    await expect(this.page.getByTestId('mci-list-retry-notice')).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
+  /** Which attempt the list says it is on, as shown ("Retry 1/3"). */
+  async expectListRetryCount(
+    attempt: number,
+    maxRetries: number,
+  ): Promise<void> {
+    await expect(this.page.getByTestId('mci-list-retry-count')).toHaveText(
+      `Retry ${attempt}/${maxRetries}`,
+      { timeout: 15_000 },
+    );
+  }
+
+  /**
+   * Whether the seconds left actually move.
+   *
+   * A number that never changes is the same thing to look at as a screen that has stopped, so
+   * what is checked is that it *counts* — read once, then read again and expect it lower. A
+   * frozen counter passes any check that only looks at it once.
+   */
+  async expectRetrySecondsCountingDown(testId: string): Promise<void> {
+    const seconds = this.page.getByTestId(testId);
+    await expect(seconds).toBeVisible({ timeout: 15_000 });
+    const first = Number(await seconds.innerText());
+    expect(first).toBeGreaterThan(1);
+    await expect
+      .poll(async () => Number(await seconds.innerText()), { timeout: 10_000 })
+      .toBeLessThan(first);
+  }
+
   /** Whether the dialog opened at the confirm step (rather than jumping to progress). */
   async expectDeleteConfirmStep(): Promise<void> {
     await expect(this.page.getByTestId('mci-delete-confirm')).toBeVisible({
@@ -478,7 +615,6 @@ export class WorkloadPage {
         .first(),
     ).toBeVisible({ timeout: 30_000 });
   }
-
 
   /** Whether it opened at the error stage (a prior deletion failed). */
   async expectDeleteErrorDialog(): Promise<void> {

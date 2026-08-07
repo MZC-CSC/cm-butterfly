@@ -17,11 +17,29 @@ cd "$(dirname "$0")/.."
 
 SEGMENTS=("$@")
 if [ "${#SEGMENTS[@]}" -eq 0 ]; then
-  SEGMENTS=(1 2a 2 3 4 5 6 7 8 9)
+  # 구간11 은 기본 목록에 넣지 않는다 — *이미 실패한 실행*이 있어야 성립하므로 늘 찍을 수 있는
+  # 것이 아니다. 필요할 때 이름을 지정해 따로 찍는다:
+  #   TEST_FAILED_WORKFLOW=<실패한 워크플로우> scripts/record-all.sh 11
+  SEGMENTS=(1 2a 2 3 4 5 6 6b 7 8 8b 9 10)
 fi
 
 : "${BASE_URL:?BASE_URL 이 필요하다}"
 : "${TEST_SOURCE_PRIVATE_KEY:?TEST_SOURCE_PRIVATE_KEY 가 필요하다 (08-주의사항 C-11)}"
+
+# ★ 촬영 중에는 다른 playwright 를 돌리지 않는다 — 자물쇠로 막는다.
+#
+#   playwright 는 실행을 시작할 때 test-results 를 통째로 비운다. 촬영이 도는 중에 다른 spec 을
+#   하나 돌렸더니 그 폴더가 지워져, 그때 찍히던 구간의 영상이 통째로 날아갔다. 시나리오는 멀쩡히
+#   끝났는데 남은 것이 없었다 — 그 구간이 모델을 만드는 자리라 같은 이름표로 다시 찍을 수도 없어
+#   한 벌을 통째로 다시 찍어야 했다. (2026-08-01)
+LOCK="${TMPDIR:-/tmp}/cmig-e2e-recording.lock"
+if [ -e "$LOCK" ] && kill -0 "$(cat "$LOCK" 2>/dev/null)" 2>/dev/null; then
+  echo "❌ 이미 촬영이 돌고 있다 (pid $(cat "$LOCK")). 끝난 뒤에 다시 실행한다." >&2
+  echo "   촬영 중에 다른 playwright 를 돌리면 test-results 가 비워져 영상이 날아간다." >&2
+  exit 1
+fi
+echo $$ > "$LOCK"
+trap 'rm -f "$LOCK"' EXIT
 
 export E2E_DEMO_PACE=1
 
@@ -42,10 +60,27 @@ echo "이번 벌 RUN_ID=$E2E_RUN_ID  (다시 찍을 때 이 값을 그대로 넘
 # 한 벌을 통째로 날린 적이 있다 — 새로 딴 워크트리에 node_modules 가 없어 전 구간이 몇 초 만에
 # 죽었고, 그것도 구간마다 영상을 꺼내려다 "영상이 없다"가 아홉 번 찍히고서야 알았다.
 # 여기서 한 번 보면 그 30분을 버리지 않는다.
+# 시연용 샘플이 환경에 있어야 한다 - 없으면 심는다(있으면 아무것도 하지 않는다).
+scripts/seed-samples.sh || {
+  echo
+  echo "샘플을 준비하지 못해 촬영을 시작하지 않는다."
+  exit 1
+}
+
 scripts/check-env.sh || {
   echo
   echo "환경이 준비되지 않아 촬영을 시작하지 않는다. 위 항목을 해소하고 다시 실행한다."
   exit 1
+}
+
+# 촬영 전에 치워 둘 것 — 알림함 비우기. 녹화하지 않는다.
+#
+# 지난 작업의 알림이 남아 있으면 첫 화면부터 그것이 뜨는데, 지우는 장면 자체는 보여줄 내용이
+# 아니다. 그래서 구간이 아니라 준비 단계에 둔다.
+echo
+echo "════════ 사전 작업 ════════"
+E2E_VIDEO=off npx playwright test --project=integration --grep "@prep" || {
+  echo "사전 작업이 실패했지만 촬영은 계속한다 — 알림이 남아 있을 수 있다" >&2
 }
 
 failed=()

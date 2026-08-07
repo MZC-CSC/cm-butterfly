@@ -2,6 +2,7 @@ import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 import { humanClick, humanFill } from '../support/humanize';
 import { openScreen } from '../support/navigate';
+import { spotlight } from '../support/spotlight';
 
 /**
  * SourceServicesPage — 소스 서비스(소스 컴퓨팅, cm-honeybee) 화면의 "어디서/어떻게".
@@ -49,9 +50,16 @@ export class SourceServicesPage {
    * 반드시 테이블 행(role=row)만 매칭한다(칩을 잘못 클릭하면 상세가 열리지 않음).
    */
   private groupRow(name: string): Locator {
-    return this.page
+    // ★ 목록 표 안으로 한정한다.
+    //
+    //   `getByRole('row')` 는 화면 어디에 있든 행이면 잡는다. 등록 모달을 닫은 직후에는 같은
+    //   이름을 담은 행이 표 밖에도 하나 남아 있어 매칭이 2개가 되고, `.first()` 가 그 쪽을
+    //   집었다 — 표 아래 빈 영역(y≈759)의 27px짜리 요소였다. 클릭은 성공하지만 *아무 일도
+    //   일어나지 않고*, 그 다음 단계가 열리지 않는 상세의 탭을 기다리다 엉뚱한 데서 시간 초과가
+    //   났다. 실패 화면에는 선택되지 않은 목록만 남아 원인이 보이지 않는다. (2026-07-31)
+    return this.groupTable
       .getByTestId(`source-group-row-${name}`)
-      .or(this.page.getByRole('row', { name: new RegExp(name) }));
+      .or(this.groupTable.getByRole('row', { name: new RegExp(name) }));
   }
 
   /** 소스그룹 목록 테이블 */
@@ -94,10 +102,8 @@ export class SourceServicesPage {
 
   private get serviceNameInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-service-name"], textarea[data-testid="source-service-name"]',
-      )
-      .or(this.page.getByPlaceholder('Source Service Name'));
+      .locator('input[data-testid="source-service-name"]')
+      .first();
   }
   private get serviceDescriptionInput(): Locator {
     return this.page
@@ -132,45 +138,33 @@ export class SourceServicesPage {
 
   private get connNameInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-connection-name"], textarea[data-testid="source-connection-name"]',
-      )
-      .or(this.page.getByPlaceholder('Source Connection Name'));
+      .locator('input[data-testid="source-connection-name"]')
+      .first();
   }
   private get connIpInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-connection-ip"], textarea[data-testid="source-connection-ip"]',
-      )
-      .or(this.page.getByPlaceholder('###.###.###.###'));
+      .locator('input[data-testid="source-connection-ip"]')
+      .first();
   }
   private get connPortInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-connection-ssh-port"], textarea[data-testid="source-connection-ssh-port"]',
-      )
-      .or(this.page.getByPlaceholder('1~65535'));
+      .locator('input[data-testid="source-connection-ssh-port"]')
+      .first();
   }
   private get connUserInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-connection-user"], textarea[data-testid="source-connection-user"]',
-      )
-      .or(this.page.getByPlaceholder('User ID'));
+      .locator('input[data-testid="source-connection-user"]')
+      .first();
   }
   private get connPasswordInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-connection-password"], textarea[data-testid="source-connection-password"]',
-      )
-      .or(this.page.getByPlaceholder('Password'));
+      .locator('input[data-testid="source-connection-password"]')
+      .first();
   }
   private get connPrivateKeyInput(): Locator {
     return this.page
-      .locator(
-        'input[data-testid="source-connection-private-key"], textarea[data-testid="source-connection-private-key"]',
-      )
-      .or(this.page.locator('.private-key textarea'));
+      .locator('textarea[data-testid="source-connection-private-key"]')
+      .first();
   }
   /** 연결정보 폼 적용 "Apply" → 소스그룹 등록 모달로 복귀 */
   private get connApplyButton(): Locator {
@@ -193,7 +187,11 @@ export class SourceServicesPage {
     return this.page.getByTestId('source-connection-add-edit');
   }
   private connectionRow(name: string): Locator {
-    return this.page.getByRole('row', { name: new RegExp(name) });
+    // 위 groupRow 와 같은 이유 — 행은 표 안에서만 찾는다.
+    const table = this.page
+      .getByTestId('source-connection-list-table')
+      .or(this.page.locator('table'));
+    return table.getByRole('row', { name: new RegExp(name) }).first();
   }
   /** 연결 목록의 "Export" 버튼 — 선택한 연결이 없으면 비활성 */
   private get exportConnectionButton(): Locator {
@@ -278,7 +276,12 @@ export class SourceServicesPage {
 
   /** 소스 서비스 화면으로 이동 */
   async goto(): Promise<void> {
-    await openScreen(this.page, 'sourceservices', SourceServicesPage.path);
+    await openScreen(
+      this.page,
+      'sourceservices',
+      SourceServicesPage.path,
+      'source-group-list-table',
+    );
     await expect(this.addGroupButton).toBeVisible({ timeout: 15_000 });
   }
 
@@ -420,6 +423,15 @@ export class SourceServicesPage {
     // the browser asks for a file, this catches the request first and answers it.
     const chooser = this.page.waitForEvent('filechooser');
     await humanClick(this.page.getByTestId('source-import-file'));
+
+    // Stay on the button for a beat before the file turns up.
+    //
+    // ★ The chooser is the operating system's window and never appears in the recording. Answer it
+    //   the instant it opens and the filename lands in the same frame as the press, which reads as
+    //   the button having produced it. Holding the pointer there for a moment leaves a gap the
+    //   viewer fills in themselves - that is where the file was picked, off screen.
+    await this.page.waitForTimeout(1_500);
+
     await (
       await chooser
     ).setFiles({
@@ -431,9 +443,18 @@ export class SourceServicesPage {
     // The chosen file is named on screen before anything is read. This is the step that used to be
     // missing: rows appeared in the preview with nothing to say where they came from, and there was
     // no way to tell a file had been attached at all.
-    await expect(this.page.getByTestId('source-import-filename')).toContainText(
-      'sources.csv',
-      { timeout: 10_000 },
+    const filename = this.page.getByTestId('source-import-filename');
+    await expect(filename).toContainText('sources.csv', { timeout: 10_000 });
+
+    // Point at the name itself.
+    //
+    // ★ The line reads `Selected file: <strong>sources.csv</strong>`, so the element holds two runs
+    //   of text and the highlight measures the widest one - which was the label, not the file. The
+    //   ring went round "Selected file:" and said nothing about which file arrived.
+    const nameOnly = filename.locator('strong').first();
+    await spotlight(
+      this.page,
+      (await nameOnly.isVisible().catch(() => false)) ? nameOnly : filename,
     );
 
     // The preview reports how many rows the server parsed - that count is what tells us the file
@@ -449,13 +470,84 @@ export class SourceServicesPage {
   /** 이름으로 소스그룹 선택(상세 진입) */
   async selectGroup(name: string): Promise<void> {
     await this.revealGroup(name);
-    await humanClick(this.groupRow(name).first());
+
+    // ★ Leave it alone only when the detail is *actually open*.
+    //
+    //   Clicking a selected row toggles it off and takes the detail with it, so a selected row is
+    //   worth skipping - but the row's own marking is not proof the detail is open. It can carry the
+    //   selected class with nothing open beneath it, and skipping then means the tab never appears.
+    //   Clicks have no deadline here, so the run does not fail: it simply stands there. It stood for
+    //   forty-three minutes. What decides now is whether the detail is on screen.
+    //   (2026-08-01; the class alone was the rule until then, DESIGN-MIRINAE §1.5)
+    const row = this.groupRow(name).first();
+    const detailOpen = await this.connectionsTab
+      .isVisible({ timeout: 1_000 })
+      .catch(() => false);
+    const cls = (await row.getAttribute('class').catch(() => '')) ?? '';
+    if (process.env.E2E_DEBUG_SELECT) {
+      const n = await this.groupRow(name)
+        .count()
+        .catch(() => -1);
+      const box = await row.boundingBox().catch(() => null);
+      console.log(
+        `[선택] "${name}" 매칭 ${n}개 | class=${cls} | box=${JSON.stringify(box)}`,
+      );
+    }
+    if (detailOpen && /selected/.test(cls)) {
+      if (process.env.E2E_DEBUG_SELECT)
+        console.log('[선택] 이미 선택됐고 상세도 열려 있다 — 건너뜀');
+      return;
+    }
+
+    await humanClick(row);
+
+    if (process.env.E2E_DEBUG_SELECT) {
+      const after = (await row.getAttribute('class').catch(() => '')) ?? '';
+      console.log(`[선택] 클릭 후 class=${after}`);
+    }
   }
 
   /** 연결 탭 열기 + 특정 연결정보 선택 */
   async openConnection(connName: string): Promise<void> {
     await humanClick(this.connectionsTab);
     await humanClick(this.connectionRow(connName).first());
+  }
+
+  /**
+   * Open the group and show every connection the file brought in.
+   *
+   * ★ One file can carry many servers, and the group row only says a group exists. Stopping at
+   *   "the group is in the list" leaves the interesting part unshown - that several connections
+   *   arrived at once, which is the whole reason to import a file rather than type them in.
+   *
+   * @returns the connection names read off the tab
+   */
+  async showImportedConnections(
+    group: string,
+    expected: string[],
+  ): Promise<string[]> {
+    await this.selectGroup(group);
+
+    // 탭이 뜨는 것을 먼저 확인한다 — 클릭에는 시한이 없어, 없는 것을 누르려 하면 멈춘 채로 남는다.
+    await expect(
+      this.connectionsTab,
+      '연결 탭이 나오지 않는다 — 그룹 상세가 열리지 않았다',
+    ).toBeVisible({ timeout: 20_000 });
+    await humanClick(this.connectionsTab);
+
+    for (const name of expected) {
+      const row = this.connectionRow(name).first();
+      await expect(
+        row,
+        `연결 목록에 "${name}" 이 없다 — 파일이 일부만 읽힌 것이다`,
+      ).toBeVisible({ timeout: 20_000 });
+    }
+
+    // Rest on the list long enough to take it in. The rows are what the file produced, and they go
+    // by in a moment if the next step starts straight away.
+    await this.page.waitForTimeout(1_200);
+
+    return expected;
   }
 
   // ───────────────────────── 연결정보 익스포트 ─────────────────────────
@@ -472,6 +564,228 @@ export class SourceServicesPage {
         .locator('td.select-checkbox .p-checkbox, input[type="checkbox"]')
         .first(),
     );
+  }
+
+  // ── 연결정보 추가·수정 화면 (Connection 탭 > "Add / Edit") ─────────────
+
+  /** 입력 행 하나 = SourceConnectionForm 하나. 같은 testid가 행마다 반복되므로
+   *  필드는 항상 행으로 좁힌 뒤에 잡는다. */
+  private get connectionFormRows(): Locator {
+    return this.page.getByTestId('source-connection-row');
+  }
+  /** "+ Add Source Connection" — 입력 행을 하나 더 붙인다 */
+  private get addConnectionRowButton(): Locator {
+    return this.page.getByTestId('create-form-add-row');
+  }
+  /** 추가·수정 화면 우측 하단 "Save" */
+  private get connectionSaveButton(): Locator {
+    return this.page.getByTestId('source-connection-save');
+  }
+
+  /** 연결 목록의 "Add / Edit" 로 연결정보 추가·수정 화면을 연다(빈 입력 행 1개로 열린다). */
+  async openAddEditConnections(): Promise<void> {
+    await this.openConnectionsTab();
+    await humanClick(this.addEditConnectionButton);
+    await expect(this.connectionFormRows.first()).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
+  /** index(0-base) 번째 입력 행을 채운다.
+   *  mirinae PTextInput 은 wrapper 에도 같은 testid 를 달아 두므로 태그까지 지정한다(§1.3). */
+  private async fillConnectionRow(
+    index: number,
+    conn: Connection,
+  ): Promise<void> {
+    const row = this.connectionFormRows.nth(index);
+    await humanFill(
+      row.locator('input[data-testid="source-connection-name"]'),
+      conn.name,
+    );
+    await humanFill(
+      row.locator('input[data-testid="source-connection-ip"]'),
+      conn.ip,
+    );
+    await this.fillIfDifferent(
+      row.locator('input[data-testid="source-connection-ssh-port"]'),
+      String(conn.sshPort ?? '22'),
+    );
+    await humanFill(
+      row.locator('input[data-testid="source-connection-user"]'),
+      conn.user,
+    );
+    if (conn.password)
+      await humanFill(
+        row.locator('input[data-testid="source-connection-password"]'),
+        conn.password,
+      );
+    if (conn.privateKey)
+      await humanFill(
+        row.locator('textarea[data-testid="source-connection-private-key"]'),
+        conn.privateKey,
+      );
+  }
+
+  /** 연결정보를 이어서 여러 건 입력한다. 화면이 열릴 때 빈 행이 하나 있으므로 첫 건은 그 행을 쓴다.
+   *  각 건을 채운 직후의 Save 활성 여부를 순서대로 돌려준다 — 몇 건째부터 막히는지가 확인 대상이다. */
+  async addConnectionsInOneGo(conns: Connection[]): Promise<boolean[]> {
+    const saveStates: boolean[] = [];
+    for (const [index, conn] of conns.entries()) {
+      if (index > 0) await humanClick(this.addConnectionRowButton);
+      await expect(this.connectionFormRows).toHaveCount(index + 1);
+      await this.fillConnectionRow(index, conn);
+      saveStates.push(await this.saveEnabledWithin(5_000));
+    }
+    return saveStates;
+  }
+
+  /** index(0-base) 번째 입력 행을 × 로 지운다 */
+  async deleteConnectionRow(index: number): Promise<void> {
+    const before = await this.connectionFormRows.count();
+    await humanClick(
+      this.connectionFormRows
+        .nth(index)
+        .getByTestId('source-connection-remove-row'),
+    );
+    await expect(this.connectionFormRows).toHaveCount(before - 1);
+  }
+
+  /** Save 가 주어진 시간 안에 열리는지. 열리지 않으면 false — 화면 반영을 기다리다 생기는
+   *  거짓 실패를 막되, 끝까지 닫혀 있으면 그대로 결함으로 잡는다. */
+  private async saveEnabledWithin(timeout: number): Promise<boolean> {
+    try {
+      await expect
+        .poll(() => this.isConnectionSaveEnabled(), { timeout })
+        .toBe(true);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async isConnectionSaveEnabled(): Promise<boolean> {
+    return !(await this.isMirinaeButtonDisabled(this.connectionSaveButton));
+  }
+
+  async expectConnectionSaveEnabled(): Promise<void> {
+    await expect
+      .poll(() => this.isConnectionSaveEnabled(), { timeout: 10_000 })
+      .toBe(true);
+  }
+
+  async expectConnectionSaveDisabled(): Promise<void> {
+    await expect
+      .poll(() => this.isConnectionSaveEnabled(), { timeout: 10_000 })
+      .toBe(false);
+  }
+
+  /** Save — 화면이 닫히고 연결 목록으로 돌아오는 데까지.
+   *  연결 하나를 등록할 때마다 연계 시스템이 그 주소로 SSH 접속을 시도하고,
+   *  닿지 않는 주소면 시간 초과까지 약 10초를 기다린다(등록은 그래도 성공한다).
+   *  화면은 건을 순차로 보내므로 대기 시간을 행 수에 맞춰 잡는다. */
+  async saveConnections(): Promise<void> {
+    const rowCount = await this.connectionFormRows.count();
+    await humanClick(this.connectionSaveButton);
+    await expect(this.connectionFormRows.first()).toBeHidden({
+      timeout: 20_000 * rowCount + 20_000,
+    });
+  }
+
+  // ── 그룹 편집 · 커넥션 삭제 · 커넥션 상세 (2026-08-06 식별자 부여) ─────
+
+  /** 그룹 상세의 "Edit" — 편집 화면을 연다 */
+  private get groupEditButton(): Locator {
+    return this.page.getByRole('button', { name: 'Edit', exact: true });
+  }
+  /** 편집 모달 확정 */
+  private get groupEditConfirmButton(): Locator {
+    return this.page.locator('button', {
+      has: this.page.getByTestId('source-service-edit-confirm'),
+    });
+  }
+  /** 커넥션 표의 삭제 아이콘 (선택한 행을 지운다) */
+  private get connectionDeleteButton(): Locator {
+    return this.page.getByTestId('source-connection-delete');
+  }
+  private get connectionDeleteConfirmButton(): Locator {
+    return this.page.locator('button', {
+      has: this.page.getByTestId('source-connection-delete-confirm'),
+    });
+  }
+  /** 커넥션 상세 — Information 패널 */
+  private get connectionDetailInformation(): Locator {
+    return this.page.getByTestId('source-connection-detail-information');
+  }
+
+  /** 그룹 이름을 바꾼다 */
+  async renameGroup(from: string, to: string): Promise<void> {
+    await this.selectGroup(from);
+    await humanClick(this.groupEditButton.first());
+    await expect(this.serviceNameInput).toBeVisible({ timeout: 15_000 });
+    await humanFill(this.serviceNameInput, to);
+    await humanClick(this.groupEditConfirmButton);
+    await this.expectGroupListed(to);
+  }
+
+  /** 커넥션 한 건을 골라 지운다 */
+  async deleteConnection(connName: string): Promise<void> {
+    await this.checkConnection(connName);
+    await humanClick(this.connectionDeleteButton);
+    await humanClick(this.connectionDeleteConfirmButton);
+    await expect(this.connectionRow(connName)).toBeHidden({ timeout: 30_000 });
+  }
+
+  /** 커넥션 상세를 열고 Information 패널이 값을 보여주는지 본다 */
+  async expectConnectionDetail(connName: string, ip: string): Promise<void> {
+    await this.openConnectionsTab();
+    await humanClick(this.connectionRow(connName).first());
+    await expect(this.connectionDetailInformation).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(this.connectionDetailInformation).toContainText(connName);
+    await expect(this.connectionDetailInformation).toContainText(ip);
+  }
+
+  /** 커넥션 목록에 그 이름이 보이는지 */
+  async expectConnectionListed(connName: string): Promise<void> {
+    await this.openConnectionsTab();
+    await expect(this.connectionRow(connName)).toBeVisible({ timeout: 20_000 });
+  }
+
+  /** 커넥션 목록에서 사라졌는지 */
+  async expectConnectionAbsent(connName: string): Promise<void> {
+    await this.openConnectionsTab();
+    await expect(this.connectionRow(connName)).toBeHidden({ timeout: 20_000 });
+  }
+
+  /** 열린 추가·수정 화면의 index 행 한 필드만 바꾼다 (수정 시나리오용) */
+  async setConnectionRowField(
+    index: number,
+    field: 'name' | 'ip' | 'ssh-port' | 'user' | 'password',
+    value: string,
+  ): Promise<void> {
+    await humanFill(
+      this.connectionFormRows
+        .nth(index)
+        .locator(`input[data-testid="source-connection-${field}"]`),
+      value,
+    );
+  }
+
+  /** 열려 있는 입력 행 수 */
+  async connectionRowCount(): Promise<number> {
+    return this.connectionFormRows.count();
+  }
+
+  /** 목록 행에 그 값이 보이는지 (수정 결과 확인용) */
+  async expectConnectionRowContains(
+    connName: string,
+    value: string,
+  ): Promise<void> {
+    await this.openConnectionsTab();
+    await expect(this.connectionRow(connName)).toContainText(value, {
+      timeout: 20_000,
+    });
   }
 
   /** ★ mirinae PButton은 비활성을 class로만 표현한다(표준 disabled 속성이 붙지 않는다).
@@ -557,11 +871,28 @@ export class SourceServicesPage {
     await expect(this.exportNotice).toBeHidden({ timeout: 10_000 });
   }
 
-  /** 연결 상태 점검(Refresh) — 정상이어야 Collect 버튼 활성화. 상세가 열린 상태에서 호출. */
+  /** Agent Status / Connection Status 값 (source-group-status 의 data-status) */
+  private get groupStatus(): Locator {
+    return this.page.getByTestId('source-group-status');
+  }
+
+  /**
+   * 연결 상태 점검(Refresh) — **상태가 success 가 된 뒤에야** 수집을 누른다.
+   *
+   * ★ 종전에는 Refresh 를 누르고 `collectInfraButton` 이 *enabled* 가 되기를 기다렸다. 그런데
+   *   미리내 PButton 은 비활성을 **class 로만** 표현해 표준 `disabled` 속성이 붙지 않는다
+   *   (DESIGN-MIRINAE §1.6). `toBeEnabled()` 는 언제나 참을 돌려주므로 그 기다림은 **아무것도
+   *   기다리지 않았다** — 녹화를 보면 Refresh 를 누른 직후 상태가 Unknown 인 채로 Collect 를
+   *   누르고 있다. 사람이라면 상태가 success 로 바뀌는 것을 보고 누른다.
+   *
+   *   기다릴 것은 버튼의 겉모습이 아니라 **화면이 말하는 상태**다. Refresh 는 서버에 다시 물어
+   *   Agent Status 를 갱신하고, 그 값이 success 여야 수집이 실제로 결과를 가져온다.
+   */
   async refreshGroupStatus(): Promise<void> {
     await humanClick(this.groupRefreshButton);
-    // 상태 반영(로딩 종료) 대기 후 Collect가 활성화됨
-    await expect(this.collectInfraButton).toBeEnabled({ timeout: 30_000 });
+    await expect(this.groupStatus).toHaveAttribute('data-status', 'Success', {
+      timeout: 60_000,
+    });
   }
 
   /** 인프라 수집 실행 (그룹단위 import-infra) — 선택된 그룹 상세에서 Refresh 후 Collect Infra */
