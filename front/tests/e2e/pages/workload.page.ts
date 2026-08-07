@@ -504,6 +504,69 @@ export class WorkloadPage {
     });
   }
 
+  /**
+   * Whether the screen says a request is waiting to go out again.
+   *
+   * Being turned away is not a failure, and a pause with nothing on screen is the same thing
+   * to look at as one that has stopped — so the wait is what is checked, by its own marker
+   * rather than by the wording, which is free to change.
+   */
+  async expectRetryNotice(): Promise<void> {
+    await expect(this.page.getByTestId('mci-delete-retry-notice')).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
+  /** Which attempt the screen says it is on, as shown ("Retry 1/3"). */
+  async expectRetryCount(attempt: number, maxRetries: number): Promise<void> {
+    await expect(this.page.getByTestId('mci-delete-retry-count')).toHaveText(
+      `Retry ${attempt}/${maxRetries}`,
+      { timeout: 15_000 },
+    );
+  }
+
+  /**
+   * Whether the *list* says its lookup is waiting to go out again.
+   *
+   * Checked in its own right rather than through the dialog's marker: the wait belongs to the
+   * loading state here — it is drawn inside the spinner, not beside it — and putting it there
+   * is the point. A notice next to a screen that is still working reads as though it had
+   * stopped.
+   */
+  async expectListRetryNotice(): Promise<void> {
+    await expect(this.page.getByTestId('mci-list-retry-notice')).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
+  /** Which attempt the list says it is on, as shown ("Retry 1/3"). */
+  async expectListRetryCount(
+    attempt: number,
+    maxRetries: number,
+  ): Promise<void> {
+    await expect(this.page.getByTestId('mci-list-retry-count')).toHaveText(
+      `Retry ${attempt}/${maxRetries}`,
+      { timeout: 15_000 },
+    );
+  }
+
+  /**
+   * Whether the seconds left actually move.
+   *
+   * A number that never changes is the same thing to look at as a screen that has stopped, so
+   * what is checked is that it *counts* — read once, then read again and expect it lower. A
+   * frozen counter passes any check that only looks at it once.
+   */
+  async expectRetrySecondsCountingDown(testId: string): Promise<void> {
+    const seconds = this.page.getByTestId(testId);
+    await expect(seconds).toBeVisible({ timeout: 15_000 });
+    const first = Number(await seconds.innerText());
+    expect(first).toBeGreaterThan(1);
+    await expect
+      .poll(async () => Number(await seconds.innerText()), { timeout: 10_000 })
+      .toBeLessThan(first);
+  }
+
   /** Whether the dialog opened at the confirm step (rather than jumping to progress). */
   async expectDeleteConfirmStep(): Promise<void> {
     await expect(this.page.getByTestId('mci-delete-confirm')).toBeVisible({
