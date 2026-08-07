@@ -2,101 +2,182 @@
   <div class="form-field" :class="`depth-${depth}`">
     <!-- String, Number, Boolean - Simple Input -->
     <div v-if="isSimpleType" class="simple-field">
-      <label 
-        class="field-label" 
+      <label
+        class="field-label"
         :class="{ 'has-tooltip': fieldSchema.description }"
         :title="fieldSchema.description || ''"
       >
         {{ fieldName }}<span v-if="isRequired" class="required-mark">*</span>
       </label>
+      <!-- Bound to a previous task: rendered as a token, not editable text. A
+           `${task.path}` reference is ordinary JSON text, so left in an input a user
+           edits it by accident and it breaks with nothing to say so. -->
+      <BindingToken
+        v-if="binding"
+        :task="binding.task"
+        :path="binding.path"
+        :field="bindingKey"
+        :multiple="binding.multiple"
+        @edit="$emit('bind', bindingKey, fieldSchema.type)"
+        @clear="$emit('unbind', bindingKey)"
+      />
       <textarea
-        v-if="fieldSchema.type === 'string' && shouldUseTextarea"
+        v-if="!binding && fieldSchema.type === 'string' && shouldUseTextarea"
         :data-testid="fieldTestId"
         :value="fieldValue || ''"
-        @input="handleInput($event)"
-        class="field-textarea"
+        :class="['field-textarea', { 'field-invalid': isInvalid }]"
         :placeholder="`Enter ${fieldName}`"
         rows="6"
-      ></textarea>
+        @input="handleInput($event)"
+      />
       <input
-        v-else-if="fieldSchema.type === 'string'"
+        v-else-if="!binding && fieldSchema.type === 'string'"
         :data-testid="fieldTestId"
         type="text"
         :value="fieldValue || ''"
-        @input="handleInput($event)"
-        class="field-input"
+        :class="['field-input', { 'field-invalid': isInvalid }]"
         :placeholder="`Enter ${fieldName}`"
+        @input="handleInput($event)"
       />
       <input
-        v-else-if="fieldSchema.type === 'number' || fieldSchema.type === 'integer'"
+        v-else-if="
+          !binding &&
+          (fieldSchema.type === 'number' || fieldSchema.type === 'integer')
+        "
         :data-testid="fieldTestId"
         type="number"
         :value="fieldValue || 0"
-        @input="handleInput($event)"
-        class="field-input"
+        :class="['field-input', { 'field-invalid': isInvalid }]"
         :placeholder="`Enter ${fieldName}`"
+        @input="handleInput($event)"
       />
       <input
-        v-else-if="fieldSchema.type === 'boolean'"
+        v-else-if="!binding && fieldSchema.type === 'boolean'"
         :data-testid="fieldTestId"
         type="checkbox"
         :checked="!!fieldValue"
-        @change="handleInput($event)"
         class="field-checkbox"
+        @change="handleInput($event)"
       />
+      <!-- Pull a value out of a previous task. Dragging it onto the canvas lights up
+           the tasks that may be picked; clicking opens the same picker. -->
+      <button
+        v-if="!binding && canBind"
+        type="button"
+        class="btn-bind"
+        draggable="true"
+        :data-testid="`wf-field-bind-${bindingKey}`"
+        title="앞선 태스크에서 값 가져오기"
+        @click="$emit('bind', bindingKey, fieldSchema.type)"
+        @dragstart="$emit('bind-drag-start', bindingKey, fieldSchema.type)"
+        @dragend="$emit('bind-drag-end')"
+      >
+        <svg viewBox="0 0 16 16" class="bind-icon" aria-hidden="true">
+          <circle
+            cx="8"
+            cy="8"
+            r="3.2"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          />
+          <path
+            d="M8 1v2.4M8 12.6V15M1 8h2.4M12.6 8H15"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
+      <p
+        v-if="isInvalid"
+        class="field-invalid-note"
+        :data-testid="`wf-field-invalid-${bindingKey}`"
+      >
+        이 값은 앞서 실행되지 않는 태스크를 가리키고 있어 실행할 때 실패합니다.
+      </p>
     </div>
 
     <!-- Array Type -->
     <div v-else-if="fieldSchema.type === 'array'" class="array-field">
       <div class="array-header">
         <div class="header-left">
-          <button @click="toggleArrayCollapse" class="btn-collapse">
+          <button class="btn-collapse" @click="toggleArrayCollapse">
             {{ isArrayCollapsed ? '▶' : '▼' }}
           </button>
-          <label 
-            class="field-label" 
+          <label
+            class="field-label"
             :class="{ 'has-tooltip': fieldSchema.description }"
             :title="fieldSchema.description || ''"
           >
-            {{ fieldName }}<span v-if="isRequired" class="required-mark">*</span>
+            {{ fieldName
+            }}<span v-if="isRequired" class="required-mark">*</span>
             <span class="field-type">({{ arrayValue.length }} items)</span>
           </label>
         </div>
         <div class="header-actions">
-          <button @click="addArrayItem" class="btn-add-item">+ Add entity</button>
+          <button class="btn-add-item" @click="addArrayItem">
+            + Add entity
+          </button>
         </div>
       </div>
-      
+
       <div v-if="!isArrayCollapsed" class="array-items">
         <!-- String Array -->
         <div v-if="isStringArray" class="string-array">
-          <div v-for="(item, index) in arrayValue" :key="index" class="array-item">
+          <div
+            v-for="(item, index) in arrayValue"
+            :key="index"
+            class="array-item"
+          >
             <input
               :data-testid="arrayItemTestId(index)"
               type="text"
               :value="item"
-              @input="updateArrayItem(index, $event)"
-              class="field-input"
+              :class="['field-input', { 'field-invalid': isInvalid }]"
               :placeholder="`Item ${index + 1}`"
+              @input="updateArrayItem(index, $event)"
             />
-            <button @click="removeArrayItem(index)" class="btn-remove-item">×</button>
+            <button class="btn-remove-item" @click="removeArrayItem(index)">
+              ×
+            </button>
           </div>
         </div>
-        
+
         <!-- Object Array -->
-        <div v-else-if="fieldSchema.items && fieldSchema.items.type === 'object'" class="object-array">
-          <div v-for="(item, index) in arrayValue" :key="index" class="array-item-object">
-            <div class="item-header" @click="toggleItemCollapse(index)" style="cursor: pointer;">
+        <div
+          v-else-if="fieldSchema.items && fieldSchema.items.type === 'object'"
+          class="object-array"
+        >
+          <div
+            v-for="(item, index) in arrayValue"
+            :key="index"
+            class="array-item-object"
+          >
+            <div
+              class="item-header"
+              style="cursor: pointer"
+              @click="toggleItemCollapse(index)"
+            >
               <div class="item-header-left">
-                <button @click.stop="toggleItemCollapse(index)" class="btn-item-collapse">
+                <button
+                  class="btn-item-collapse"
+                  @click.stop="toggleItemCollapse(index)"
+                >
                   {{ isItemCollapsed(index) ? '▶' : '▼' }}
                 </button>
                 <span class="item-title">Item {{ index + 1 }}</span>
                 <span v-if="isItemCollapsed(index)" class="item-prop-count">
-                  ({{ Object.keys(fieldSchema.items.properties || {}).length }} properties)
+                  ({{ Object.keys(fieldSchema.items.properties || {}).length }}
+                  properties)
                 </span>
               </div>
-              <button @click.stop="removeArrayItem(index)" class="btn-remove-item">× Remove</button>
+              <button
+                class="btn-remove-item"
+                @click.stop="removeArrayItem(index)"
+              >
+                × Remove
+              </button>
             </div>
             <div v-if="!isItemCollapsed(index)" class="item-properties">
               <recursive-form-field
@@ -111,25 +192,37 @@
                 :task-name="taskName"
                 :current-path="`${currentPath}[]`"
                 :index-path="childIndexPath(String(propName), index)"
-                @update="updateObjectArrayItemProperty(index, String(propName), $event)"
+                :bindings="bindings"
+                :invalid-paths="invalidPaths"
+                :can-bind="canBind"
                 :depth="depth + 1"
+                @update="
+                  updateObjectArrayItemProperty(index, String(propName), $event)
+                "
+                @bind="(k, t) => $emit('bind', k, t)"
+                @unbind="k => $emit('unbind', k)"
+                @bind-drag-start="(k, t) => $emit('bind-drag-start', k, t)"
+                @bind-drag-end="$emit('bind-drag-end')"
               />
             </div>
             <div v-else class="item-collapsed-indicator">
               <span class="item-collapsed-text">
-                {{ Object.keys(fieldSchema.items.properties || {}).length }} properties (collapsed)
+                {{ Object.keys(fieldSchema.items.properties || {}).length }}
+                properties (collapsed)
               </span>
             </div>
           </div>
         </div>
-        
+
         <div v-if="!arrayValue || arrayValue.length === 0" class="empty-array">
           No items. Click "Add Item" to add.
         </div>
       </div>
-      
+
       <div v-else class="collapsed-indicator">
-        <span class="collapsed-text">{{ arrayValue.length }} items (collapsed)</span>
+        <span class="collapsed-text"
+          >{{ arrayValue.length }} items (collapsed)</span
+        >
       </div>
     </div>
 
@@ -137,20 +230,30 @@
     <div v-else-if="fieldSchema.type === 'object'" class="object-field">
       <div class="object-header">
         <div class="header-left">
-          <button @click="toggleObjectCollapse" class="btn-collapse">
+          <button class="btn-collapse" @click="toggleObjectCollapse">
             {{ isObjectCollapsed ? '▶' : '▼' }}
           </button>
-          <label 
-            class="field-label" 
+          <label
+            class="field-label"
             :class="{ 'has-tooltip': fieldSchema.description }"
             :title="fieldSchema.description || ''"
           >
-            {{ fieldName }}<span v-if="isRequired" class="required-mark">*</span>
-            <span class="field-type">({{ Object.keys(fieldSchema.properties || {}).length }} properties)</span>
+            {{ fieldName
+            }}<span v-if="isRequired" class="required-mark">*</span>
+            <span class="field-type"
+              >({{
+                Object.keys(fieldSchema.properties || {}).length
+              }}
+              properties)</span
+            >
           </label>
         </div>
       </div>
-      <div v-if="!isObjectCollapsed" class="object-properties" :class="{ 'depth-0-object': depth === 0 }">
+      <div
+        v-if="!isObjectCollapsed"
+        class="object-properties"
+        :class="{ 'depth-0-object': depth === 0 }"
+      >
         <recursive-form-field
           v-for="propName in sortedPropertyNames"
           :key="propName"
@@ -163,12 +266,22 @@
           :task-name="taskName"
           :current-path="computedChildPath(propName)"
           :index-path="childIndexPath(String(propName))"
-          @update="updateObjectProperty(String(propName), $event)"
+          :bindings="bindings"
+          :invalid-paths="invalidPaths"
+          :can-bind="canBind"
           :depth="depth + 1"
+          @update="updateObjectProperty(String(propName), $event)"
+          @bind="(k, t) => $emit('bind', k, t)"
+          @unbind="k => $emit('unbind', k)"
+          @bind-drag-start="(k, t) => $emit('bind-drag-start', k, t)"
+          @bind-drag-end="$emit('bind-drag-end')"
         />
       </div>
       <div v-else class="collapsed-indicator">
-        <span class="collapsed-text">{{ Object.keys(fieldSchema.properties || {}).length }} properties (collapsed)</span>
+        <span class="collapsed-text"
+          >{{ Object.keys(fieldSchema.properties || {}).length }} properties
+          (collapsed)</span
+        >
       </div>
     </div>
   </div>
@@ -176,62 +289,99 @@
 
 <script lang="ts">
 import { defineComponent, computed, ref } from 'vue';
-import { getPropertyOrder, sortPropertiesByOrder } from '../config/taskPropertyOrderConfig';
+import {
+  getPropertyOrder,
+  sortPropertiesByOrder,
+} from '../config/taskPropertyOrderConfig';
+import BindingToken from './BindingToken.vue';
 
 export default defineComponent({
   name: 'RecursiveFormField',
+  components: { BindingToken },
   props: {
     fieldName: {
       type: String,
-      required: true
+      required: true,
     },
     fieldSchema: {
       type: Object,
-      required: true
+      required: true,
     },
     fieldValue: {
       type: [String, Number, Boolean, Object, Array],
-      default: null
+      default: null,
     },
     stepProperties: {
       type: Object,
-      default: () => ({})
+      default: () => ({}),
     },
     depth: {
       type: Number,
-      default: 0
+      default: 0,
     },
     maxAutoExpandDepth: {
       type: Number,
-      default: 2  // default: auto-expand only up to depth 2
+      default: 2, // default: auto-expand only up to depth 2
     },
     parentRequired: {
       type: Array,
-      default: () => []
+      default: () => [],
     },
     taskName: {
       type: String,
-      default: ''
+      default: '',
     },
     currentPath: {
       type: String,
-      default: ''
+      default: '',
     },
     // Path used only to build test ids. It mirrors currentPath but keeps array indices, so every leaf
     // gets a unique id. currentPath itself must stay index-free — the schema lookup keys off `foo[]`.
     indexPath: {
       type: String,
-      default: ''
-    }
+      default: '',
+    },
+    // Fields bound to a previous task's output, keyed by the same path the test ids
+    // use. Threaded down the recursion so any depth can render a token.
+    bindings: {
+      type: Object,
+      default: () => ({}),
+    },
+    // Paths whose reference points at a task that does not run first.
+    invalidPaths: {
+      type: Array,
+      default: () => [],
+    },
+    // False when this task has nothing before it, so there is nothing to pull from.
+    canBind: {
+      type: Boolean,
+      default: false,
+    },
   },
-  emits: ['update'],
+  emits: ['update', 'bind', 'unbind', 'bind-drag-start', 'bind-drag-end'],
   setup(props, { emit }) {
     // Every leaf input gets a stable id built from its path in the schema, e.g.
     // `wf-field-body_params.targetInfra.name`. The label text is the only other thing that identifies
     // a field here, and label text changes; the path does not. Tests need to point at one specific
     // field (the target infrastructure name, say) without guessing at wording or DOM position.
-    const fieldTestId = computed(() =>
-      `wf-field-${props.indexPath || props.currentPath || props.fieldName}`,
+    const fieldTestId = computed(
+      () =>
+        `wf-field-${props.indexPath || props.currentPath || props.fieldName}`,
+    );
+
+    /** Key this field is known by in the binding map — the same path the test ids use. */
+    const bindingKey = computed(
+      () => props.indexPath || props.currentPath || props.fieldName,
+    );
+
+    /** The binding on this field, if any. */
+    const binding = computed(
+      () => (props.bindings as Record<string, any>)[bindingKey.value] || null,
+    );
+
+    /** True when this field references a task that does not run before this one. */
+    const isInvalid = computed(() =>
+      (props.invalidPaths as string[]).includes(bindingKey.value),
     );
 
     /** Child path for the test id, keeping the array index so siblings do not collide. */
@@ -257,8 +407,9 @@ export default defineComponent({
     const shouldUseTextarea = computed(() => {
       const taskComponent = props.stepProperties?.originalData?.task_component;
       // Support both cicada_task_script and cicada_task_run_script
-      const isCicadaScriptTask = taskComponent === 'cicada_task_script' ||
-                                 taskComponent === 'cicada_task_run_script';
+      const isCicadaScriptTask =
+        taskComponent === 'cicada_task_script' ||
+        taskComponent === 'cicada_task_run_script';
       const result = isCicadaScriptTask && props.fieldName === 'content';
 
       // Debug logging
@@ -270,17 +421,19 @@ export default defineComponent({
         console.log('   result:', result);
         console.log('   stepProperties:', props.stepProperties);
       }
-      
+
       return result;
     });
-    
+
     // Collapse states
     const isArrayCollapsed = ref(shouldAutoCollapse.value);
     const isObjectCollapsed = ref(shouldAutoCollapse.value);
     const itemCollapsedStates = ref<Record<number, boolean>>({}); // Per-array-item collapse/expand state
-    
+
     const isSimpleType = computed(() => {
-      return ['string', 'number', 'integer', 'boolean'].includes(props.fieldSchema.type);
+      return ['string', 'number', 'integer', 'boolean'].includes(
+        props.fieldSchema.type,
+      );
     });
 
     const isStringArray = computed(() => {
@@ -295,7 +448,10 @@ export default defineComponent({
 
     const objectValue = computed(() => {
       if (!props.fieldValue) return {};
-      if (typeof props.fieldValue === 'object' && !Array.isArray(props.fieldValue)) {
+      if (
+        typeof props.fieldValue === 'object' &&
+        !Array.isArray(props.fieldValue)
+      ) {
         return props.fieldValue;
       }
       return {};
@@ -305,9 +461,9 @@ export default defineComponent({
     const sortedPropertyNames = computed(() => {
       if (!props.fieldSchema.properties) return [];
       const keys = Object.keys(props.fieldSchema.properties);
-      
+
       if (!props.taskName || !props.currentPath) return keys;
-      
+
       const order = getPropertyOrder(props.taskName, props.currentPath);
       return order ? sortPropertiesByOrder(keys, order) : keys;
     });
@@ -316,9 +472,9 @@ export default defineComponent({
     const sortedArrayItemPropertyNames = computed(() => {
       if (!props.fieldSchema.items?.properties) return [];
       const keys = Object.keys(props.fieldSchema.items.properties);
-      
+
       if (!props.taskName || !props.currentPath) return keys;
-      
+
       const arrayItemPath = `${props.currentPath}[]`;
       const order = getPropertyOrder(props.taskName, arrayItemPath);
       return order ? sortPropertiesByOrder(keys, order) : keys;
@@ -333,15 +489,18 @@ export default defineComponent({
     const handleInput = (event: Event) => {
       const target = event.target as HTMLInputElement;
       let value: any;
-      
+
       if (props.fieldSchema.type === 'boolean') {
         value = target.checked;
-      } else if (props.fieldSchema.type === 'number' || props.fieldSchema.type === 'integer') {
+      } else if (
+        props.fieldSchema.type === 'number' ||
+        props.fieldSchema.type === 'integer'
+      ) {
         value = parseFloat(target.value) || 0;
       } else {
         value = target.value;
       }
-      
+
       emit('update', value);
     };
 
@@ -352,38 +511,43 @@ export default defineComponent({
     const findDataInStepProperties = (fieldPath: string): any => {
       console.log('🔍 Finding data in stepProperties for path:', fieldPath);
       console.log('   stepProperties:', props.stepProperties);
-      
+
       if (!props.stepProperties) return null;
-      
+
       // Search in step.properties.model or step.properties.originalData.request_body
       const searchPaths = [
         props.stepProperties,
         (props.stepProperties as any)?.model,
         (props.stepProperties as any)?.originalData?.request_body,
-        (props.stepProperties as any)?.targetSoftwareModel
+        (props.stepProperties as any)?.targetSoftwareModel,
       ];
-      
+
       for (const searchRoot of searchPaths) {
         if (!searchRoot) continue;
-        
+
         // Look up directly by the current fieldName
         if (searchRoot[props.fieldName] !== undefined) {
-          console.log('✅ Found data in stepProperties:', props.fieldName, '=', searchRoot[props.fieldName]);
+          console.log(
+            '✅ Found data in stepProperties:',
+            props.fieldName,
+            '=',
+            searchRoot[props.fieldName],
+          );
           return searchRoot[props.fieldName];
         }
       }
-      
+
       console.log('⚠️ No data found in stepProperties for:', props.fieldName);
       return null;
     };
 
     const addArrayItem = () => {
       const newArray = [...arrayValue.value];
-      
+
       console.log('=== Add Array Item ===');
       console.log('Field name:', props.fieldName);
       console.log('Current array length:', newArray.length);
-      
+
       if (isStringArray.value) {
         // String array - default value from schema or empty string
         const defaultValue = props.fieldSchema.items?.default || '';
@@ -391,55 +555,85 @@ export default defineComponent({
       } else if (props.fieldSchema.items?.type === 'object') {
         // Object array - create object from schema with default values
         const newItem: any = {};
-        
+
         // 1. Find the actual data in stepProperties
         const actualDataArray = findDataInStepProperties(props.fieldName);
         console.log('📊 Actual data from stepProperties:', actualDataArray);
-        
+
         if (props.fieldSchema.items.properties) {
           Object.keys(props.fieldSchema.items.properties).forEach(key => {
             const propSchema = props.fieldSchema.items.properties[key];
-            
+
             // Priority 1: use the first item's value from the actual stepProperties data
-            if (Array.isArray(actualDataArray) && actualDataArray.length > 0 && 
-                actualDataArray[0][key] !== undefined) {
+            if (
+              Array.isArray(actualDataArray) &&
+              actualDataArray.length > 0 &&
+              actualDataArray[0][key] !== undefined
+            ) {
               if (propSchema.type === 'array') {
-                newItem[key] = Array.isArray(actualDataArray[0][key]) ? 
-                  JSON.parse(JSON.stringify(actualDataArray[0][key])) : [];
-                console.log(`   📋 Property "${key}" from stepProperties (array):`, newItem[key]);
+                newItem[key] = Array.isArray(actualDataArray[0][key])
+                  ? JSON.parse(JSON.stringify(actualDataArray[0][key]))
+                  : [];
+                console.log(
+                  `   📋 Property "${key}" from stepProperties (array):`,
+                  newItem[key],
+                );
               } else if (propSchema.type === 'object') {
-                newItem[key] = typeof actualDataArray[0][key] === 'object' ? 
-                  JSON.parse(JSON.stringify(actualDataArray[0][key])) : {};
-                console.log(`   📋 Property "${key}" from stepProperties (object):`, newItem[key]);
+                newItem[key] =
+                  typeof actualDataArray[0][key] === 'object'
+                    ? JSON.parse(JSON.stringify(actualDataArray[0][key]))
+                    : {};
+                console.log(
+                  `   📋 Property "${key}" from stepProperties (object):`,
+                  newItem[key],
+                );
               } else {
                 newItem[key] = actualDataArray[0][key];
-                console.log(`   📋 Property "${key}" from stepProperties (value):`, newItem[key]);
+                console.log(
+                  `   📋 Property "${key}" from stepProperties (value):`,
+                  newItem[key],
+                );
               }
             }
             // Priority 2: Schema default value
             else if (propSchema.default !== undefined) {
               newItem[key] = propSchema.default;
-              console.log(`   🔧 Property "${key}" from schema default:`, newItem[key]);
+              console.log(
+                `   🔧 Property "${key}" from schema default:`,
+                newItem[key],
+              );
             }
             // Priority 3: copy from the first item of the current array
-            else if (arrayValue.value.length > 0 && arrayValue.value[0][key] !== undefined) {
+            else if (
+              arrayValue.value.length > 0 &&
+              arrayValue.value[0][key] !== undefined
+            ) {
               if (propSchema.type === 'array') {
-                newItem[key] = Array.isArray(arrayValue.value[0][key]) ? 
-                  JSON.parse(JSON.stringify(arrayValue.value[0][key])) : [];
+                newItem[key] = Array.isArray(arrayValue.value[0][key])
+                  ? JSON.parse(JSON.stringify(arrayValue.value[0][key]))
+                  : [];
               } else if (propSchema.type === 'object') {
-                newItem[key] = typeof arrayValue.value[0][key] === 'object' ? 
-                  JSON.parse(JSON.stringify(arrayValue.value[0][key])) : {};
+                newItem[key] =
+                  typeof arrayValue.value[0][key] === 'object'
+                    ? JSON.parse(JSON.stringify(arrayValue.value[0][key]))
+                    : {};
               } else {
                 newItem[key] = arrayValue.value[0][key];
               }
-              console.log(`   📝 Property "${key}" from current array[0]:`, newItem[key]);
+              console.log(
+                `   📝 Property "${key}" from current array[0]:`,
+                newItem[key],
+              );
             }
             // Priority 4: Type-based default
             else if (propSchema.type === 'array') {
               newItem[key] = [];
             } else if (propSchema.type === 'object') {
               newItem[key] = {};
-            } else if (propSchema.type === 'number' || propSchema.type === 'integer') {
+            } else if (
+              propSchema.type === 'number' ||
+              propSchema.type === 'integer'
+            ) {
               newItem[key] = 0;
             } else if (propSchema.type === 'boolean') {
               newItem[key] = false;
@@ -449,20 +643,23 @@ export default defineComponent({
           });
         }
         newArray.push(newItem);
-        
+
         console.log('✅ Added new array item:', newItem);
-        console.log('   Based on schema properties:', Object.keys(props.fieldSchema.items.properties || {}));
+        console.log(
+          '   Based on schema properties:',
+          Object.keys(props.fieldSchema.items.properties || {}),
+        );
       }
-      
+
       emit('update', newArray);
     };
 
     const duplicateLastArrayItem = () => {
       const newArray = [...arrayValue.value];
-      
+
       if (newArray.length > 0) {
         const lastItem = newArray[newArray.length - 1];
-        
+
         // Deep clone the last item
         let duplicatedItem;
         if (typeof lastItem === 'object') {
@@ -470,14 +667,14 @@ export default defineComponent({
         } else {
           duplicatedItem = lastItem;
         }
-        
+
         newArray.push(duplicatedItem);
-        
+
         console.log('✅ Duplicated last array item');
         console.log('   Original item:', lastItem);
         console.log('   Duplicated item:', duplicatedItem);
       }
-      
+
       emit('update', newArray);
     };
 
@@ -494,43 +691,54 @@ export default defineComponent({
       emit('update', newArray);
     };
 
-    const updateObjectArrayItemProperty = (index: number, propName: string, value: any) => {
+    const updateObjectArrayItemProperty = (
+      index: number,
+      propName: string,
+      value: any,
+    ) => {
       const newArray = [...arrayValue.value];
       if (!newArray[index]) {
         newArray[index] = {};
       }
       newArray[index] = {
         ...newArray[index],
-        [propName]: value
+        [propName]: value,
       };
       emit('update', newArray);
     };
 
     const updateObjectProperty = (propName: string, value: any) => {
       let baseObject = objectValue.value;
-      
+
       // 🔍 CRITICAL FIX: Check if baseObject is a schema (not actual data)
-      if (baseObject && 
-          baseObject.type === 'object' && 
-          baseObject.properties && 
-          typeof baseObject.properties === 'object') {
+      if (
+        baseObject &&
+        baseObject.type === 'object' &&
+        baseObject.properties &&
+        typeof baseObject.properties === 'object'
+      ) {
         // This is a JSON schema, not actual data!
         // Start with empty object to avoid including schema properties in the result
-        console.warn(`⚠️ updateObjectProperty: objectValue is schema for field "${props.fieldName}", starting with empty object`);
-        console.warn('   Schema properties:', Object.keys(baseObject.properties));
+        console.warn(
+          `⚠️ updateObjectProperty: objectValue is schema for field "${props.fieldName}", starting with empty object`,
+        );
+        console.warn(
+          '   Schema properties:',
+          Object.keys(baseObject.properties),
+        );
         baseObject = {};
       }
-      
+
       const newObject = {
         ...baseObject,
-        [propName]: value
+        [propName]: value,
       };
-      
+
       console.log(`🔄 updateObjectProperty: ${props.fieldName}.${propName}`);
       console.log('   Base object keys:', Object.keys(baseObject));
       console.log('   New value type:', typeof value);
       console.log('   Result object keys:', Object.keys(newObject));
-      
+
       emit('update', newObject);
     };
 
@@ -545,14 +753,16 @@ export default defineComponent({
 
     const toggleItemCollapse = (index: number) => {
       const currentState = isItemCollapsed(index);
-      console.log(`🔄 Toggle Item ${index}: ${currentState} → ${!currentState}`);
-      
+      console.log(
+        `🔄 Toggle Item ${index}: ${currentState} → ${!currentState}`,
+      );
+
       // Create a new object for Vue 3 reactivity
       itemCollapsedStates.value = {
         ...itemCollapsedStates.value,
-        [index]: !currentState
+        [index]: !currentState,
       };
-      
+
       console.log(`   Updated state:`, itemCollapsedStates.value[index]);
     };
 
@@ -563,7 +773,7 @@ export default defineComponent({
         const initialState = props.depth >= props.maxAutoExpandDepth - 1;
         itemCollapsedStates.value = {
           ...itemCollapsedStates.value,
-          [index]: initialState
+          [index]: initialState,
         };
       }
       return itemCollapsedStates.value[index];
@@ -571,6 +781,9 @@ export default defineComponent({
 
     return {
       fieldTestId,
+      bindingKey,
+      binding,
+      isInvalid,
       childIndexPath,
       arrayItemTestId,
       isSimpleType,
@@ -596,9 +809,9 @@ export default defineComponent({
       toggleArrayCollapse,
       toggleObjectCollapse,
       toggleItemCollapse,
-      isItemCollapsed
+      isItemCollapsed,
     };
-  }
+  },
 });
 </script>
 
@@ -1023,5 +1236,43 @@ export default defineComponent({
   font-size: 0.813rem;
   padding: 0.375rem 0.5rem;
 }
-</style>
 
+/* --- value binding --- */
+.btn-bind {
+  flex: none;
+  border: 1px solid #c6c7f5;
+  background: #eeeefc;
+  color: #4b4ddb;
+  border-radius: 5px;
+  padding: 3px 5px;
+  cursor: grab;
+  line-height: 0;
+}
+.btn-bind:hover {
+  background: #e2e2fa;
+}
+.btn-bind:active {
+  cursor: grabbing;
+}
+.btn-bind:focus-visible {
+  outline: 2px solid #4b4ddb;
+  outline-offset: 1px;
+}
+.bind-icon {
+  width: 13px;
+  height: 13px;
+}
+
+/* A reference pointing at a task that does not run first. Left alone it saves
+   fine and then fails at run time, so it has to be visible here. */
+.field-invalid {
+  background: #fdecec;
+  border-color: #d94a4a;
+}
+.field-invalid-note {
+  margin: 3px 0 0;
+  font-size: 11px;
+  color: #b02a2a;
+  line-height: 1.5;
+}
+</style>
