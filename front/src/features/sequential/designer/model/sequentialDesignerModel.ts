@@ -13,6 +13,8 @@ import {
   nextAvailableName,
 } from '@/entities/workflow/lib/stepNaming';
 import { isAutoOpenPropertiesEnabled } from '@/features/sequential/designer/model/designerPreferences';
+import referencePickingStore from '@/features/sequential/designer/editor/store/referencePickingStore';
+import { watch } from 'vue';
 
 export function useSequentialDesignerModel(refs: any) {
   let designer: Designer | null = null;
@@ -270,6 +272,122 @@ export function useSequentialDesignerModel(refs: any) {
     isLoading = false;
     designer.onDefinitionChanged.subscribe(newDefinition => {});
     showParallelOutlineOnHover();
+    enablePickingATaskOnTheCanvas();
+  }
+
+  /**
+   * While the property panel is looking for a value, the canvas answers.
+   *
+   * The tasks that run before the edited one light up and the rest fade, so the
+   * rule about which tasks may be referenced is taught by the picture instead of
+   * by a name quietly missing from a dropdown. Task names are hard to read on the
+   * canvas, so the ones that can be picked get a label while this is going on.
+   *
+   * The library gives no hook for any of this and owns the DOM it draws, so the
+   * handlers go on the root and steps are found by `data-step-id` — the same
+   * approach the parallel-box outline above already uses.
+   */
+  function enablePickingATaskOnTheCanvas() {
+    const root: HTMLElement | null = placeholder;
+    if (!root) return;
+
+    const stepElementAt = (x: number, y: number): Element | null => {
+      const hit = document.elementFromPoint(x, y);
+      return hit?.closest('.sqd-step-task[data-step-id]') ?? null;
+    };
+
+    const taskNameOf = (element: Element | null): string => {
+      const id = element?.getAttribute('data-step-id');
+      if (!id) return '';
+      const found = findStepById(definition.sequence, id);
+      return found?.name ?? '';
+    };
+
+    /** Mark every step so css can fade the ones that cannot be picked. */
+    const paint = () => {
+      const picking = referencePickingStore.isPicking.value;
+      root.classList.toggle('sqd-picking-a-task', picking);
+      root.querySelectorAll('.sqd-step-task[data-step-id]').forEach(element => {
+        const allowed =
+          picking && referencePickingStore.isAllowed(taskNameOf(element));
+        element.classList.toggle('sqd-pick-allowed', allowed);
+        if (allowed) {
+          element.setAttribute('data-pick-name', taskNameOf(element));
+        } else {
+          element.removeAttribute('data-pick-name');
+          element.classList.remove('sqd-pick-over');
+        }
+      });
+    };
+
+    watch(() => referencePickingStore.isPicking.value, paint, {
+      immediate: true,
+    });
+
+    // Dragging the crosshair over a step. `dragover` has to be cancelled or the
+    // browser refuses the drop.
+    root.addEventListener('dragover', event => {
+      if (!referencePickingStore.isPicking.value) return;
+      const element = stepElementAt(event.clientX, event.clientY);
+      const allowed =
+        !!element && referencePickingStore.isAllowed(taskNameOf(element));
+      if (allowed) event.preventDefault();
+      root
+        .querySelectorAll('.sqd-pick-over')
+        .forEach(over => over.classList.remove('sqd-pick-over'));
+      if (allowed) element?.classList.add('sqd-pick-over');
+    });
+
+    root.addEventListener('drop', event => {
+      if (!referencePickingStore.isPicking.value) return;
+      const name = taskNameOf(stepElementAt(event.clientX, event.clientY));
+      if (!name) return;
+      event.preventDefault();
+      referencePickingStore.pick(name);
+      paint();
+    });
+
+    // Clicking works too — dragging is not available on touch, and it is the
+    // easier motion to reach with a keyboard-driven pointer.
+    root.addEventListener(
+      'click',
+      event => {
+        if (!referencePickingStore.isPicking.value) return;
+        const name = taskNameOf(stepElementAt(event.clientX, event.clientY));
+        if (!name || !referencePickingStore.isAllowed(name)) return;
+        // Keep the click from also selecting the step and swapping the panel out.
+        event.preventDefault();
+        event.stopPropagation();
+        referencePickingStore.pick(name);
+        paint();
+      },
+      true,
+    );
+
+    // Leaving the canvas mid-drag ends it, so the faded state does not stick.
+    root.addEventListener('dragleave', event => {
+      if (event.target === root) referencePickingStore.stop();
+    });
+  }
+
+  /** Depth-first lookup of a step by id, walking into parallel branches. */
+  function findStepById(sequence: Sequence, id: string): Step | null {
+    for (const step of sequence ?? []) {
+      if (step.id === id) return step;
+      const branches = (step as any).branches;
+      if (branches) {
+        for (const key of Object.keys(branches)) {
+          const found = findStepById(branches[key], id);
+          if (found) return found;
+        }
+      }
+      const nested = (step as any).sequence;
+      if (nested) {
+        const found = findStepById(nested, id);
+        if (found) return found;
+      }
+    }
+    return null;
   }
 
   // A parallel box with more than one branch hides its dashed outline (it reads from the shape

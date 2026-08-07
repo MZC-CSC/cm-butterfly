@@ -113,6 +113,35 @@
             />
             <span>앞선 태스크 결과 전체</span>
           </label>
+          <button
+            v-if="taskReference.canBind.value"
+            type="button"
+            class="ref-pick-on-canvas"
+            draggable="true"
+            data-testid="wf-ref-pick-on-canvas"
+            title="끌어서 캔버스의 태스크 위에 놓거나, 눌러서 고르세요"
+            @click="startPickingOnCanvas('', undefined)"
+            @dragstart="startPickingOnCanvas('', undefined)"
+            @dragend="stopPickingOnCanvas()"
+          >
+            <svg viewBox="0 0 16 16" class="ref-pick-icon" aria-hidden="true">
+              <circle
+                cx="8"
+                cy="8"
+                r="3.2"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              />
+              <path
+                d="M8 1v2.4M8 12.6V15M1 8h2.4M12.6 8H15"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+              />
+            </svg>
+            앞선 태스크에서 가져오기
+          </button>
           <span v-if="!taskReference.canBind.value" class="ref-source-note">
             앞선 태스크가 없어 가져올 값이 없습니다.
           </span>
@@ -218,8 +247,8 @@
                 @update="updateBodyParamField(String(propName), $event)"
                 @reference="openReferencePicker"
                 @reference-clear="clearReference"
-                @ref-drag-start="(k, t) => taskReference.startPicking(k, t)"
-                @ref-drag-end="taskReference.isPicking.value = false"
+                @ref-drag-start="startPickingOnCanvas"
+                @ref-drag-end="stopPickingOnCanvas"
                 :depth="0"
               />
             </div>
@@ -245,6 +274,7 @@ import {
   buildFieldReference,
 } from '@/shared/utils/stringToObject';
 import { useTaskReference } from '../composables/useTaskReference';
+import referencePickingStore from '../store/referencePickingStore';
 import TaskReferencePicker from './TaskReferencePicker.vue';
 import { useCommonTaskEditorModel } from '../model/commonTaskEditorModel';
 import type { Step } from '@/features/workflow/workflowEditor/model/types';
@@ -593,6 +623,28 @@ export default defineComponent({
     ): void => {
       taskReference.open(fieldPath, fieldType);
     };
+
+    /**
+     * Hand the choice over to the canvas: it lights up the tasks that run before
+     * this one and reports back which was picked, then the picker opens on that
+     * task so the value can be chosen out of it.
+     */
+    const startPickingOnCanvas = (
+      fieldPath: string,
+      fieldType?: string,
+    ): void => {
+      referencePickingStore.start(
+        taskReference.ancestors.value,
+        fieldPath,
+        fieldType,
+        pickedTask => {
+          taskReference.open(fieldPath, fieldType);
+          taskReference.pickTask(pickedTask);
+        },
+      );
+    };
+
+    const stopPickingOnCanvas = (): void => referencePickingStore.stop();
 
     /** Write the chosen reference into that field. */
     const applyReference = (): void => {
@@ -1955,6 +2007,8 @@ export default defineComponent({
       fieldReferences,
       invalidReferencePaths,
       openReferencePicker,
+      startPickingOnCanvas,
+      stopPickingOnCanvas,
       applyReference,
       clearReference,
       wholeBodyReference,
@@ -2384,6 +2438,26 @@ export default defineComponent({
 .ref-source-option.is-disabled {
   color: #a6aebc;
   cursor: not-allowed;
+}
+.ref-pick-on-canvas {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #c6c7f5;
+  background: #eeeefc;
+  color: #4b4ddb;
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: grab;
+}
+.ref-pick-on-canvas:active {
+  cursor: grabbing;
+}
+.ref-pick-icon {
+  width: 13px;
+  height: 13px;
 }
 .ref-source-note {
   font-size: 11px;
