@@ -377,6 +377,20 @@ const HELP: Array<{ path: string; help: Help }> = [
                 'Give the workflow a name and save it.',
               ],
             },
+            {
+              heading: 'Use a value an earlier task produced',
+              guide: {
+                label: "Using a previous task's result",
+                url: DOC_LINKS.workflowTaskReference,
+              },
+              steps: [
+                'A field can be filled from a task that runs earlier instead of being typed in - the value arrives when the workflow runs.',
+                'Press the target button on a field, or drag Take from a previous task onto the canvas. The tasks you can pick light up; the rest fade.',
+                'Every earlier task is listed at once with its values and their types. Search across all of them by name.',
+                'A filled field shows the reference rather than text, so it cannot be broken by a stray keystroke. Change it with the pencil, clear it with the cross.',
+                'Only tasks that run before this one are offered. Opening a workflow that reads a later task - one built elsewhere - says so and marks the fields in red.',
+              ],
+            },
           ],
         },
         {
