@@ -22,6 +22,10 @@ export const scenarioState: {
   nodeUserName?: string;
   /** List of the node's security group ids — the targets to open port 80 on */
   securityGroupIds?: string[];
+  /** Name of the workflow the task-value-reference scenarios are working on */
+  taskReferenceWorkflowName?: string;
+  /** Id of the workflow those scenarios created through the API, so it can be removed after */
+  taskReferenceSeededWorkflowId?: string;
   /** Last recommended spec (for verification) */
   lastRecommendedSpec?: string;
   /** Name of the software source model (SW collect → referenced by the SW recommend step) */

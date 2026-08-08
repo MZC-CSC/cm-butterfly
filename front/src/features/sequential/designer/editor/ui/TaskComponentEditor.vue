@@ -212,7 +212,11 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="row in wholeBodyOutputRows" :key="row.field">
+              <tr
+                v-for="row in wholeBodyOutputRows"
+                :key="row.field"
+                :data-testid="`wf-ref-whole-row-${row.field}`"
+              >
                 <td class="ref-whole-field">{{ row.field }}</td>
                 <td class="ref-whole-type">{{ row.type }}</td>
                 <td class="ref-whole-example">{{ row.example }}</td>

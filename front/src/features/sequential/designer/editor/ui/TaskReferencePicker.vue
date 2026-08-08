@@ -88,6 +88,7 @@ const title = (): string =>
         v-for="(source, index) in sources"
         :key="source.task"
         class="rp-source"
+        :data-testid="`wf-ref-source-${source.task}`"
       >
         <div class="rp-group">
           <span class="rp-ord">{{ index + 1 }}</span>
@@ -95,7 +96,11 @@ const title = (): string =>
           <span class="rp-anc">앞선 태스크</span>
         </div>
 
-        <p v-if="!source.hasSchema" class="rp-empty">
+        <p
+          v-if="!source.hasSchema"
+          class="rp-empty"
+          :data-testid="`wf-ref-no-schema-${source.task}`"
+        >
           이 태스크는 결과 정보를 알려 주지 않습니다. 아래에서 경로를 직접 적어
           주세요.
         </p>

@@ -117,7 +117,8 @@ for t in target-detail-custom-view source-detail-custom-view target-custom-save 
          wf-body-source-fields wf-body-source-whole wf-ref-pick-on-canvas \
          wf-ref-popover wf-ref-search wf-ref-preview wf-ref-typecheck \
          wf-ref-apply wf-ref-cancel wf-ref-path-input wf-ref-whole \
-         wf-ref-invalid-summary wf-broken-ref-notice wf-broken-ref-close; do
+         wf-ref-invalid-summary wf-ref-manual-task wf-ref-whole-edit \
+         wf-broken-ref-notice wf-broken-ref-close; do
   grep -rq "\"$t\"" "$SRC" --include=*.vue 2>/dev/null || missing="$missing $t"
 done
 if [ -z "$missing" ]; then say "화면 식별자" "필요한 것 모두 있음"
