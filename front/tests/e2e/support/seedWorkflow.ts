@@ -78,10 +78,14 @@ export async function seedChainOfTasks(opts: {
     return {
       name: taskName,
       task_component: component,
-      request_body:
+      // cm-cicada keeps the body under `spec`, which is also where templates and the console put it.
+      spec:
         component === 'cicada_task_run_script'
-          ? '{"content":"ZWNobyBoaQ==","infra_id":"","node_id":"","ns_id":""}'
-          : '',
+          ? {
+              request_body:
+                '{"content":"ZWNobyBoaQ==","infra_id":"","node_id":"","ns_id":""}',
+            }
+          : {},
       dependencies: index === 0 ? [] : [opts.taskNames[index - 1]],
     };
   });
@@ -150,14 +154,16 @@ export async function seedWorkflowWithBrokenReference(opts: {
               {
                 name: 'reads_a_later_task',
                 task_component: 'cicada_task_run_script',
-                request_body:
-                  '{"content":"ZWNobyBoaQ==","infra_id":"${runs_later.$.output}","node_id":"n1","ns_id":"default"}',
+                spec: {
+                  request_body:
+                    '{"content":"ZWNobyBoaQ==","infra_id":"${runs_later.$.output}","node_id":"n1","ns_id":"default"}',
+                },
                 dependencies: [],
               },
               {
                 name: 'runs_later',
                 task_component: 'cicada_task_time_sleep',
-                request_body: '{"second":1}',
+                spec: { request_body: '{"time":"1s"}' },
                 dependencies: ['reads_a_later_task'],
               },
             ],

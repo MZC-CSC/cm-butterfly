@@ -164,9 +164,7 @@ test('taking a value from a task that runs earlier', async ({ page }) => {
     await beat(page, 2);
 
     // ── 6. A second field, pointing somewhere else ───────────────────────────
-    await humanClick(
-      page.getByTestId('wf-field-ref-add-body_params.infra_id'),
-    );
+    await humanClick(page.getByTestId('wf-field-ref-add-body_params.infra_id'));
     await expect(page.getByTestId('wf-ref-popover')).toBeVisible({
       timeout: 15_000,
     });

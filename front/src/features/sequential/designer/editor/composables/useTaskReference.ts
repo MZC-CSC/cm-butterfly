@@ -183,10 +183,26 @@ export function useTaskReference(
     ancestors.value.map(task => {
       const component = componentOf.value.get(task) ?? '';
       const schema = responseSchemaOf(component);
+      const fields = flattenResponseSchema(schema);
       return {
         task,
         component,
-        nodes: flattenResponseSchema(schema),
+        // The whole result is a choice in its own right, and until it was listed there was no way to
+        // make it — replacing the body wholesale is exactly what the "whole result" option is for,
+        // and the list started at the fields one level in.
+        nodes: schema
+          ? [
+              {
+                path: '$',
+                label: '결과 전체',
+                depth: 0,
+                type: schema.type || (schema.properties ? 'object' : 'unknown'),
+                isContainer: true,
+                multiple: schema.type === 'array',
+              },
+              ...fields.map(node => ({ ...node, depth: node.depth + 1 })),
+            ]
+          : fields,
         hasSchema: !!schema,
       };
     }),

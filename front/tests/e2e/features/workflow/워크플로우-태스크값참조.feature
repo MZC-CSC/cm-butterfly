@@ -138,11 +138,15 @@
 
   @unit
   시나리오: 이미 참조를 쓰고 있는 템플릿을 열면 그대로 복원된다
+    migrate_infra_workflow 의 install_docker 는 infra_id·node_id 를 앞선 태스크에서 받고
+    ns_id 는 직접 적은 값을 쓴다. 한 본문에 두 가지가 섞여 있는 실제 사례다.
     먼저 "migrate_infra_workflow" 짜임으로 만든 워크플로우를 에디터에서 연다
     만약 "install_docker" 태스크를 편집하면
-    그러면 "ns_id" 칸이 참조 값으로 표시된다
-    그리고 "ns_id" 칸에 참조 문법이 글자로 노출되지 않는다
+    그러면 "infra_id" 칸이 참조 값으로 표시된다
+    그리고 "infra_id" 칸에 참조 문법이 글자로 노출되지 않는다
     그리고 "infra_id" 칸은 "infra_migration" 을 가리킨다
+    그리고 "node_id" 칸은 "infra_migration" 을 가리킨다
+    그리고 "ns_id" 칸은 직접 적은 값 그대로다
 
   # --- 본문 전체를 넘기기 -----------------------------------------------------
 

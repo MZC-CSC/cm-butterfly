@@ -731,14 +731,19 @@ export default defineComponent({
       );
       if (!source) return [];
       const prefix = path ? (path.startsWith('$') ? path : `$.${path}`) : '$';
-      return source.nodes
-        .filter((node: any) => node.path.startsWith(prefix))
-        .map((node: any) => ({
-          field:
-            node.path.slice(prefix.length).replace(/^\./, '') || node.label,
-          type: node.type,
-          example: node.example ?? '',
-        }));
+      return (
+        source.nodes
+          // The root row is the choice itself, not one of the values it carries.
+          .filter(
+            (node: any) => node.path.startsWith(prefix) && node.path !== prefix,
+          )
+          .map((node: any) => ({
+            field:
+              node.path.slice(prefix.length).replace(/^\./, '') || node.label,
+            type: node.type,
+            example: node.example ?? '',
+          }))
+      );
     });
 
     /** Writes a value at a dotted path like `targetInfra.nodeGroups[0].specId`. */

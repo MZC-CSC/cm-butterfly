@@ -30,6 +30,18 @@ export interface IBrokenReference {
   reason: 'not-ancestor' | 'unknown-task';
 }
 
+/**
+ * The request body of a task as cm-cicada stores it.
+ *
+ * It lives under `spec`, not at the top of the task. Reading the wrong one finds nothing and the
+ * check passes every workflow — which is worse than not having the check, because it reads as
+ * "this workflow is fine".
+ */
+const requestBodyOf = (task: ITaskResponse): string =>
+  String(
+    (task as any)?.spec?.request_body ?? (task as any)?.request_body ?? '',
+  );
+
 const allTasksOf = (
   taskGroups: Array<ITaskGroupResponse> | undefined,
 ): ITaskResponse[] => (taskGroups ?? []).flatMap(group => group.tasks ?? []);
@@ -64,7 +76,7 @@ export function findBrokenReferences(
 
   tasks.forEach(task => {
     const allowed = ancestorsOf(taskGroups, task.name);
-    const requestBody = String(task.request_body ?? '');
+    const requestBody = requestBodyOf(task);
 
     const judge = (referenced: string, field: string): void => {
       if (!referenced) return;

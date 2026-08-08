@@ -345,6 +345,14 @@ Then(
   },
 );
 
+Then('{string} 칸은 직접 적은 값 그대로다', async ({ page }, field: string) => {
+  // Mixing the two in one body is normal, so a reference on one field must not turn the rest into
+  // references too.
+  const wf = new WorkflowPage(page);
+  await expect(wf.referenceValue(field)).toHaveCount(0);
+  await expect(wf.bodyParamInput(field)).not.toHaveValue('');
+});
+
 Then('{string} 칸이 비어 있다', async ({ page }, field: string) => {
   await expect(new WorkflowPage(page).bodyParamInput(field)).toHaveValue('');
 });
