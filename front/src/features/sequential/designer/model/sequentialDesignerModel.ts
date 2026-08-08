@@ -349,13 +349,24 @@ export function useSequentialDesignerModel(refs: any) {
 
     // Clicking works too — dragging is not available on touch, and it is the
     // easier motion to reach with a keyboard-driven pointer.
+    //
+    // This has to be taken on `pointerdown`, not `click`. The library selects a
+    // step as soon as the pointer goes down, which tears the property panel down
+    // and builds the one for that step — the panel asking for the value would be
+    // gone before a click handler ever ran. The follow-up events are swallowed
+    // too, or the library still gets its click afterwards.
+    const swallow = (event: Event) => {
+      if (!referencePickingStore.isPicking.value) return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
     root.addEventListener(
-      'click',
+      'pointerdown',
       event => {
         if (!referencePickingStore.isPicking.value) return;
         const name = taskNameOf(stepElementAt(event.clientX, event.clientY));
         if (!name || !referencePickingStore.isAllowed(name)) return;
-        // Keep the click from also selecting the step and swapping the panel out.
         event.preventDefault();
         event.stopPropagation();
         referencePickingStore.pick(name);
@@ -363,6 +374,8 @@ export function useSequentialDesignerModel(refs: any) {
       },
       true,
     );
+    root.addEventListener('mousedown', swallow, true);
+    root.addEventListener('click', swallow, true);
 
     // Leaving the canvas mid-drag ends it, so the faded state does not stick.
     root.addEventListener('dragleave', event => {
