@@ -5,11 +5,31 @@ import { uniqueName } from '../support/naming';
 import { scenarioState } from '../support/world';
 import { getSessionToken } from '../support/apiWait';
 import {
+  seedChainOfTasks,
+  seedWorkflowFromTemplate,
   seedWorkflowWithBrokenReference,
   deleteWorkflowById,
-} from '../support/seedBrokenReference';
+} from '../support/seedWorkflow';
 
-const { Given, When, Then } = createBdd(test);
+const { Given, When, Then, After } = createBdd(test);
+
+/**
+ * Remove what each scenario made.
+ *
+ * Every scenario builds its own workflow so the ones before it cannot colour the result. Left behind
+ * they would pile up on the server and make the list unreadable for the next person using it.
+ */
+After(async ({ page }) => {
+  const id = scenarioState.taskReferenceSeededWorkflowId;
+  scenarioState.taskReferenceSeededWorkflowId = undefined;
+  scenarioState.taskReferenceWorkflowName = undefined;
+  if (!id) return;
+  await deleteWorkflowById({
+    request: page.request,
+    token: await getSessionToken(page).catch(() => ''),
+    id,
+  }).catch(() => undefined);
+});
 
 /**
  * Filling a task's request body from a task that runs before it.
@@ -22,17 +42,79 @@ const { Given, When, Then } = createBdd(test);
  */
 
 Given(
-  '{string} 템플릿으로 값 참조를 검증할 워크플로우를 연다',
+  '{string} 짜임으로 만든 워크플로우를 에디터에서 연다',
   async ({ page }, templateName: string) => {
     const wf = new WorkflowPage(page);
     const name = uniqueName(`ref-${templateName}`);
     scenarioState.taskReferenceWorkflowName = name;
 
-    await wf.openDesigner();
-    await wf.fillWorkflowName(name);
-    await wf.selectTemplate(templateName);
-    // The template drops the whole task chain onto the canvas. Without it there is no "earlier task"
-    // to take a value from, so wait until it is actually drawn before touching anything.
+    const id = await seedWorkflowFromTemplate({
+      request: page.request,
+      token: await getSessionToken(page),
+      templateName,
+      name,
+    });
+    scenarioState.taskReferenceSeededWorkflowId = id;
+
+    // The list was already on screen when the workflow was made, and it does not poll — reload so it
+    // holds what is actually on the server.
+    await page.reload();
+    await wf.gotoWorkflows();
+    await wf.selectWorkflow(name);
+    await wf.openEditorFromDetail();
+    // Nothing here works until the task chain is drawn — that chain is what decides which tasks may
+    // be taken from.
+    await expect(page.locator('.sqd-step-task').first()).toBeVisible({
+      timeout: 20_000,
+    });
+  },
+);
+
+Given(
+  '{string} 태스크가 차례로 이어진 워크플로우를 에디터에서 연다',
+  async ({ page }, taskNames: string) => {
+    const wf = new WorkflowPage(page);
+    const name = uniqueName('ref-chain');
+    scenarioState.taskReferenceWorkflowName = name;
+
+    scenarioState.taskReferenceSeededWorkflowId = await seedChainOfTasks({
+      request: page.request,
+      token: await getSessionToken(page),
+      name,
+      taskNames: taskNames.split(',').map(part => part.trim()),
+    });
+
+    await page.reload();
+    await wf.gotoWorkflows();
+    await wf.selectWorkflow(name);
+    await wf.openEditorFromDetail();
+    await expect(page.locator('.sqd-step-task').first()).toBeVisible({
+      timeout: 20_000,
+    });
+  },
+);
+
+Given(
+  '결과 정보를 주지 않는 태스크가 앞에 있는 워크플로우를 에디터에서 연다',
+  async ({ page }) => {
+    // Not every task describes what it returns — ones assembled by hand, and APIs whose successful
+    // response carries no body. The list has to say so rather than look empty.
+    const wf = new WorkflowPage(page);
+    const name = uniqueName('ref-noschema');
+    scenarioState.taskReferenceWorkflowName = name;
+
+    scenarioState.taskReferenceSeededWorkflowId = await seedChainOfTasks({
+      request: page.request,
+      token: await getSessionToken(page),
+      name,
+      taskNames: ['first_step', 'second_step'],
+      components: ['_v2_bash_notice', undefined],
+    });
+
+    await page.reload();
+    await wf.gotoWorkflows();
+    await wf.selectWorkflow(name);
+    await wf.openEditorFromDetail();
     await expect(page.locator('.sqd-step-task').first()).toBeVisible({
       timeout: 20_000,
     });
@@ -49,15 +131,18 @@ When('{string} 태스크를 편집하면', async ({ page }, taskName: string) =>
 
 // ── What may be taken from ───────────────────────────────────────────────────
 
-Then('값 참조 버튼이 비활성이다', async ({ page }) => {
-  await expect(
-    new WorkflowPage(page).pickOnCanvas,
-    '앞선 태스크가 없으면 가져올 곳이 없으므로 눌리지 않아야 한다',
-  ).toBeDisabled();
+Then('가져올 앞선 태스크가 없다는 안내가 보인다', async ({ page }) => {
+  await expect(new WorkflowPage(page).noEarlierTaskNote).toBeVisible();
 });
 
-Then('값 참조 버튼이 활성이다', async ({ page }) => {
-  await expect(new WorkflowPage(page).pickOnCanvas).toBeEnabled();
+Then('값 참조 버튼이 없다', async ({ page }) => {
+  // A button that cannot do anything invites a press and then explains nothing. The note takes its
+  // place, so what is missing is the button itself.
+  await expect(new WorkflowPage(page).pickOnCanvas).toHaveCount(0);
+});
+
+Then('값 참조 버튼이 보인다', async ({ page }) => {
+  await expect(new WorkflowPage(page).pickOnCanvas).toBeVisible();
 });
 
 Then('{string} 를 고를 수 없다', async ({ page }, label: string) => {
@@ -201,8 +286,8 @@ Then(
 
 Then('경로를 직접 적을 수 있다', async ({ page }) => {
   const wf = new WorkflowPage(page);
-  await wf.enterReferenceByHand('health_check', '$.result');
-  expect(await wf.referencePreview()).toBe('${health_check.$.result}');
+  await wf.enterReferenceByHand('first_step', '$.result');
+  expect(await wf.referencePreview()).toBe('${first_step.$.result}');
 });
 
 // ── A field filled from another task ─────────────────────────────────────────
@@ -256,12 +341,12 @@ Then(
   async ({ page }, field: string) => {
     const wf = new WorkflowPage(page);
     await expect(wf.referenceValue(field)).toBeHidden();
-    await expect(wf.bodyField(field)).toBeVisible();
+    await expect(wf.bodyParamInput(field)).toBeVisible();
   },
 );
 
 Then('{string} 칸이 비어 있다', async ({ page }, field: string) => {
-  await expect(new WorkflowPage(page).bodyField(field)).toHaveValue('');
+  await expect(new WorkflowPage(page).bodyParamInput(field)).toHaveValue('');
 });
 
 Then(
@@ -294,7 +379,7 @@ Then(
     const wf = new WorkflowPage(page);
     // Restoring on load is the part that is easy to get wrong: the value comes back as text, and if it
     // is not recognised again the user sees `${task.$.path}` sitting in a box, editable and breakable.
-    await expect(wf.bodyField(field)).toHaveCount(0);
+    await expect(wf.bodyParamInput(field)).toHaveCount(0);
   },
 );
 
@@ -346,6 +431,7 @@ Given(
 
 When('그 워크플로우를 에디터에서 열면', async ({ page }) => {
   const wf = new WorkflowPage(page);
+  await page.reload();
   await wf.gotoWorkflows();
   await wf.selectWorkflow(scenarioState.taskReferenceWorkflowName!);
   await wf.openEditorFromDetail();
@@ -370,11 +456,4 @@ Then('그 칸이 문제 있는 칸으로 표시된다', async ({ page }) => {
   await wf.selectTaskInDesigner('', 'reads_a_later_task');
   await expect(wf.invalidReferenceField('infra_id')).toBeVisible();
   await expect(wf.invalidReferenceSummary).toBeVisible();
-
-  const id = scenarioState.taskReferenceSeededWorkflowId!;
-  await deleteWorkflowById({
-    request: page.request,
-    token: await getSessionToken(page),
-    id,
-  });
 });

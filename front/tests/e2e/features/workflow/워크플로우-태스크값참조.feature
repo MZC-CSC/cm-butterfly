@@ -14,11 +14,11 @@
   ★ 엔진은 참조 대상이 *워크플로우 안에 있기만* 하면 저장을 통과시킨다.
     뒤에 실행되는 태스크를 가리켜도 저장되고 실행할 때 죽으므로, 그 판단은 화면이 한다.
 
-  검증에 쓰는 워크플로우는 두 가지다.
-    - migrate_infra_workflow — 다섯 태스크가 한 줄로 이어지고 앞선 태스크가 모두 결과를
-      알려 준다. install_docker 는 앞이 셋·뒤가 하나라 고를 수 있는 것과 없는 것이 함께 나온다.
-    - _v2_ssh_remote_inspect_workflow — 세 태스크 모두 결과를 알려 주지 않는다.
-      결과 정보가 없을 때 화면이 무엇을 하는지 여기서 본다.
+  검증에 쓰는 워크플로우는 셋이다.
+    - 값이 비어 있는 태스크 체인 — 칸을 하나씩 채우는 동작을 여기서 본다.
+    - migrate_infra_workflow — 실제 템플릿. 조상 판정과, 템플릿이 이미 쓰고 있는
+      참조가 열었을 때 그대로 복원되는지를 여기서 본다.
+    - 앞서 실행되지 않는 태스크를 가리키는 워크플로우 — 에디터로는 만들 수 없어 API 로 만든다.
 
   배경:
     먼저 "cmiguser"로 로그인한다
@@ -28,23 +28,24 @@
 
   @unit
   시나리오: 맨 앞 태스크는 가져올 곳이 없다
-    먼저 "migrate_infra_workflow" 템플릿으로 값 참조를 검증할 워크플로우를 연다
-    만약 "infra_recommend_get" 태스크를 편집하면
-    그러면 "앞선 태스크 결과 전체" 를 고를 수 없다
-    그리고 값 참조 버튼이 비활성이다
+    먼저 "first_step, second_step" 태스크가 차례로 이어진 워크플로우를 에디터에서 연다
+    만약 "first_step" 태스크를 편집하면
+    그러면 가져올 앞선 태스크가 없다는 안내가 보인다
+    그리고 값 참조 버튼이 없다
+    그리고 "앞선 태스크 결과 전체" 를 고를 수 없다
 
   @unit
   시나리오: 앞선 태스크가 있으면 값을 가져올 수 있다
-    먼저 "migrate_infra_workflow" 템플릿으로 값 참조를 검증할 워크플로우를 연다
-    만약 "infra_migration" 태스크를 편집하면
-    그러면 값 참조 버튼이 활성이다
+    먼저 "first_step, second_step" 태스크가 차례로 이어진 워크플로우를 에디터에서 연다
+    만약 "second_step" 태스크를 편집하면
+    그러면 값 참조 버튼이 보인다
     그리고 "앞선 태스크 결과 전체" 를 고를 수 있다
 
   # --- 캔버스에서 고르기 -----------------------------------------------------
 
   @unit
   시나리오: 값 참조 버튼을 누르면 고를 수 있는 태스크만 밝아진다
-    먼저 "migrate_infra_workflow" 템플릿으로 값 참조를 검증할 워크플로우를 연다
+    먼저 "migrate_infra_workflow" 짜임으로 만든 워크플로우를 에디터에서 연다
     그리고 "install_docker" 태스크를 편집한다
     만약 캔버스에서 고르기를 시작하면
     그러면 캔버스에서 고를 수 있는 태스크는 다음과 같다
@@ -56,7 +57,7 @@
 
   @unit
   시나리오: 캔버스의 앞선 태스크를 고르면 그 태스크의 값이 열린다
-    먼저 "migrate_infra_workflow" 템플릿으로 값 참조를 검증할 워크플로우를 연다
+    먼저 "migrate_infra_workflow" 짜임으로 만든 워크플로우를 에디터에서 연다
     그리고 "install_docker" 태스크를 편집한다
     만약 캔버스에서 "infra_recommend_get" 태스크를 고르면
     그러면 값 고르기 창이 열린다
@@ -66,83 +67,90 @@
 
   @unit
   시나리오: 앞선 태스크 전부가 한 창에 펼쳐진다
-    먼저 "migrate_infra_workflow" 템플릿으로 값 참조를 검증할 워크플로우를 연다
-    그리고 "install_docker" 태스크를 편집한다
+    먼저 "first_step, second_step, third_step" 태스크가 차례로 이어진 워크플로우를 에디터에서 연다
+    그리고 "third_step" 태스크를 편집한다
     만약 "ns_id" 칸의 값 고르기 창을 열면
     그러면 값 고르기 창에 앞선 태스크가 모두 있다
-      | infra_recommend_get |
-      | infra_migration     |
-      | sleep_for_1m_30s    |
+      | first_step  |
+      | second_step |
 
   @unit
   시나리오: 이름으로 찾으면 그 값만 남는다
-    먼저 "migrate_infra_workflow" 템플릿으로 값 참조를 검증할 워크플로우를 연다
-    그리고 "install_docker" 태스크를 편집한다
+    먼저 "first_step, second_step" 태스크가 차례로 이어진 워크플로우를 에디터에서 연다
+    그리고 "second_step" 태스크를 편집한다
     그리고 "ns_id" 칸의 값 고르기 창을 연다
-    만약 값 고르기 창에서 "id" 로 찾으면
-    그러면 남은 값에는 모두 "id" 가 들어 있다
+    만약 값 고르기 창에서 "put" 로 찾으면
+    그러면 남은 값에는 모두 "put" 가 들어 있다
 
   @unit
   시나리오: 값을 고르면 저장될 참조가 미리 보인다
-    먼저 "migrate_infra_workflow" 템플릿으로 값 참조를 검증할 워크플로우를 연다
-    그리고 "install_docker" 태스크를 편집한다
+    먼저 "first_step, second_step" 태스크가 차례로 이어진 워크플로우를 에디터에서 연다
+    그리고 "second_step" 태스크를 편집한다
     그리고 "ns_id" 칸의 값 고르기 창을 연다
-    만약 "infra_recommend_get" 의 "$.id" 값을 고르면
-    그러면 저장될 값이 "${infra_recommend_get.$.id}" 로 보인다
+    만약 "first_step" 의 "$.output" 값을 고르면
+    그러면 저장될 값이 "${first_step.$.output}" 로 보인다
     그리고 형식 대조 결과가 표시된다
 
   @unit
   시나리오: 결과 정보를 주지 않는 태스크는 이유를 알린다
-    먼저 "_v2_ssh_remote_inspect_workflow" 템플릿으로 값 참조를 검증할 워크플로우를 연다
-    그리고 "cleanup_tmp" 태스크를 편집한다
-    만약 캔버스에서 "health_check" 태스크를 고르면
-    그러면 "health_check" 자리에 결과 정보가 없다는 안내가 보인다
+    먼저 결과 정보를 주지 않는 태스크가 앞에 있는 워크플로우를 에디터에서 연다
+    그리고 "second_step" 태스크를 편집한다
+    만약 "ns_id" 칸의 값 고르기 창을 열면
+    그러면 "first_step" 자리에 결과 정보가 없다는 안내가 보인다
     그리고 경로를 직접 적을 수 있다
 
   # --- 참조가 걸린 칸 ---------------------------------------------------------
 
   @unit
   시나리오: 참조가 걸린 칸은 글자가 아니라 참조 값으로 보인다
-    먼저 "migrate_infra_workflow" 템플릿으로 값 참조를 검증할 워크플로우를 연다
-    그리고 "install_docker" 태스크를 편집한다
-    만약 "ns_id" 칸을 "infra_recommend_get" 의 "$.id" 로 채우면
+    먼저 "first_step, second_step" 태스크가 차례로 이어진 워크플로우를 에디터에서 연다
+    그리고 "second_step" 태스크를 편집한다
+    만약 "ns_id" 칸을 "first_step" 의 "$.output" 로 채우면
     그러면 "ns_id" 칸이 참조 값으로 표시된다
     그리고 "ns_id" 칸은 직접 타이핑할 수 없다
 
   @unit
   시나리오: 참조를 끊으면 칸이 비워진다
-    먼저 "migrate_infra_workflow" 템플릿으로 값 참조를 검증할 워크플로우를 연다
-    그리고 "install_docker" 태스크를 편집한다
-    그리고 "ns_id" 칸을 "infra_recommend_get" 의 "$.id" 로 채운다
+    먼저 "first_step, second_step" 태스크가 차례로 이어진 워크플로우를 에디터에서 연다
+    그리고 "second_step" 태스크를 편집한다
+    그리고 "ns_id" 칸을 "first_step" 의 "$.output" 로 채운다
     만약 "ns_id" 칸의 참조를 끊으면
     그러면 "ns_id" 칸이 입력할 수 있는 상태로 돌아온다
     그리고 "ns_id" 칸이 비어 있다
 
   @unit
   시나리오: 칸마다 다른 태스크를 가리킬 수 있다
-    먼저 "migrate_infra_workflow" 템플릿으로 값 참조를 검증할 워크플로우를 연다
-    그리고 "install_docker" 태스크를 편집한다
-    만약 "ns_id" 칸을 "infra_recommend_get" 의 "$.id" 로 채우면
-    그리고 "infra_id" 칸을 "infra_migration" 의 "$.data" 로 채우면
-    그러면 "ns_id" 칸은 "infra_recommend_get" 을 가리킨다
-    그리고 "infra_id" 칸은 "infra_migration" 을 가리킨다
+    먼저 "first_step, second_step, third_step" 태스크가 차례로 이어진 워크플로우를 에디터에서 연다
+    그리고 "third_step" 태스크를 편집한다
+    만약 "ns_id" 칸을 "first_step" 의 "$.output" 로 채우면
+    그리고 "infra_id" 칸을 "second_step" 의 "$.output" 로 채우면
+    그러면 "ns_id" 칸은 "first_step" 을 가리킨다
+    그리고 "infra_id" 칸은 "second_step" 을 가리킨다
 
   @unit
   시나리오: 저장했다 다시 열어도 참조 값 그대로다
-    먼저 "migrate_infra_workflow" 템플릿으로 값 참조를 검증할 워크플로우를 연다
-    그리고 "install_docker" 태스크를 편집한다
-    그리고 "ns_id" 칸을 "infra_recommend_get" 의 "$.id" 로 채운다
-    만약 워크플로우를 저장하고 다시 열어 "install_docker" 태스크를 편집하면
+    먼저 "first_step, second_step" 태스크가 차례로 이어진 워크플로우를 에디터에서 연다
+    그리고 "second_step" 태스크를 편집한다
+    그리고 "ns_id" 칸을 "first_step" 의 "$.output" 로 채운다
+    만약 워크플로우를 저장하고 다시 열어 "second_step" 태스크를 편집하면
     그러면 "ns_id" 칸이 참조 값으로 표시된다
     그리고 "ns_id" 칸에 참조 문법이 글자로 노출되지 않는다
+
+  @unit
+  시나리오: 이미 참조를 쓰고 있는 템플릿을 열면 그대로 복원된다
+    먼저 "migrate_infra_workflow" 짜임으로 만든 워크플로우를 에디터에서 연다
+    만약 "install_docker" 태스크를 편집하면
+    그러면 "ns_id" 칸이 참조 값으로 표시된다
+    그리고 "ns_id" 칸에 참조 문법이 글자로 노출되지 않는다
+    그리고 "infra_id" 칸은 "infra_migration" 을 가리킨다
 
   # --- 본문 전체를 넘기기 -----------------------------------------------------
 
   @unit
   시나리오: 본문 전체를 앞선 태스크 결과로 넘기면 넘어가는 값이 보인다
-    먼저 "migrate_infra_workflow" 템플릿으로 값 참조를 검증할 워크플로우를 연다
-    그리고 "install_docker" 태스크를 편집한다
-    만약 본문 전체를 "infra_recommend_get" 결과로 넘기면
+    먼저 "first_step, second_step" 태스크가 차례로 이어진 워크플로우를 에디터에서 연다
+    그리고 "second_step" 태스크를 편집한다
+    만약 본문 전체를 "first_step" 결과로 넘기면
     그러면 칸 목록 대신 넘어가는 값 목록이 보인다
     그리고 넘어가는 값에 형식이 함께 표시된다
 

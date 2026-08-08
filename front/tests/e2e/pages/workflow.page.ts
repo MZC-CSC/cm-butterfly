@@ -648,7 +648,7 @@ export class WorkflowPage {
    * body parameter input. Targeted by schema path — e.g. `targetInfra.name`, `targetCloud.csp`.
    * (The testid is assigned in the form `wf-field-body_params.{path}`.)
    */
-  bodyField(path: string): Locator {
+  private bodyParam(path: string): Locator {
     return this.page.getByTestId(`wf-field-body_params.${path}`);
   }
 
@@ -662,7 +662,7 @@ export class WorkflowPage {
         ? this.pathParam(key)
         : kind === 'query'
           ? this.queryParam(key)
-          : this.bodyField(key);
+          : this.bodyParam(key);
     await expect(field).toBeVisible({ timeout: 15_000 });
     return field.inputValue();
   }
@@ -678,7 +678,7 @@ export class WorkflowPage {
         ? this.pathParam(key)
         : kind === 'query'
           ? this.queryParam(key)
-          : this.bodyField(key);
+          : this.bodyParam(key);
     await expect(field).toBeVisible({ timeout: 15_000 });
     await humanFill(field, value);
     // Give the input time to reflect into the model (input event → parent state update).
@@ -803,7 +803,7 @@ export class WorkflowPage {
     );
 
     if (found) {
-      const field = this.bodyField(found.path);
+      const field = this.bodyParam(found.path);
       const value = found.value;
       {
         const parts = value.split('+');
@@ -864,7 +864,7 @@ export class WorkflowPage {
     );
 
     if (found) {
-      const field = this.bodyField(found.path);
+      const field = this.bodyParam(found.path);
       const value = found.value.trim();
 
       await field.scrollIntoViewIfNeeded().catch(() => {});
@@ -1769,6 +1769,16 @@ export class WorkflowPage {
     return this.page.getByTestId('wf-ref-pick-on-canvas');
   }
 
+  /** The plain input for a body field, addressed by its schema path. */
+  bodyParamInput(path: string): Locator {
+    return this.page.getByTestId(`wf-field-body_params.${path}`);
+  }
+
+  /** Said in place of the button when nothing runs before this task. */
+  get noEarlierTaskNote(): Locator {
+    return this.page.getByTestId('wf-ref-none-available');
+  }
+
   /** The value list. */
   get referencePicker(): Locator {
     return this.page.getByTestId('wf-ref-popover');
@@ -1856,7 +1866,7 @@ export class WorkflowPage {
   /** Values still on screen after a search. */
   async visibleReferenceValueLabels(): Promise<string[]> {
     return this.referencePicker
-      .locator('[data-testid^="wf-ref-node-"]')
+      .locator('[data-testid^="wf-ref-node-"] .rp-name')
       .evaluateAll(nodes => nodes.map(node => node.textContent?.trim() ?? ''));
   }
 

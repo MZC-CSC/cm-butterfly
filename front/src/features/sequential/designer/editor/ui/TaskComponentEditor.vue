@@ -142,7 +142,11 @@
             </svg>
             앞선 태스크에서 가져오기
           </button>
-          <span v-if="!taskReference.canBind.value" class="ref-source-note">
+          <span
+            v-if="!taskReference.canBind.value"
+            class="ref-source-note"
+            data-testid="wf-ref-none-available"
+          >
             앞선 태스크가 없어 가져올 값이 없습니다.
           </span>
         </div>
