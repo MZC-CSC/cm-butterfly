@@ -80,7 +80,19 @@ const trigger = reactive({ value: false });
  * In that case, instead of showing a blank screen, it records the reason and blocks saving —
  * because saving something it could not draw would change the execution order.
  */
+import BrokenReferenceNotice from './BrokenReferenceNotice.vue';
+import {
+  findBrokenReferences,
+  type IBrokenReference,
+} from '@/entities/workflow/lib/referenceValidation';
 const isUneditable = ref(false);
+/**
+ * Values that read a task which does not run first. This editor cannot produce
+ * one — it only offers tasks that run before — but an imported definition can,
+ * and the engine takes it and fails at run time instead.
+ */
+const brokenReferences = ref<IBrokenReference[]>([]);
+const showBrokenReferences = ref(false);
 const loadWarnings = ref<string[]>([]);
 
 /**
@@ -860,6 +872,13 @@ function loadSequence() {
     // it to display would, on save, create dependencies that did not exist and silently change the workflow.
     isUneditable.value = loaded.representable === false;
     loadWarnings.value = loaded.warnings ?? [];
+    // Check what was loaded rather than trusting it: the engine accepts a
+    // reference to any task that exists by name, so a definition from an import
+    // or another tool can read a task that never ran.
+    brokenReferences.value = findBrokenReferences(
+      workflowData.value?.data?.task_groups ?? workflowData.value?.task_groups,
+    );
+    showBrokenReferences.value = brokenReferences.value.length > 0;
     // When entering from a target model, inject the target model id into the lookup task and the literal
     // body into the migration task. Injected right after the sequence is built (before designer render),
     // so it is reflected as-is on save.
@@ -1178,6 +1197,11 @@ function handleSelectTemplate(e) {
               How to run tasks in parallel
             </button>
           </header>
+          <BrokenReferenceNotice
+            v-if="showBrokenReferences"
+            :broken="brokenReferences"
+            @close="showBrokenReferences = false"
+          />
           <div
             v-if="loadWarnings.length"
             class="workflow-tool-notice mb-[12px]"
