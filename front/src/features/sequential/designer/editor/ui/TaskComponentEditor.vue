@@ -92,6 +92,7 @@
           <label class="ref-source-option">
             <input
               type="radio"
+              name="wf-body-source"
               value="fields"
               data-testid="wf-body-source-fields"
               :checked="!wholeBodyReference"
@@ -105,6 +106,7 @@
           >
             <input
               type="radio"
+              name="wf-body-source"
               value="whole"
               data-testid="wf-body-source-whole"
               :disabled="!taskReference.canBind.value"
@@ -275,6 +277,7 @@ import {
   computed,
   watch,
   nextTick,
+  set as vueSet,
 } from 'vue';
 import { serializeDesignerSequence } from '@/entities/workflow/lib/designerSerialize';
 import {
@@ -677,10 +680,16 @@ export default defineComponent({
       if (!chosen) return;
       if (!taskReference.targetField.value) {
         // Whole body: store the raw reference, not JSON.
-        (step.value.properties as any).referenceRequestBody =
+        //
+        // Through `set`, because on a task that never had one this key is new to the object. Vue 2
+        // cannot see a key appear, so a plain assignment stores the value and redraws nothing — the
+        // panel goes on showing the field list as though the choice had not been made.
+        const reference =
           chosen.path && chosen.path !== '$'
             ? `${chosen.task}.${chosen.path}`
             : chosen.task;
+        vueSet(step.value.properties as any, 'referenceRequestBody', reference);
+        wholeBodyRef.value = reference;
         emit('saveContext', bodyParamsModel.value);
         taskReference.close();
         return;
@@ -704,9 +713,30 @@ export default defineComponent({
      * expects (`A` or `A.$.path`) rather than JSON — encoding it would turn it
      * into a literal and the reference would stop working.
      */
-    const wholeBodyReference = computed<string>(
-      () => (step.value.properties as any)?.referenceRequestBody || '',
+    // Held here, not read straight off the step.
+    //
+    // The step object belongs to sequential-workflow-designer and is a plain object — writing to it
+    // changes nothing on screen, whether by assignment or through `set`. So the panel reads our own
+    // state and writes through to the step, which is what gets saved.
+    const wholeBodyRef = ref<string>(
+      ((step.value.properties as any)?.referenceRequestBody as string) || '',
     );
+    watch(
+      () => (step.value.properties as any)?.referenceRequestBody,
+      value => {
+        wholeBodyRef.value = (value as string) || '';
+      },
+    );
+    watch(
+      () => step.value?.id,
+      () => {
+        wholeBodyRef.value =
+          ((step.value.properties as any)?.referenceRequestBody as string) ||
+          '';
+      },
+    );
+
+    const wholeBodyReference = computed<string>(() => wholeBodyRef.value);
 
     /** The whole body comes from a previous task: pick which one, and how much. */
     const setBodySourceWhole = (): void => {
@@ -715,7 +745,8 @@ export default defineComponent({
 
     /** Back to filling the fields; the reference is dropped. */
     const setBodySourceFields = (): void => {
-      (step.value.properties as any).referenceRequestBody = '';
+      vueSet(step.value.properties as any, 'referenceRequestBody', '');
+      wholeBodyRef.value = '';
       emit('saveContext', bodyParamsModel.value);
     };
 

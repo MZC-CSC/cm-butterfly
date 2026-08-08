@@ -1899,11 +1899,14 @@ export class WorkflowPage {
     );
   }
 
-  /** One line of the notice: which task, which field. */
+  /**
+   * One line of the notice: which task, which field.
+   *
+   * The notice names the field as it sits in the body — no `body_params.` in front, unlike the field
+   * itself on the panel, which is addressed by its place in the form.
+   */
   brokenReferenceRow(taskName: string, fieldPath: string): Locator {
-    return this.page.getByTestId(
-      `wf-broken-ref-row-${taskName}-body_params.${fieldPath}`,
-    );
+    return this.page.getByTestId(`wf-broken-ref-row-${taskName}-${fieldPath}`);
   }
 
   /** Shown when a workflow reads a task that does not run first. */
