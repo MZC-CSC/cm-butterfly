@@ -59,15 +59,15 @@ const title = computed(() => `${props.task}.${props.path}`);
       <span
         v-if="multiple"
         class="ref-multi"
-        title="여러 건이면 목록으로 들어옵니다"
-        >목록</span
+        title="More than one match arrives as a list"
+        >Multiple</span
       >
     </span>
     <button
       type="button"
       class="ref-action"
       :data-testid="`wf-field-ref-edit-${field}`"
-      title="다시 고르기"
+      title="Pick again"
       @click="emit('edit')"
     >
       ✎
@@ -76,7 +76,7 @@ const title = computed(() => `${props.task}.${props.path}`);
       type="button"
       class="ref-action"
       :data-testid="`wf-field-ref-clear-${field}`"
-      title="연결 끊기"
+      title="Clear"
       @click="emit('clear')"
     >
       ✕

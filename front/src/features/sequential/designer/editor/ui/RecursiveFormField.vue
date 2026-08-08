@@ -67,7 +67,7 @@
         class="btn-ref-add"
         draggable="true"
         :data-testid="`wf-field-ref-add-${referenceKey}`"
-        title="앞선 태스크에서 값 가져오기"
+        title="Take a value from an earlier task"
         @click="$emit('reference', referenceKey, fieldSchema.type)"
         @dragstart="$emit('ref-drag-start', referenceKey, fieldSchema.type)"
         @dragend="$emit('ref-drag-end')"
@@ -94,7 +94,8 @@
         class="field-invalid-note"
         :data-testid="`wf-field-ref-invalid-${referenceKey}`"
       >
-        이 값은 앞서 실행되지 않는 태스크를 가리키고 있어 실행할 때 실패합니다.
+        This reads a task that does not run first, so it will fail when the
+        workflow runs.
       </p>
     </div>
 

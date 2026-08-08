@@ -271,7 +271,7 @@ Then('저장될 값이 {string} 로 보인다', async ({ page }, expected: strin
 Then('형식 대조 결과가 표시된다', async ({ page }) => {
   const verdict = await new WorkflowPage(page).referenceTypeCheck();
   expect(verdict, '고른 값의 형식과 넣을 칸의 형식이 함께 보여야 한다').toMatch(
-    /맞음|안 맞음|확인 못 함/,
+    /fits|does not fit|cannot tell/,
   );
 });
 

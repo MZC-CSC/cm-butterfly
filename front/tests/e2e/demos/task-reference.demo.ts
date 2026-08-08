@@ -71,7 +71,7 @@ test('taking a value from a task that runs earlier', async ({ page }) => {
       request: page.request,
       token,
       name: chainName,
-      taskNames: ['first_step', 'second_step'],
+      taskNames: ['first_step', 'second_step', 'third_step'],
     }),
   );
   made.push(
@@ -103,18 +103,13 @@ test('taking a value from a task that runs earlier', async ({ page }) => {
     await beat(page, 2);
 
     // ── 2. A task with something before it ───────────────────────────────────
-    await selectTask(page, 'second_step');
+    await selectTask(page, 'third_step');
     await beat(page);
     await expect(page.getByTestId('wf-ref-pick-on-canvas')).toBeVisible();
-    await shot(page, 'second-task-can-take-a-value');
+    await shot(page, 'a-later-task-can-take-a-value');
     await beat(page, 2);
 
     // ── 3. Picking on the canvas ─────────────────────────────────────────────
-    await openEditor(page, infraName);
-    await selectTask(page, 'install_docker');
-    await beat(page);
-    await shot(page, 'task-with-three-earlier-tasks');
-
     await humanClick(page.getByTestId('wf-ref-pick-on-canvas'));
     await expect(
       page.locator('.sqd-step-task.sqd-pick-allowed').first(),
@@ -126,7 +121,7 @@ test('taking a value from a task that runs earlier', async ({ page }) => {
     await humanClick(
       page
         .locator('.sqd-step-task.sqd-pick-allowed')
-        .filter({ hasText: 'infra_recommend_get' })
+        .filter({ hasText: 'first_step' })
         .last(),
     );
     await expect(page.getByTestId('wf-ref-popover')).toBeVisible({
@@ -135,22 +130,31 @@ test('taking a value from a task that runs earlier', async ({ page }) => {
     await beat(page);
     await shot(page, 'value-list-opens-for-that-task');
     await beat(page, 2);
+    await humanClick(page.getByTestId('wf-ref-cancel'));
+    await beat(page);
 
-    // ── 4. Searching across every earlier task ───────────────────────────────
-    await page.getByTestId('wf-ref-search').fill('id');
+    // ── 4. Every earlier task in one list, searched across ───────────────────
+    await humanClick(page.getByTestId('wf-field-ref-add-body_params.ns_id'));
+    await expect(page.getByTestId('wf-ref-popover')).toBeVisible({
+      timeout: 15_000,
+    });
     await beat(page);
+    await shot(page, 'every-earlier-task-in-one-list');
+    await beat(page, 2);
+
+    await page.getByTestId('wf-ref-search').fill('put');
+    await beat(page, 2);
     await shot(page, 'search-runs-across-all-earlier-tasks');
-    await beat(page);
     await page.getByTestId('wf-ref-search').fill('');
     await beat(page);
 
     // ── 5. Choosing a value ──────────────────────────────────────────────────
     await humanClick(
-      page.getByTestId('wf-ref-node-infra_recommend_get-$.id').first(),
+      page.getByTestId('wf-ref-node-first_step-$.output').first(),
     );
     await beat(page);
     await expect(page.getByTestId('wf-ref-preview')).toContainText(
-      '${infra_recommend_get.$.id}',
+      '${first_step.$.output}',
     );
     await shot(page, 'what-will-be-saved-and-whether-the-type-fits');
     await beat(page, 2);
@@ -160,6 +164,9 @@ test('taking a value from a task that runs earlier', async ({ page }) => {
       timeout: 15_000,
     });
     await beat(page);
+    await expect(
+      page.getByTestId('wf-field-ref-body_params.ns_id'),
+    ).toBeVisible();
     await shot(page, 'the-field-now-shows-a-reference');
     await beat(page, 2);
 
@@ -169,10 +176,14 @@ test('taking a value from a task that runs earlier', async ({ page }) => {
       timeout: 15_000,
     });
     await humanClick(
-      page.getByTestId('wf-ref-node-infra_migration-$.data').first(),
+      page.getByTestId('wf-ref-node-second_step-$.output').first(),
     );
+    await beat(page);
     await humanClick(page.getByTestId('wf-ref-apply'));
     await beat(page);
+    await expect(
+      page.getByTestId('wf-field-ref-body_params.infra_id'),
+    ).toContainText('second_step');
     await shot(page, 'each-field-can-point-at-a-different-task');
     await beat(page, 2);
 
@@ -192,26 +203,27 @@ test('taking a value from a task that runs earlier', async ({ page }) => {
     await expect(page.getByTestId('wf-ref-popover')).toBeVisible({
       timeout: 15_000,
     });
-    await humanClick(
-      page.getByTestId('wf-ref-node-infra_recommend_get-$').first(),
-    );
+    await beat(page);
+    await humanClick(page.getByTestId('wf-ref-node-first_step-$').first());
+    await beat(page);
     await humanClick(page.getByTestId('wf-ref-apply'));
     await beat(page);
     await expect(page.getByTestId('wf-ref-whole')).toBeVisible();
     await shot(page, 'the-whole-body-and-what-it-will-pass');
-    await beat(page, 2);
+    await beat(page, 3);
 
-    // ── 9. A task that does not say what it returns ──────────────────────────
     await humanClick(page.getByTestId('wf-body-source-fields'));
     await beat(page);
-    await humanClick(page.getByTestId('wf-field-ref-add-body_params.ns_id'));
-    await expect(page.getByTestId('wf-ref-popover')).toBeVisible({
-      timeout: 15_000,
-    });
+
+    // ── 9. A real workflow that already takes values this way ────────────────
+    await openEditor(page, infraName);
+    await selectTask(page, 'install_docker');
     await beat(page);
-    await shot(page, 'every-earlier-task-in-one-list');
-    await humanClick(page.getByTestId('wf-ref-cancel'));
-    await beat(page);
+    await expect(
+      page.getByTestId('wf-field-ref-body_params.infra_id'),
+    ).toContainText('infra_migration');
+    await shot(page, 'a-real-workflow-opens-with-its-references-intact');
+    await beat(page, 3);
 
     // ── 10. A workflow that reads a task which does not run first ────────────
     await openEditor(page, brokenName, { expectNotice: true });

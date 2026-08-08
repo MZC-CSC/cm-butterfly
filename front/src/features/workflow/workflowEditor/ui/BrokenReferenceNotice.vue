@@ -33,21 +33,21 @@ const emit = defineEmits(['close']);
   >
     <div class="broken-ref-panel">
       <h3 id="broken-ref-title" class="broken-ref-title">
-        이 워크플로우에 잘못된 참조가 있습니다
+        This workflow has references that will not work
       </h3>
       <p class="broken-ref-lead">
-        아래 값은 <strong>앞서 실행되지 않는 태스크</strong>를 가리키고
-        있습니다. 이대로 실행하면 값을 찾지 못해 실패합니다. 해당 태스크를 열어
-        붉게 표시된 칸을 고쳐 주세요.
+        The values below read <strong>a task that does not run first</strong>.
+        Run as it stands, the workflow will fail: there is nothing to take. Open
+        each task and fix the fields marked in red.
       </p>
 
       <div class="broken-ref-scroll">
         <table class="broken-ref-table">
           <thead>
             <tr>
-              <th>태스크</th>
-              <th>칸</th>
-              <th>가리키는 곳</th>
+              <th>Task</th>
+              <th>Field</th>
+              <th>Points at</th>
             </tr>
           </thead>
           <tbody>
@@ -58,16 +58,16 @@ const emit = defineEmits(['close']);
             >
               <td class="broken-ref-task">{{ entry.task }}</td>
               <td class="broken-ref-field">
-                {{ entry.field || '본문 전체' }}
+                {{ entry.field || 'the whole body' }}
               </td>
               <td class="broken-ref-target">
                 {{ entry.referencedTask }}
                 <span
                   v-if="entry.reason === 'unknown-task'"
                   class="broken-ref-tag"
-                  >없는 태스크</span
+                  >No such task</span
                 >
-                <span v-else class="broken-ref-tag">앞서 실행되지 않음</span>
+                <span v-else class="broken-ref-tag">Does not run first</span>
               </td>
             </tr>
           </tbody>
@@ -81,7 +81,7 @@ const emit = defineEmits(['close']);
           data-testid="wf-broken-ref-close"
           @click="emit('close')"
         >
-          확인
+          OK
         </button>
       </div>
     </div>

@@ -51,7 +51,9 @@ const onManualPath = (event: Event): void =>
   emit('manual', props.selectedTask, valueOf(event));
 
 const title = (): string =>
-  props.targetField ? `값 고르기 — ${props.targetField}` : '넘길 값 고르기';
+  props.targetField
+    ? `Pick a value — ${props.targetField}`
+    : 'Pick what to pass';
 </script>
 
 <template>
@@ -78,7 +80,7 @@ const title = (): string =>
       <input
         data-testid="wf-ref-search"
         :value="search"
-        placeholder="이름으로 찾기"
+        placeholder="Search by name"
         @input="onSearch"
       />
     </label>
@@ -93,7 +95,7 @@ const title = (): string =>
         <div class="rp-group">
           <span class="rp-ord">{{ index + 1 }}</span>
           <span class="rp-task">{{ source.task }}</span>
-          <span class="rp-anc">앞선 태스크</span>
+          <span class="rp-anc">runs earlier</span>
         </div>
 
         <p
@@ -101,8 +103,8 @@ const title = (): string =>
           class="rp-empty"
           :data-testid="`wf-ref-no-schema-${source.task}`"
         >
-          이 태스크는 결과 정보를 알려 주지 않습니다. 아래에서 경로를 직접 적어
-          주세요.
+          This task does not describe what it returns. Enter a path directly
+          below.
         </p>
 
         <button
@@ -125,47 +127,49 @@ const title = (): string =>
         </button>
       </div>
 
-      <p v-if="!sources.length" class="rp-empty">앞선 태스크가 없습니다.</p>
+      <p v-if="!sources.length" class="rp-empty">
+        Nothing runs before this task.
+      </p>
     </div>
 
     <div class="rp-foot">
       <div class="rp-kv">
-        <span class="rp-k">저장될 값</span>
+        <span class="rp-k">Value to be saved</span>
         <span class="rp-v strong" data-testid="wf-ref-preview">{{
-          preview || '값을 고르세요'
+          preview || 'Pick a value'
         }}</span>
       </div>
       <div class="rp-kv">
-        <span class="rp-k">형식</span>
+        <span class="rp-k">Type</span>
         <span class="rp-v" data-testid="wf-ref-typecheck">
           {{ selectedType || '—' }} → {{ targetType || '—' }}
-          <span v-if="typeVerdict === 'match'" class="rp-pill ok">맞음</span>
+          <span v-if="typeVerdict === 'match'" class="rp-pill ok">fits</span>
           <span v-else-if="typeVerdict === 'mismatch'" class="rp-pill warn"
-            >안 맞음</span
+            >does not fit</span
           >
-          <span v-else class="rp-pill">확인 못 함</span>
+          <span v-else class="rp-pill">cannot tell</span>
         </span>
       </div>
 
       <p v-if="typeVerdict === 'mismatch'" class="rp-warn">
-        덩어리를 글자 칸에 넣으면 모양이 깨질 수 있습니다. 그대로 넣으려면
-        넣기를 누르세요.
+        A whole object dropped into a text field may not fit. Press Apply to use
+        it anyway.
       </p>
       <p v-if="selectedMultiple" class="rp-warn">
-        여러 건이 잡히면 목록으로 들어옵니다.
+        If the path matches more than one item, a list arrives.
       </p>
 
       <details class="rp-manual">
-        <summary>경로 직접 입력</summary>
+        <summary>Enter a path directly</summary>
         <p class="rp-manual-help">
-          트리로 표현되지 않는 값은 여기에 적습니다. 고른 것과 같은 모양으로
-          저장됩니다.
+          For anything the list does not cover. It is saved in the same form as
+          a value picked above.
         </p>
         <div class="rp-manual-row">
           <input
             data-testid="wf-ref-manual-task"
             class="rp-manual-task"
-            placeholder="태스크 이름"
+            placeholder="Task name"
             :value="selectedTask"
             @input="onManualTask"
           />
@@ -187,7 +191,7 @@ const title = (): string =>
         data-testid="wf-ref-cancel"
         @click="emit('cancel')"
       >
-        취소
+        Cancel
       </button>
       <button
         type="button"
@@ -196,7 +200,7 @@ const title = (): string =>
         :disabled="!preview"
         @click="emit('apply')"
       >
-        넣기
+        Apply
       </button>
     </div>
   </div>

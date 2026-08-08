@@ -194,7 +194,7 @@ export function useTaskReference(
           ? [
               {
                 path: '$',
-                label: '결과 전체',
+                label: 'The whole result',
                 depth: 0,
                 type: schema.type || (schema.properties ? 'object' : 'unknown'),
                 isContainer: true,

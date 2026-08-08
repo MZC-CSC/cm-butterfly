@@ -98,7 +98,7 @@
               :checked="!wholeBodyReference"
               @change="setBodySourceFields()"
             />
-            <span>칸마다 채우기</span>
+            <span>Fill in fields</span>
           </label>
           <label
             class="ref-source-option"
@@ -113,7 +113,7 @@
               :checked="wholeBodyReference"
               @change="setBodySourceWhole()"
             />
-            <span>앞선 태스크 결과 전체</span>
+            <span>An earlier task's whole result</span>
           </label>
           <button
             v-if="taskReference.canBind.value"
@@ -121,7 +121,7 @@
             class="ref-pick-on-canvas"
             draggable="true"
             data-testid="wf-ref-pick-on-canvas"
-            title="끌어서 캔버스의 태스크 위에 놓거나, 눌러서 고르세요"
+            title="Drag onto a task on the canvas, or press to pick"
             @click="startPickingOnCanvas('', undefined)"
             @dragstart="startPickingOnCanvas('', undefined)"
             @dragend="stopPickingOnCanvas()"
@@ -142,14 +142,14 @@
                 stroke-linecap="round"
               />
             </svg>
-            앞선 태스크에서 가져오기
+            Take from an earlier task
           </button>
           <span
             v-if="!taskReference.canBind.value"
             class="ref-source-note"
             data-testid="wf-ref-none-available"
           >
-            앞선 태스크가 없어 가져올 값이 없습니다.
+            Nothing runs before this task, so there is nothing to take.
           </span>
         </div>
 
@@ -158,9 +158,8 @@
           class="ref-invalid-summary"
           data-testid="wf-ref-invalid-summary"
         >
-          앞서 실행되지 않는 태스크를 가리키는 값이
-          {{ invalidReferencePaths.length }}건 있습니다. 붉게 표시된 칸을 고쳐
-          주세요.
+          {{ invalidReferencePaths.length }} value(s) here read a task that does
+          not run first. Fix the fields marked in red.
         </p>
 
         <TaskReferencePicker
@@ -207,14 +206,14 @@
             data-testid="wf-ref-whole-edit"
             @click="setBodySourceWhole()"
           >
-            다시 고르기
+            Pick again
           </button>
           <table v-if="wholeBodyOutputRows.length" class="ref-whole-table">
             <thead>
               <tr>
-                <th>넘어가는 값</th>
-                <th>형식</th>
-                <th>예시</th>
+                <th>Value passed</th>
+                <th>Type</th>
+                <th>Example</th>
               </tr>
             </thead>
             <tbody>
@@ -230,8 +229,8 @@
             </tbody>
           </table>
           <p v-else class="ref-whole-empty">
-            이 태스크는 결과 정보를 알려 주지 않아 넘어갈 값을 미리 보여 줄 수
-            없습니다.
+            This task does not describe what it returns, so what will be passed
+            cannot be shown.
           </p>
         </div>
 
