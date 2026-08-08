@@ -12,7 +12,7 @@ import type {
   TypeVerdict,
 } from '../composables/useTaskReference';
 
-const props = defineProps<{
+interface IProps {
   /** Field this value is going into. Empty string means the whole body. */
   targetField: string;
   sources: IOutputSource[];
@@ -24,15 +24,31 @@ const props = defineProps<{
   targetType?: string;
   selectedType?: string;
   selectedMultiple?: boolean;
-}>();
+}
 
-const emit = defineEmits<{
-  (e: 'update:search', value: string): void;
-  (e: 'pick', task: string, path: string): void;
-  (e: 'manual', task: string, path: string): void;
-  (e: 'apply'): void;
-  (e: 'cancel'): void;
-}>();
+const props = defineProps<IProps>();
+
+const emit = defineEmits([
+  'update:search',
+  'pick',
+  'manual',
+  'apply',
+  'cancel',
+]);
+
+// Vue 2 parses template expressions as plain JavaScript, so a TypeScript cast
+// like `($event.target as HTMLInputElement)` cannot live in the markup. The
+// reads happen here instead.
+const valueOf = (event: Event): string =>
+  (event.target as HTMLInputElement).value;
+
+const onSearch = (event: Event): void => emit('update:search', valueOf(event));
+
+const onManualTask = (event: Event): void =>
+  emit('manual', valueOf(event), props.selectedPath);
+
+const onManualPath = (event: Event): void =>
+  emit('manual', props.selectedTask, valueOf(event));
 
 const title = (): string =>
   props.targetField ? `값 고르기 — ${props.targetField}` : '넘길 값 고르기';
@@ -63,9 +79,7 @@ const title = (): string =>
         data-testid="wf-ref-search"
         :value="search"
         placeholder="이름으로 찾기"
-        @input="
-          emit('update:search', ($event.target as HTMLInputElement).value)
-        "
+        @input="onSearch"
       />
     </label>
 
@@ -148,26 +162,14 @@ const title = (): string =>
             class="rp-manual-task"
             placeholder="태스크 이름"
             :value="selectedTask"
-            @input="
-              emit(
-                'manual',
-                ($event.target as HTMLInputElement).value,
-                selectedPath,
-              )
-            "
+            @input="onManualTask"
           />
           <input
             data-testid="wf-ref-path-input"
             class="rp-manual-path"
             placeholder="$.result.id"
             :value="selectedPath"
-            @input="
-              emit(
-                'manual',
-                selectedTask,
-                ($event.target as HTMLInputElement).value,
-              )
-            "
+            @input="onManualPath"
           />
         </div>
       </details>

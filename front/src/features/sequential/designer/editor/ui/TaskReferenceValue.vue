@@ -8,19 +8,18 @@
  */
 import { computed } from 'vue';
 
-const props = defineProps<{
+interface IProps {
   task: string;
   path: string;
   /** Dotted field path, used to build the test ids */
   field: string;
   /** The value may arrive as a list — worth saying before the run does */
   multiple?: boolean;
-}>();
+}
 
-const emit = defineEmits<{
-  (e: 'edit'): void;
-  (e: 'clear'): void;
-}>();
+const props = defineProps<IProps>();
+
+const emit = defineEmits(['edit', 'clear']);
 
 /** `$.cloudInfraModel.targetVNet.id` is too long for the row; keep the tail. */
 const shortPath = computed(() => {

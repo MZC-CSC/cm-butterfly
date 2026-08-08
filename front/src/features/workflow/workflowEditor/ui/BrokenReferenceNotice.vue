@@ -14,11 +14,13 @@
  */
 import type { IBrokenReference } from '@/entities/workflow/lib/referenceValidation';
 
-defineProps<{
+interface IProps {
   broken: IBrokenReference[];
-}>();
+}
 
-const emit = defineEmits<{ (e: 'close'): void }>();
+defineProps<IProps>();
+
+const emit = defineEmits(['close']);
 </script>
 
 <template>
