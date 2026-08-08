@@ -592,9 +592,26 @@ export default defineComponent({
       ),
     );
 
+    /** Response schema of a component, read from the same list the form uses. */
+    const responseSchemaOf = (
+      componentName: string,
+    ): Record<string, any> | null => {
+      if (!componentName) return null;
+      const component = (taskComponents.value || []).find(
+        (candidate: any) => candidate?.name === componentName,
+      );
+      const spec = (component as any)?.spec || {};
+      return (
+        spec.response_schema ||
+        (component as any)?.data?.response_params ||
+        null
+      );
+    };
+
     const taskReference = useTaskReference(
       () => taskGroups.value,
       () => step.value.name,
+      responseSchemaOf,
     );
 
     /**

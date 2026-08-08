@@ -25,7 +25,6 @@ import {
   buildFieldReference,
   type IFieldReference,
 } from '@/shared/utils/stringToObject';
-import taskSchemaStore from '../store/taskSchemaStore';
 
 /** One selectable value in a previous task's output. */
 export interface IOutputNode {
@@ -142,6 +141,14 @@ export function compareTypes(
 export function useTaskReference(
   taskGroups: () => Array<ITaskGroupResponse> | undefined,
   currentTaskName: () => string,
+  /**
+   * Response schema of a task component, or null when it publishes none.
+   *
+   * Injected rather than read from a store: the editor already resolves task
+   * components from the workflow store to draw its form, and reading the same
+   * place keeps the two from disagreeing about what a component offers.
+   */
+  responseSchemaOf: (componentName: string) => Record<string, any> | null,
 ) {
   /** Field the picker was opened for. Empty means the whole body. */
   const targetField = ref<string>('');
@@ -175,7 +182,7 @@ export function useTaskReference(
   const sources = computed<IOutputSource[]>(() =>
     ancestors.value.map(task => {
       const component = componentOf.value.get(task) ?? '';
-      const schema = taskSchemaStore.getResponseSchema(component);
+      const schema = responseSchemaOf(component);
       return {
         task,
         component,
