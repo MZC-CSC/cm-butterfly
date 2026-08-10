@@ -47,10 +47,26 @@ type Group = {
   sections: Section[];
 };
 
+/**
+ * One button, column or field named on the screen, with what it is for.
+ *
+ * The procedures say what to do in order; this answers the other question - "what is this
+ * column telling me", asked while looking at it rather than while following steps. Kept
+ * apart from the procedures so neither buries the other, and folded away by default.
+ */
+type Reference = {
+  /** Exactly as it reads on the screen. */
+  item: string;
+  kind: 'btn' | 'field' | 'column' | 'tab';
+  meaning: string;
+};
+
 type Help = {
   title: string;
   /** What this menu is for, before any of the steps. */
   paragraphs: string[];
+  /** Buttons and columns on this screen, for the reader who is looking at one. */
+  reference?: Reference[];
   /** The jobs this menu does. Listed at the top, each jumping to its part. */
   groups?: Group[];
   /** Terms someone new to the console will not know yet. Kept last on purpose. */
@@ -133,6 +149,49 @@ const HELP: Array<{ path: string; help: Help }> = [
       title: 'Source Services',
       paragraphs: [
         'This menu does two things: you register and manage the servers you are migrating from, and you turn what is collected from them into a source model.',
+        'It is the first screen of a migration and the only one that reaches your servers directly, so everything later is built on what is registered and collected here.',
+      ],
+      reference: [
+        {
+          item: '+ Add',
+          kind: 'btn',
+          meaning:
+            'Above the upper list it creates a source service; above the lower list it adds a server to the service you have selected.',
+        },
+        {
+          item: 'Refresh',
+          kind: 'btn',
+          meaning:
+            'Contacts every server in the selected service over SSH and checks its agent, then rewrites the status from what came back.',
+        },
+        {
+          item: 'View Messages',
+          kind: 'btn',
+          meaning:
+            'What each server answered, one line per server - which of the connection and the agent succeeded, and the reason when either did not.',
+        },
+        {
+          item: 'Name',
+          kind: 'column',
+          meaning: 'The name you gave the source service. Selecting it opens its servers below.',
+        },
+        {
+          item: 'Connection #',
+          kind: 'column',
+          meaning:
+            'How many servers are registered under it. Zero means this service cannot be collected from yet - that is the usual reason step 1 is not finished.',
+        },
+        {
+          item: 'Status',
+          kind: 'column',
+          meaning:
+            'The result of the last Refresh, taken over all its servers. success - every server answered. failed - none did. partialSuccess - some did; the service can still be used, but only the servers that answered are collected from.',
+        },
+        {
+          item: 'Description',
+          kind: 'column',
+          meaning: 'Whatever you wrote when creating it. This is what tells two similar services apart.',
+        },
       ],
       groups: [
         {
@@ -1317,6 +1376,40 @@ onBeforeUnmount(() => {
           </template>
         </div>
 
+        <!--
+          What each button and column on this screen is for. Folded away: it answers a
+          question asked while looking at the screen, not while following the steps, so
+          leaving it open would push the procedures out of view.
+        -->
+        <section v-if="help.reference" class="help-group">
+          <button
+            type="button"
+            class="help-heading help-heading-toggle"
+            data-testid="help-reference-toggle"
+            :aria-expanded="isSectionOpen('__reference', 0) ? 'true' : 'false'"
+            @click="toggleSection('__reference', 0)"
+          >
+            <span class="help-heading-text">Buttons and columns on this screen</span>
+            <span class="help-heading-mark" aria-hidden="true">{{
+              isSectionOpen('__reference', 0) ? '&minus;' : '+'
+            }}</span>
+          </button>
+          <dl
+            v-if="isSectionOpen('__reference', 0)"
+            class="help-reference"
+            data-testid="help-reference-list"
+          >
+            <template v-for="(r, k) in help.reference">
+              <dt :key="`rt${k}`">
+                <span :class="`help-chip help-chip-${r.kind === 'column' ? 'menu' : r.kind}`">{{
+                  r.item
+                }}</span>
+              </dt>
+              <dd :key="`rd${k}`">{{ r.meaning }}</dd>
+            </template>
+          </dl>
+        </section>
+
         <!-- Set apart: the same words on every screen, for when one is unfamiliar. -->
         <section v-if="help.terms" class="help-glossary">
           <h2 class="help-group-title">Words used here</h2>
@@ -1715,6 +1808,25 @@ onBeforeUnmount(() => {
   padding-left: 18px;
   margin: 0;
   list-style: decimal;
+}
+
+.help-reference {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  align-items: baseline;
+  margin: 0;
+}
+
+.help-reference dt {
+  margin: 0;
+}
+
+.help-reference dd {
+  margin: 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: #4b5563;
 }
 
 .help-terms {
