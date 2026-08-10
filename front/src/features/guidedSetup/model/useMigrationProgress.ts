@@ -52,9 +52,41 @@ export type CurrentStep = 1 | 2 | 3 | 4 | 5 | 'done';
 const state = ref<ProgressState>('idle');
 const current = ref<CurrentStep>(1);
 
+/**
+ * What the last reading actually found, step by step.
+ *
+ * The step number alone says "you are on 1" without saying why, and the reader who has
+ * just registered a source service and still sees step 1 has no way to tell a stale
+ * answer from a missing connection. These are the counts the rules were applied to, so
+ * the screen can show the condition and how far it is met in the same breath.
+ */
+export interface ProgressFacts {
+  sourceServices: number;
+  connections: number;
+  collected: boolean;
+  sourceModels: number;
+  targetModels: number;
+  workflows: number;
+  runs: boolean;
+}
+
+const EMPTY_FACTS: ProgressFacts = {
+  sourceServices: 0,
+  connections: 0,
+  collected: false,
+  sourceModels: 0,
+  targetModels: 0,
+  workflows: 0,
+  runs: false,
+};
+
+const facts = ref<ProgressFacts>({ ...EMPTY_FACTS });
+
 /** Guidance only ever speaks when the answer is known. */
 export const progressState = computed(() => state.value);
 export const currentStep = computed(() => current.value);
+/** The counts behind the current answer, for screens that show the completion condition. */
+export const progressFacts = computed(() => facts.value);
 export const progressKnown = computed(() => state.value === 'ready');
 export const isFinished = computed(
   () => state.value === 'ready' && current.value === 'done',
@@ -89,9 +121,23 @@ function asArray(payload: any): any[] {
   return [];
 }
 
+/**
+ * The answer itself, never the envelope it arrived in.
+ *
+ * `responseData` is `null` when there is nothing to report - no collection yet, no models
+ * yet. Falling back to `res.data` on that null hands back the envelope, which is an object
+ * with keys in it, and every "is there anything here" test then reads as yes. That is how
+ * a source group with no connections and nothing collected reported step 2 as finished.
+ *
+ * So the envelope is unwrapped by *presence of the field*, not by whether it is empty.
+ */
 async function post(operationId: string, body: unknown): Promise<any> {
   const res = await axiosPost<any, unknown>(operationId, body ?? {});
-  return res?.data?.responseData ?? res?.data ?? null;
+  const data: any = res?.data;
+  if (data && typeof data === 'object' && 'responseData' in data) {
+    return data.responseData ?? null;
+  }
+  return data ?? null;
 }
 
 /** Step 1 - is there anything registered to migrate from? */
@@ -99,6 +145,24 @@ async function sourceGroups(): Promise<any[]> {
   const payload = await post(LIST_SOURCE_GROUP, {});
   // honeybee returns null rather than an empty array when there are none.
   return asArray(payload?.source_group ?? payload);
+}
+
+/**
+ * How many servers are registered under a source group.
+ *
+ * A group on its own migrates nothing - it is a folder until a connection is put in it,
+ * and Collect has nothing to reach. So step 1 is finished by *group and connection*, not
+ * by the group alone. `list-source-group` already carries this count, so asking costs no
+ * extra call.
+ */
+function connectionCount(group: any): number {
+  const raw = group?.connection_info_status_count?.connection_info_total;
+  const parsed = typeof raw === 'number' ? raw : Number(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function totalConnections(groups: any[]): number {
+  return groups.reduce((sum, group) => sum + connectionCount(group), 0);
 }
 
 /**
@@ -150,14 +214,29 @@ async function anyRun(workflows: any[]): Promise<boolean> {
 /**
  * Work out the current step and publish it.
  *
- * Runs once per visit to the guide screen. Cheap enough to repeat, but there is no
- * reason to: nothing changes underneath while the screen is being read.
+ * Re-read whenever the data underneath may have moved - opening a screen, and after any
+ * request that registers, collects, saves or runs something. It used to be read once and
+ * kept, which left the guidance describing an installation that no longer existed: you
+ * registered a source service, the list filled up in front of you, and the strip went on
+ * saying nothing was registered until the page was reloaded by hand.
  */
 export async function evaluateProgress(): Promise<void> {
   state.value = 'loading';
+  const found: ProgressFacts = { ...EMPTY_FACTS };
   try {
     const groups = await sourceGroups();
-    if (groups.length === 0) {
+    found.sourceServices = groups.length;
+    found.connections = totalConnections(groups);
+    facts.value = { ...found };
+
+    /*
+      Step 1 wants a group *and* somewhere to reach.
+
+      A group with no connection is a folder: Collect has nothing to run against and no
+      model can be made. Calling step 1 finished there sends the reader to Collect for a
+      server they never registered.
+    */
+    if (groups.length === 0 || found.connections === 0) {
       current.value = 1;
       state.value = 'ready';
       return;
@@ -172,31 +251,40 @@ export async function evaluateProgress(): Promise<void> {
       none. The first is a hint they can walk past; the second leaves them with nothing.
     */
     try {
-      if (!(await anythingCollected(groups))) {
-        current.value = 2;
-        state.value = 'ready';
-        return;
-      }
+      found.collected = await anythingCollected(groups);
     } catch {
+      found.collected = false;
+    }
+    facts.value = { ...found };
+    if (!found.collected) {
       current.value = 2;
       state.value = 'ready';
       return;
     }
 
-    if ((await models(false)).length === 0) {
+    const sourceModels = await models(false);
+    found.sourceModels = sourceModels.length;
+    facts.value = { ...found };
+    if (sourceModels.length === 0) {
       current.value = 3;
       state.value = 'ready';
       return;
     }
 
-    if ((await models(true)).length === 0) {
+    const targetModels = await models(true);
+    found.targetModels = targetModels.length;
+    facts.value = { ...found };
+    if (targetModels.length === 0) {
       current.value = 4;
       state.value = 'ready';
       return;
     }
 
     const workflows = asArray(await post(LIST_WORKFLOW, {}));
-    if (workflows.length === 0 || !(await anyRun(workflows))) {
+    found.workflows = workflows.length;
+    found.runs = workflows.length > 0 && (await anyRun(workflows));
+    facts.value = { ...found };
+    if (!found.runs) {
       current.value = 5;
       state.value = 'ready';
       return;
@@ -206,6 +294,24 @@ export async function evaluateProgress(): Promise<void> {
     state.value = 'ready';
   } catch {
     // Unknown, not empty. Say nothing rather than guess.
+    facts.value = { ...EMPTY_FACTS };
     state.value = 'failed';
   }
+}
+
+/**
+ * Read again, and let callers that arrive together share the one reading.
+ *
+ * Registering a source service fires more than one request, and a screen may open while
+ * one of those is still in the air. Without this they would each start their own pass and
+ * the last to finish - not the last to start - would win.
+ */
+let inFlight: Promise<void> | null = null;
+
+export function refreshProgress(): Promise<void> {
+  if (inFlight) return inFlight;
+  inFlight = evaluateProgress().finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
 }

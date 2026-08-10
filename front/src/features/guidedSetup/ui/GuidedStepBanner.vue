@@ -19,7 +19,7 @@ import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router/composables';
 import { GUIDED_STEPS, type GuidedStepId } from '../model/steps';
 import {
-  evaluateProgress,
+  refreshProgress,
   currentGuidedStep,
   progressKnown,
 } from '../model/useMigrationProgress';
@@ -41,7 +41,7 @@ const router = useRouter();
   someone to do what they have just done.
 */
 onMounted(async () => {
-  await evaluateProgress().catch(() => undefined);
+  await refreshProgress().catch(() => undefined);
 });
 
 const step = computed(() => GUIDED_STEPS.find(s => s.id === props.step) ?? null);

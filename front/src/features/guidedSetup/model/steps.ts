@@ -1,4 +1,5 @@
 import { MENU_ID } from '@/entities';
+import type { ProgressFacts } from './useMigrationProgress';
 
 /**
  * The five steps of a migration, in the one place that defines them.
@@ -47,8 +48,23 @@ export interface GuidedStep {
    * to do next. Shown only on the step they are on.
    */
   standing: string;
+  /**
+   * What has to be true for this step to be behind you.
+   *
+   * Written down because the reader could not see it. A source group on its own left the
+   * step unfinished with nothing on screen saying why, which reads as the guidance being
+   * broken rather than as work still to do.
+   */
+  completion: string;
+  /** The same condition counted against what is actually there, so the two sit together. */
+  progress: (facts: ProgressFacts) => string;
   /** A written guide that goes deeper than this step's one line, when one exists. */
   guide?: { title: string; file: string };
+}
+
+/** "1 connection" reads better than "1 connections", and the count is always in view. */
+function plural(count: number, one: string, many = `${one}s`): string {
+  return `${count} ${count === 1 ? one : many}`;
 }
 
 export const GUIDED_STEPS: GuidedStep[] = [
@@ -62,6 +78,10 @@ export const GUIDED_STEPS: GuidedStep[] = [
     ],
     standing:
       'Nothing is registered yet. Add a source service and put the servers you want to migrate under it.',
+    completion:
+      'Done when a source service exists and has at least one connection. A service with no connection has nothing to collect from.',
+    progress: f =>
+      `${plural(f.sourceServices, 'source service')}, ${plural(f.connections, 'connection')}`,
     routeName: MENU_ID.SOURCE_SERVICES,
     testId: 'migration-guide-step-source-service',
     guide: {
@@ -79,6 +99,9 @@ export const GUIDED_STEPS: GuidedStep[] = [
     ],
     standing:
       'The servers are registered but nothing has been read from them yet. Run Collect on the Source Services screen.',
+    completion:
+      'Done when infrastructure has been collected from at least one registered server.',
+    progress: f => (f.collected ? 'collected' : 'nothing collected yet'),
     routeName: MENU_ID.SOURCE_SERVICES,
     testId: 'migration-guide-step-collect',
   },
@@ -92,6 +115,8 @@ export const GUIDED_STEPS: GuidedStep[] = [
     ],
     standing:
       'Collecting is done. Save the result as a source model on the Source Services screen - everything after this is built from it.',
+    completion: 'Done when at least one source model is saved.',
+    progress: f => plural(f.sourceModels, 'source model'),
     routeName: MENU_ID.SOURCE_SERVICES,
     testId: 'migration-guide-step-source-model',
   },
@@ -105,6 +130,8 @@ export const GUIDED_STEPS: GuidedStep[] = [
     ],
     standing:
       'There is a source model to work from. Open it on the Source Models screen, generate a target model from it, and adjust the values you want.',
+    completion: 'Done when at least one target model is saved.',
+    progress: f => plural(f.targetModels, 'target model'),
     routeName: MENU_ID.SOURCE_MODELS,
     testId: 'migration-guide-step-target-model',
   },
@@ -118,6 +145,9 @@ export const GUIDED_STEPS: GuidedStep[] = [
     ],
     standing:
       'The target model is ready. Build the workflow from it on the Target Models screen, change any value it still needs, and run it.',
+    completion: 'Done when a workflow exists and has been run at least once.',
+    progress: f =>
+      `${plural(f.workflows, 'workflow')}, ${f.runs ? 'run at least once' : 'not run yet'}`,
     routeName: MENU_ID.TARGET_MODELS,
     testId: 'migration-guide-step-run-workflow',
     guide: {

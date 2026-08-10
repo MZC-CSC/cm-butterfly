@@ -1,7 +1,7 @@
 import type VueRouter from 'vue-router';
 import type { Route } from 'vue-router';
 import { MENU_ID } from '@/entities';
-import { evaluateProgress, currentStep, progressKnown } from './useMigrationProgress';
+import { refreshProgress, currentStep, progressKnown } from './useMigrationProgress';
 import { guidanceOff, welcomeSeen } from './guidedSetupPreferences';
 
 /**
@@ -52,7 +52,7 @@ export function installFirstVisitRedirect(router: VueRouter): void {
     checked = true;
 
     try {
-      if (!progressKnown.value) await evaluateProgress();
+      if (!progressKnown.value) await refreshProgress();
     } catch {
       return next();
     }

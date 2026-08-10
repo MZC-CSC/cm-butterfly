@@ -15,9 +15,10 @@ import { DOC_LINKS, openDocLink } from '@/shared/constants/docLinks';
 import { isJsonEditorOpen } from '@/shared/ui/EnhancedJsonEditor/editorPresence';
 import { helpPanelOpenRequests } from '@/widgets/layout/helpPanel/model/helpPanelPresence';
 import {
-  evaluateProgress,
+  refreshProgress,
   currentGuidedStep,
   progressKnown,
+  progressFacts,
   isFinished,
   guidanceOff,
 } from '@/features/guidedSetup';
@@ -145,33 +146,46 @@ const HELP: Array<{ path: string; help: Help }> = [
             'A source service is a group of servers, and each connection under it is one server. There is no single order to build it in - create the group first and add servers when their details are ready, create both at once, add or change servers later, or bring them in from a file. Use whichever suits how you got the information.',
           sections: [
             {
-              heading: 'Create the group first',
+              heading: 'Create the group first, add servers later',
               steps: [
-                'Create a source service with a name and description.',
-                'It appears in the list with no connections. Add them whenever the server details are ready.',
+                'Press [[btn:+ Add]] above the source service list. The Add Source Service window opens.',
+                'Fill in [[field:Source Service Name]]. It is required - the confirm button stays off until it has something in it.',
+                '[[field:Description]] is optional. It is what tells two similar groups apart later, so it is worth a line.',
+                'Leave [[btn:With Source Connection]] switched off. That is what makes this the group-only route: you are not entering server details yet.',
+                'Confirm. The group appears in the list with no connections against it.',
+                'This step is not finished yet. A group with no server has nothing to reach, so Collect cannot run and no model can be made - come back and add at least one server when the details are ready.',
               ],
             },
             {
-              heading: 'Create the group with its servers',
+              heading: 'Create the group and its servers together',
               steps: [
-                'While creating the source service, add connections in the same form.',
-                'Each connection needs a name, IP address, SSH port, user, and a password or private key.',
+                'Press [[btn:+ Add]] and fill in [[field:Source Service Name]] as above.',
+                'Switch [[btn:With Source Connection]] on. The server section below it becomes usable.',
+                'Press [[btn:Go add Source Connection]] to open the form for one server.',
+                'Enter [[field:Name]], [[field:IP Address]], [[field:SSH Port]] and [[field:User]] - the address and port this system will use to reach that server over SSH.',
+                'Enter either [[field:Password]] or [[field:Private Key]]. One of the two is needed; the private key is the whole key including its BEGIN and END lines.',
+                'Repeat for each server you want in this group.',
+                'Confirm. The group and every server under it are saved in one go, and the step is finished.',
               ],
             },
             {
-              heading: 'Add or change servers later',
+              heading: 'Add or change servers in a group that already exists',
               steps: [
-                'Select the group and open its Connections tab to add a server by hand.',
-                'Connections can be edited or removed the same way as the group itself.',
+                'Select the group in the list. Its servers are shown underneath.',
+                'Press [[btn:+ Add]] on that lower list to add one more server, and fill in the same fields as above.',
+                'To change one, open the server from the list, edit it, and apply. Removing one works the same way.',
+                'A newly added server has no status until it is contacted - press [[btn:Refresh]] on the group to check it can be reached.',
               ],
             },
             {
               heading: 'Bring servers in from a file',
               steps: [
-                'Download the connection template to see the layout.',
-                'Fill it in. The template opens in Excel and saves back as either CSV or .xlsx.',
-                'Import the file. The rows to be registered are listed on screen - review them, then confirm.',
-                'What is already registered can be exported in the same layout, so a group can be copied or kept as a starting point. Passwords and keys come out blank and have to be filled in again.',
+                'Press [[btn:+ Add]], then [[btn:Download Source Connection Template]]. The template is a CSV and shows the layout expected.',
+                'Fill it in, one row per server. It opens in Excel and can be saved back as either CSV or .xlsx - both upload.',
+                'Press [[btn:Import Source Connection]] and choose the file. The name of the file you picked is shown, so you can tell a wrong pick from a failed read.',
+                'The rows that were read are listed as a preview with a count. Any row that cannot be registered as it stands is counted separately as needing attention - fix those in the file and import again.',
+                'Confirm to register the rows. They appear as servers under the group.',
+                'The other direction works too: what is already registered can be exported in the same layout, so a group can be copied or kept as a starting point. Passwords and keys come out blank and have to be filled in again.',
               ],
             },
             {
@@ -181,13 +195,13 @@ const HELP: Array<{ path: string; help: Help }> = [
                 url: DOC_LINKS.sourceConnectionStatus,
               },
               steps: [
-                'Press Refresh on the source service. Each server is contacted over SSH and the agent is checked, and the result is shown as the status.',
+                'Press [[btn:Refresh]] on the source service. Each server is contacted over SSH and the agent is checked, and the result is shown as the status.',
                 'success means every server answered. failed means none did. partialSuccess means some did and some did not - the group can still be worked with, but only the servers that answered will be collected from.',
                 'Point at the status for a summary - with a couple of servers it shows each one, and beyond that it counts how many answered.',
-                'Select View Messages, next to Refresh, for every server on its own: whether the connection succeeded, whether the agent succeeded, and what the server said when either failed.',
+                'Select [[btn:View Messages]], next to [[btn:Refresh]], for every server on its own: whether the connection succeeded, whether the agent succeeded, and what the server said when either failed.',
                 'When a server failed, read that message first - it usually names the cause. Then check the connection details you registered: address, SSH port, user, and the password or private key.',
                 'Check that the server is reachable from here at all - that it is running, and that its network and firewall allow SSH from this system.',
-                'Once the cause is dealt with, press Refresh again. The status is re-read from the servers, so it changes as soon as they answer.',
+                'Once the cause is dealt with, press [[btn:Refresh]] again. The status is re-read from the servers, so it changes as soon as they answer.',
               ],
             },
           ],
@@ -927,17 +941,76 @@ watch(helpPanelOpenRequests, () => {
   is what they came for.
 */
 watch(open, async (isOpen) => {
-  if (isOpen && !progressKnown.value) {
-    await evaluateProgress().catch(() => undefined);
-  }
+  // Read again every time, not only the first. Opening the help is the moment the
+  // reader most needs the answer to match what is on the screen behind it, and by
+  // then they may have registered, collected or saved something.
+  if (isOpen) await refreshProgress().catch(() => undefined);
 });
 
 const guidedLine = computed(() => {
   if (guidanceOff.value || !progressKnown.value || isFinished.value) return null;
   const step = currentGuidedStep.value;
   if (!step) return null;
-  return { no: step.no, total: GUIDED_STEPS.length, title: step.title };
+  return {
+    no: step.no,
+    total: GUIDED_STEPS.length,
+    title: step.title,
+    completion: step.completion,
+    progress: step.progress(progressFacts.value),
+  };
 });
+
+/*
+  Each way of doing a job is folded away until it is asked for.
+
+  Written out in full, one screen's help ran to dozens of numbered lines and the reader
+  had to wade through the way they were not using to reach the one they were. The
+  headings stay visible so the choice is still in view; only the steps fold.
+*/
+const openSections = ref<Record<string, boolean>>({});
+
+function sectionKey(groupId: string, index: number): string {
+  return `${groupId}#${index}`;
+}
+
+function isSectionOpen(groupId: string, index: number): boolean {
+  return openSections.value[sectionKey(groupId, index)] === true;
+}
+
+function toggleSection(groupId: string, index: number): void {
+  const key = sectionKey(groupId, index);
+  openSections.value = {
+    ...openSections.value,
+    [key]: !openSections.value[key],
+  };
+}
+
+/*
+  A button named in the text, drawn the way it looks on the screen.
+
+  "Press Add" makes the reader hunt for something whose shape they do not know yet.
+  Written as [[btn:+ Add]] the words are drawn as the button itself, so the eye can
+  match it against the screen. Screenshots would do the same until the screen changes,
+  and then they say something that is no longer true - these cannot go stale that way.
+
+  Kinds: btn (something you press), field (something you fill in), tab, menu (where it is).
+*/
+type Token = { t: 'text' | 'btn' | 'field' | 'tab' | 'menu'; v: string };
+
+const CHIP = /\[\[(btn|field|tab|menu):([^\]]+)\]\]/g;
+
+function tokensOf(text: string): Token[] {
+  const tokens: Token[] = [];
+  let at = 0;
+  for (const match of text.matchAll(CHIP)) {
+    const start = match.index ?? 0;
+    if (start > at) tokens.push({ t: 'text', v: text.slice(at, start) });
+    tokens.push({ t: match[1] as Token['t'], v: match[2] });
+    at = start + match[0].length;
+  }
+  if (at < text.length) tokens.push({ t: 'text', v: text.slice(at) });
+  return tokens;
+}
 
 function openGuide() {
   const router = (getCurrentInstance()!.proxy as any).$router;
@@ -1109,6 +1182,17 @@ onBeforeUnmount(() => {
           <span class="help-guided-text"
             >Next: {{ guidedLine.title }} &mdash; open the guide</span
           >
+          <!--
+            What finishes this step, and how far it is met. Without it a step that stays
+            put after you have registered something reads as broken rather than as work
+            still to do.
+          -->
+          <span class="help-guided-done" data-testid="help-guided-completion">{{
+            guidedLine.completion
+          }}</span>
+          <span class="help-guided-now" data-testid="help-guided-progress"
+            >So far: {{ guidedLine.progress }}</span
+          >
         </button>
 
         <p v-for="(line, i) in help.paragraphs" :key="i">{{ line }}</p>
@@ -1139,12 +1223,34 @@ onBeforeUnmount(() => {
             :key="`s${x}`"
             class="help-section"
           >
-            <h3 class="help-heading">{{ sec.heading }}</h3>
-            <ol class="help-steps">
-              <li v-for="(step, t) in sec.steps" :key="t">{{ step }}</li>
+            <button
+              type="button"
+              class="help-heading help-heading-toggle"
+              :data-testid="`help-section-toggle-${group.id}-${x}`"
+              :aria-expanded="isSectionOpen(group.id, x) ? 'true' : 'false'"
+              @click="toggleSection(group.id, x)"
+            >
+              <span class="help-heading-text">{{ sec.heading }}</span>
+              <span class="help-heading-mark" aria-hidden="true">{{
+                isSectionOpen(group.id, x) ? '&minus;' : '+'
+              }}</span>
+            </button>
+            <ol
+              v-if="isSectionOpen(group.id, x)"
+              class="help-steps"
+              :data-testid="`help-section-steps-${group.id}-${x}`"
+            >
+              <li v-for="(step, t) in sec.steps" :key="t">
+                <template v-for="(tok, k) in tokensOf(step)">
+                  <span v-if="tok.t === 'text'" :key="`t${k}`">{{ tok.v }}</span>
+                  <span v-else :key="`c${k}`" :class="`help-chip help-chip-${tok.t}`">{{
+                    tok.v
+                  }}</span>
+                </template>
+              </li>
             </ol>
             <button
-              v-if="sec.guide"
+              v-if="sec.guide && isSectionOpen(group.id, x)"
               class="help-guide help-guide-inline"
               :data-testid="`help-section-guide-${group.id}-${x}`"
               @click="openDocLink(sec.guide.url)"
@@ -1248,8 +1354,9 @@ onBeforeUnmount(() => {
 <style scoped lang="postcss">
 .help-guided {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   width: 100%;
   margin-bottom: 12px;
   padding: 8px 10px;
@@ -1274,6 +1381,19 @@ onBeforeUnmount(() => {
 .help-guided-text {
   color: #1e40af;
   font-size: 12px;
+}
+
+/* The condition and the count sit on their own line, below the step and its title. */
+.help-guided-done,
+.help-guided-now {
+  flex-basis: 100%;
+  font-size: 11px;
+  line-height: 15px;
+  color: #1e3a8a;
+}
+
+.help-guided-now {
+  font-weight: 600;
 }
 
 .help-button {
@@ -1504,7 +1624,80 @@ onBeforeUnmount(() => {
   color: #1f2937;
 }
 
-.help-heading::before {
+/* The heading is what opens the steps, so it has to look pressable and span the width. */
+.help-heading-toggle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 4px 6px 4px 0;
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+}
+
+.help-heading-toggle:hover {
+  background: #f3f4f6;
+}
+
+.help-heading-text {
+  flex: 1;
+}
+
+.help-heading-mark {
+  flex: none;
+  width: 16px;
+  font-size: 13px;
+  line-height: 1;
+  color: #6b7280;
+  text-align: center;
+}
+
+/*
+  A button as it appears on the screen, small enough to sit inside a sentence.
+  Drawn rather than photographed, so it cannot fall out of date on its own.
+*/
+.help-chip {
+  display: inline-block;
+  padding: 1px 6px;
+  margin: 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+  vertical-align: 1px;
+  border-radius: 3px;
+}
+
+.help-chip-btn {
+  color: #ffffff;
+  background: #2563eb;
+}
+
+.help-chip-field {
+  font-weight: 500;
+  color: #1f2937;
+  background: #ffffff;
+  border: 1px solid #9ca3af;
+}
+
+.help-chip-tab {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.help-chip-menu {
+  font-weight: 500;
+  color: #374151;
+  background: #f3f4f6;
+}
+
+.help-heading-text::before,
+.help-heading:not(.help-heading-toggle)::before {
   display: inline-block;
   width: 3px;
   height: 11px;

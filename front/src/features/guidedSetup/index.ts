@@ -2,13 +2,20 @@ export { GUIDED_STEPS, guideUrlFor } from './model/steps';
 export type { GuidedStep, GuidedStepId } from './model/steps';
 export {
   evaluateProgress,
+  refreshProgress,
   currentStep,
   currentGuidedStep,
   progressState,
   progressKnown,
+  progressFacts,
   isFinished,
 } from './model/useMigrationProgress';
-export type { CurrentStep, ProgressState } from './model/useMigrationProgress';
+export type {
+  CurrentStep,
+  ProgressState,
+  ProgressFacts,
+} from './model/useMigrationProgress';
+export { installProgressWatch } from './model/progressWatch';
 export {
   guidanceOff,
   setGuidanceOff,

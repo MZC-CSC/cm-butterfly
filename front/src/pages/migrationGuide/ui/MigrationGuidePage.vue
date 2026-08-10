@@ -31,9 +31,10 @@ import { useRouter } from 'vue-router/composables';
 import {
   GUIDED_STEPS,
   guideUrlFor,
-  evaluateProgress,
+  refreshProgress,
   currentStep,
   progressKnown,
+  progressFacts,
   isFinished,
   guidanceOff,
   setGuidanceOff,
@@ -73,8 +74,11 @@ const STATE_LABEL: Record<StepState, string> = {
 
 const showWelcome = ref(false);
 
+/** The counts the step rules were applied to, shown beside the condition they answer. */
+const facts = computed(() => progressFacts.value);
+
 onMounted(async () => {
-  await evaluateProgress();
+  await refreshProgress();
   showWelcome.value =
     guidanceOn.value && currentStep.value === 1 && !welcomeSeen.value;
 });
@@ -246,6 +250,24 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
               class="mt-3 block rounded bg-white/70 p-3 text-sm text-gray-800"
               :data-testid="`${step.testId}-standing`"
               >{{ step.standing }}</span
+            >
+
+            <!--
+              What finishes this step, and how far it is met. A step that stays put after
+              you have registered something reads as broken until it says what it is still
+              waiting for - a source group with no connection was exactly that case.
+            -->
+            <span
+              v-if="stateOf(step) === 'current'"
+              class="mt-2 block text-xs text-gray-600"
+              :data-testid="`${step.testId}-completion`"
+              >{{ step.completion }}</span
+            >
+            <span
+              v-if="stateOf(step) === 'current'"
+              class="mt-1 block text-xs font-semibold text-gray-700"
+              :data-testid="`${step.testId}-progress`"
+              >So far: {{ step.progress(facts) }}</span
             >
           </span>
 
