@@ -10,7 +10,7 @@
  * repository as the single source, and each entry links to its own.
  */
 import { computed, ref, watch, onBeforeUnmount, getCurrentInstance } from 'vue';
-import { useRoute } from 'vue-router/composables';
+import { useRoute, useRouter } from 'vue-router/composables';
 import { DOC_LINKS, openDocLink } from '@/shared/constants/docLinks';
 import { isJsonEditorOpen } from '@/shared/ui/EnhancedJsonEditor/editorPresence';
 import { helpPanelOpenRequests } from '@/widgets/layout/helpPanel/model/helpPanelPresence';
@@ -1014,6 +1014,9 @@ const guidedLine = computed(() => {
     no: step.no,
     total: GUIDED_STEPS.length,
     title: step.title,
+    // The same sentence the guide screen puts on this step. Two wordings for one
+    // state made the panel and the guide look like they disagreed.
+    standing: step.standing(progressFacts.value),
     completion: step.completion,
     progress: step.progress(progressFacts.value),
   };
@@ -1071,9 +1074,23 @@ function tokensOf(text: string): Token[] {
   return tokens;
 }
 
+/*
+  Taken here, in setup, because that is the only place it can be taken.
+
+  This used to reach for the router through getCurrentInstance() inside the click
+  handler. Outside setup that returns null, so the handler threw on its first line and
+  the button did nothing at all - no navigation, no error the reader could see.
+*/
+const router = useRouter();
+
+const onGuideScreen = computed(() =>
+  (route.path || '').startsWith('/main/migration-guide'),
+);
+
 function openGuide() {
-  const router = (getCurrentInstance()!.proxy as any).$router;
-  router?.push({ name: MENU_ID.MIGRATION_GUIDE }).catch(() => undefined);
+  // Already there: pushing the same route is a no-op, which reads as a dead button.
+  if (onGuideScreen.value) return;
+  router.push({ name: MENU_ID.MIGRATION_GUIDE }).catch(() => undefined);
 }
 
 /* Drag the left edge to resize. The pointer is tracked on the document so the
@@ -1232,15 +1249,17 @@ onBeforeUnmount(() => {
         <button
           v-if="guidedLine"
           class="help-guided"
+          :class="{ 'help-guided-static': onGuideScreen }"
           data-testid="help-guided-step"
           @click="openGuide"
         >
           <span class="help-guided-badge"
             >Step {{ guidedLine.no }} of {{ guidedLine.total }}</span
           >
-          <span class="help-guided-text"
-            >Next: {{ guidedLine.title }} &mdash; open the guide</span
-          >
+          <span class="help-guided-text">{{ guidedLine.title }}</span>
+          <span class="help-guided-standing" data-testid="help-guided-standing">{{
+            guidedLine.standing
+          }}</span>
           <!--
             What finishes this step, and how far it is met. Without it a step that stays
             put after you have registered something reads as broken rather than as work
@@ -1251,6 +1270,13 @@ onBeforeUnmount(() => {
           }}</span>
           <span class="help-guided-now" data-testid="help-guided-progress"
             >So far: {{ guidedLine.progress }}</span
+          >
+          <!-- Offered only where it goes somewhere. On the guide itself it would lie. -->
+          <span
+            v-if="!onGuideScreen"
+            class="help-guided-go"
+            data-testid="help-guided-open"
+            >Open the migration guide &rsaquo;</span
           >
         </button>
 
@@ -1474,6 +1500,27 @@ onBeforeUnmount(() => {
 .help-guided-text {
   color: #1e40af;
   font-size: 12px;
+}
+
+/* On the guide itself the block still explains, but it is no longer a way to get there. */
+.help-guided-static {
+  cursor: default;
+}
+
+.help-guided-standing {
+  flex-basis: 100%;
+  font-size: 12px;
+  line-height: 17px;
+  color: #1e40af;
+}
+
+.help-guided-go {
+  flex-basis: 100%;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #1d4ed8;
+  text-decoration: underline;
 }
 
 /* The condition and the count sit on their own line, below the step and its title. */

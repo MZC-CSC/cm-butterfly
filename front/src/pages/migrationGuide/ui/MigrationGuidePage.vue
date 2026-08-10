@@ -249,7 +249,7 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
               v-if="stateOf(step) === 'current'"
               class="mt-3 block rounded bg-white/70 p-3 text-sm text-gray-800"
               :data-testid="`${step.testId}-standing`"
-              >{{ step.standing }}</span
+              >{{ step.standing(facts) }}</span
             >
 
             <!--

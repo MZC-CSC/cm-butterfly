@@ -22,6 +22,7 @@ import {
   refreshProgress,
   currentGuidedStep,
   progressKnown,
+  progressFacts,
 } from '../model/useMigrationProgress';
 import { guidanceOff } from '../model/guidedSetupPreferences';
 import { MENU_ID } from '@/entities';
@@ -73,7 +74,7 @@ function openGuide() {
     </span>
 
     <span class="flex-1 text-sm text-blue-900" data-testid="guided-step-banner-text">
-      {{ step.standing }}
+      {{ step.standing(progressFacts) }}
     </span>
 
     <button

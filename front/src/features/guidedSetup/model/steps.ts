@@ -46,8 +46,13 @@ export interface GuidedStep {
   /**
    * What to say to someone who has got exactly this far - where they stand and what
    * to do next. Shown only on the step they are on.
+   *
+   * Takes the counts because a step can be unfinished for more than one reason, and a
+   * sentence written for one of them is wrong for the other. Step 1 said "nothing is
+   * registered yet" to someone looking at the source service they had just registered -
+   * what they were missing was a connection under it.
    */
-  standing: string;
+  standing: (facts: ProgressFacts) => string;
   /**
    * What has to be true for this step to be behind you.
    *
@@ -76,8 +81,10 @@ export const GUIDED_STEPS: GuidedStep[] = [
       'Register the servers you want to migrate.',
       'Each connection is one source server, reached over SSH.',
     ],
-    standing:
-      'Nothing is registered yet. Add a source service and put the servers you want to migrate under it.',
+    standing: f =>
+      f.sourceServices === 0
+        ? 'Nothing is registered yet. Add a source service and put the servers you want to migrate under it.'
+        : 'The source service is there, but no server is registered under it. Open it and add at least one connection - until then there is nothing to collect from.',
     completion:
       'Done when a source service exists and has at least one connection. A service with no connection has nothing to collect from.',
     progress: f =>
@@ -97,7 +104,7 @@ export const GUIDED_STEPS: GuidedStep[] = [
       'Read what is actually on the servers you registered.',
       'Collecting happens on the Source Services screen.',
     ],
-    standing:
+    standing: () =>
       'The servers are registered but nothing has been read from them yet. Run Collect on the Source Services screen.',
     completion:
       'Done when infrastructure has been collected from at least one registered server.',
@@ -113,7 +120,7 @@ export const GUIDED_STEPS: GuidedStep[] = [
       'Save what was collected as a source model, on the Source Services screen.',
       'Everything after this is built from that model.',
     ],
-    standing:
+    standing: () =>
       'Collecting is done. Save the result as a source model on the Source Services screen - everything after this is built from it.',
     completion: 'Done when at least one source model is saved.',
     progress: f => plural(f.sourceModels, 'source model'),
@@ -128,7 +135,7 @@ export const GUIDED_STEPS: GuidedStep[] = [
       'A target model is generated from a source model, on the Source Models screen.',
       'Adjust the values you want and save it as a custom model.',
     ],
-    standing:
+    standing: () =>
       'There is a source model to work from. Open it on the Source Models screen, generate a target model from it, and adjust the values you want.',
     completion: 'Done when at least one target model is saved.',
     progress: f => plural(f.targetModels, 'target model'),
@@ -143,8 +150,10 @@ export const GUIDED_STEPS: GuidedStep[] = [
       'Create the migration workflow from a target model, on the Target Models screen.',
       'Change any value it still needs, then run it - the migration happens here.',
     ],
-    standing:
-      'The target model is ready. Build the workflow from it on the Target Models screen, change any value it still needs, and run it.',
+    standing: f =>
+      f.workflows === 0
+        ? 'The target model is ready. Build the workflow from it on the Target Models screen, change any value it still needs, and run it.'
+        : 'The workflow is built but has not been run. Open it and run it - the migration happens there.',
     completion: 'Done when a workflow exists and has been run at least once.',
     progress: f =>
       `${plural(f.workflows, 'workflow')}, ${f.runs ? 'run at least once' : 'not run yet'}`,
