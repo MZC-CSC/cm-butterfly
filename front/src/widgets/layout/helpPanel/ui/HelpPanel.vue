@@ -23,7 +23,7 @@ import {
   guidanceOff,
 } from '@/features/guidedSetup';
 import { MENU_ID } from '@/entities';
-import { GUIDED_STEPS } from '@/features/guidedSetup';
+import { GUIDED_STEPS, stepTitle } from '@/features/guidedSetup';
 
 type Section = {
   heading: string;
@@ -1013,7 +1013,7 @@ const guidedLine = computed(() => {
   return {
     no: step.no,
     total: GUIDED_STEPS.length,
-    title: step.title,
+    title: stepTitle(step, progressFacts.value),
     // The same sentence the guide screen puts on this step. Two wordings for one
     // state made the panel and the guide look like they disagreed.
     standing: step.standing(progressFacts.value),

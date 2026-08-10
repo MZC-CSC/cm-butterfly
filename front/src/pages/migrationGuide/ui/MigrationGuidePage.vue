@@ -31,6 +31,7 @@ import { useRouter } from 'vue-router/composables';
 import {
   GUIDED_STEPS,
   guideUrlFor,
+  stepTitle,
   refreshProgress,
   currentStep,
   progressKnown,
@@ -218,7 +219,7 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
           <span class="flex flex-1 flex-col">
             <span class="flex items-center gap-2">
               <span class="text-base font-medium text-gray-900">{{
-                step.title
+                stepTitle(step, facts)
               }}</span>
               <!-- The state in words, so colour is never the only carrier. -->
               <span

@@ -38,7 +38,17 @@ export type GuidedStepId =
 export interface GuidedStep {
   no: number;
   id: GuidedStepId;
+  /** The name of the step as it stands, when a fixed name would be the wrong one. */
   title: string;
+  /**
+   * What is left of this step, named for what remains.
+   *
+   * A step can be part-done, and naming it by the whole leaves the reader looking for
+   * something they have already made. With a source service registered but no server
+   * under it, "Register Source Service" reads as done and the eye slides past what is
+   * actually missing - the connection. Falls back to the fixed name.
+   */
+  titleFor?: (facts: ProgressFacts) => string;
   /** One entry per sentence: each starts on its own line and still wraps on narrow screens. */
   detail: string[];
   routeName: string;
@@ -77,6 +87,10 @@ export const GUIDED_STEPS: GuidedStep[] = [
     no: 1,
     id: 'source-service',
     title: 'Register Source Service',
+    titleFor: f =>
+      f.sourceServices === 0
+        ? 'Register Source Service'
+        : 'Register Source Connection',
     detail: [
       'Register the servers you want to migrate.',
       'Each connection is one source server, reached over SSH.',
@@ -169,6 +183,11 @@ export const GUIDED_STEPS: GuidedStep[] = [
 /** The guides live with the source, so they move with it and cannot drift into a stale copy. */
 const GUIDE_BASE =
   'https://github.com/cloud-barista/cm-butterfly/blob/main/docs/guide/';
+
+/** The name to show for a step right now. One place, so every screen shows the same one. */
+export function stepTitle(step: GuidedStep, facts: ProgressFacts): string {
+  return step.titleFor ? step.titleFor(facts) : step.title;
+}
 
 export function guideUrlFor(file: string): string {
   return GUIDE_BASE + file;

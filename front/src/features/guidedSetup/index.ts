@@ -1,4 +1,4 @@
-export { GUIDED_STEPS, guideUrlFor } from './model/steps';
+export { GUIDED_STEPS, guideUrlFor, stepTitle } from './model/steps';
 export type { GuidedStep, GuidedStepId } from './model/steps';
 export {
   evaluateProgress,
