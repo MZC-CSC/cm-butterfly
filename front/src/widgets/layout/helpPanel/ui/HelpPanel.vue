@@ -265,7 +265,7 @@ const HELP: Array<{ path: string; help: Help }> = [
                   steps: [
                     'Press [[btn2:Go add Source Connection]]. The form for one source connection opens.',
                     'Fill in the required fields, which are marked in red. They are the address and the login this system will use to reach that server over SSH.',
-                    'The login is either [[field:User]] with [[field:Password]], or [[field:User]] with [[field:Private Key]] - one of the two must be filled in. The private key is the whole key, including its BEGIN and END lines.',
+                    'The login is either [[field:User]] with [[field:Password]], or [[field:User]] with [[field:Private Key]] - [[b:one of the two must be filled in]]. The private key is the whole key, including its BEGIN and END lines.',
                     'For another one, press [[btn:+ Add Source Connection]] at the top left and fill in the next. Repeat for as many as you have.',
                     'Press [[btn2:Save]] at the bottom right when they are all entered.',
                   ],
@@ -281,7 +281,7 @@ const HELP: Array<{ path: string; help: Help }> = [
                     'Fill it in, one row per source connection. Excel (.xlsx) and CSV both import, so use whichever is easier for you.',
                     'Press [[btn2:Import Source Connection]] and choose the file. The name of the file you picked is shown, so a wrong pick can be told from a failed read.',
                     'The rows that were read are listed with a count before anything is registered. Rows that cannot be registered as they stand are counted separately - correct those in the file and import again.',
-                    'A source connection name has to be unique across every source service, not just within this one. A name already in use is the usual reason a row is refused.',
+                    'A source connection name has to be [[b:unique across every source service]], not just within this one. A name already in use is the usual reason a row is refused.',
                   ],
                 },
               ],
@@ -1157,13 +1157,13 @@ function toggleSection(groupId: string, index: number): void {
   Kinds: btn (something you press), field (something you fill in), tab, menu (where it is).
 */
 type Token = {
-  t: 'text' | 'btn' | 'btn2' | 'field' | 'tab' | 'menu' | 'see';
+  t: 'text' | 'btn' | 'btn2' | 'field' | 'tab' | 'menu' | 'see' | 'b';
   v: string;
   /** For `see`: which procedure to open, as `groupId#index`. */
   target?: string;
 };
 
-const CHIP = /\[\[(btn|btn2|field|tab|menu|see):([^\]]+)\]\]/g;
+const CHIP = /\[\[(btn|btn2|field|tab|menu|see|b):([^\]]+)\]\]/g;
 
 function tokensOf(text: string): Token[] {
   const tokens: Token[] = [];
@@ -1476,6 +1476,9 @@ onBeforeUnmount(() => {
                   >
                     {{ tok.v }}
                   </button>
+                  <strong v-else-if="tok.t === 'b'" :key="`b${k}`" class="help-strong">{{
+                    tok.v
+                  }}</strong>
                   <span v-else :key="`c${k}`" :class="`help-chip help-chip-${tok.t}`">{{
                     tok.v
                   }}</span>
@@ -1518,6 +1521,12 @@ onBeforeUnmount(() => {
                       >
                         {{ tok.v }}
                       </button>
+                      <strong
+                        v-else-if="tok.t === 'b'"
+                        :key="`b${k}`"
+                        class="help-strong"
+                        >{{ tok.v }}</strong
+                      >
                       <span
                         v-else
                         :key="`c${k}`"
@@ -2049,6 +2058,15 @@ onBeforeUnmount(() => {
   A button as it appears on the screen, small enough to sit inside a sentence.
   Drawn rather than photographed, so it cannot fall out of date on its own.
 */
+/*
+  Kept for the one or two constraints per screen that cost the reader a failed attempt
+  if they are skimmed - not for anything merely important, or nothing stands out.
+*/
+.help-strong {
+  font-weight: 700;
+  color: #111827;
+}
+
 /* A procedure named inside another one's text, and a way to get straight to it. */
 .help-see {
   padding: 0;
