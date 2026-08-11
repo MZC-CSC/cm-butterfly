@@ -11,6 +11,13 @@
  */
 import { computed, ref, watch, onBeforeUnmount, getCurrentInstance } from 'vue';
 import { useRoute, useRouter } from 'vue-router/composables';
+/*
+  Imported here even though Mirinae is installed app-wide: without it the tag stayed an
+  unresolved custom element, so the browser kept a <p-tooltip> in the DOM that drew
+  nothing at all. The two icons beside this one import it the same way; this file was
+  the only one that did not, which is why only this one was silent.
+*/
+import { PTooltip } from '@cloudforet-test/mirinae';
 import { DOC_LINKS, openDocLink } from '@/shared/constants/docLinks';
 import { isJsonEditorOpen } from '@/shared/ui/EnhancedJsonEditor/editorPresence';
 import { helpPanelOpenRequests } from '@/widgets/layout/helpPanel/model/helpPanelPresence';
@@ -811,6 +818,8 @@ const MAX_WIDTH = 720;
 */
 const HEIGHT_KEY = 'cm.helpPanel.height';
 const MIN_HEIGHT = 220;
+/** The header the panel has to stay clear of, so its own icon stays reachable. */
+const HEADER_HEIGHT = 40;
 
 const route = useRoute();
 const { $refs } = getCurrentInstance()!.proxy as unknown as {
@@ -873,7 +882,8 @@ const panelStyle = computed(() => {
   const style: Record<string, string> = { width: `${width.value}px` };
   if (!docked.value && offset.value) {
     style.left = `${offset.value.x}px`;
-    style.top = `${offset.value.y}px`;
+    // Never above the header: dragged there, it would sit over the icons again.
+    style.top = `${Math.max(HEADER_HEIGHT, offset.value.y)}px`;
     style.right = 'auto';
     style.bottom = 'auto';
     style.height = `${height.value}px`;
@@ -1264,7 +1274,7 @@ function startMove(event: MouseEvent) {
         Math.min(window.innerWidth - box.width, e.clientX - grabX),
       ),
       y: Math.max(
-        0,
+        HEADER_HEIGHT,
         Math.min(window.innerHeight - box.height, e.clientY - grabY),
       ),
     };
@@ -1808,9 +1818,15 @@ onBeforeUnmount(() => {
 }
 
 /* Lies over the page - the screen underneath keeps its width. */
+/*
+  Starts below the header, not at the top of the window.
+
+  Anchored at 0 it covered the three icons in the corner - including the one that opens
+  and closes it - so the way out was underneath the thing it opened.
+*/
 .help-panel {
   position: fixed;
-  top: 0;
+  top: 40px;
   right: 0;
   bottom: 0;
   z-index: 60;
