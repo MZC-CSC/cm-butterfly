@@ -202,30 +202,20 @@ const HELP: Array<{ path: string; help: Help }> = [
           },
           title: 'Managing the servers you migrate from',
           intro:
-            'A source service is a group of servers, and each connection under it is one server. There is no single order to build it in - create the group first and add servers when their details are ready, create both at once, add or change servers later, or bring them in from a file. Use whichever suits how you got the information.',
+            'A source service is a group of servers, and each connection under it is one server. There is no single order to build it in - create the service and add servers in the same window, or create it now and add them when their details are ready, or bring them in from a file. Use whichever suits how you got the information.',
           sections: [
             {
-              heading: 'Create the group first, add servers later',
+              heading: 'Create a source service',
               steps: [
                 'Press [[btn:+ Add]] above the source service list. The Add Source Service window opens.',
-                'Fill in [[field:Source Service Name]]. It is required - the confirm button stays off until it has something in it.',
-                '[[field:Description]] is optional. It is what tells two similar groups apart later, so it is worth a line.',
-                'Leave [[btn:With Source Connection]] switched off. That is what makes this the group-only route: you are not entering server details yet.',
-                'Confirm. The group appears in the list with no connections against it.',
-                'This step is not finished yet. A group with no server has nothing to reach, so Collect cannot run and no model can be made.',
-                'When the server details are ready, carry on with "Add or change servers in a group that already exists" below - that is the other half of this route.',
-              ],
-            },
-            {
-              heading: 'Create the group and its servers together',
-              steps: [
-                'Press [[btn:+ Add]] and fill in [[field:Source Service Name]] as above.',
-                'Switch [[btn:With Source Connection]] on. The server section below it becomes usable.',
-                'Press [[btn2:Go add Source Connection]] to open the form for one server.',
+                'Fill in [[field:Source Service Name]]. It is the only thing required - the confirm button stays off until it has something in it.',
+                '[[field:Description]] is optional. It is what tells two similar services apart later, so it is worth a line.',
+                'Now it comes down to one question: do you have the server details to hand? The same window does both, and [[btn:With Source Connection]] is the switch between them.',
+                'Not yet - leave [[btn:With Source Connection]] off and confirm. The service appears in the list with no connections. Nothing is lost by starting this way, but the step is not finished until a server is under it: there is nothing for Collect to reach and no model can be made. Add them with "Add or change servers in a group that already exists" below.',
+                'Yes - switch [[btn:With Source Connection]] on and press [[btn2:Go add Source Connection]] to open the form for one server.',
                 'Enter [[field:Name]], [[field:IP Address]], [[field:SSH Port]] and [[field:User]] - the address and port this system will use to reach that server over SSH.',
-                'Enter either [[field:Password]] or [[field:Private Key]]. One of the two is needed; the private key is the whole key including its BEGIN and END lines.',
-                'Repeat for each server you want in this group.',
-                'Confirm. The group and every server under it are saved in one go, and the step is finished.',
+                'Enter either [[field:Password]] or [[field:Private Key]]. One of the two is needed; the private key is the whole key including its BEGIN and END lines. Repeat for each server you want in this service.',
+                'Confirm. Whatever you entered - the service on its own, or the service with its servers - is saved in one go.',
               ],
             },
             {
