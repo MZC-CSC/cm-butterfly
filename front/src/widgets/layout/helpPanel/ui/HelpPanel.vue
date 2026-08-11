@@ -171,7 +171,8 @@ const HELP: Array<{ path: string; help: Help }> = [
     help: {
       title: 'Source Services',
       paragraphs: [
-        'This menu does two things: you register and manage the servers you are migrating from, and you turn what is collected from them into a source model.',
+        'This menu does two things: you register the servers you are migrating from into a source service and manage them there, and you turn what is collected from them into a source model.',
+        'One server is registered as one connection, and that is the word the screen uses - the Connections tab, the Connection # column and + Add Source Connection all mean the servers under a service.',
         'It is the first screen of a migration and the only one that reaches your servers directly, so everything later is built on what is registered and collected here.',
       ],
       reference: [
@@ -242,7 +243,7 @@ const HELP: Array<{ path: string; help: Help }> = [
           },
           title: 'Managing the servers you migrate from',
           intro:
-            'A source service is a group of servers, and each connection under it is one server. Creating the service and registering its servers happen in the same window, but they do not have to happen at once - create the service on its own and add servers when their details are ready. Servers can be entered one at a time or brought in from an Excel or CSV file.',
+            'Creating the service and registering its servers happen in the same window, but they do not have to happen at once - create the service on its own and add servers when their details are ready. Servers can be entered one at a time or brought in from an Excel or CSV file.',
           sections: [
             {
               heading: 'Create a source service',
