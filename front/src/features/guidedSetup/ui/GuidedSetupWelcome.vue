@@ -47,11 +47,20 @@ const emit = defineEmits<{ (e: 'start'): void; (e: 'dismiss'): void }>();
         the part that is about them - that nothing has been done yet - goes by in the
         middle of a line.
       -->
+      <!--
+        Why this is on screen at all, first. Without it the box arrives out of nowhere:
+        the reader has just logged in and is being shown a list of five things with no
+        word on who is showing it to them or why it will keep appearing.
+      -->
       <p class="mt-3 text-sm text-gray-700">
+        There is nothing here yet, so this console will walk you through it step by
+        step until the first migration is done.
+      </p>
+      <p class="mt-1 text-sm text-gray-700">
         A migration runs through five steps, in order.
       </p>
       <p class="mt-1 text-sm text-gray-700">
-        Nothing has been done here yet, so the first one is where to begin.
+        The first one is where to begin.
       </p>
 
       <ol

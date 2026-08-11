@@ -1290,18 +1290,25 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="help">
-    <button
-      class="help-button"
-      data-testid="help-toggle"
-      :title="`Help for this screen (${help.title})`"
-      @click="toggle"
-    >
-      <svg viewBox="0 0 16 16" class="help-icon" aria-hidden="true">
-        <path
-          d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm0 1a6 6 0 1 1 0 12A6 6 0 0 1 8 2Zm0 9.25a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5ZM8 4a2.4 2.4 0 0 1 2.4 2.4c0 .86-.42 1.32-1.15 1.85-.5.37-.65.56-.65.95v.3h-1.2v-.4c0-.83.35-1.24 1.02-1.73.55-.4.78-.63.78-1.02A1.2 1.2 0 0 0 8 5.2a1.25 1.25 0 0 0-1.25 1.2H5.6A2.4 2.4 0 0 1 8 4Z"
-        />
-      </svg>
-    </button>
+    <!--
+      The same layer the bell uses, not the browser's own tooltip. Sitting side by side,
+      one appearing at once and the other after a second's wait read as two different
+      kinds of control.
+    -->
+    <p-tooltip :contents="`Help for this screen (${help.title})`" position="absolute">
+      <button
+        class="help-button"
+        data-testid="help-toggle"
+        :aria-label="`Help for this screen (${help.title})`"
+        @click="toggle"
+      >
+        <svg viewBox="0 0 16 16" class="help-icon" aria-hidden="true">
+          <path
+            d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm0 1a6 6 0 1 1 0 12A6 6 0 0 1 8 2Zm0 9.25a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5ZM8 4a2.4 2.4 0 0 1 2.4 2.4c0 .86-.42 1.32-1.15 1.85-.5.37-.65.56-.65.95v.3h-1.2v-.4c0-.83.35-1.24 1.02-1.73.55-.4.78-.63.78-1.02A1.2 1.2 0 0 0 8 5.2a1.25 1.25 0 0 0-1.25 1.2H5.6A2.4 2.4 0 0 1 8 4Z"
+          />
+        </svg>
+      </button>
+    </p-tooltip>
 
     <aside
       v-if="open"
