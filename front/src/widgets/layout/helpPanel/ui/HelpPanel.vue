@@ -108,12 +108,12 @@ const TERMS: Help['terms'] = [
   {
     term: 'Source service',
     meaning:
-      'A group of the servers you are migrating from - on-premises machines or ones already running on a cloud. It is what everything on the first screen is registered into.',
+      'A group of the servers you are migrating from, whether on-premises machines or ones already running on a cloud. It is what everything on the first screen is registered into.',
   },
   {
     term: 'Connection',
     meaning:
-      'One server, as it is registered here - the address and the login this system uses to reach it over SSH. A source service holds one connection per server, which is why the screen says Connections, Connection # and + Add Source Connection where you might expect it to say servers.',
+      'One server, as it is registered here: the address and the login this system uses to reach it over SSH. A source service holds one connection per server, which is why the screen says Connections, Connection # and + Add Source Connection where you might expect it to say servers.',
   },
   {
     term: 'Model',
@@ -123,17 +123,17 @@ const TERMS: Help['terms'] = [
   {
     term: 'Source model / target model',
     meaning:
-      'Both are models - they differ in which side they describe. A source model describes the origin, the servers you are migrating from. A target model describes the same workload for the destination, usually a cloud. A workflow is built from a target model.',
+      'Both are models. They differ only in which side they describe. A source model describes the origin, the servers you are migrating from. A target model describes the same workload for the destination, usually a cloud. A workflow is built from a target model.',
   },
   {
     term: 'Custom model',
     meaning:
-      'A model you have changed from what it originally held. Change either kind, give it a name of your own, and it is saved as a custom model - the original is not touched.',
+      'A model you have changed from what it originally held. Change either kind, give it a name of your own, and it is saved as a custom model. The original is not touched.',
   },
   {
     term: 'Workflow',
     meaning:
-      'A workflow is an ordered set of tasks a machine carries out for you. Here it is the migration itself: each task does one part of it - create the infrastructure, install the software - in the order they have to happen. One is normally generated from a target model and then opened in the workflow editor, which starts from a template for the kind of migration you are doing, so the tasks are already laid out and what is left is to fill in or adjust what they need. The same workflow can be written and edited as JSON instead, whichever suits the change. It is the last place values can be changed before anything is created, and it is what you run, watch and re-run.',
+      'A workflow is an ordered set of tasks a machine carries out for you. Here it is the migration itself: each task does one part of it, such as creating the infrastructure or installing the software, in the order they have to happen. One is normally generated from a target model and then opened in the workflow editor, which starts from a template for the kind of migration you are doing, so the tasks are already laid out and what is left is to fill in or adjust what they need. The same workflow can be written and edited as JSON instead, whichever suits the change. It is the last place values can be changed before anything is created, and it is what you run, watch and re-run.',
   },
   {
     term: 'Where to make changes',
@@ -150,7 +150,7 @@ const HELP: Array<{ path: string; help: Help }> = [
       title: 'Migration Guide',
       paragraphs: [
         'A migration goes from the servers you have, through a model of them, to a workflow that creates the result.',
-        'Infrastructure and software migration follow the same five steps. Where they differ - a cost estimate for infrastructure, an install target for software - the help on each screen says so.',
+        'Infrastructure and software migration follow the same five steps. Where they differ, such as a cost estimate for infrastructure or an install target for software, the help on each screen says so.',
         'The words below are the ones the steps use.',
       ],
       terms: TERMS,
@@ -177,7 +177,7 @@ const HELP: Array<{ path: string; help: Help }> = [
       title: 'Source Services',
       paragraphs: [
         'This menu does two things: you register the servers you are migrating from into a source service and manage them there, and you turn what is collected from them into a source model.',
-        'One server is registered as one source connection, and that is the word this screen uses from here on - the Connections tab, the Connection # column and + Add Source Connection all refer to those.',
+        'One server is registered as one source connection, and that is the word this screen uses from here on. The Connections tab, the Connection # column and + Add Source Connection all refer to those.',
         'It is the first screen of a migration and the only one that reaches your servers directly, so everything later is built on what is registered and collected here.',
       ],
       reference: [
@@ -197,7 +197,7 @@ const HELP: Array<{ path: string; help: Help }> = [
           item: 'View Messages',
           kind: 'btn2',
           meaning:
-            'One line per source connection - which of the connection and the agent succeeded, and the reason when either did not.',
+            'One line per source connection: which of the connection and the agent succeeded, and the reason when either did not.',
         },
         {
           item: '+ Add / Edit',
@@ -209,7 +209,7 @@ const HELP: Array<{ path: string; help: Help }> = [
           item: '+ Add Source Connection',
           kind: 'btn',
           meaning:
-            'Top left of the source connection form - one more blank entry, so several can be added before saving.',
+            'Top left of the source connection form. Adds one more blank entry, so several can be entered before saving.',
         },
         {
           item: 'Save',
@@ -225,13 +225,13 @@ const HELP: Array<{ path: string; help: Help }> = [
           item: 'Connection #',
           kind: 'column',
           meaning:
-            'How many source connections are registered under it. Zero means this source service cannot be collected from yet - that is the usual reason step 1 is not finished.',
+            'How many source connections are registered under it. Zero means this source service cannot be collected from yet, which is the usual reason step 1 is not finished.',
         },
         {
           item: 'Status',
           kind: 'column',
           meaning:
-            'The result of the last Refresh, taken over all its source connections. success - every one answered. failed - none did. partialSuccess - some did; the source service can still be used, but only the source connections that answered are collected from.',
+            'The result of the last Refresh, taken over all its source connections. success means every one answered. failed means none did. partialSuccess means some did and some did not; the source service can still be used, but only the source connections that answered are collected from.',
         },
         {
           item: 'Description',
@@ -248,15 +248,15 @@ const HELP: Array<{ path: string; help: Help }> = [
           },
           title: 'Managing the servers you migrate from',
           intro:
-            'Creating the source service and registering its source connections happen in the same window, but they do not have to happen at once - create the source service on its own and add source connections when their details are ready. Source connections can be entered one at a time or brought in from an Excel or CSV file.',
+            'Creating the source service and registering its source connections happen in the same window, but they do not have to happen at once. Create the source service on its own and add source connections when their details are ready. Source connections can be entered one at a time or brought in from an Excel or CSV file.',
           sections: [
             {
               heading: 'Create a source service',
               steps: [
                 'Press [[btn:+ Add]] above the source service list. The Add Source Service window opens.',
-                'Fill in [[field:Source Service Name]]. It is the only thing required - the button at the bottom right stays off until it has something in it.',
+                'Fill in [[field:Source Service Name]]. It is the only thing required. The button at the bottom right stays off until it has something in it.',
                 '[[field:Description]] is optional and is only a note to yourself.',
-                'To register the source connections later, press [[btn:Add]] at the bottom right now. Only the source service is created, and source connections can be added to it whenever their details are ready - see [[see:manage-sources#1|Add source connections to a source service that already exists]].',
+                'To register the source connections later, press [[btn:Add]] at the bottom right now. Only the source service is created, and source connections can be added to it whenever their details are ready. See [[see:manage-sources#1|Add source connections to a source service that already exists]].',
                 'To register source connections now, switch [[btn:With Source Connection]] on. Two ways then open up: entering each one in the form, or bringing them in from an Excel or CSV file. Both are below.',
               ],
               sub: [
@@ -265,7 +265,7 @@ const HELP: Array<{ path: string; help: Help }> = [
                   steps: [
                     'Press [[btn2:Go add Source Connection]]. The form for one source connection opens.',
                     'Fill in the required fields, which are marked in red. They are the address and the login this system will use to reach that server over SSH.',
-                    'The login is either [[field:User]] with [[field:Password]], or [[field:User]] with [[field:Private Key]] - [[b:one of the two must be filled in]]. The private key is the whole key, including its BEGIN and END lines.',
+                    'The login is either [[field:User]] with [[field:Password]], or [[field:User]] with [[field:Private Key]]. [[b:One of the two must be filled in]]. The private key is the whole key, including its BEGIN and END lines.',
                     'For another one, press [[btn:+ Add Source Connection]] at the top left and fill in the next. Repeat for as many as you have.',
                     'Press [[btn2:Save]] at the bottom right when they are all entered.',
                   ],
@@ -280,7 +280,7 @@ const HELP: Array<{ path: string; help: Help }> = [
                     'If you do not have a file yet, press [[btn2:Download Source Connection Template]]. That is the layout the import expects.',
                     'Fill it in, one row per source connection. Excel (.xlsx) and CSV both import, so use whichever is easier for you.',
                     'Press [[btn2:Import Source Connection]] and choose the file. The name of the file you picked is shown, so a wrong pick can be told from a failed read.',
-                    'The rows that were read are listed with a count before anything is registered. Rows that cannot be registered as they stand are counted separately - correct those in the file and import again.',
+                    'The rows that were read are listed with a count before anything is registered. Rows that cannot be registered as they stand are counted separately. Correct those in the file and import again.',
                     'A source connection name has to be [[b:unique across every source service]], not just within this one. A name already in use is the usual reason a row is refused.',
                   ],
                 },
@@ -293,9 +293,9 @@ const HELP: Array<{ path: string; help: Help }> = [
               steps: [
                 'Select the source service in the list. Its source connections are shown underneath.',
                 'Open the [[tab:Connections]] tab and press [[btn:+ Add / Edit]].',
-                'From here it is the same form as when creating the source service - required fields in red, [[field:User]] with either [[field:Password]] or [[field:Private Key]], [[btn:+ Add Source Connection]] at the top left for another one, and [[btn2:Save]] at the bottom right.',
+                'From here it is the same form as when creating the source service: required fields in red, [[field:User]] with either [[field:Password]] or [[field:Private Key]], [[btn:+ Add Source Connection]] at the top left for another one, and [[btn2:Save]] at the bottom right.',
                 'To change or remove a source connection, open it from the same list and edit or delete it there.',
-                'A newly added source connection has no status until it is tried - press [[btn2:Refresh]] on the source service to check it can be reached.',
+                'A newly added source connection has no status until it is tried. Press [[btn2:Refresh]] on the source service to check it can be reached.',
               ],
             },
             {
@@ -306,11 +306,11 @@ const HELP: Array<{ path: string; help: Help }> = [
               },
               steps: [
                 'Press [[btn2:Refresh]] on the source service. Each source connection is tried over SSH and its agent is checked, and the result is shown as the status.',
-                'success means every source connection answered. failed means none did. partialSuccess means some did and some did not - the source service can still be worked with, but only the source connections that answered will be collected from.',
-                'Point at the status for a summary - with a couple of source connections it shows each one, and beyond that it counts how many answered.',
+                'success means every source connection answered. failed means none did. partialSuccess means some did and some did not. The source service can still be worked with, but only the source connections that answered will be collected from.',
+                'Point at the status for a summary. With a couple of source connections it shows each one, and beyond that it counts how many answered.',
                 'Select [[btn2:View Messages]], next to [[btn2:Refresh]], for every source connection on its own: whether the connection succeeded, whether the agent succeeded, and what came back when either failed.',
-                'When one failed, read that message first - it usually names the cause. Then check the details you registered: address, SSH port, user, and the password or private key.',
-                'Check that the server is reachable from here at all - that it is running, and that its network and firewall allow SSH from this system.',
+                'When one failed, read that message first, since it usually names the cause. Then check the details you registered: address, SSH port, user, and the password or private key.',
+                'Check that the server is reachable from here at all: that it is running, and that its network and firewall allow SSH from this system.',
                 'Once the cause is dealt with, press [[btn2:Refresh]] again. The status is read again, so it changes as soon as they answer.',
               ],
             },
@@ -321,12 +321,12 @@ const HELP: Array<{ path: string; help: Help }> = [
           guide: { label: 'Quick start', url: DOC_LINKS.quickStartMigration },
           title: 'Making a source model',
           intro:
-            'Collecting reads what is actually on the servers; saving turns that into a source model the migration can work from. Two choices shape it - infrastructure or software, and a whole group or a single server. Collection reaches each server over SSH, so it has to be reachable at the time.',
+            'Collecting reads what is actually on the servers; saving turns that into a source model the migration can work from. Two choices shape it: infrastructure or software, and a whole group or a single server. Collection reaches each server over SSH, so it has to be reachable at the time.',
           sections: [
             {
               heading: 'Choose what to collect',
               steps: [
-                'Decide whether you are migrating infrastructure or software - the collection differs.',
+                'Decide whether you are migrating infrastructure or software. The collection differs.',
                 'Select a whole source service to cover every source connection in it, or a single source connection to cover one server.',
               ],
             },
@@ -374,7 +374,7 @@ const HELP: Array<{ path: string; help: Help }> = [
           },
           title: 'Managing source models',
           intro:
-            'A source model describes the servers you are migrating from. If collection got something wrong, or you want to try a variation, change it here - saving under a new name gives you a custom copy and leaves the original alone.',
+            'A source model describes the servers you are migrating from. If collection got something wrong, or you want to try a variation, change it here. Saving under a new name gives you a custom copy and leaves the original alone.',
           sections: [
             {
               heading: 'Review and adjust',
@@ -442,7 +442,7 @@ const HELP: Array<{ path: string; help: Help }> = [
               steps: [
                 'Open Custom & View to see the model as JSON.',
                 'The table view edits values and adds or removes list entries; the tree and text views are the same document in another shape, where an array can be filtered or reshaped.',
-                'Saving asks for a name and creates a custom model - the original is left as it was.',
+                'Saving asks for a name and creates a custom model. The original is left as it was.',
               ],
             },
           ],
@@ -465,7 +465,7 @@ const HELP: Array<{ path: string; help: Help }> = [
               heading: 'Software',
               steps: [
                 'Choose Make Workflow on a software target model.',
-                'The run_software_migration task is filled in from the infrastructure you created - the install target namespace and infra are already set.',
+                'The run_software_migration task is filled in from the infrastructure you created: the install target namespace and infra are already set.',
                 'That means the infrastructure migration should have run first.',
               ],
             },
@@ -505,7 +505,7 @@ const HELP: Array<{ path: string; help: Help }> = [
               },
               steps: [
                 'Create one from a target model, build it in the editor, or copy an existing workflow and change its values.',
-                'Select the migration task on the canvas. Task Configuration opens on the right with the values carried over from the target model - path and query parameters and the request body.',
+                'Select the migration task on the canvas. Task Configuration opens on the right with the values carried over from the target model: path and query parameters and the request body.',
                 'Review them and edit anything that needs adjusting.',
                 'Drag components from the Toolbox on the left to extend what the workflow does.',
                 'Give the workflow a name and save it.',
@@ -521,7 +521,7 @@ const HELP: Array<{ path: string; help: Help }> = [
           },
           title: 'Running and checking results',
           intro:
-            'Running, watching and re-running all happen on one screen. A failed run does not have to be started over - you can pick up from where it broke.',
+            'Running, watching and re-running all happen on one screen. A failed run does not have to be started over. You can pick up from where it broke.',
           sections: [
             {
               heading: 'Run and watch',
@@ -604,7 +604,7 @@ const HELP: Array<{ path: string; help: Help }> = [
     help: {
       title: 'Task Components',
       paragraphs: [
-        'A task component is one step a workflow can take - collect something, create infrastructure, install software, wait.',
+        'A task component is one step a workflow can take: collect something, create infrastructure, install software, wait.',
       ],
       groups: [
         {
@@ -700,7 +700,7 @@ const HELP: Array<{ path: string; help: Help }> = [
               heading: 'Register and check',
               steps: [
                 'Add a credential for the provider you are migrating to.',
-                'A migration that fails to reach its destination is often a credential that is missing, expired, or short of permissions - check here first.',
+                'A migration that fails to reach its destination is often a credential that is missing, expired, or short of permissions. Check here first.',
               ],
             },
           ],
@@ -783,7 +783,7 @@ function fallbackFor(title: string): Help {
   return {
     title,
     paragraphs: [
-      'Help for this screen has not been written yet - it is on the way.',
+      'Help for this screen has not been written yet. It is on the way.',
       'In the meantime, the quick start guide walks through a migration from beginning to end.',
     ],
     terms: TERMS,
@@ -903,7 +903,7 @@ const EDITOR_CONTEXT: Array<{ path: string; ctx: EditorContext }> = [
     ctx: {
       lead: 'This screen shows a source model in the JSON editor, where you can read it and change it.',
       detail:
-        'A source model is what was collected from the servers you are migrating from - each machine with its CPU, disks and network interfaces. Collection reads what it can reach, and it does not always come back complete, so this is where you correct what it got wrong and fill in what it could not see. What you leave here is what the recommendation works from.',
+        'A source model is what was collected from the servers you are migrating from: each machine with its CPU, disks and network interfaces. Collection reads what it can reach, and it does not always come back complete, so this is where you correct what it got wrong and fill in what it could not see. What you leave here is what the recommendation works from.',
       saving:
         'Saving asks for a name and creates a custom model; the model you opened stays as it was.',
     },
@@ -913,7 +913,7 @@ const EDITOR_CONTEXT: Array<{ path: string; ctx: EditorContext }> = [
     ctx: {
       lead: 'This screen shows a target model in the JSON editor, where you can read it and change it.',
       detail:
-        'A target model describes the same workload the way the destination expects it - the infrastructure to create, with its images, specs, security groups and network. It comes from a recommendation, and a recommendation is a best match rather than a certainty: a spec or an image can come back missing, and the machine it suggests may be larger or smaller than you want. This is where you settle those - fill in what is missing, change a spec up or down, add anything the destination needs. Whatever is left unsettled here has to be dealt with in the workflow instead, which is a harder place to find it.',
+        'A target model describes the same workload the way the destination expects it: the infrastructure to create, with its images, specs, security groups and network. It comes from a recommendation, and a recommendation is a best match rather than a certainty: a spec or an image can come back missing, and the machine it suggests may be larger or smaller than you want. This is where you settle those: fill in what is missing, change a spec up or down, add anything the destination needs. Whatever is left unsettled here has to be dealt with in the workflow instead, which is a harder place to find it.',
       saving:
         'Saving asks for a name and creates a custom model; the model you opened stays as it was.',
     },
@@ -932,7 +932,7 @@ const EDITOR_CONTEXT: Array<{ path: string; ctx: EditorContext }> = [
     ctx: {
       lead: 'This screen shows a workflow template in the JSON editor, where you can read it and change it.',
       detail:
-        'A template is the shape a workflow is built from - which tasks it has and in what order, without the values of any one migration.',
+        'A template is the shape a workflow is built from: which tasks it has and in what order, without the values of any one migration.',
       saving: 'Saving updates this template.',
     },
   },
@@ -975,13 +975,13 @@ function jsonEditorGroup(): Group {
     title: 'Using the editor',
     guide: { label: 'Editing a model as JSON', url: DOC_LINKS.jsonEditor },
     intro:
-      'The same document is offered three ways - table, tree and text - and nothing is lost by moving between them. The table is the one to start from: it lists every value with its name beside it.',
+      'The same document is offered three ways (table, tree and text), and nothing is lost by moving between them. The table is the one to start from: it lists every value with its name beside it.',
     sections: [
       {
         heading: 'Change a value, add an entry',
         steps: [
           'In the table view, double-click a value to edit it and press Enter to keep it.',
-          'To add an entry to a list, copy one that already exists - the copy lands below it with every field filled in, so only the differences need changing.',
+          'To add an entry to a list, copy one that already exists. The copy lands below it with every field filled in, so only the differences need changing.',
           'Undo takes back anything, including edits made in the table.',
         ],
       },
@@ -990,13 +990,13 @@ function jsonEditorGroup(): Group {
         steps: [
           'Press the magnifier, or Ctrl+F, and type.',
           'The arrows move between matches and open the branches on the way.',
-          'The Filter toggle leaves only the rows that match - useful when one name runs through the document and all of it has to change.',
+          'The Filter toggle leaves only the rows that match. It helps when one name runs through the document and all of it has to change.',
         ],
       },
       {
         heading: 'Filter or reshape an array',
         steps: [
-          'Switch to the tree view and click the array you want to work on - targetSpecList, nodeGroups, firewallRules - so the row is highlighted.',
+          'Switch to the tree view and click the array you want to work on, such as targetSpecList, nodeGroups or firewallRules, so the row is highlighted.',
           'Right-click it, or press Ctrl+Q, and choose Sort or Transform. Both work on one array at a time, so pick the array first and the wizard will offer its fields.',
           'Transform replaces the array with the result, so check the document before saving.',
         ],

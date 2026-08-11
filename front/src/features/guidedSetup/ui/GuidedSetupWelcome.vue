@@ -41,9 +41,17 @@ const emit = defineEmits<{ (e: 'start'): void; (e: 'dismiss'): void }>();
         Welcome
       </h2>
 
+      <!--
+        Two sentences, two lines. The first says what a migration is here; the second
+        says where the reader stands in it. Run together they read as one statement and
+        the part that is about them - that nothing has been done yet - goes by in the
+        middle of a line.
+      -->
       <p class="mt-3 text-sm text-gray-700">
-        A migration runs through five steps, in order. Nothing has been done here
-        yet, so the first one is where to begin.
+        A migration runs through five steps, in order.
+      </p>
+      <p class="mt-1 text-sm text-gray-700">
+        Nothing has been done here yet, so the first one is where to begin.
       </p>
 
       <ol

@@ -117,12 +117,12 @@ export const GUIDED_STEPS: GuidedStep[] = [
     title: 'Collect',
     detail: [
       'Collect the source information for the migration you intend to run.',
-      'On the Source Services screen, select a registered source and run the collection that matches it - infrastructure, software, and so on.',
+      'On the Source Services screen, select a registered source and run the collection that matches it: infrastructure, software, and so on.',
     ],
     standing: () =>
-      'The servers are registered but nothing has been collected from them yet. On the Source Services screen, select the source and run the collection for the migration you want - infrastructure or software. What is collected is what the migration is built from.',
+      'The servers are registered but nothing has been collected from them yet. On the Source Services screen, select the source and run the collection for the migration you want, whether infrastructure or software. What is collected is what the migration is built from.',
     completion:
-      'This step is complete once you have run a collection against at least one registered server. Which collection to run depends on what you are migrating - the help on the Source Services screen goes through each one.',
+      'This step is complete once you have run a collection against at least one registered server. Which collection to run depends on what you are migrating. The help on the Source Services screen goes through each one.',
     progress: f => (f.collected ? 'collected' : 'nothing collected yet'),
     routeName: MENU_ID.SOURCE_SERVICES,
     testId: 'migration-guide-step-collect',
@@ -136,7 +136,7 @@ export const GUIDED_STEPS: GuidedStep[] = [
       'Everything after this is built from that model.',
     ],
     standing: () =>
-      'Collecting is done. Save the result as a source model on the Source Services screen - everything after this is built from it.',
+      'Collecting is done. Save the result as a source model on the Source Services screen. Everything after this is built from it.',
     completion:
       'This step is complete once you have saved at least one source model.',
     progress: f => plural(f.sourceModels, 'source model'),
@@ -165,12 +165,12 @@ export const GUIDED_STEPS: GuidedStep[] = [
     title: 'Create and Run Workflow',
     detail: [
       'Create the migration workflow from a target model, on the Target Models screen.',
-      'Change any value it still needs, then run it - the migration happens here.',
+      'Change any value it still needs, then run it. The migration happens here.',
     ],
     standing: f =>
       f.workflows === 0
         ? 'The target model is ready. Build the workflow from it on the Target Models screen, change any value it still needs, and run it.'
-        : 'The workflow is built but has not been run. Open it and run it - the migration happens there.',
+        : 'The workflow is built but has not been run. Open it and run it. The migration happens there.',
     completion:
       'This step is complete once you have created a workflow and run it at least once.',
     progress: f =>
