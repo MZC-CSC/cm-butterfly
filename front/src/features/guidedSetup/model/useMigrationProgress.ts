@@ -33,10 +33,15 @@ const LIST_SOURCE_GROUP = 'cm-honeybee/list-source-group';
 /*
   The *refined* view, not the raw one.
 
-  The raw group-level call crashes the service outright when nothing has been collected
-  yet - a nil dereference, no response at all - which is the most common state there is:
-  servers registered a moment ago. The refined call answers the same question and, asked
-  in that same state, replies properly with an error instead of dying.
+  The raw group-level call used to crash the service outright when nothing had been
+  collected yet - a nil dereference, no response at all - which is the most common state
+  there is: connections registered a moment ago. The refined call answers the same
+  question and, asked in that same state, replies properly with an error instead of dying.
+
+  Fixed upstream on 2026-08-11 (cloud-barista/cm-honeybee#70, commit ae40679), but that
+  is later than v0.5.10 and so is in no released image yet - and our lineup is further
+  back still. Keep the refined call until a release carrying the fix is in the lineup;
+  there is nothing to gain by switching before then, since both answer the same question.
 */
 const GET_INFRA_INFO_SOURCE_GROUP =
   'cm-honeybee/get-infra-info-source-group-refined';
