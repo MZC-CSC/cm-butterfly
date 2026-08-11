@@ -111,6 +111,11 @@ const TERMS: Help['terms'] = [
       'A group of the servers you are migrating from - on-premises machines or ones already running on a cloud. Each connection under it is one server.',
   },
   {
+    term: 'Connection',
+    meaning:
+      'One server, as it is registered here - the address and the login this system uses to reach it over SSH. A source service holds one connection per server, which is why the screen says Connections, Connection # and + Add Source Connection where you might expect it to say servers.',
+  },
+  {
     term: 'Model',
     meaning:
       'What a machine or its software actually is, written in the shape this system works with. Collecting reads the raw facts; a model is those facts turned into something the migration can act on.',
