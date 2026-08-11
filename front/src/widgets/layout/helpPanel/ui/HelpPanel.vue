@@ -1453,10 +1453,10 @@ onBeforeUnmount(() => {
               :aria-expanded="isSectionOpen(group.id, x) ? 'true' : 'false'"
               @click="toggleSection(group.id, x)"
             >
-              <span class="help-heading-text">{{ sec.heading }}</span>
               <span class="help-heading-mark" aria-hidden="true">{{
-                isSectionOpen(group.id, x) ? '&minus;' : '+'
+                isSectionOpen(group.id, x) ? '\u25be' : '\u25b8'
               }}</span>
+              <span class="help-heading-text">{{ sec.heading }}</span>
             </button>
             <ol
               v-if="isSectionOpen(group.id, x)"
@@ -1496,10 +1496,10 @@ onBeforeUnmount(() => {
                   :aria-expanded="isSectionOpen(`${group.id}#${x}`, y) ? 'true' : 'false'"
                   @click="toggleSection(`${group.id}#${x}`, y)"
                 >
-                  <span class="help-subheading-text">{{ sub.heading }}</span>
                   <span class="help-heading-mark" aria-hidden="true">{{
-                    isSectionOpen(`${group.id}#${x}`, y) ? '&minus;' : '+'
+                    isSectionOpen(`${group.id}#${x}`, y) ? '\u25be' : '\u25b8'
                   }}</span>
+                  <span class="help-subheading-text">{{ sub.heading }}</span>
                 </button>
                 <ol
                   v-if="isSectionOpen(`${group.id}#${x}`, y)"
@@ -1624,10 +1624,10 @@ onBeforeUnmount(() => {
             :aria-expanded="isSectionOpen('__reference', 0) ? 'true' : 'false'"
             @click="toggleSection('__reference', 0)"
           >
-            <span class="help-heading-text">Buttons and columns on this screen</span>
             <span class="help-heading-mark" aria-hidden="true">{{
-              isSectionOpen('__reference', 0) ? '&minus;' : '+'
+              isSectionOpen('__reference', 0) ? '\u25be' : '\u25b8'
             }}</span>
+            <span class="help-heading-text">Buttons and columns on this screen</span>
           </button>
           <dl
             v-if="isSectionOpen('__reference', 0)"
@@ -1658,10 +1658,10 @@ onBeforeUnmount(() => {
             :aria-expanded="isSectionOpen('__terms', 0) ? 'true' : 'false'"
             @click="toggleSection('__terms', 0)"
           >
-            <span class="help-heading-text">Key terms</span>
             <span class="help-heading-mark" aria-hidden="true">{{
-              isSectionOpen('__terms', 0) ? '&minus;' : '+'
+              isSectionOpen('__terms', 0) ? '\u25be' : '\u25b8'
             }}</span>
+            <span class="help-heading-text">Key terms</span>
           </button>
           <dl v-if="isSectionOpen('__terms', 0)" class="help-terms" data-testid="help-terms-list">
             <template v-for="(t, k) in help.terms">
@@ -2025,13 +2025,24 @@ onBeforeUnmount(() => {
   flex: 1;
 }
 
+/*
+  A disclosure triangle rather than a plus.
+  On this screen + already means "make a new one" - it is on the button that creates a
+  source service - so the same sign at the end of a heading read as "there is more of
+  this" rather than "this opens". The triangle points at the text it opens, and turns
+  down once it is open, which is the shape people already know from file trees.
+*/
 .help-heading-mark {
   flex: none;
-  width: 16px;
-  font-size: 13px;
+  width: 12px;
+  font-size: 10px;
   line-height: 1;
-  color: #6b7280;
-  text-align: center;
+  color: #2563eb;
+  text-align: left;
+}
+
+.help-subheading .help-heading-mark {
+  color: #7c3aed;
 }
 
 /*
@@ -2095,16 +2106,6 @@ onBeforeUnmount(() => {
   flex: 1;
 }
 
-.help-subheading-text::before {
-  display: inline-block;
-  width: 3px;
-  height: 11px;
-  margin-right: 6px;
-  vertical-align: -1px;
-  content: '';
-  background: #a78bfa;
-  border-radius: 1px;
-}
 
 .help-chip {
   display: inline-block;
@@ -2150,7 +2151,6 @@ onBeforeUnmount(() => {
   background: #f3f4f6;
 }
 
-.help-heading-text::before,
 .help-heading:not(.help-heading-toggle)::before {
   display: inline-block;
   width: 3px;
