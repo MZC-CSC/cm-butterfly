@@ -30,6 +30,19 @@ type Section = {
   steps: string[];
   /** A guide that belongs to this way of doing it, rather than to the whole job. */
   guide?: { label: string; url: string };
+  /**
+   * Ways of carrying out one part of this procedure, folded inside it.
+   *
+   * Adding servers is one step of creating a service, but there are two ways to do it -
+   * by hand and from a file - and each is a procedure of its own. Left flat they would
+   * either bury the outer steps or be split off into a heading that no longer says which
+   * moment it belongs to.
+   */
+  sub?: Array<{
+    heading: string;
+    steps: string[];
+    guide?: { label: string; url: string };
+  }>;
 };
 
 /**
@@ -171,6 +184,23 @@ const HELP: Array<{ path: string; help: Help }> = [
             'What each server answered, one line per server - which of the connection and the agent succeeded, and the reason when either did not.',
         },
         {
+          item: '+ Add / Edit',
+          kind: 'btn',
+          meaning:
+            'On the Connections tab of a selected service, opens the same form used when creating one, so servers can be added or changed there.',
+        },
+        {
+          item: '+ Add Source Connection',
+          kind: 'btn',
+          meaning:
+            'Top left of the connection form - one more blank server, so several can be entered before saving.',
+        },
+        {
+          item: 'Save',
+          kind: 'btn2',
+          meaning: 'Bottom right of the connection form. Stays off until the required fields, marked in red, are filled in.',
+        },
+        {
           item: 'Name',
           kind: 'column',
           meaning: 'The name you gave the source service. Selecting it opens its servers below.',
@@ -190,7 +220,7 @@ const HELP: Array<{ path: string; help: Help }> = [
         {
           item: 'Description',
           kind: 'column',
-          meaning: 'Whatever you wrote when creating it. This is what tells two similar services apart.',
+          meaning: 'Whatever you wrote when creating it, as a note to yourself. Nothing depends on it.',
         },
       ],
       groups: [
@@ -202,40 +232,52 @@ const HELP: Array<{ path: string; help: Help }> = [
           },
           title: 'Managing the servers you migrate from',
           intro:
-            'A source service is a group of servers, and each connection under it is one server. There is no single order to build it in - create the service and add servers in the same window, or create it now and add them when their details are ready, or bring them in from a file. Use whichever suits how you got the information.',
+            'A source service is a group of servers, and each connection under it is one server. Creating the service and registering its servers happen in the same window, but they do not have to happen at once - create the service on its own and add servers when their details are ready. Servers can be entered one at a time or brought in from an Excel or CSV file.',
           sections: [
             {
               heading: 'Create a source service',
               steps: [
                 'Press [[btn:+ Add]] above the source service list. The Add Source Service window opens.',
-                'Fill in [[field:Source Service Name]]. It is the only thing required - the confirm button stays off until it has something in it.',
-                '[[field:Description]] is optional. It is what tells two similar services apart later, so it is worth a line.',
-                'Now it comes down to one question: do you have the server details to hand? The same window does both, and [[btn:With Source Connection]] is the switch between them.',
-                'Not yet - leave [[btn:With Source Connection]] off and confirm. The service appears in the list with no connections. Nothing is lost by starting this way, but the step is not finished until a server is under it: there is nothing for Collect to reach and no model can be made. Add them with "Add or change servers in a group that already exists" below.',
-                'Yes - switch [[btn:With Source Connection]] on and press [[btn2:Go add Source Connection]] to open the form for one server.',
-                'Enter [[field:Name]], [[field:IP Address]], [[field:SSH Port]] and [[field:User]] - the address and port this system will use to reach that server over SSH.',
-                'Enter either [[field:Password]] or [[field:Private Key]]. One of the two is needed; the private key is the whole key including its BEGIN and END lines. Repeat for each server you want in this service.',
-                'Confirm. Whatever you entered - the service on its own, or the service with its servers - is saved in one go.',
+                'Fill in [[field:Source Service Name]]. It is the only thing required - the button at the bottom right stays off until it has something in it.',
+                '[[field:Description]] is optional and is only a note to yourself.',
+                'If you want to register the servers later, press [[btn:Add]] at the bottom right now. Only the service is created, and servers can be added to it whenever their details are ready - see [[see:manage-sources#1|Add servers to a service that already exists]].',
+                'To register servers now, switch [[btn:With Source Connection]] on. Two ways then open up: entering each server in the form, or bringing them in from an Excel or CSV file. Both are below.',
+              ],
+              sub: [
+                {
+                  heading: 'Enter each server in the form',
+                  steps: [
+                    'Press [[btn2:Go add Source Connection]]. The form for one server opens.',
+                    'Fill in the required fields, which are marked in red. They are the address and the login this system will use to reach that server over SSH.',
+                    'The login is either [[field:User]] with [[field:Password]], or [[field:User]] with [[field:Private Key]] - one of the two must be filled in. The private key is the whole key, including its BEGIN and END lines.',
+                    'For another server, press [[btn:+ Add Source Connection]] at the top left and fill in the next one. Repeat for as many as you have.',
+                    'Press [[btn2:Save]] at the bottom right when the servers are entered.',
+                  ],
+                },
+                {
+                  heading: 'Bring servers in from an Excel or CSV file',
+                  guide: {
+                    label: 'Preparing the connection file',
+                    url: DOC_LINKS.sourceConnectionBulkImport,
+                  },
+                  steps: [
+                    'If you do not have a file yet, press [[btn2:Download Source Connection Template]]. That is the layout the import expects.',
+                    'Fill it in, one row per server. Excel (.xlsx) and CSV both import, so use whichever is easier for you.',
+                    'Press [[btn2:Import Source Connection]] and choose the file. The name of the file you picked is shown, so a wrong pick can be told from a failed read.',
+                    'The rows that were read are listed with a count before anything is registered. Rows that cannot be registered as they stand are counted separately - correct those in the file and import again.',
+                    'A server name has to be unique across every source service, not just within this one. A name already in use is the usual reason a row is refused.',
+                  ],
+                },
               ],
             },
             {
-              heading: 'Add or change servers in a group that already exists',
+              heading: 'Add servers to a service that already exists',
               steps: [
-                'Select the group in the list. Its servers are shown underneath.',
-                'Press [[btn:+ Add]] on that lower list to add one more server, and fill in the same fields as above.',
-                'To change one, open the server from the list, edit it, and apply. Removing one works the same way.',
-                'A newly added server has no status until it is contacted - press [[btn2:Refresh]] on the group to check it can be reached.',
-              ],
-            },
-            {
-              heading: 'Bring servers in from a file',
-              steps: [
-                'Press [[btn:+ Add]], then [[btn2:Download Source Connection Template]]. The template is a CSV and shows the layout expected.',
-                'Fill it in, one row per server. It opens in Excel and can be saved back as either CSV or .xlsx - both upload.',
-                'Press [[btn2:Import Source Connection]] and choose the file. The name of the file you picked is shown, so you can tell a wrong pick from a failed read.',
-                'The rows that were read are listed as a preview with a count. Any row that cannot be registered as it stands is counted separately as needing attention - fix those in the file and import again.',
-                'Confirm to register the rows. They appear as servers under the group.',
-                'The other direction works too: what is already registered can be exported in the same layout, so a group can be copied or kept as a starting point. Passwords and keys come out blank and have to be filled in again.',
+                'Select the service in the list. Its servers are shown underneath.',
+                'Open the [[tab:Connections]] tab and press [[btn:+ Add / Edit]].',
+                'From here it is the same form as when creating the service - required fields in red, [[field:User]] with either [[field:Password]] or [[field:Private Key]], [[btn:+ Add Source Connection]] at the top left for another server, and [[btn2:Save]] at the bottom right.',
+                'To change or remove a server, open it from the same list and edit or delete it there.',
+                'A newly added server has no status until it is contacted - press [[btn2:Refresh]] on the service to check it can be reached.',
               ],
             },
             {
@@ -1049,6 +1091,26 @@ function isSectionOpen(groupId: string, index: number): boolean {
   return openSections.value[sectionKey(groupId, index)] === true;
 }
 
+/**
+ * Open a procedure named in someone else's text, and take the reader to it.
+ *
+ * A cross-reference the reader has to go and find is a cross-reference that does not
+ * get followed - and folded away, "see X below" is asking them to hunt for a heading
+ * among the ones they closed.
+ */
+function openReferenced(target: string | undefined): void {
+  if (!target) return;
+  const [groupId, rawIndex] = target.split('#');
+  const index = Number(rawIndex);
+  if (!groupId || !Number.isFinite(index)) return;
+  openSections.value = { ...openSections.value, [sectionKey(groupId, index)]: true };
+  requestAnimationFrame(() => {
+    document
+      .querySelector(`[data-testid="help-section-toggle-${groupId}-${index}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+}
+
 function toggleSection(groupId: string, index: number): void {
   const key = sectionKey(groupId, index);
   openSections.value = {
@@ -1067,9 +1129,14 @@ function toggleSection(groupId: string, index: number): void {
 
   Kinds: btn (something you press), field (something you fill in), tab, menu (where it is).
 */
-type Token = { t: 'text' | 'btn' | 'btn2' | 'field' | 'tab' | 'menu'; v: string };
+type Token = {
+  t: 'text' | 'btn' | 'btn2' | 'field' | 'tab' | 'menu' | 'see';
+  v: string;
+  /** For `see`: which procedure to open, as `groupId#index`. */
+  target?: string;
+};
 
-const CHIP = /\[\[(btn|btn2|field|tab|menu):([^\]]+)\]\]/g;
+const CHIP = /\[\[(btn|btn2|field|tab|menu|see):([^\]]+)\]\]/g;
 
 function tokensOf(text: string): Token[] {
   const tokens: Token[] = [];
@@ -1077,7 +1144,13 @@ function tokensOf(text: string): Token[] {
   for (const match of text.matchAll(CHIP)) {
     const start = match.index ?? 0;
     if (start > at) tokens.push({ t: 'text', v: text.slice(at, start) });
-    tokens.push({ t: match[1] as Token['t'], v: match[2] });
+    if (match[1] === 'see') {
+      // `[[see:group#index|what to call it]]`
+      const [target, label] = match[2].split('|');
+      tokens.push({ t: 'see', v: label ?? target, target });
+    } else {
+      tokens.push({ t: match[1] as Token['t'], v: match[2] });
+    }
     at = start + match[0].length;
   }
   if (at < text.length) tokens.push({ t: 'text', v: text.slice(at) });
@@ -1366,12 +1439,83 @@ onBeforeUnmount(() => {
               <li v-for="(step, t) in sec.steps" :key="t">
                 <template v-for="(tok, k) in tokensOf(step)">
                   <span v-if="tok.t === 'text'" :key="`t${k}`">{{ tok.v }}</span>
+                  <button
+                    v-else-if="tok.t === 'see'"
+                    :key="`s${k}`"
+                    type="button"
+                    class="help-see"
+                    :data-testid="`help-see-${tok.target}`"
+                    @click="openReferenced(tok.target)"
+                  >
+                    {{ tok.v }}
+                  </button>
                   <span v-else :key="`c${k}`" :class="`help-chip help-chip-${tok.t}`">{{
                     tok.v
                   }}</span>
                 </template>
               </li>
             </ol>
+
+            <!-- Ways of doing one part of the procedure above, folded inside it. -->
+            <div
+              v-if="sec.sub && isSectionOpen(group.id, x)"
+              class="help-subsections"
+            >
+              <div v-for="(sub, y) in sec.sub" :key="`sub${y}`" class="help-subsection">
+                <button
+                  type="button"
+                  class="help-subheading"
+                  :data-testid="`help-subsection-toggle-${group.id}-${x}-${y}`"
+                  :aria-expanded="isSectionOpen(`${group.id}#${x}`, y) ? 'true' : 'false'"
+                  @click="toggleSection(`${group.id}#${x}`, y)"
+                >
+                  <span class="help-subheading-text">{{ sub.heading }}</span>
+                  <span class="help-heading-mark" aria-hidden="true">{{
+                    isSectionOpen(`${group.id}#${x}`, y) ? '&minus;' : '+'
+                  }}</span>
+                </button>
+                <ol
+                  v-if="isSectionOpen(`${group.id}#${x}`, y)"
+                  class="help-steps"
+                  :data-testid="`help-subsection-steps-${group.id}-${x}-${y}`"
+                >
+                  <li v-for="(step, t) in sub.steps" :key="t">
+                    <template v-for="(tok, k) in tokensOf(step)">
+                      <span v-if="tok.t === 'text'" :key="`t${k}`">{{ tok.v }}</span>
+                      <button
+                        v-else-if="tok.t === 'see'"
+                        :key="`s${k}`"
+                        type="button"
+                        class="help-see"
+                        @click="openReferenced(tok.target)"
+                      >
+                        {{ tok.v }}
+                      </button>
+                      <span
+                        v-else
+                        :key="`c${k}`"
+                        :class="`help-chip help-chip-${tok.t}`"
+                        >{{ tok.v }}</span
+                      >
+                    </template>
+                  </li>
+                </ol>
+                <button
+                  v-if="sub.guide && isSectionOpen(`${group.id}#${x}`, y)"
+                  class="help-guide help-guide-inline"
+                  :data-testid="`help-subsection-guide-${group.id}-${x}-${y}`"
+                  @click="openDocLink(sub.guide.url)"
+                >
+                  <svg class="help-doc-icon" viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                      d="M4 1.5h5.2L13 5.3V14a.5.5 0 0 1-.5.5h-8A.5.5 0 0 1 4 14V1.5Zm1 1V13.5h7V6H8.7V2.5H5Zm4.7.7V5H12L9.7 3.2ZM6 7.5h5v1H6v-1Zm0 2.5h5v1H6v-1Z"
+                    />
+                  </svg>
+                  <span class="help-guide-text">Guide: {{ sub.guide.label }}</span>
+                  <span class="help-guide-out">&#8599;</span>
+                </button>
+              </div>
+            </div>
             <button
               v-if="sec.guide && isSectionOpen(group.id, x)"
               class="help-guide help-guide-inline"
@@ -1852,6 +1996,74 @@ onBeforeUnmount(() => {
   A button as it appears on the screen, small enough to sit inside a sentence.
   Drawn rather than photographed, so it cannot fall out of date on its own.
 */
+/* A procedure named inside another one's text, and a way to get straight to it. */
+.help-see {
+  padding: 0;
+  font-size: inherit;
+  font-weight: 600;
+  color: #7c3aed;
+  text-decoration: underline;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.help-see:hover {
+  color: #5b21b6;
+}
+
+.help-subsections {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 10px;
+  margin-top: 4px;
+  border-left: 2px solid #ddd6fe;
+}
+
+.help-subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Violet against the outer blue: two depths, told apart at a glance. */
+.help-subheading {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 3px 6px 3px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #5b21b6;
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+}
+
+.help-subheading:hover {
+  background: #f5f3ff;
+}
+
+.help-subheading-text {
+  flex: 1;
+}
+
+.help-subheading-text::before {
+  display: inline-block;
+  width: 3px;
+  height: 11px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  content: '';
+  background: #a78bfa;
+  border-radius: 1px;
+}
+
 .help-chip {
   display: inline-block;
   padding: 1px 6px;
