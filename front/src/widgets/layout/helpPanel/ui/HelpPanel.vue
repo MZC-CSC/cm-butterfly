@@ -178,7 +178,7 @@ const HELP: Array<{ path: string; help: Help }> = [
       paragraphs: [
         'This menu does two things: you register the servers you are migrating from into a source service and manage them there, and you turn what is collected from them into a source model.',
         'One server is registered as one source connection, and that is the word this screen uses from here on - the Connections tab, the Connection # column and + Add Source Connection all refer to those.',
-        'It is the first screen of a migration and the only one that reaches your machines directly, so everything later is built on what is registered and collected here.',
+        'It is the first screen of a migration and the only one that reaches your servers directly, so everything later is built on what is registered and collected here.',
       ],
       reference: [
         {
@@ -264,7 +264,7 @@ const HELP: Array<{ path: string; help: Help }> = [
                   heading: 'Enter each source connection in the form',
                   steps: [
                     'Press [[btn2:Go add Source Connection]]. The form for one source connection opens.',
-                    'Fill in the required fields, which are marked in red. They are the address and the login this system will use to reach that machine over SSH.',
+                    'Fill in the required fields, which are marked in red. They are the address and the login this system will use to reach that server over SSH.',
                     'The login is either [[field:User]] with [[field:Password]], or [[field:User]] with [[field:Private Key]] - one of the two must be filled in. The private key is the whole key, including its BEGIN and END lines.',
                     'For another one, press [[btn:+ Add Source Connection]] at the top left and fill in the next. Repeat for as many as you have.',
                     'Press [[btn2:Save]] at the bottom right when they are all entered.',
@@ -310,7 +310,7 @@ const HELP: Array<{ path: string; help: Help }> = [
                 'Point at the status for a summary - with a couple of source connections it shows each one, and beyond that it counts how many answered.',
                 'Select [[btn2:View Messages]], next to [[btn2:Refresh]], for every source connection on its own: whether the connection succeeded, whether the agent succeeded, and what came back when either failed.',
                 'When one failed, read that message first - it usually names the cause. Then check the details you registered: address, SSH port, user, and the password or private key.',
-                'Check that the machine is reachable from here at all - that it is running, and that its network and firewall allow SSH from this system.',
+                'Check that the server is reachable from here at all - that it is running, and that its network and firewall allow SSH from this system.',
                 'Once the cause is dealt with, press [[btn2:Refresh]] again. The status is read again, so it changes as soon as they answer.',
               ],
             },
@@ -327,7 +327,7 @@ const HELP: Array<{ path: string; help: Help }> = [
               heading: 'Choose what to collect',
               steps: [
                 'Decide whether you are migrating infrastructure or software - the collection differs.',
-                'Select a whole source service to cover every source connection in it, or a single source connection to cover one machine.',
+                'Select a whole source service to cover every source connection in it, or a single source connection to cover one server.',
               ],
             },
             {
@@ -338,7 +338,7 @@ const HELP: Array<{ path: string; help: Help }> = [
               },
               steps: [
                 'Press Refresh first. It re-checks that each server can still be reached and updates Agent Status and Connection Status on the Detail tab.',
-                'Run Collect Infra for machines, or Collect SW for the software on them.',
+                'Run Collect Infra for the servers themselves, or Collect SW for the software installed on them.',
                 'The result opens in the JSON editor. Check it, and for software press Convert.',
                 'Save it as a source model. It then appears under Models.',
               ],
