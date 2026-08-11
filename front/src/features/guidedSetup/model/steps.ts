@@ -64,11 +64,12 @@ export interface GuidedStep {
    */
   standing: (facts: ProgressFacts) => string;
   /**
-   * What has to be true for this step to be behind you.
+   * What finishes *this* step, said as something the reader does.
    *
-   * Written down because the reader could not see it. A source group on its own left the
-   * step unfinished with nothing on screen saying why, which reads as the guidance being
-   * broken rather than as work still to do.
+   * Written down because the reader could not see it - a source group on its own left the
+   * step unfinished with nothing on screen saying why. Said in their words, not the
+   * check's: "a source service exists and has at least one connection" describes a
+   * condition being tested; what they did was register a service and a connection.
    */
   completion: string;
   /** The same condition counted against what is actually there, so the two sit together. */
@@ -100,7 +101,7 @@ export const GUIDED_STEPS: GuidedStep[] = [
         ? 'Nothing is registered yet. Add a source service and put the servers you want to migrate under it.'
         : 'The source service is there, but no server is registered under it. Open it and add at least one connection - until then there is nothing to collect from.',
     completion:
-      'Done when a source service exists and has at least one connection. A service with no connection has nothing to collect from.',
+      'This step is complete once you have registered a source service and at least one connection under it. With the service alone there is nothing for the collection to reach.',
     progress: f =>
       `${plural(f.sourceServices, 'source service')}, ${plural(f.connections, 'connection')}`,
     routeName: MENU_ID.SOURCE_SERVICES,
@@ -121,7 +122,7 @@ export const GUIDED_STEPS: GuidedStep[] = [
     standing: () =>
       'The servers are registered but nothing has been collected from them yet. On the Source Services screen, select the source and run the collection for the migration you want - infrastructure or software. What is collected is what the migration is built from.',
     completion:
-      'Done when a collection has been run against at least one registered server. Which collection to run depends on what you are migrating - the help on the Source Services screen goes through each one.',
+      'This step is complete once you have run a collection against at least one registered server. Which collection to run depends on what you are migrating - the help on the Source Services screen goes through each one.',
     progress: f => (f.collected ? 'collected' : 'nothing collected yet'),
     routeName: MENU_ID.SOURCE_SERVICES,
     testId: 'migration-guide-step-collect',
@@ -136,7 +137,8 @@ export const GUIDED_STEPS: GuidedStep[] = [
     ],
     standing: () =>
       'Collecting is done. Save the result as a source model on the Source Services screen - everything after this is built from it.',
-    completion: 'Done when at least one source model is saved.',
+    completion:
+      'This step is complete once you have saved at least one source model.',
     progress: f => plural(f.sourceModels, 'source model'),
     routeName: MENU_ID.SOURCE_SERVICES,
     testId: 'migration-guide-step-source-model',
@@ -151,7 +153,8 @@ export const GUIDED_STEPS: GuidedStep[] = [
     ],
     standing: () =>
       'There is a source model to work from. Open it on the Source Models screen, generate a target model from it, and adjust the values you want.',
-    completion: 'Done when at least one target model is saved.',
+    completion:
+      'This step is complete once you have saved at least one target model.',
     progress: f => plural(f.targetModels, 'target model'),
     routeName: MENU_ID.SOURCE_MODELS,
     testId: 'migration-guide-step-target-model',
@@ -168,7 +171,8 @@ export const GUIDED_STEPS: GuidedStep[] = [
       f.workflows === 0
         ? 'The target model is ready. Build the workflow from it on the Target Models screen, change any value it still needs, and run it.'
         : 'The workflow is built but has not been run. Open it and run it - the migration happens there.',
-    completion: 'Done when a workflow exists and has been run at least once.',
+    completion:
+      'This step is complete once you have created a workflow and run it at least once.',
     progress: f =>
       `${plural(f.workflows, 'workflow')}, ${f.runs ? 'run at least once' : 'not run yet'}`,
     routeName: MENU_ID.TARGET_MODELS,
