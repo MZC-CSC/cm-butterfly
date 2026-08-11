@@ -133,7 +133,7 @@ const TERMS: Help['terms'] = [
   {
     term: 'Workflow',
     meaning:
-      'The steps that carry the migration out, generated from a target model. It is the last place values can be changed before anything is created, and it is what you run, watch and re-run.',
+      'A workflow is an ordered set of tasks a machine carries out for you. Here it is the migration itself: each task does one part of it - create the infrastructure, install the software - in the order they have to happen. One is normally generated from a target model and then opened in the workflow editor, which starts from a template for the kind of migration you are doing, so the tasks are already laid out and what is left is to fill in or adjust what they need. The same workflow can be written and edited as JSON instead, whichever suits the change. It is the last place values can be changed before anything is created, and it is what you run, watch and re-run.',
   },
   {
     term: 'Where to make changes',
