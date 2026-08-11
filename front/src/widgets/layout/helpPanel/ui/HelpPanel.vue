@@ -177,61 +177,61 @@ const HELP: Array<{ path: string; help: Help }> = [
       title: 'Source Services',
       paragraphs: [
         'This menu does two things: you register the servers you are migrating from into a source service and manage them there, and you turn what is collected from them into a source model.',
-        'One server is registered as one connection, and that is the word the screen uses - the Connections tab, the Connection # column and + Add Source Connection all mean the servers under a source service.',
-        'It is the first screen of a migration and the only one that reaches your servers directly, so everything later is built on what is registered and collected here.',
+        'One server is registered as one source connection, and that is the word this screen uses from here on - the Connections tab, the Connection # column and + Add Source Connection all refer to those.',
+        'It is the first screen of a migration and the only one that reaches your machines directly, so everything later is built on what is registered and collected here.',
       ],
       reference: [
         {
           item: '+ Add',
           kind: 'btn',
           meaning:
-            'Above the upper list it creates a source service; above the lower list it adds a server to the service you have selected.',
+            'Above the upper list it creates a source service; above the lower list it adds a source connection to the source service you have selected.',
         },
         {
           item: 'Refresh',
           kind: 'btn2',
           meaning:
-            'Contacts every server in the selected service over SSH and checks its agent, then rewrites the status from what came back.',
+            'Tries every source connection in the selected source service over SSH and checks its agent, then rewrites the status from what came back.',
         },
         {
           item: 'View Messages',
           kind: 'btn2',
           meaning:
-            'What each server answered, one line per server - which of the connection and the agent succeeded, and the reason when either did not.',
+            'One line per source connection - which of the connection and the agent succeeded, and the reason when either did not.',
         },
         {
           item: '+ Add / Edit',
           kind: 'btn',
           meaning:
-            'On the Connections tab of a selected service, opens the same form used when creating one, so servers can be added or changed there.',
+            'On the Connections tab of a selected source service, opens the same form used when creating one, so source connections can be added or changed there.',
         },
         {
           item: '+ Add Source Connection',
           kind: 'btn',
           meaning:
-            'Top left of the connection form - one more blank server, so several can be entered before saving.',
+            'Top left of the source connection form - one more blank entry, so several can be added before saving.',
         },
         {
           item: 'Save',
           kind: 'btn2',
-          meaning: 'Bottom right of the connection form. Stays off until the required fields, marked in red, are filled in.',
+          meaning: 'Bottom right of the source connection form. Stays off until the required fields, marked in red, are filled in.',
         },
         {
           item: 'Name',
           kind: 'column',
-          meaning: 'The name you gave the source service. Selecting it opens its servers below.',
+          meaning: 'The name you gave the source service. Selecting it opens its source connections below.',
         },
         {
           item: 'Connection #',
           kind: 'column',
           meaning:
-            'How many servers are registered under it. Zero means this service cannot be collected from yet - that is the usual reason step 1 is not finished.',
+            'How many source connections are registered under it. Zero means this source service cannot be collected from yet - that is the usual reason step 1 is not finished.',
         },
         {
           item: 'Status',
           kind: 'column',
           meaning:
-            'The result of the last Refresh, taken over all its servers. success - every server answered. failed - none did. partialSuccess - some did; the service can still be used, but only the servers that answered are collected from.',
+            'The result of the last Refresh, taken over all its source connections. success - every one answered. failed - none did. partialSuccess - some did; the source service can still be used, but only the source connections that answered are collected from.',
         },
         {
           item: 'Description',
@@ -248,7 +248,7 @@ const HELP: Array<{ path: string; help: Help }> = [
           },
           title: 'Managing the servers you migrate from',
           intro:
-            'Creating the service and registering its servers happen in the same window, but they do not have to happen at once - create the service on its own and add servers when their details are ready. Servers can be entered one at a time or brought in from an Excel or CSV file.',
+            'Creating the source service and registering its source connections happen in the same window, but they do not have to happen at once - create the source service on its own and add source connections when their details are ready. Source connections can be entered one at a time or brought in from an Excel or CSV file.',
           sections: [
             {
               heading: 'Create a source service',
@@ -256,62 +256,62 @@ const HELP: Array<{ path: string; help: Help }> = [
                 'Press [[btn:+ Add]] above the source service list. The Add Source Service window opens.',
                 'Fill in [[field:Source Service Name]]. It is the only thing required - the button at the bottom right stays off until it has something in it.',
                 '[[field:Description]] is optional and is only a note to yourself.',
-                'If you want to register the servers later, press [[btn:Add]] at the bottom right now. Only the service is created, and servers can be added to it whenever their details are ready - see [[see:manage-sources#1|Add servers to a service that already exists]].',
-                'To register servers now, switch [[btn:With Source Connection]] on. Two ways then open up: entering each server in the form, or bringing them in from an Excel or CSV file. Both are below.',
+                'To register the source connections later, press [[btn:Add]] at the bottom right now. Only the source service is created, and source connections can be added to it whenever their details are ready - see [[see:manage-sources#1|Add source connections to a source service that already exists]].',
+                'To register source connections now, switch [[btn:With Source Connection]] on. Two ways then open up: entering each one in the form, or bringing them in from an Excel or CSV file. Both are below.',
               ],
               sub: [
                 {
-                  heading: 'Enter each server in the form',
+                  heading: 'Enter each source connection in the form',
                   steps: [
-                    'Press [[btn2:Go add Source Connection]]. The form for one server opens.',
-                    'Fill in the required fields, which are marked in red. They are the address and the login this system will use to reach that server over SSH.',
+                    'Press [[btn2:Go add Source Connection]]. The form for one source connection opens.',
+                    'Fill in the required fields, which are marked in red. They are the address and the login this system will use to reach that machine over SSH.',
                     'The login is either [[field:User]] with [[field:Password]], or [[field:User]] with [[field:Private Key]] - one of the two must be filled in. The private key is the whole key, including its BEGIN and END lines.',
-                    'For another server, press [[btn:+ Add Source Connection]] at the top left and fill in the next one. Repeat for as many as you have.',
-                    'Press [[btn2:Save]] at the bottom right when the servers are entered.',
+                    'For another one, press [[btn:+ Add Source Connection]] at the top left and fill in the next. Repeat for as many as you have.',
+                    'Press [[btn2:Save]] at the bottom right when they are all entered.',
                   ],
                 },
                 {
-                  heading: 'Bring servers in from an Excel or CSV file',
+                  heading: 'Bring source connections in from an Excel or CSV file',
                   guide: {
                     label: 'Preparing the connection file',
                     url: DOC_LINKS.sourceConnectionBulkImport,
                   },
                   steps: [
                     'If you do not have a file yet, press [[btn2:Download Source Connection Template]]. That is the layout the import expects.',
-                    'Fill it in, one row per server. Excel (.xlsx) and CSV both import, so use whichever is easier for you.',
+                    'Fill it in, one row per source connection. Excel (.xlsx) and CSV both import, so use whichever is easier for you.',
                     'Press [[btn2:Import Source Connection]] and choose the file. The name of the file you picked is shown, so a wrong pick can be told from a failed read.',
                     'The rows that were read are listed with a count before anything is registered. Rows that cannot be registered as they stand are counted separately - correct those in the file and import again.',
-                    'A server name has to be unique across every source service, not just within this one. A name already in use is the usual reason a row is refused.',
+                    'A source connection name has to be unique across every source service, not just within this one. A name already in use is the usual reason a row is refused.',
                   ],
                 },
               ],
             },
             {
-              heading: 'Add servers to a service that already exists',
+              heading: 'Add source connections to a source service that already exists',
               // Registered a service and stopped there: this is the one thing left.
               openWhen: f => f.sourceServices > 0 && f.connections === 0,
               steps: [
-                'Select the service in the list. Its servers are shown underneath.',
+                'Select the source service in the list. Its source connections are shown underneath.',
                 'Open the [[tab:Connections]] tab and press [[btn:+ Add / Edit]].',
-                'From here it is the same form as when creating the service - required fields in red, [[field:User]] with either [[field:Password]] or [[field:Private Key]], [[btn:+ Add Source Connection]] at the top left for another server, and [[btn2:Save]] at the bottom right.',
-                'To change or remove a server, open it from the same list and edit or delete it there.',
-                'A newly added server has no status until it is contacted - press [[btn2:Refresh]] on the service to check it can be reached.',
+                'From here it is the same form as when creating the source service - required fields in red, [[field:User]] with either [[field:Password]] or [[field:Private Key]], [[btn:+ Add Source Connection]] at the top left for another one, and [[btn2:Save]] at the bottom right.',
+                'To change or remove a source connection, open it from the same list and edit or delete it there.',
+                'A newly added source connection has no status until it is tried - press [[btn2:Refresh]] on the source service to check it can be reached.',
               ],
             },
             {
-              heading: 'Check that the servers can be reached',
+              heading: 'Check that the source connections can be reached',
               guide: {
                 label: 'Checking that source servers can be reached',
                 url: DOC_LINKS.sourceConnectionStatus,
               },
               steps: [
-                'Press [[btn2:Refresh]] on the source service. Each server is contacted over SSH and the agent is checked, and the result is shown as the status.',
-                'success means every server answered. failed means none did. partialSuccess means some did and some did not - the group can still be worked with, but only the servers that answered will be collected from.',
-                'Point at the status for a summary - with a couple of servers it shows each one, and beyond that it counts how many answered.',
-                'Select [[btn2:View Messages]], next to [[btn2:Refresh]], for every server on its own: whether the connection succeeded, whether the agent succeeded, and what the server said when either failed.',
-                'When a server failed, read that message first - it usually names the cause. Then check the connection details you registered: address, SSH port, user, and the password or private key.',
-                'Check that the server is reachable from here at all - that it is running, and that its network and firewall allow SSH from this system.',
-                'Once the cause is dealt with, press [[btn2:Refresh]] again. The status is re-read from the servers, so it changes as soon as they answer.',
+                'Press [[btn2:Refresh]] on the source service. Each source connection is tried over SSH and its agent is checked, and the result is shown as the status.',
+                'success means every source connection answered. failed means none did. partialSuccess means some did and some did not - the source service can still be worked with, but only the source connections that answered will be collected from.',
+                'Point at the status for a summary - with a couple of source connections it shows each one, and beyond that it counts how many answered.',
+                'Select [[btn2:View Messages]], next to [[btn2:Refresh]], for every source connection on its own: whether the connection succeeded, whether the agent succeeded, and what came back when either failed.',
+                'When one failed, read that message first - it usually names the cause. Then check the details you registered: address, SSH port, user, and the password or private key.',
+                'Check that the machine is reachable from here at all - that it is running, and that its network and firewall allow SSH from this system.',
+                'Once the cause is dealt with, press [[btn2:Refresh]] again. The status is read again, so it changes as soon as they answer.',
               ],
             },
           ],
@@ -327,7 +327,7 @@ const HELP: Array<{ path: string; help: Help }> = [
               heading: 'Choose what to collect',
               steps: [
                 'Decide whether you are migrating infrastructure or software - the collection differs.',
-                'Select a whole group to cover every server in it, or a single connection to cover one server.',
+                'Select a whole source service to cover every source connection in it, or a single source connection to cover one machine.',
               ],
             },
             {
