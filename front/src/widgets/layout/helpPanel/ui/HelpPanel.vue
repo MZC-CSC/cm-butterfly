@@ -14,6 +14,7 @@ import { useRoute, useRouter } from 'vue-router/composables';
 import { DOC_LINKS, openDocLink } from '@/shared/constants/docLinks';
 import { isJsonEditorOpen } from '@/shared/ui/EnhancedJsonEditor/editorPresence';
 import { helpPanelOpenRequests } from '@/widgets/layout/helpPanel/model/helpPanelPresence';
+import type { ProgressFacts } from '@/features/guidedSetup';
 import {
   refreshProgress,
   currentGuidedStep,
@@ -43,6 +44,15 @@ type Section = {
     steps: string[];
     guide?: { label: string; url: string };
   }>;
+  /**
+   * Open this one without being asked, when the reader is in the state it answers.
+   *
+   * Everything is folded by default so a screen's help is a list of choices rather than
+   * a wall. But there is a state where the choice is already made: a service registered
+   * with no server under it has exactly one thing left to do, and making the reader
+   * hunt for the procedure that does it is the confusion this was built to remove.
+   */
+  openWhen?: (facts: ProgressFacts) => boolean;
 };
 
 /**
@@ -272,6 +282,8 @@ const HELP: Array<{ path: string; help: Help }> = [
             },
             {
               heading: 'Add servers to a service that already exists',
+              // Registered a service and stopped there: this is the one thing left.
+              openWhen: f => f.sourceServices > 0 && f.connections === 0,
               steps: [
                 'Select the service in the list. Its servers are shown underneath.',
                 'Open the [[tab:Connections]] tab and press [[btn:+ Add / Edit]].',
@@ -1088,7 +1100,16 @@ function sectionKey(groupId: string, index: number): string {
 }
 
 function isSectionOpen(groupId: string, index: number): boolean {
-  return openSections.value[sectionKey(groupId, index)] === true;
+  const chosen = openSections.value[sectionKey(groupId, index)];
+  if (chosen !== undefined) return chosen;
+  return defaultOpen(groupId, index);
+}
+
+/** Only the outer procedures carry a rule; a nested one opens with its parent. */
+function defaultOpen(groupId: string, index: number): boolean {
+  const group = (help.value.groups || []).find(g => g.id === groupId);
+  const section = group?.sections?.[index];
+  return section?.openWhen ? section.openWhen(progressFacts.value) : false;
 }
 
 /**
