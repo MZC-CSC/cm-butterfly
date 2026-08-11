@@ -128,7 +128,7 @@ const TERMS: Help['terms'] = [
   {
     term: 'Custom model',
     meaning:
-      'Either kind, once you have changed its values and saved it under a new name. The original is left as it was.',
+      'A model whose values differ from the ones it was made with. Change either kind and save it under a new name: the original stays exactly as it was, and the changed one is kept alongside it as a custom model.',
   },
   {
     term: 'Workflow',
@@ -380,7 +380,7 @@ const HELP: Array<{ path: string; help: Help }> = [
               heading: 'Review and adjust',
               steps: [
                 'Open Custom & View to see the model as JSON, and adjust anything the collection got wrong.',
-                'Saving under a new name gives you a custom copy.',
+                'Saving under a new name keeps the original untouched and stores the changed one as a custom model.',
                 'Models can be renamed and removed here.',
               ],
             },
