@@ -57,7 +57,7 @@ type Group = {
 type Reference = {
   /** Exactly as it reads on the screen. */
   item: string;
-  kind: 'btn' | 'field' | 'column' | 'tab';
+  kind: 'btn' | 'btn2' | 'field' | 'column' | 'tab';
   meaning: string;
 };
 
@@ -160,13 +160,13 @@ const HELP: Array<{ path: string; help: Help }> = [
         },
         {
           item: 'Refresh',
-          kind: 'btn',
+          kind: 'btn2',
           meaning:
             'Contacts every server in the selected service over SSH and checks its agent, then rewrites the status from what came back.',
         },
         {
           item: 'View Messages',
-          kind: 'btn',
+          kind: 'btn2',
           meaning:
             'What each server answered, one line per server - which of the connection and the agent succeeded, and the reason when either did not.',
         },
@@ -212,7 +212,8 @@ const HELP: Array<{ path: string; help: Help }> = [
                 '[[field:Description]] is optional. It is what tells two similar groups apart later, so it is worth a line.',
                 'Leave [[btn:With Source Connection]] switched off. That is what makes this the group-only route: you are not entering server details yet.',
                 'Confirm. The group appears in the list with no connections against it.',
-                'This step is not finished yet. A group with no server has nothing to reach, so Collect cannot run and no model can be made - come back and add at least one server when the details are ready.',
+                'This step is not finished yet. A group with no server has nothing to reach, so Collect cannot run and no model can be made.',
+                'When the server details are ready, carry on with "Add or change servers in a group that already exists" below - that is the other half of this route.',
               ],
             },
             {
@@ -220,7 +221,7 @@ const HELP: Array<{ path: string; help: Help }> = [
               steps: [
                 'Press [[btn:+ Add]] and fill in [[field:Source Service Name]] as above.',
                 'Switch [[btn:With Source Connection]] on. The server section below it becomes usable.',
-                'Press [[btn:Go add Source Connection]] to open the form for one server.',
+                'Press [[btn2:Go add Source Connection]] to open the form for one server.',
                 'Enter [[field:Name]], [[field:IP Address]], [[field:SSH Port]] and [[field:User]] - the address and port this system will use to reach that server over SSH.',
                 'Enter either [[field:Password]] or [[field:Private Key]]. One of the two is needed; the private key is the whole key including its BEGIN and END lines.',
                 'Repeat for each server you want in this group.',
@@ -233,15 +234,15 @@ const HELP: Array<{ path: string; help: Help }> = [
                 'Select the group in the list. Its servers are shown underneath.',
                 'Press [[btn:+ Add]] on that lower list to add one more server, and fill in the same fields as above.',
                 'To change one, open the server from the list, edit it, and apply. Removing one works the same way.',
-                'A newly added server has no status until it is contacted - press [[btn:Refresh]] on the group to check it can be reached.',
+                'A newly added server has no status until it is contacted - press [[btn2:Refresh]] on the group to check it can be reached.',
               ],
             },
             {
               heading: 'Bring servers in from a file',
               steps: [
-                'Press [[btn:+ Add]], then [[btn:Download Source Connection Template]]. The template is a CSV and shows the layout expected.',
+                'Press [[btn:+ Add]], then [[btn2:Download Source Connection Template]]. The template is a CSV and shows the layout expected.',
                 'Fill it in, one row per server. It opens in Excel and can be saved back as either CSV or .xlsx - both upload.',
-                'Press [[btn:Import Source Connection]] and choose the file. The name of the file you picked is shown, so you can tell a wrong pick from a failed read.',
+                'Press [[btn2:Import Source Connection]] and choose the file. The name of the file you picked is shown, so you can tell a wrong pick from a failed read.',
                 'The rows that were read are listed as a preview with a count. Any row that cannot be registered as it stands is counted separately as needing attention - fix those in the file and import again.',
                 'Confirm to register the rows. They appear as servers under the group.',
                 'The other direction works too: what is already registered can be exported in the same layout, so a group can be copied or kept as a starting point. Passwords and keys come out blank and have to be filled in again.',
@@ -254,13 +255,13 @@ const HELP: Array<{ path: string; help: Help }> = [
                 url: DOC_LINKS.sourceConnectionStatus,
               },
               steps: [
-                'Press [[btn:Refresh]] on the source service. Each server is contacted over SSH and the agent is checked, and the result is shown as the status.',
+                'Press [[btn2:Refresh]] on the source service. Each server is contacted over SSH and the agent is checked, and the result is shown as the status.',
                 'success means every server answered. failed means none did. partialSuccess means some did and some did not - the group can still be worked with, but only the servers that answered will be collected from.',
                 'Point at the status for a summary - with a couple of servers it shows each one, and beyond that it counts how many answered.',
-                'Select [[btn:View Messages]], next to [[btn:Refresh]], for every server on its own: whether the connection succeeded, whether the agent succeeded, and what the server said when either failed.',
+                'Select [[btn2:View Messages]], next to [[btn2:Refresh]], for every server on its own: whether the connection succeeded, whether the agent succeeded, and what the server said when either failed.',
                 'When a server failed, read that message first - it usually names the cause. Then check the connection details you registered: address, SSH port, user, and the password or private key.',
                 'Check that the server is reachable from here at all - that it is running, and that its network and firewall allow SSH from this system.',
-                'Once the cause is dealt with, press [[btn:Refresh]] again. The status is re-read from the servers, so it changes as soon as they answer.',
+                'Once the cause is dealt with, press [[btn2:Refresh]] again. The status is re-read from the servers, so it changes as soon as they answer.',
               ],
             },
           ],
@@ -753,6 +754,13 @@ const WIDTH_KEY = 'cm.helpPanel.width';
 const MODE_KEY = 'cm.helpPanel.mode';
 const MIN_WIDTH = 280;
 const MAX_WIDTH = 720;
+/*
+  A detached panel is a window, and a window you cannot make taller is a window you
+  cannot read. Docked it fills the side, so height only has to be settable once it
+  comes away - which is exactly when it was fixed at 70vh with no way to change it.
+*/
+const HEIGHT_KEY = 'cm.helpPanel.height';
+const MIN_HEIGHT = 220;
 
 const route = useRoute();
 const { $refs } = getCurrentInstance()!.proxy as unknown as {
@@ -799,6 +807,18 @@ function readWidth(): number {
   return saved >= MIN_WIDTH && saved <= MAX_WIDTH ? saved : 380;
 }
 
+/** The ceiling follows the browser window, so a saved height survives a smaller screen. */
+function maxHeight(): number {
+  return Math.max(MIN_HEIGHT, window.innerHeight - 40);
+}
+
+function readHeight(): number {
+  const saved = Number(localStorage.getItem(HEIGHT_KEY));
+  return saved >= MIN_HEIGHT ? Math.min(saved, maxHeight()) : Math.round(window.innerHeight * 0.7);
+}
+
+const height = ref(readHeight());
+
 const panelStyle = computed(() => {
   const style: Record<string, string> = { width: `${width.value}px` };
   if (!docked.value && offset.value) {
@@ -806,7 +826,7 @@ const panelStyle = computed(() => {
     style.top = `${offset.value.y}px`;
     style.right = 'auto';
     style.bottom = 'auto';
-    style.height = '70vh';
+    style.height = `${height.value}px`;
   }
   return style;
 });
@@ -1057,9 +1077,9 @@ function toggleSection(groupId: string, index: number): void {
 
   Kinds: btn (something you press), field (something you fill in), tab, menu (where it is).
 */
-type Token = { t: 'text' | 'btn' | 'field' | 'tab' | 'menu'; v: string };
+type Token = { t: 'text' | 'btn' | 'btn2' | 'field' | 'tab' | 'menu'; v: string };
 
-const CHIP = /\[\[(btn|field|tab|menu):([^\]]+)\]\]/g;
+const CHIP = /\[\[(btn|btn2|field|tab|menu):([^\]]+)\]\]/g;
 
 function tokensOf(text: string): Token[] {
   const tokens: Token[] = [];
@@ -1091,6 +1111,26 @@ function openGuide() {
   // Already there: pushing the same route is a no-op, which reads as a dead button.
   if (onGuideScreen.value) return;
   router.push({ name: MENU_ID.MIGRATION_GUIDE }).catch(() => undefined);
+}
+
+/* Drag the bottom edge of a detached panel to make it taller or shorter. Same
+   document-level tracking as the width, for the same reason. */
+function startResizeHeight(event: MouseEvent) {
+  event.preventDefault();
+  const startY = event.clientY;
+  const startHeight = height.value;
+
+  const onMove = (e: MouseEvent) => {
+    const next = startHeight + (e.clientY - startY);
+    height.value = Math.min(maxHeight(), Math.max(MIN_HEIGHT, next));
+  };
+  const onUp = () => {
+    localStorage.setItem(HEIGHT_KEY, String(height.value));
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  };
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
 }
 
 /* Drag the left edge to resize. The pointer is tracked on the document so the
@@ -1186,6 +1226,14 @@ onBeforeUnmount(() => {
         data-testid="help-resizer"
         title="Drag to resize"
         @mousedown="startResize"
+      />
+      <!-- Only when detached: docked, the panel already runs the full height. -->
+      <div
+        v-if="!docked"
+        class="help-resizer-bottom"
+        data-testid="help-resizer-bottom"
+        title="Drag to change the height"
+        @mousedown="startResizeHeight"
       />
       <header
         class="help-head"
@@ -1620,6 +1668,20 @@ onBeforeUnmount(() => {
   }
 }
 
+.help-resizer-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  width: 100%;
+  height: 6px;
+  cursor: row-resize;
+
+  &:hover {
+    background: #bfdbfe;
+  }
+}
+
 .help-head.is-movable {
   cursor: move;
 }
@@ -1812,9 +1874,17 @@ onBeforeUnmount(() => {
   border-radius: 3px;
 }
 
+/* The same violet the console paints a primary button, so the eye can match them. */
 .help-chip-btn {
   color: #ffffff;
-  background: #2563eb;
+  background: #341470;
+}
+
+/* The plain buttons beside it - white with a border, as they are drawn on screen. */
+.help-chip-btn2 {
+  color: #232533;
+  background: #ffffff;
+  border: 1px solid #c2c2c6;
 }
 
 .help-chip-field {

@@ -64,6 +64,21 @@ const emit = defineEmits<{ (e: 'start'): void; (e: 'dismiss'): void }>();
         on the left - this page always shows which step you are on.
       </p>
 
+      <!--
+        Where the guidance is turned off, said while it is being turned on. The switch
+        lives on one screen only, so someone who wants rid of the prompts has nowhere to
+        look unless they are told - and being unable to stop something is worse than the
+        something.
+      -->
+      <p
+        class="mt-2 text-sm text-gray-700"
+        data-testid="guided-setup-welcome-toggle-note"
+      >
+        Step-by-step guidance can be switched off - and back on - on that same
+        <strong>Migration Guide</strong> page. With it off, nothing is added to the
+        screens you work on.
+      </p>
+
       <div class="mt-6 flex justify-end gap-2">
         <button
           type="button"

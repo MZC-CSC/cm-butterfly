@@ -115,13 +115,13 @@ export const GUIDED_STEPS: GuidedStep[] = [
     id: 'collect',
     title: 'Collect',
     detail: [
-      'Read what is actually on the servers you registered.',
-      'Collecting happens on the Source Services screen.',
+      'Collect the source information for the migration you intend to run.',
+      'On the Source Services screen, select a registered source and run the collection that matches it - infrastructure, software, and so on.',
     ],
     standing: () =>
-      'The servers are registered but nothing has been read from them yet. Run Collect on the Source Services screen.',
+      'The servers are registered but nothing has been collected from them yet. On the Source Services screen, select the source and run the collection for the migration you want - infrastructure or software. What is collected is what the migration is built from.',
     completion:
-      'Done when infrastructure has been collected from at least one registered server.',
+      'Done when a collection has been run against at least one registered server. Which collection to run depends on what you are migrating - the help on the Source Services screen goes through each one.',
     progress: f => (f.collected ? 'collected' : 'nothing collected yet'),
     routeName: MENU_ID.SOURCE_SERVICES,
     testId: 'migration-guide-step-collect',
