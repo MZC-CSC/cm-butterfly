@@ -128,7 +128,7 @@ const TERMS: Help['terms'] = [
   {
     term: 'Custom model',
     meaning:
-      'A model whose values differ from the ones it was made with. Change either kind and save it under a new name: the original stays exactly as it was, and the changed one is kept alongside it as a custom model.',
+      'A model you have changed from what it originally held. Change either kind, give it a name of your own, and it is saved as a custom model - the original is not touched.',
   },
   {
     term: 'Workflow',
@@ -177,7 +177,7 @@ const HELP: Array<{ path: string; help: Help }> = [
       title: 'Source Services',
       paragraphs: [
         'This menu does two things: you register the servers you are migrating from into a source service and manage them there, and you turn what is collected from them into a source model.',
-        'One server is registered as one connection, and that is the word the screen uses - the Connections tab, the Connection # column and + Add Source Connection all mean the servers under a service.',
+        'One server is registered as one connection, and that is the word the screen uses - the Connections tab, the Connection # column and + Add Source Connection all mean the servers under a source service.',
         'It is the first screen of a migration and the only one that reaches your servers directly, so everything later is built on what is registered and collected here.',
       ],
       reference: [
@@ -380,7 +380,7 @@ const HELP: Array<{ path: string; help: Help }> = [
               heading: 'Review and adjust',
               steps: [
                 'Open Custom & View to see the model as JSON, and adjust anything the collection got wrong.',
-                'Saving under a new name keeps the original untouched and stores the changed one as a custom model.',
+                'Give it a name of your own and it is saved as a custom model, leaving the original as it was.',
                 'Models can be renamed and removed here.',
               ],
             },
