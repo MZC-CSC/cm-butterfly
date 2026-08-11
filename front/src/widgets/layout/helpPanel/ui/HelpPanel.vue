@@ -1776,6 +1776,16 @@ onBeforeUnmount(() => {
   font-weight: 600;
 }
 
+/*
+  The tooltip is drawn absolutely, so it needs something positioned to hang from.
+  Without this it anchored to whatever ancestor happened to be positioned and landed
+  off-screen: the icon showed nothing at all, while the bell beside it - whose wrapper
+  is relative - worked. Same failure would come back if this rule were dropped.
+*/
+.help {
+  position: relative;
+}
+
 .help-button {
   display: flex;
   width: 32px;
