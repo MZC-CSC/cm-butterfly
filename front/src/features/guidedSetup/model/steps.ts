@@ -98,8 +98,8 @@ export const GUIDED_STEPS: GuidedStep[] = [
     ],
     standing: f =>
       f.sourceServices === 0
-        ? 'Nothing is registered yet. Add a source service and put the servers you want to migrate under it.'
-        : 'The source service is there, but no server is registered under it. Open it and add at least one connection - until then there is nothing to collect from.',
+        ? 'Nothing is registered yet. Start by adding a source service.'
+        : 'The source service is registered, but it has no connection yet. Open it and add at least one.',
     completion:
       'This step is complete once you have registered a source service and at least one connection under it. With the service alone there is nothing for the collection to reach.',
     progress: f =>
