@@ -108,7 +108,7 @@ const TERMS: Help['terms'] = [
   {
     term: 'Source service',
     meaning:
-      'A group of the servers you are migrating from - on-premises machines or ones already running on a cloud. Each connection under it is one server.',
+      'A group of the servers you are migrating from - on-premises machines or ones already running on a cloud. It is what everything on the first screen is registered into.',
   },
   {
     term: 'Connection',
@@ -1645,10 +1645,25 @@ onBeforeUnmount(() => {
           </dl>
         </section>
 
-        <!-- Set apart: the same words on every screen, for when one is unfamiliar. -->
-        <section v-if="help.terms" class="help-glossary">
-          <h2 class="help-group-title">Words used here</h2>
-          <dl class="help-terms">
+        <!--
+          The same words on every screen, folded like everything else. They are the terms
+          the whole product is built on, so they are worth keeping to hand - but a reader
+          who already knows them should not have to scroll past them each time.
+        -->
+        <section v-if="help.terms" class="help-group">
+          <button
+            type="button"
+            class="help-heading help-heading-toggle"
+            data-testid="help-terms-toggle"
+            :aria-expanded="isSectionOpen('__terms', 0) ? 'true' : 'false'"
+            @click="toggleSection('__terms', 0)"
+          >
+            <span class="help-heading-text">Key terms</span>
+            <span class="help-heading-mark" aria-hidden="true">{{
+              isSectionOpen('__terms', 0) ? '&minus;' : '+'
+            }}</span>
+          </button>
+          <dl v-if="isSectionOpen('__terms', 0)" class="help-terms" data-testid="help-terms-list">
             <template v-for="(t, k) in help.terms">
               <dt :key="`t${k}`">{{ t.term }}</dt>
               <dd :key="`d${k}`">{{ t.meaning }}</dd>
