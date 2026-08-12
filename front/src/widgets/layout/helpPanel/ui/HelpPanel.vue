@@ -1097,7 +1097,7 @@ const guidedLine = computed(() => {
     // The same sentence the guide screen puts on this step. Two wordings for one
     // state made the panel and the guide look like they disagreed.
     standing: step.standing(progressFacts.value),
-    completion: step.completion(progressFacts.value),
+    completion: step.completion,
     progress: step.progress(progressFacts.value),
   };
 });

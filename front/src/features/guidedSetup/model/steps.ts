@@ -71,11 +71,10 @@ export interface GuidedStep {
    * check's: "a source service exists and has at least one connection" describes a
    * condition being tested; what they did was register a service and a connection.
    *
-   * Takes the counts so that the reason a part is required can wait until the reader is
-   * standing in front of that part. Explaining why a connection is needed to someone who
-   * has registered nothing is answering a question they have not asked yet.
+   * One sentence, the same in every state. What is still missing is the job of the line
+   * above, which does change; saying it twice in different words reads as two conditions.
    */
-  completion: (facts: ProgressFacts) => string;
+  completion: string;
   /** The same condition counted against what is actually there, so the two sit together. */
   progress: (facts: ProgressFacts) => string;
   /** A written guide that goes deeper than this step's one line, when one exists. */
@@ -104,10 +103,8 @@ export const GUIDED_STEPS: GuidedStep[] = [
       f.sourceServices === 0
         ? 'Nothing is registered yet. Start by adding a source service.'
         : 'The source service is registered, but it has no connection yet. Open it and add at least one.',
-    completion: f =>
-      f.sourceServices > 0 && f.connections === 0
-        ? 'This step is complete once you have registered a source service and at least one connection under it. With the source service alone there is nothing for the collection to reach.'
-        : 'This step is complete once you have registered a source service and at least one connection under it.',
+    completion:
+      'This step is complete once you have registered a source service and at least one connection under it.',
     progress: f =>
       `${plural(f.sourceServices, 'source service')}, ${plural(f.connections, 'connection')}`,
     routeName: MENU_ID.SOURCE_SERVICES,
@@ -127,7 +124,7 @@ export const GUIDED_STEPS: GuidedStep[] = [
     ],
     standing: () =>
       'The servers are registered but nothing has been collected from them yet. On the Source Services screen, select the source and run the collection for the migration you want, whether infrastructure or software. What is collected is what the migration is built from.',
-    completion: () =>
+    completion:
       'This step is complete once you have run a collection against at least one registered server. Which collection to run depends on what you are migrating. The help on the Source Services screen goes through each one.',
     progress: f => (f.collected ? 'collected' : 'nothing collected yet'),
     routeName: MENU_ID.SOURCE_SERVICES,
@@ -143,7 +140,7 @@ export const GUIDED_STEPS: GuidedStep[] = [
     ],
     standing: () =>
       'Collecting is done. Save the result as a source model on the Source Services screen. Everything after this is built from it.',
-    completion: () =>
+    completion:
       'This step is complete once you have saved at least one source model.',
     progress: f => plural(f.sourceModels, 'source model'),
     routeName: MENU_ID.SOURCE_SERVICES,
@@ -159,7 +156,7 @@ export const GUIDED_STEPS: GuidedStep[] = [
     ],
     standing: () =>
       'There is a source model to work from. Open it on the Source Models screen, generate a target model from it, and adjust the values you want.',
-    completion: () =>
+    completion:
       'This step is complete once you have saved at least one target model.',
     progress: f => plural(f.targetModels, 'target model'),
     routeName: MENU_ID.SOURCE_MODELS,
@@ -177,7 +174,7 @@ export const GUIDED_STEPS: GuidedStep[] = [
       f.workflows === 0
         ? 'The target model is ready. Build the workflow from it on the Target Models screen, change any value it still needs, and run it.'
         : 'The workflow is built but has not been run. Open it and run it. The migration happens there.',
-    completion: () =>
+    completion:
       'This step is complete once you have created a workflow and run it at least once.',
     progress: f =>
       `${plural(f.workflows, 'workflow')}, ${f.runs ? 'run at least once' : 'not run yet'}`,
