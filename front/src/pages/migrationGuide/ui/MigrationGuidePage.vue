@@ -262,7 +262,7 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
               v-if="stateOf(step) === 'current'"
               class="mt-2 block text-xs text-gray-600"
               :data-testid="`${step.testId}-completion`"
-              >{{ step.completion }}</span
+              >{{ step.completion(facts) }}</span
             >
             <span
               v-if="stateOf(step) === 'current'"
