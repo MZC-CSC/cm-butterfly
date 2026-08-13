@@ -29,7 +29,7 @@ function onOpen() {
 
 <template>
   <div v-if="visible" class="health-banner" data-testid="health-banner">
-    <span class="text"> A linked service is not answering ({{ names }}). </span>
+    <span class="text">Not responding: {{ names }}</span>
     <button
       type="button"
       class="link"

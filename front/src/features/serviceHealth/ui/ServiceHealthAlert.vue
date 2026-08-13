@@ -49,7 +49,7 @@ function onInspect() {
     size="sm"
     backdrop
     theme-color="alert"
-    header-title="A linked service is not answering"
+    header-title="Some services are not responding"
     :hide-header-close-button="true"
     @cancel="onInspect"
     @confirm="onAcknowledge"
@@ -61,7 +61,7 @@ function onInspect() {
           fits a longer sentence but leaves the dialog mostly empty, since what
           follows is only a service name or two.
         -->
-        <p class="lead">These services are not answering.</p>
+        <p class="lead">The following services did not respond:</p>
         <p data-testid="health-alert-services" class="services">
           {{ names }}
         </p>
