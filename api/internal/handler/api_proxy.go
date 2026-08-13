@@ -42,6 +42,16 @@ type Auth struct {
 type Service struct {
 	BaseURL string `mapstructure:"baseurl"`
 	Auth    Auth   `mapstructure:"auth"`
+
+	// Which release this service's operations were generated from, and where that
+	// specification came from. Both are carried so the service-status screen can
+	// say what the console is calling against: when a screen shows nothing, the
+	// question is whether the service is down or the spec here is older than the
+	// service, and the version alone does not answer it.
+	//
+	// Neither is a secret, and neither takes part in a call.
+	Version string            `mapstructure:"version"`
+	Swagger map[string]string `mapstructure:"swagger"`
 }
 
 // Spec represents an API specification
@@ -157,7 +167,10 @@ func AnyCaller(c echo.Context, operationId string, commonRequest *CommonRequest,
 // SubsystemAnyCaller routes requests to a specific subsystem
 func SubsystemAnyCaller(c echo.Context, subsystemName, operationId string, commonRequest *CommonRequest, auth bool) (*response.CommonResponse, error) {
 	targetFrameworkInfo, targetApiSpec, err := getApiSpecBySubsystem(subsystemName, operationId)
-	if err != nil || targetFrameworkInfo == (Service{}) || targetApiSpec == (Spec{}) {
+	// The service is judged by whether it has an address to call rather than by
+	// comparing the whole struct: it now carries the specification's version and
+	// source, and a struct holding a map cannot be compared.
+	if err != nil || targetFrameworkInfo.BaseURL == "" || targetApiSpec == (Spec{}) {
 		return response.CommonResponseStatusNotFound(operationId + "-" + err.Error()), err
 	}
 

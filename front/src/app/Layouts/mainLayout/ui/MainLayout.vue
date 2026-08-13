@@ -1,10 +1,28 @@
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted } from 'vue';
 import { LayoutHeader, ConsoleLayout } from '@/widgets/layout';
 import { styleVariables, PSidebar } from '@cloudforet-test/mirinae';
+import {
+  ServiceHealthAlert,
+  ServiceHealthBanner,
+  startHealthWatch,
+  stopHealthWatch,
+} from '@/features/serviceHealth';
+
+/*
+  Watching the linked services belongs here rather than on the screen that shows
+  them: a failure has to be noticed wherever the user happens to be, and someone
+  is rarely sitting on the status screen when one happens.
+*/
+onMounted(() => startHealthWatch());
+onBeforeUnmount(() => stopHealthWatch());
 </script>
 
 <template>
   <div>
+    <!-- Above the top bar, so it is the first line on every screen and covers
+         nothing that is being worked on. -->
+    <service-health-banner />
     <div class="top-bar">
       <layout-header />
     </div>
@@ -36,6 +54,7 @@ import { styleVariables, PSidebar } from '@cloudforet-test/mirinae';
         </template>
       </console-layout>
     </div>
+    <service-health-alert />
   </div>
 </template>
 

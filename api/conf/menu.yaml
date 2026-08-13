@@ -124,6 +124,24 @@ menus:
     isaction: "true"
     priority: 3
 
+  ################## step2 : category  : system  ################
+  # Kept out of the Migrations group on purpose. Everything there is a step in a
+  # migration; this one says whether the services those steps call are answering,
+  # which is the question asked when a step will not proceed.
+  - id: system
+    parentid: home
+    displayname: System
+    restype: menu
+    isaction: "false"
+    priority: 1
+
+  - id: servicestatus
+    parentid: system
+    displayname: Service Status
+    restype: menu
+    isaction: "true"
+    priority: 0
+
   ################## step3 : menu : migrations > workloadoperations ################
   - id: workloads
     parentid: workloadoperations
