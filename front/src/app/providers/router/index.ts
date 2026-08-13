@@ -15,6 +15,10 @@ import { RoleType } from '@/shared/libs/accessControl/pageAccessHelper/types';
 import { tempRoutes } from '@/app/providers/router/routes/temp';
 import { migrationGuideRoutes } from '@/app/providers/router/routes/migrationGuide';
 import NotFound from '@/pages/error/404/NotFound.vue';
+import {
+  installFirstVisitRedirect,
+  installProgressWatch,
+} from '@/features/guidedSetup';
 //TODO consider the admin part
 
 export class McmpRouter {
@@ -107,6 +111,15 @@ export class McmpRouter {
 
         next();
       });
+
+      // Someone with nothing here yet lands on an empty list, which explains nothing.
+      // Send them to the guide instead - once, and never again once the welcome is spent.
+      installFirstVisitRedirect(McmpRouter.router);
+
+      // The step is worked out from the data, so it moves the moment the data does -
+      // while the screen is still open. Watch the traffic for calls that act rather
+      // than read, and re-read after them.
+      installProgressWatch();
 
       // getMinimalPageAccessPermissionList(userRole).forEach(
       //   (menuId: MenuId) => {
