@@ -42,6 +42,14 @@ const (
 // takes longer than this is not usable from a screen either.
 const healthProbeTimeout = 5 * time.Second
 
+// The console's own entry in the specification.
+//
+// It is left out of the answer: this check runs inside it, so if it were not
+// answering there would be no answer at all. Listing it adds a row that can only
+// ever say "not checked" and pushes the services that can actually fail down the
+// screen.
+const consoleServiceName = "cm-butterfly-api"
+
 // HealthItem is one service's answer.
 type HealthItem struct {
 	Name    string `json:"name"`
@@ -231,6 +239,9 @@ func checkServices(c echo.Context, now time.Time) HealthResult {
 
 	names := make([]string, 0, len(ApiYamlSet.Services))
 	for name := range ApiYamlSet.Services {
+		if strings.EqualFold(name, consoleServiceName) {
+			continue
+		}
 		names = append(names, name)
 	}
 	sort.Strings(names)

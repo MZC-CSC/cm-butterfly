@@ -29,7 +29,7 @@ Then('각 서비스 행에 상태가 표시된다', async ({ page }) => {
 });
 
 Then('서비스 상태 목록에 버전 열과 스펙 열이 보인다', async ({ page }) => {
-  await new ServiceStatusPage(page).expectVersionAndSpecColumns();
+  await new ServiceStatusPage(page).expectVersionAndSpec();
 });
 
 Then('서비스 상태 요약의 확인 시각이 갱신된다', async ({ page }) => {

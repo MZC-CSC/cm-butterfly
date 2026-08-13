@@ -14,6 +14,7 @@
 import { computed, onMounted } from 'vue';
 import {
   checkHealth,
+  healthIntervalSec,
   healthIsChecking,
   healthItems,
   healthLastError,
@@ -24,6 +25,7 @@ const summary = computed(() => healthSummary.value);
 const items = computed(() => healthItems.value);
 const checking = computed(() => healthIsChecking.value);
 const lastError = computed(() => healthLastError.value);
+const intervalSec = computed(() => healthIntervalSec.value);
 
 onMounted(() => {
   // The watcher may not have looked yet, and someone opening this screen wants
@@ -74,45 +76,63 @@ function statusLabel(status: string): string {
       <span data-testid="service-status-summary-unknown">
         Not checked {{ summary.unknown }}
       </span>
-      <span class="at">· checked at {{ summary.checkedAt }}</span>
+      <span class="at">
+        · checked at {{ summary.checkedAt }} · every {{ intervalSec }}s
+      </span>
     </p>
 
     <table class="table" data-testid="service-status-table">
       <thead>
         <tr>
-          <th>Service</th>
-          <th>Status</th>
-          <th>Version</th>
-          <th>Specification</th>
-          <th>Detail</th>
+          <th class="col-service">Service</th>
+          <th class="col-status">Status</th>
+          <th class="col-version">Version</th>
+          <th>Health check URL</th>
         </tr>
       </thead>
-      <tbody>
-        <tr
-          v-for="item in items"
-          :key="item.name"
-          :data-testid="`service-status-row-${item.name}`"
-          :data-status="item.status"
-        >
-          <td>{{ item.name }}</td>
-          <td>
+      <!--
+        Two rows per service on purpose. Putting the specification address in a
+        column of its own left every other column fighting it for width - the
+        service name wrapped and the status and version were pushed across the
+        screen. On its own line, spanning everything but the name column, the
+        first line stays readable and the address still has room.
+      -->
+      <tbody
+        v-for="item in items"
+        :key="item.name"
+        :data-testid="`service-status-row-${item.name}`"
+        :data-status="item.status"
+      >
+        <tr class="row-main">
+          <td class="col-service">{{ item.name }}</td>
+          <td class="col-status">
             <span :class="['badge', item.status]">
               {{ statusLabel(item.status) }}
             </span>
           </td>
-          <td>{{ item.version || '-' }}</td>
-          <td class="spec">
+          <td class="col-version">{{ item.version || '-' }}</td>
+          <td class="url">{{ item.endpoint || '-' }}</td>
+        </tr>
+        <tr class="row-sub">
+          <td class="col-service" />
+          <td colspan="3">
+            <span class="label">Specification</span>
             <a
               v-if="item.swagger"
               :href="item.swagger"
               target="_blank"
               rel="noopener"
+              >{{ item.swagger }}</a
             >
-              {{ item.swagger }}
-            </a>
             <span v-else>-</span>
+            <span
+              v-if="item.message"
+              class="reason"
+              :data-testid="`service-status-reason-${item.name}`"
+            >
+              {{ item.message }}
+            </span>
           </td>
-          <td class="detail">{{ item.message || item.endpoint || '-' }}</td>
         </tr>
       </tbody>
     </table>
@@ -158,9 +178,41 @@ function statusLabel(status: string): string {
 .table th,
 .table td {
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid #ececec;
   text-align: left;
   vertical-align: top;
+}
+.row-main td {
+  padding-bottom: 0.125rem;
+}
+.row-sub td {
+  padding-top: 0;
+  padding-bottom: 0.625rem;
+  border-bottom: 1px solid #ececec;
+  font-size: 0.8125rem;
+  color: #555;
+}
+/* The name column keeps its width so a service name never wraps. */
+.col-service {
+  white-space: nowrap;
+  width: 1%;
+}
+.col-status,
+.col-version {
+  white-space: nowrap;
+  width: 1%;
+}
+.label {
+  display: inline-block;
+  margin-right: 0.5rem;
+  color: #888;
+}
+.reason {
+  display: block;
+  margin-top: 0.25rem;
+  color: #b3261e;
+}
+.url {
+  word-break: break-all;
 }
 .badge {
   display: inline-block;
@@ -179,9 +231,5 @@ function statusLabel(status: string): string {
 .badge.unknown {
   background: #eee;
   color: #555;
-}
-.spec,
-.detail {
-  word-break: break-all;
 }
 </style>

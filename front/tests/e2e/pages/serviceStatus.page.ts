@@ -31,7 +31,9 @@ export class ServiceStatusPage {
 
   /** 사이드바를 눌러 들어간다 — 주소를 추측해 goto 하지 않는다. */
   async open(): Promise<void> {
-    await humanClick(this.page.getByText('Service Status', { exact: true }).first());
+    await humanClick(
+      this.page.getByText('Service Status', { exact: true }).first(),
+    );
     await expect(this.root).toBeVisible({ timeout: 30_000 });
   }
 
@@ -41,11 +43,18 @@ export class ServiceStatusPage {
 
   async expectSummary(): Promise<void> {
     await expect(this.summary).toBeVisible({ timeout: 30_000 });
-    await expect(this.page.getByTestId('service-status-summary-healthy')).toBeVisible();
-    await expect(this.page.getByTestId('service-status-summary-unhealthy')).toBeVisible();
-    await expect(this.page.getByTestId('service-status-summary-unknown')).toBeVisible();
+    await expect(
+      this.page.getByTestId('service-status-summary-healthy'),
+    ).toBeVisible();
+    await expect(
+      this.page.getByTestId('service-status-summary-unhealthy'),
+    ).toBeVisible();
+    await expect(
+      this.page.getByTestId('service-status-summary-unknown'),
+    ).toBeVisible();
   }
 
+  /** 서비스 한 건이 tbody 하나다 — 본줄과 스펙 줄 두 행을 담는다. */
   private get rows(): Locator {
     return this.page.locator('[data-testid^="service-status-row-"]');
   }
@@ -67,11 +76,17 @@ export class ServiceStatusPage {
     }
   }
 
-  /** 버전·스펙 열이 있는지 — 그 둘이 있어야 장애와 스펙 노후를 가릴 수 있다. */
-  async expectVersionAndSpecColumns(): Promise<void> {
-    const head = this.table.locator('thead');
-    await expect(head).toContainText('Version');
-    await expect(head).toContainText('Specification');
+  /**
+   * 버전과 스펙 원본이 함께 보이는지 — 그 둘이 있어야 *서비스 장애* 와 *스펙 노후* 를 가릴 수 있다.
+   *
+   * 스펙 주소는 열이 아니라 각 서비스의 둘째 줄에 있다. 한 열로 두면 이름·상태·버전이
+   * 밀려 서비스 이름이 줄바꿈됐다.
+   */
+  async expectVersionAndSpec(): Promise<void> {
+    await expect(this.table.locator('thead')).toContainText('Version');
+    await expect(this.rows.first().locator('.row-sub')).toContainText(
+      'Specification',
+    );
   }
 
   /** 확인 시각이 바뀌는지 본다 — 눌렀는데 아무 일도 없으면 그대로다. */

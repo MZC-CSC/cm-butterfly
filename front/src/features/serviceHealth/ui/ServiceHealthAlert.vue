@@ -46,7 +46,7 @@ function onInspect() {
 <template>
   <p-button-modal
     :visible="open"
-    size="sm"
+    size="md"
     backdrop
     theme-color="alert"
     header-title="A linked service is not answering"
@@ -56,7 +56,9 @@ function onInspect() {
   >
     <template #body>
       <div data-testid="health-alert-body">
-        <p>The following services did not answer their readiness check.</p>
+        <p class="lead">
+          The following services did not answer their readiness check.
+        </p>
         <p data-testid="health-alert-services" class="services">
           {{ names }}
         </p>
@@ -76,6 +78,11 @@ function onInspect() {
 </template>
 
 <style scoped>
+/* One line — a sentence broken across two reads as an error message about the
+   error message. */
+.lead {
+  white-space: nowrap;
+}
 .services {
   margin-top: 0.5rem;
   font-weight: 700;

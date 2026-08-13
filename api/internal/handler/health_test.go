@@ -192,6 +192,28 @@ func TestCheckServicesSortsByName(t *testing.T) {
 	}
 }
 
+// The console runs this check, so listing itself can only ever add a row that
+// says "not checked".
+func TestCheckServicesLeavesOutTheConsoleItself(t *testing.T) {
+	restore := swapSpec(ApiYaml{
+		Services: map[string]Service{
+			consoleServiceName: {BaseURL: "http://console:4000"},
+			"cm-thing":         {BaseURL: "http://thing:1"},
+		},
+		ServiceActions: map[string]map[string]Spec{},
+	})
+	defer restore()
+
+	result := checkServices(newContext(), time.Now())
+
+	if len(result.Items) != 1 || result.Items[0].Name != "cm-thing" {
+		t.Fatalf("got %+v, want only cm-thing", result.Items)
+	}
+	if result.Summary.Total != 1 {
+		t.Fatalf("the summary still counts it: %+v", result.Summary)
+	}
+}
+
 func newContext() echo.Context {
 	e := echo.New()
 	return e.NewContext(httptest.NewRequest("POST", "/", nil), httptest.NewRecorder())
