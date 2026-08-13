@@ -43,15 +43,26 @@ function onOpen() {
 
 <style scoped>
 .health-banner {
+  /*
+    Fixed, and above the top bar's stacking order. The top bar is itself fixed at
+    the top of the viewport, so a banner left in the document flow is drawn
+    underneath it — the line takes up space and shows nothing, which is how this
+    first shipped.
+  */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  width: 100%;
-  padding: 0.375rem 1rem;
+  height: 1.75rem;
+  padding: 0 1rem;
   background-color: #d32f2f;
   color: #fff;
   font-size: 0.8125rem;
-  line-height: 1.25rem;
+  line-height: 1.75rem;
   /* One line, whatever the names add up to. */
   white-space: nowrap;
   overflow: hidden;
