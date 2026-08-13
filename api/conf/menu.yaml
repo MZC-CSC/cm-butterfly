@@ -124,17 +124,18 @@ menus:
     isaction: "true"
     priority: 3
 
-  ################## step2 : category  : system  ################
-  # Kept out of the Migrations group on purpose. Everything there is a step in a
-  # migration; this one says whether the services those steps call are answering,
-  # which is the question asked when a step will not proceed.
+  ################## step2 : category  : migrations > system  ################
+  # Last of the categories on purpose. Everything above is a step in a migration;
+  # this one says whether the services those steps call are answering, which is
+  # the question asked when a step will not proceed.
   - id: system
-    parentid: home
+    parentid: migrations
     displayname: System
     restype: menu
     isaction: "false"
-    priority: 1
+    priority: 6
 
+  ################## step3 : menu : migrations > system ################
   - id: servicestatus
     parentid: system
     displayname: Service Status

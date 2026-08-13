@@ -126,7 +126,9 @@ export function acknowledgeHealthAlert(): void {
 export async function checkHealth(): Promise<HealthResult | null> {
   isChecking.value = true;
   try {
-    const res = await axiosPost<HealthResult>('api/health/subsystems', {});
+    // The instance already carries the console's API base, so the path is given
+    // relative to it — spelling out /api here asks for /api/api/... and 404s.
+    const res = await axiosPost<HealthResult>('health/subsystems', {});
     result.value = res.data;
     lastError.value = null;
     adoptSettings(res.data);
