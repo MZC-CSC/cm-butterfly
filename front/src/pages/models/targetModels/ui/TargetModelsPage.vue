@@ -10,6 +10,7 @@ import { useTargetModelStore, useUpdateTargetModel } from '@/entities';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 import { useRouter } from 'vue-router/composables';
 import { WORKFLOW_MANAGEMENT_ROUTE } from '@/app/providers/router/routes/constants';
+import { GuidedStepBanner } from '@/features/guidedSetup';
 
 const router = useRouter();
 
@@ -157,6 +158,8 @@ function handleUpdateTargetModel(e) {
     <header>
       <p>{{ pageName }}</p>
     </header>
+    <!-- The workflow is built from a target model here. -->
+    <guided-step-banner step="workflow" />
     <section :class="`${pageName}-page-body`">
       <target-model-list
         :trigger="modalStates.editModelModal.trigger"

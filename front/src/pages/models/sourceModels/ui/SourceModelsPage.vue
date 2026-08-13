@@ -9,6 +9,7 @@ import { computed, reactive, ref } from 'vue';
 import { SimpleEditForm } from '@/widgets/layout';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 import { useSourceModelStore, useUpdateSourceModel } from '@/entities';
+import { GuidedStepBanner } from '@/features/guidedSetup';
 
 const pageName = 'Source Models';
 
@@ -96,6 +97,8 @@ function handleUpdateSourceModel(e) {
     <header>
       <p>{{ pageName }}</p>
     </header>
+    <!-- A target model is produced from a source model here - not on the Target Models list. -->
+    <guided-step-banner step="target-model" />
     <section :class="`${pageName}-page-body`">
       <source-model-list
         :trigger="modalState.editModelModal.trigger"
