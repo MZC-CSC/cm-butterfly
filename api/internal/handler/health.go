@@ -18,7 +18,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -65,10 +67,50 @@ type HealthSummary struct {
 	CheckedAt string `json:"checkedAt"`
 }
 
+// HealthSettings is how often to look and how many failures in a row count as a
+// failure.
+//
+// It is answered here rather than compiled into the console because the console
+// ships as a static build: a value baked in at build time cannot be changed by
+// whoever runs the lineup, which is precisely who needs to change it. A demo box
+// restarted all day and a long-running installation want different answers.
+type HealthSettings struct {
+	IntervalSec      int `json:"intervalSec"`
+	FailureThreshold int `json:"failureThreshold"`
+}
+
 // HealthResult is what the endpoint answers.
 type HealthResult struct {
-	Summary HealthSummary `json:"summary"`
-	Items   []HealthItem  `json:"items"`
+	Summary  HealthSummary  `json:"summary"`
+	Items    []HealthItem   `json:"items"`
+	Settings HealthSettings `json:"settings"`
+}
+
+const (
+	defaultHealthIntervalSec      = 300
+	defaultHealthFailureThreshold = 2
+)
+
+// envPositiveInt reads a positive integer from the environment, or returns the
+// fallback. A value that is missing, empty or nonsense falls back rather than
+// stopping the server: getting this wrong should not take the console down.
+func envPositiveInt(name string, fallback int) int {
+	raw, ok := os.LookupEnv(name)
+	if !ok {
+		return fallback
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || n <= 0 {
+		return fallback
+	}
+	return n
+}
+
+func healthSettings() HealthSettings {
+	return HealthSettings{
+		IntervalSec:      envPositiveInt("HEALTH_CHECK_INTERVAL_SEC", defaultHealthIntervalSec),
+		FailureThreshold: envPositiveInt("HEALTH_CHECK_FAILURE_THRESHOLD", defaultHealthFailureThreshold),
+	}
 }
 
 /*
@@ -222,7 +264,7 @@ func checkServices(c echo.Context, now time.Time) HealthResult {
 		}
 	}
 
-	return HealthResult{Summary: summary, Items: items}
+	return HealthResult{Summary: summary, Items: items, Settings: healthSettings()}
 }
 
 // HealthHandler serves the linked services' readiness.

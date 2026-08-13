@@ -1,11 +1,13 @@
 export {
-  CHECK_INTERVAL_SEC,
-  FAILURE_THRESHOLD,
+  DEFAULT_FAILURE_THRESHOLD,
+  DEFAULT_INTERVAL_SEC,
   acknowledgeHealthAlert,
   checkHealth,
   failedServiceNames,
   healthAlertOpen,
   healthBannerVisible,
+  healthFailureThreshold,
+  healthIntervalSec,
   healthIsChecking,
   healthItems,
   healthLastError,
@@ -17,6 +19,7 @@ export {
 } from './model/serviceHealth';
 export type {
   HealthItem,
+  HealthSettings,
   HealthResult,
   HealthStatus,
   HealthSummary,

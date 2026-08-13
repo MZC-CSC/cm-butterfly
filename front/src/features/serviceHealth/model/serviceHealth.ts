@@ -42,37 +42,34 @@ export interface HealthSummary {
   checkedAt: string;
 }
 
+export interface HealthSettings {
+  intervalSec: number;
+  failureThreshold: number;
+}
+
 export interface HealthResult {
   summary: HealthSummary;
   items: HealthItem[];
+  settings?: HealthSettings;
 }
 
 /*
-  Settings, not constants.
+  Settings come from the console's own endpoint, not from this build.
 
   How often to look, and how many failures in a row before saying so, depend on
-  the environment: a demo box that is restarted all day and a long-running
-  installation want different answers. Defaults are what a normal lineup wants.
-*/
-function envNumber(raw: unknown, fallback: number): number {
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
-}
+  the installation: a demo box restarted all day and a long-running environment
+  want different answers. The console ships as a static build, so a value fixed
+  here could not be changed by whoever runs the lineup — which is exactly who
+  needs to change it.
 
-export const CHECK_INTERVAL_SEC = envNumber(
-  import.meta.env?.VITE_HEALTH_CHECK_INTERVAL_SEC,
-  300,
-);
-
-/*
-  One failed check is not a failure yet. A service restarting, or a request that
-  happened to land during a redeploy, answers again on the next look — telling
-  the user about that is noise, and noise is what makes a real alert ignorable.
+  These are the values used until the first answer arrives, and what is used if
+  the answer carries none.
 */
-export const FAILURE_THRESHOLD = envNumber(
-  import.meta.env?.VITE_HEALTH_CHECK_FAILURE_THRESHOLD,
-  2,
-);
+export const DEFAULT_INTERVAL_SEC = 300;
+export const DEFAULT_FAILURE_THRESHOLD = 2;
+
+const intervalSec = ref(DEFAULT_INTERVAL_SEC);
+const failureThreshold = ref(DEFAULT_FAILURE_THRESHOLD);
 
 const result = ref<HealthResult | null>(null);
 const isChecking = ref(false);
@@ -96,6 +93,8 @@ const acknowledged = ref(false);
 let timer: ReturnType<typeof setInterval> | null = null;
 
 export const healthResult = computed(() => result.value);
+export const healthIntervalSec = computed(() => intervalSec.value);
+export const healthFailureThreshold = computed(() => failureThreshold.value);
 export const healthItems = computed(() => result.value?.items ?? []);
 export const healthSummary = computed(() => result.value?.summary ?? null);
 export const healthIsChecking = computed(() => isChecking.value);
@@ -130,6 +129,7 @@ export async function checkHealth(): Promise<HealthResult | null> {
     const res = await axiosPost<HealthResult>('api/health/subsystems', {});
     result.value = res.data;
     lastError.value = null;
+    adoptSettings(res.data);
     applyVerdict(res.data);
     return res.data;
   } catch (e: any) {
@@ -142,6 +142,32 @@ export async function checkHealth(): Promise<HealthResult | null> {
     return null;
   } finally {
     isChecking.value = false;
+  }
+}
+
+/**
+ * Take the interval and threshold the console reports.
+ *
+ * The timer is rebuilt when the interval changes, so a value edited on the host
+ * takes effect on the next check rather than on the next page load.
+ */
+function adoptSettings(r: HealthResult): void {
+  const s = r.settings;
+  if (!s) return;
+
+  if (Number.isFinite(s.failureThreshold) && s.failureThreshold > 0) {
+    failureThreshold.value = s.failureThreshold;
+  }
+  if (
+    Number.isFinite(s.intervalSec) &&
+    s.intervalSec > 0 &&
+    s.intervalSec !== intervalSec.value
+  ) {
+    intervalSec.value = s.intervalSec;
+    if (timer !== null) {
+      clearInterval(timer);
+      timer = setInterval(() => void checkHealth(), intervalSec.value * 1000);
+    }
   }
 }
 
@@ -164,14 +190,14 @@ function applyVerdict(r: HealthResult): void {
   if (!everHealthy.value) return;
 
   consecutiveFailures.value += 1;
-  if (consecutiveFailures.value >= FAILURE_THRESHOLD) failing.value = true;
+  if (consecutiveFailures.value >= failureThreshold.value) failing.value = true;
 }
 
 /** Start watching. Safe to call twice; the second call does nothing. */
 export function startHealthWatch(): void {
   if (timer !== null) return;
   void checkHealth();
-  timer = setInterval(() => void checkHealth(), CHECK_INTERVAL_SEC * 1000);
+  timer = setInterval(() => void checkHealth(), intervalSec.value * 1000);
 }
 
 export function stopHealthWatch(): void {
@@ -190,4 +216,6 @@ export function resetHealthWatch(): void {
   consecutiveFailures.value = 0;
   failing.value = false;
   acknowledged.value = false;
+  intervalSec.value = DEFAULT_INTERVAL_SEC;
+  failureThreshold.value = DEFAULT_FAILURE_THRESHOLD;
 }
