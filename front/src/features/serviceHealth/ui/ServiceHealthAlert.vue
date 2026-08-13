@@ -46,7 +46,7 @@ function onInspect() {
 <template>
   <p-button-modal
     :visible="open"
-    size="md"
+    size="sm"
     backdrop
     theme-color="alert"
     header-title="A linked service is not answering"
@@ -56,9 +56,12 @@ function onInspect() {
   >
     <template #body>
       <div data-testid="health-alert-body">
-        <p class="lead">
-          The following services did not answer their readiness check.
-        </p>
+        <!--
+          Short enough to sit on one line in the narrow modal. The wider size
+          fits a longer sentence but leaves the dialog mostly empty, since what
+          follows is only a service name or two.
+        -->
+        <p class="lead">These services are not answering.</p>
         <p data-testid="health-alert-services" class="services">
           {{ names }}
         </p>
