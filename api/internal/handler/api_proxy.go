@@ -93,13 +93,22 @@ func InitAPISpec() error {
 		return fmt.Errorf("unable to decode into struct: %v", err)
 	}
 
+	resolved, missing := resolveAuthEnv(ApiYamlSet.Services)
+	if len(missing) > 0 {
+		return missingEnvError(missing)
+	}
+	ApiYamlSet.Services = resolved
+
 	log.Printf("DEBUG: ApiYamlSet initialized successfully")
 	log.Printf("DEBUG: - CLISpecVersion: %s", ApiYamlSet.CLISpecVersion)
 	log.Printf("DEBUG: - Services count: %d", len(ApiYamlSet.Services))
 	log.Printf("DEBUG: - ServiceActions count: %d", len(ApiYamlSet.ServiceActions))
 
 	for serviceName, service := range ApiYamlSet.Services {
-		log.Printf("DEBUG: - Service: %s -> %+v", serviceName, service)
+		// The struct carries the credentials, so only the parts that are safe to
+		// print are logged. Dumping it whole put usernames and passwords in the
+		// container log.
+		log.Printf("DEBUG: - Service: %s -> baseurl=%s auth=%s", serviceName, service.BaseURL, service.Auth.Type)
 	}
 
 	return nil
@@ -198,7 +207,9 @@ func getAuth(c echo.Context, service Service) (string, error) {
 	case "basic":
 		if apiUserInfo := service.Auth.Username + ":" + service.Auth.Password; service.Auth.Username != "" && service.Auth.Password != "" {
 			encA := base64.StdEncoding.EncodeToString([]byte(apiUserInfo))
-			log.Printf("DEBUG: Basic auth generated: Basic %s", encA)
+			// The encoded value is the credentials in a reversible form, so only
+			// the fact that a header was built is logged.
+			log.Printf("DEBUG: Basic auth header built for %s", service.BaseURL)
 			return "Basic " + encA, nil
 		}
 		log.Printf("ERROR: username or password is empty")
@@ -206,7 +217,8 @@ func getAuth(c echo.Context, service Service) (string, error) {
 
 	case "bearer":
 		if authValue, ok := c.Get(contextKeyAuthorization).(string); ok {
-			log.Printf("DEBUG: Bearer auth from context: %s", authValue)
+			// The token itself is not logged.
+			log.Printf("DEBUG: Bearer auth taken from the request context")
 			return authValue, nil
 		}
 		log.Printf("ERROR: authorization key does not exist or is not a string")
