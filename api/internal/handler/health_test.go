@@ -51,16 +51,55 @@ func TestReadinessSpecReportsAbsence(t *testing.T) {
 	}
 }
 
-func TestSwaggerSourcePrefersTheReleaseEntry(t *testing.T) {
-	s := Service{Swagger: map[string]string{"latest": "L", "release": "R"}}
-	if got := swaggerSource(s); got != "R" {
-		t.Fatalf("got %q, want R", got)
+// The address has to be openable: a `{release}` left in it 404s on click, which
+// reads as a missing specification rather than an unfinished address.
+func TestSwaggerSourceFillsInTheRelease(t *testing.T) {
+	s := Service{
+		Version: "0.6.0(0.6.0)",
+		Swagger: map[string]string{
+			"latest":  "https://host/main/swagger.json",
+			"release": "https://host/{release}/swagger.json",
+		},
 	}
-	if got := swaggerSource(Service{Swagger: map[string]string{"latest": "L"}}); got != "L" {
+	if got := swaggerSource(s); got != "https://host/v0.6.0/swagger.json" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestSwaggerSourceTakesLatestWhenTheLabelSaysSo(t *testing.T) {
+	s := Service{
+		Version: "0.12.42(latest)",
+		Swagger: map[string]string{
+			"latest":  "https://host/main/swagger.json",
+			"release": "https://host/{release}/swagger.json",
+		},
+	}
+	if got := swaggerSource(s); got != "https://host/main/swagger.json" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestSwaggerSourceHandlesAMissingLabel(t *testing.T) {
+	s := Service{Swagger: map[string]string{"latest": "L"}}
+	if got := swaggerSource(s); got != "L" {
 		t.Fatalf("got %q, want L", got)
 	}
 	if got := swaggerSource(Service{}); got != "" {
 		t.Fatalf("got %q, want empty", got)
+	}
+}
+
+func TestSpecRefFromVersion(t *testing.T) {
+	cases := map[string]string{
+		"0.12.42(latest)": "latest",
+		"0.6.0(0.6.0)":    "0.6.0",
+		"0.5.5":           "",
+		"":                "",
+	}
+	for in, want := range cases {
+		if got := specRefFromVersion(in); got != want {
+			t.Fatalf("%q gave %q, want %q", in, got, want)
+		}
 	}
 }
 

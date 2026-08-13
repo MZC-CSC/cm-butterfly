@@ -146,17 +146,53 @@ func readinessSpec(actions map[string]Spec) (Spec, bool) {
 	return found, ok
 }
 
-// swaggerSource is the address the specification was taken from. The release
-// entry is the one that matches a pinned version; latest is the fallback for a
-// service tracking main.
+/*
+swaggerSource is the address the specification was taken from, as an address that
+can actually be opened.
+
+The release entry is written with a `{release}` placeholder, which is what
+cm-mayfly fills in when it generates the operations. Handing that string to the
+screen unchanged gives a link that 404s on click, which is worse than no link —
+it looks like the specification is missing rather than like the address was never
+completed.
+
+Which release to fill in is in the version label, written as `pinned(spec)`:
+`0.12.42(latest)` was generated from main, `0.6.0(0.6.0)` from that tag. So a
+label ending in `latest` takes the latest address, and anything else fills the
+placeholder with that tag.
+*/
 func swaggerSource(service Service) string {
 	if service.Swagger == nil {
 		return ""
 	}
-	if v, ok := service.Swagger["release"]; ok && v != "" {
-		return v
+
+	spec := specRefFromVersion(service.Version)
+	if spec == "" || strings.EqualFold(spec, "latest") {
+		if v := service.Swagger["latest"]; v != "" {
+			return v
+		}
+		return strings.ReplaceAll(service.Swagger["release"], "{release}", "main")
 	}
-	return service.Swagger["latest"]
+
+	release := service.Swagger["release"]
+	if release == "" {
+		return service.Swagger["latest"]
+	}
+	if !strings.HasPrefix(spec, "v") {
+		spec = "v" + spec
+	}
+	return strings.ReplaceAll(release, "{release}", spec)
+}
+
+// specRefFromVersion pulls the part in brackets out of a version label such as
+// `0.12.42(latest)`. Empty when the label carries none.
+func specRefFromVersion(version string) string {
+	open := strings.LastIndex(version, "(")
+	closeAt := strings.LastIndex(version, ")")
+	if open < 0 || closeAt < open {
+		return ""
+	}
+	return strings.TrimSpace(version[open+1 : closeAt])
 }
 
 // probe asks one service and reports what it said.
