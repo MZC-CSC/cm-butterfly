@@ -196,7 +196,14 @@ export class JsonEditorPage {
           `없으므로 expandAll 을 먼저 부른다. 행에 data-path 가 없으면 규칙을 짚을 수 없다.`,
       );
     }
-    return this.page.locator(`[data-path="${rule}.dstPorts"]`);
+    return this.portRowOf(rule);
+  }
+
+  /** The port row of this rule, whichever name this layer gives the field. */
+  portRowOf(rulePath: string): Locator {
+    return this.page.locator(
+      `[data-path="${rulePath}.dstPorts"], [data-path="${rulePath}.Ports"]`,
+    );
   }
 
   /** Which address family the rule holding this port belongs to. */
@@ -223,17 +230,23 @@ export class JsonEditorPage {
           return (row?.querySelector('.pg-value')?.textContent ?? '').trim();
         };
 
+        /*
+          The field names differ by layer. An on-prem model writes `dstPorts` / `dstCIDR`; a target
+          model writes `Ports` / `CIDR`. Both are looked for rather than assumed - asking for one
+          name against the other document finds nothing, which reads as the rule not being there.
+        */
         for (const row of rows) {
           const path = row.dataset.path ?? '';
-          if (!path.endsWith('.dstPorts')) continue;
+          const field = ['.dstPorts', '.Ports'].find(f => path.endsWith(f));
+          if (!field) continue;
           if (
             (row.querySelector('.pg-value')?.textContent ?? '').trim() !==
             wanted
           )
             continue;
 
-          const rule = path.slice(0, -'.dstPorts'.length);
-          const cidr = read(`${rule}.dstCIDR`);
+          const rule = path.slice(0, -field.length);
+          const cidr = read(`${rule}.dstCIDR`) || read(`${rule}.CIDR`);
           if (!cidr) continue;
           if ((want === 'ipv6') === cidr.includes('::/')) return rule;
         }

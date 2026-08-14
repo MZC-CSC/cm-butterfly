@@ -391,7 +391,6 @@ async function openPortByDuplicating(page: Page): Promise<void> {
       removed.
   */
   const rulePath = await editor.rulePathOf(portRow);
-  const portPath = `${rulePath}.dstPorts`;
   const before = await editor.rowsMatching('22').count();
 
   /*
@@ -409,12 +408,18 @@ async function openPortByDuplicating(page: Page): Promise<void> {
       form, and where any rule sits depends on how the document was collected.
   */
   await editor.duplicateRow(editor.rowAt(rulePath));
+  /*
+    Open it out again. The new item arrives folded, so its fields are not rows yet - the rule count
+    stays where it was and the copy looks as though it was never made. (Watched happen: the table
+    went 327 → 328 rows while the rules stayed at 26.)
+  */
+  await editor.expandAll();
   await expect(
     editor.rowsMatching('22'),
     '22번 규칙이 복제되지 않았다 — 복제 버튼이 방화벽 규칙이 아닌 다른 항목에 눌렸을 수 있다',
   ).toHaveCount(before + 1, { timeout: 10_000 });
 
-  await editor.setRowValue(editor.rowAt(portPath), '5555');
+  await editor.setRowValue(editor.portRowOf(rulePath), '5555');
 
   const family = await editor.familyOfRuleContaining('5555');
   expect(
@@ -433,7 +438,7 @@ async function openPortByDuplicating(page: Page): Promise<void> {
   //   a row that is not drawn cannot be found by any means; asking for the exact path says which
   //   row is meant and fails plainly when it is not there.
   await editor.search('5555');
-  const added = editor.rowAt(portPath);
+  const added = editor.portRowOf(rulePath);
   await expect(
     added,
     '5555 규칙이 추가되지 않았다 — 복제한 행의 포트가 바뀌지 않았을 수 있다',
