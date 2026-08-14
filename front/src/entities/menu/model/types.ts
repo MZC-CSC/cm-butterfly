@@ -20,6 +20,10 @@ export const MENU_ID = Object.freeze({
   PMK_WLS: 'pmkwls',
   CLOUD_RESOURCES: 'cloudresources',
   CLOUD_CREDENTIALS: 'cloudcredentials',
+
+  // System — about the installation rather than a migration.
+  SYSTEM: 'system',
+  SERVICE_STATUS: 'servicestatus',
 });
 
 export interface ICategory {
