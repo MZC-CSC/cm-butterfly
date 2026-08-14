@@ -1145,7 +1145,15 @@ function handleSelectTemplate(e) {
               />
             </PFieldGroup>
             <PFieldGroup class="flex-1" :label="'Description'">
-              <p-text-input v-model="workflowDescription.value.value" block />
+              <!--
+                What this workflow is for. Worth an identifier: the list afterwards shows the name
+                and this, and nothing else says which target model it was built from.
+              -->
+              <p-text-input
+                v-model="workflowDescription.value.value"
+                data-testid="workflow-description-input"
+                block
+              />
             </PFieldGroup>
             <!--
               Parallelism must be pulled explicitly from the palette, and side-by-side placement only

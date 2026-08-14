@@ -64,10 +64,22 @@ watch(_name, () => {}, { immediate: true });
       <p-pane-layout class="layout">
         <p-pane-layout class="text-input-layout">
           <p-field-group :label="nameLabel" required>
-            <p-text-input v-model="_name" data-testid="model-name-input" :placeholder="namePlaceholder" />
+            <p-text-input
+              v-model="_name"
+              data-testid="model-name-input"
+              :placeholder="namePlaceholder"
+            />
           </p-field-group>
           <p-field-group label="Description">
-            <p-textarea v-model="_description" />
+            <!--
+              What this is for, in the author's words. Worth an identifier of its own: a walkthrough
+              fills it in to explain why the thing being saved exists, and a reader of the list
+              later has only this to go on.
+            -->
+            <p-textarea
+              v-model="_description"
+              data-testid="model-description-input"
+            />
           </p-field-group>
         </p-pane-layout>
       </p-pane-layout>

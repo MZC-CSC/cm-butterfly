@@ -176,7 +176,10 @@ async function fetchWorkflowList() {
     });
   } catch (e) {
     workflowStore.setWorkFlows([]);
-    showErrorMessage('error', 'An error occurred while loading the workflow list.');
+    showErrorMessage(
+      'error',
+      'An error occurred while loading the workflow list.',
+    );
     isDataLoaded.value = true;
   } finally {
     tableModel.tableState.loading = false;
@@ -270,7 +273,13 @@ watch(
           @select="handleSelectedIndex"
         >
           <template #toolbox-left>
-            <p-button disabled icon-left="ic_plus_bold">Add</p-button>
+            <p-button
+              data-testid="workflow-create"
+              disabled
+              icon-left="ic_plus_bold"
+            >
+              Add
+            </p-button>
           </template>
           <template #th-run> &nbsp; </template>
           <template #col-run-format>
