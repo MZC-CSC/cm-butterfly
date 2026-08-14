@@ -1,0 +1,111 @@
+# Rebuilds the images for a tag that already exists.
+#
+# The delivery workflow runs once, when a release is published. If one of the two images fails to
+# build - a missing file, a flaky registry - the release is left half-published and there is no
+# way to try again without moving the tag or inventing a new version number. This builds the tag
+# as it stands.
+#
+# It does not touch the tag. What is built is whatever that tag points at, so a release whose
+# *code* is wrong needs a new release, not this.
+name: Rebuild Release Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Existing git tag to build (e.g. v0.5.8)'
+        required: true
+        type: string
+      images:
+        description: 'Which images to rebuild'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - api
+          - front
+
+env:
+  DOCKER_REGISTRY_NAME: cloudbaristaorg
+  GHCR_REGISTRY_NAME: cloud-barista
+  IMAGE_NAME: ${{ github.event.repository.name }}
+
+jobs:
+  rebuild:
+    name: Rebuild ${{ matrix.image }} image
+    runs-on: ubuntu-22.04
+    if: github.repository_owner == 'cloud-barista'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [api, front]
+
+    steps:
+      - name: Skip images that were not asked for
+        id: pick
+        run: |
+          CHOICE="${{ github.event.inputs.images }}"
+          if [ "$CHOICE" = "both" ] || [ "$CHOICE" = "${{ matrix.image }}" ]; then
+            echo "run=true" >> $GITHUB_OUTPUT
+          else
+            echo "run=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout the tag
+        if: steps.pick.outputs.run == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag_name }}
+
+      - name: Work out the docker tag
+        if: steps.pick.outputs.run == 'true'
+        id: meta
+        run: |
+          TAG_NAME="${{ github.event.inputs.tag_name }}"
+          # Docker tags drop the leading v, the same way the delivery workflow writes them.
+          echo "docker_tag=${TAG_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Set up QEMU
+        if: steps.pick.outputs.run == 'true'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+
+      - name: Set up Docker Buildx
+        if: steps.pick.outputs.run == 'true'
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        if: steps.pick.outputs.run == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Login to GitHub Container Registry
+        if: steps.pick.outputs.run == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish
+        if: steps.pick.outputs.run == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          context: ./${{ matrix.image }}
+          file: ./${{ matrix.image }}/Dockerfile
+          target: deploy
+          platforms: linux/amd64
+          push: true
+          # Built without cache: a rebuild is asked for when something went wrong, and a cached
+          # layer is the thing most likely to be carrying it.
+          no-cache: true
+          tags: |
+            ${{ env.DOCKER_REGISTRY_NAME }}/${{ env.IMAGE_NAME }}-${{ matrix.image }}:${{ steps.meta.outputs.docker_tag }}
+            ghcr.io/${{ env.GHCR_REGISTRY_NAME }}/${{ env.IMAGE_NAME }}-${{ matrix.image }}:${{ steps.meta.outputs.docker_tag }}
