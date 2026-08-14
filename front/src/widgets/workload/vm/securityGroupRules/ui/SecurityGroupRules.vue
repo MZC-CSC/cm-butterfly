@@ -51,11 +51,27 @@ function pick(rule: IFirewallRule, ...names: string[]): string {
   return '--';
 }
 
-function describe(error: unknown): string {
-  const status = (error as { response?: { status?: number } })?.response
-    ?.status;
-  if (status === 429) return 'The server received too many requests.';
-  if (status) return `The request failed (${status}).`;
+/**
+ * Say what went wrong in the reader's terms.
+ *
+ * ★ The rejection is not an axios error. `useAxiosWrapper` catches it and rejects with a bundle of
+ *   refs - `{ error, errorMsg, status }` - so reaching for `error.response.status` finds nothing
+ *   and every failure reads as the same flat sentence. The status has to be unwrapped from the ref
+ *   inside that bundle. (Found by faking a 429 and getting the generic message back.)
+ */
+function describe(rejection: unknown): string {
+  const bag = rejection as { error?: { value?: unknown } };
+  const inner = (bag?.error?.value ?? rejection) as {
+    response?: { status?: number };
+  };
+  const status = inner?.response?.status;
+
+  if (status === 429) {
+    return 'The server received too many requests.';
+  }
+  if (status) {
+    return `The request failed (${status}).`;
+  }
   return 'The request failed.';
 }
 

@@ -140,17 +140,40 @@ Given('도움말 창을 다른 위치로 옮긴다', async ({ page }) => {
   if (!box) return;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
-  await page.mouse.move(box.x - 300, box.y + 180, { steps: 60 });
+  // A short move. It used to travel 300 across and 180 down, which threw the window far enough
+  // that the next step read a stale handle position.
+  await page.mouse.move(box.x - 120, box.y + 90, { steps: 40 });
   await page.mouse.up();
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(600);
 });
 
+/**
+ * Widen the floating window by its left edge.
+ *
+ * ★ Two things have to be true for this to look like what it is, and neither was.
+ *
+ *   The handle has to be read *after* the window has settled from being moved. Reading it too
+ *   early gives the position it used to be at, so the drag starts from empty space and the window
+ *   grows with the cursor nowhere near it - on the recording that reads as impossible.
+ *
+ *   And the cursor has to travel the way the edge does. The handle sits on the left edge
+ *   (`.help-resizer`, `left: 0`, `col-resize`), so widening means going left - straight left.
+ *   The old drag also went 120 down, which changes nothing and leaves the pointer wandering
+ *   diagonally while only the width moves. (2026-08-14, from watching the take)
+ */
 Given('도움말 창의 크기를 키운다', async ({ page }) => {
-  const box = await page.getByTestId('help-resizer').first().boundingBox();
+  const handle = page.getByTestId('help-resizer').first();
+  // Let the move finish before asking where the edge is.
+  await page.waitForTimeout(400);
+  const box = await handle.boundingBox();
   if (!box) return;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+
+  const y = box.y + box.height / 2;
+  // Arrive on the handle first, so the pointer is visibly on the edge it is about to pull.
+  await page.mouse.move(box.x + box.width / 2, y, { steps: 12 });
+  await page.waitForTimeout(250);
   await page.mouse.down();
-  await page.mouse.move(box.x - 240, box.y + 120, { steps: 60 });
+  await page.mouse.move(box.x - 220, y, { steps: 60 });
   await page.mouse.up();
   await page.waitForTimeout(400);
 });
@@ -1381,37 +1404,6 @@ Then('워크플로우는 여전히 실패로 남는다', async ({ page }) => {
 // 포트가 타깃 모델에 남고, 타깃 모델이 워크플로우로 넘어가고, 그 워크플로우가 실제 장비를
 // 만든다. 말로는 이어졌다고 할 수 있지만 화면에서 짚어 주지 않으면 보는 사람은 알 수 없다.
 
-Then(
-  '워크플로우의 {string} 작업에 {string} 값이 그대로 있다',
-  async ({ page }, taskName: string, value: string) => {
-    const wf = new WorkflowPage(page);
-
-    // ★ 어느 워크플로우를 보고 있는지 먼저 못 박는다.
-    //
-    //   복제본을 만들어 돌린 뒤에는 화면이 원본을 그린 채로 남아 있을 수 있다. 그러면 판정은
-    //   *원본의* 파라미터를 읽고 "바꾼 값이 없다"고 한다 — 정작 복제본에는 제대로 들어가 있고
-    //   만들어진 인스턴스도 바뀐 값을 쓴다(실제로 보안그룹에 6666 이 열려 있었다). 화면 하나
-    //   때문에 정상을 결함으로 부르는 자리라, 읽기 전에 그 워크플로우를 이름으로 열어 둔다.
-    //   (2026-08-01)
-    const opened = recall('workflow:last');
-    if (opened) {
-      // 화면을 한 번 새로 받는다 — **제품 결함을 피해 가는 것**이다.
-      //
-      //   복제본을 편집해 저장하면, 그 화면의 파라미터 칸은 "현재 정의의 값"이라고 적어 두고도
-      //   *복제의 바탕이 된 원본* 값을 계속 보여준다(5555·t3a.large). 저장된 정의도 만들어진
-      //   인스턴스도 바뀐 값(6666·t3a.small)을 쓰는데 화면만 옛 값을 말한다. 사람이 화면에 처음
-      //   들어오는 것과 같은 상태로 만들어 읽는다.
-      //
-      //   임시 회피이므로 결함이 고쳐지면 이 줄을 지운다. 재현 절차와 원인은 그 이슈에 있다.
-      //   (2026-08-01)
-      await page.reload({ waitUntil: 'domcontentloaded' });
-      await wf.openRunViewer(opened, true);
-    }
-
-    await wf.showParamValue(taskName, value);
-  },
-);
-
 /**
  * Open the task's parameters and read down them, without singling anything out.
  *
@@ -1565,6 +1557,26 @@ Given('알림함을 비운다', async ({ page }) => {
  * Not fatal if it never turns up - the job was already judged by its real result, and a missing
  * announcement is not worth losing a take over.
  */
+/**
+ * Stay on the run status screen until the notice arrives.
+ *
+ * A long job announces itself when it finishes, and this is the one place in the walkthrough that
+ * shows it happening. Waiting here rather than wandering off means the screen does not change
+ * while nothing is happening - the wait is one still frame, easy to cut, and what follows starts
+ * exactly when the notice appears.
+ *
+ * Nothing is asserted about the wait itself; the step after this is the one that opens it.
+ */
+Given('실행 화면에서 완료 알림이 올 때까지 기다린다', async ({ page }) => {
+  const count = page.getByTestId('notification-count');
+  const arrived = await count
+    .isVisible({ timeout: 10 * 60_000 })
+    .catch(() => false);
+  console.log(
+    arrived ? '[알림] 도착 — 화면에 배지가 떴다' : '[알림] 오지 않았다',
+  );
+});
+
 Then('완료 알림을 읽고 지운다', async ({ page }) => {
   const notifications = new NotificationPage(page);
   const mine = recall(`workflow:last`) ?? scenarioState.softwareWorkflowName;
@@ -1592,6 +1604,17 @@ Then('알림을 하나씩 열어 확인하고 지운다', async ({ page }) => {
   const cleared = await new NotificationPage(page).readAndClearEachOne();
   console.log(`[알림] ${cleared} 건을 하나씩 확인하고 지웠다`);
   expect(cleared, '지울 알림이 하나도 없다').toBeGreaterThan(0);
+});
+
+/**
+ * Clear what is left in one press.
+ *
+ * Reading a notice and closing it has already been shown by the step before this. Repeating it
+ * down the whole stack adds nothing and leaves the cursor travelling to a row and back for each
+ * one - which is what a person avoids by pressing "Mark all read".
+ */
+Then('남은 알림을 모두 비운다', async ({ page }) => {
+  await new NotificationPage(page).clearAll();
 });
 
 Then('알림함이 비었다', async ({ page }) => {
@@ -1684,3 +1707,17 @@ Then(
     ).toBe(true);
   },
 );
+
+/**
+ * The spec of the machine that was built.
+ *
+ * The scenario used to read this from the workflow's request body, which only says what was
+ * asked for. What matters is what came out - and that is what this row carries.
+ */
+Then('노드 상세의 사양이 {string} 이다', async ({ page }, spec: string) => {
+  const cell = page.getByTestId('node-info-spec').first();
+  await expect(cell, '사양 칸이 화면에 없다').toBeVisible({ timeout: 20_000 });
+  await expect(cell, `사양이 ${spec} 이 아니다`).toContainText(spec, {
+    timeout: 10_000,
+  });
+});
