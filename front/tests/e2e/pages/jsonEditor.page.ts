@@ -176,53 +176,71 @@ export class JsonEditorPage {
   }
 
   /**
-   * The port row of an IPv4 rule.
+   * The port row of a rule with an IPv4 address.
    *
-   * ★ A collected firewall carries both families, so a port appears twice - once in a rule with
-   *   `0.0.0.0/0` and once in a rule with `::/0`. Which comes first is not ours to decide, and
-   *   copying the IPv6 one produces a rule cm-beetle will not carry into a recommendation: the port
-   *   ends up in the source model and nowhere else, while every step still reports success.
-   *   (2026-08-14. The target model came back with `no match` for 5555, and the source model had it
-   *   on `::/0`.)
+   * ★ A collected firewall carries both families, so a port appears twice - `firewallTable.6` with
+   *   `0.0.0.0/0` and `firewallTable.18` with `::/0`. cm-beetle drops IPv6 rules on the way into a
+   *   recommendation, so a copy taken from the wrong one leaves the port in the source model and
+   *   nowhere else, while every step reports success. (2026-08-14)
    *
-   *   The family is not on the port row - rows are flat, and `dstCIDR` is a sibling within the same
-   *   rule. So the rows are read as a list and the rule each port row belongs to is inspected.
-   *   The grid must not be filtered when this is called, or the sibling rows are not there to read.
+   *   Each row carries its own `data-path`, so the rule a port belongs to is known rather than
+   *   guessed: take the field off the path and ask that rule for its `dstCIDR`. Reading the
+   *   neighbouring rows instead means deciding where a rule begins and ends, which the document
+   *   already answers.
    */
   async ipv4PortRow(value: string): Promise<Locator> {
-    const index = await this.gridRows.evaluateAll((rows, wanted) => {
-      const depthOf = (el: Element) =>
-        Number((el.className.match(/depth-(\d+)/) ?? [])[1] ?? '0');
-      const text = (el: Element, sel: string) =>
-        (el.querySelector(sel)?.textContent ?? '').trim();
-
-      for (let i = 0; i < rows.length; i++) {
-        if (text(rows[i], '.pg-value') !== wanted) continue;
-        const depth = depthOf(rows[i]);
-
-        // The rule this row sits in: everything from the nearest shallower row above until the
-        // next row at that same shallower depth.
-        let start = i;
-        while (start > 0 && depthOf(rows[start - 1]) >= depth) start--;
-        let end = i;
-        while (end + 1 < rows.length && depthOf(rows[end + 1]) >= depth) end++;
-
-        let ipv6 = false;
-        for (let k = start; k <= end; k++) {
-          if (text(rows[k], '.pg-value').includes('::/')) ipv6 = true;
-        }
-        if (!ipv6) return i;
-      }
-      return -1;
-    }, value);
-
-    if (index < 0) {
+    const rule = await this.ruleWithPort(value, 'ipv4');
+    if (!rule) {
       throw new Error(
-        `IPv4 규칙에서 값이 "${value}" 인 행을 찾지 못했다 — 표가 필터링돼 있으면 같은 규칙의 ` +
-          `dstCIDR 행이 보이지 않아 판별할 수 없다(필터를 켜지 않은 상태로 호출한다).`,
+        `IPv4 규칙에서 포트가 "${value}" 인 행을 찾지 못했다 — 표가 접혀 있으면 그 행이 아예 ` +
+          `없으므로 expandAll 을 먼저 부른다. 행에 data-path 가 없으면 규칙을 짚을 수 없다.`,
       );
     }
-    return this.gridRows.nth(index);
+    return this.page.locator(`[data-path="${rule}.dstPorts"]`);
+  }
+
+  /** Which address family the rule holding this port belongs to. */
+  async familyOfRuleContaining(
+    value: string,
+  ): Promise<'ipv4' | 'ipv6' | 'unknown'> {
+    if (await this.ruleWithPort(value, 'ipv4')) return 'ipv4';
+    if (await this.ruleWithPort(value, 'ipv6')) return 'ipv6';
+    return 'unknown';
+  }
+
+  /** The path of the firewall rule whose port is this, in the family asked for. */
+  private async ruleWithPort(
+    port: string,
+    family: 'ipv4' | 'ipv6',
+  ): Promise<string | null> {
+    return this.page.evaluate(
+      ({ wanted, want }) => {
+        const rows = Array.from(
+          document.querySelectorAll<HTMLElement>('.pg-table tbody tr.pg-row'),
+        );
+        const read = (path: string) => {
+          const row = rows.find(r => r.dataset.path === path);
+          return (row?.querySelector('.pg-value')?.textContent ?? '').trim();
+        };
+
+        for (const row of rows) {
+          const path = row.dataset.path ?? '';
+          if (!path.endsWith('.dstPorts')) continue;
+          if (
+            (row.querySelector('.pg-value')?.textContent ?? '').trim() !==
+            wanted
+          )
+            continue;
+
+          const rule = path.slice(0, -'.dstPorts'.length);
+          const cidr = read(`${rule}.dstCIDR`);
+          if (!cidr) continue;
+          if ((want === 'ipv6') === cidr.includes('::/')) return rule;
+        }
+        return null;
+      },
+      { wanted: port, want: family },
+    );
   }
 
   /** The row whose *key* is this, for fields addressed by name rather than by value. */

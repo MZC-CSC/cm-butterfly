@@ -407,6 +407,21 @@ async function openPortByDuplicating(page: Page): Promise<void> {
   const copy = editor.rowsMatching('22').nth(before);
   await editor.setRowValue(copy, '5555');
 
+  /*
+    The new rule has to be an IPv4 one, checked here rather than three steps later.
+
+    ★ cm-beetle drops IPv6 rules on the way into a recommendation, so a copy taken from the wrong
+      family leaves the port in the model and nowhere else - and the run carries on reporting
+      success until the target model turns up without it. Saying so at the moment of the copy names
+      what went wrong; the later failure only says a port is missing.
+  */
+  const family = await editor.familyOfRuleContaining('5555');
+  expect(
+    family,
+    '복제한 방화벽 규칙이 IPv4 가 아니다 — cm-beetle 은 IPv6 규칙을 추천으로 옮기지 않아, ' +
+      '이 포트는 소스 모델에만 남고 타깃 모델·인스턴스에는 나타나지 않는다',
+  ).toBe('ipv4');
+
   // Now show that it is there.
   //
   // ★ The grid is filtered to rows matching 22, so the moment the copy becomes 5555 it drops out of
