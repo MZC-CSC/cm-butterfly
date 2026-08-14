@@ -5,6 +5,7 @@ import { PBadge, PDefinitionTable } from '@cloudforet-test/mirinae';
 
 interface IProps {
   selectedMciId: string;
+  nsId?: string;
 }
 
 const props = defineProps<IProps>();
@@ -18,6 +19,7 @@ onBeforeMount(() => {
 watch(
   props,
   nv => {
+    mciDetailModel.setNsId(nv.nsId ?? '');
     mciDetailModel.setMciId(nv.selectedMciId);
   },
   { immediate: true },
@@ -32,6 +34,12 @@ watch(
       :data="mciDetailModel.tableModel.tableState.data"
       :loading="mciDetailModel.tableModel.tableState.loading"
     >
+      <template #data-nsId="{ data }">
+        <span data-testid="infra-info-nsid">{{ data }}</span>
+      </template>
+      <template #data-id="{ data }">
+        <span data-testid="infra-info-id">{{ data }}</span>
+      </template>
       <template #data-provider="{ data }">
         <p-badge
           v-for="(provider, index) in data"
