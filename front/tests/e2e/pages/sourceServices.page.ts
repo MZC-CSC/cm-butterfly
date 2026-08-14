@@ -895,16 +895,57 @@ export class SourceServicesPage {
     });
   }
 
+  /**
+   * 수집이 끝나 정제 팝업이 열릴 때까지 기다린다.
+   *
+   * ★ 수집은 honeybee 가 소스 서버에 SSH 로 붙어 하는 일이라 **누른 즉시 끝나지 않는다.**
+   *   버튼을 누르고 바로 다음 단계로 넘어가면, 팝업이 아직 없는 상태에서 Convert 를 누르려다
+   *   기본 시한(15초)에 걸려 실패한다.
+   *
+   *   인프라 수집은 빨라 우연히 그 시한 안에 들어왔고, 소프트웨어 수집은 패키지를 훑느라 더
+   *   오래 걸려 걸렸다 — 즉 **원래 둘 다 기다리지 않고 있었고**, 하나만 운 좋게 통과한 것이다.
+   *   기다릴 것은 버튼이 아니라 *수집이 끝났다는 신호*, 곧 정제 팝업이다.
+   */
+  private async waitForRefinePopup(timeout: number): Promise<boolean> {
+    return this.refineConvertButton
+      .waitFor({ state: 'visible', timeout })
+      .then(() => true)
+      .catch(() => false);
+  }
+
+  /**
+   * Refresh 로 상태를 확인한 뒤 수집 버튼을 누르고, 정제 팝업이 열릴 때까지 기다린다.
+   *
+   * ★ 누르자마자 다음으로 넘어가면 안 된다 — 수집은 honeybee 가 소스 서버에 SSH 로 붙어 하는
+   *   일이라 즉시 끝나지 않는다. 기다릴 것은 버튼이 아니라 *수집이 끝났다는 신호*, 곧 팝업이다.
+   *
+   * ★ 한 번 더 누르는 이유. Refresh 는 상태 값만 바꾸는 것이 아니라 그 아래 버튼들을 다시
+   *   그린다. `data-status` 가 Success 가 된 직후는 아직 그리는 중일 수 있고, 그 순간의 클릭은
+   *   **아무 일도 하지 않는다**(요청이 나가지 않는다). 브라우저를 직접 몰아 같은 화면을 확인해
+   *   보면, Refresh 뒤에 잠깐 여유를 두면 2초 만에 팝업이 열리고 여유 없이 누르면 열리지
+   *   않는다 — 수집이 느린 것이 아니라 클릭이 사라진 것이다.
+   *
+   *   그래서 짧게 기다려 보고 팝업이 없으면 한 번 더 누른다. 수집은 같은 자료를 다시 읽는
+   *   것이라 두 번 눌려도 결과가 달라지지 않는다. 실패를 덮는 폴백이 아니라, 클릭이 먹었는지를
+   *   확인하는 것이다 — 두 번째도 열리지 않으면 그대로 실패한다.
+   */
+  private async collectAndOpenRefine(button: Locator): Promise<void> {
+    await this.refreshGroupStatus();
+    await humanClick(button);
+    if (await this.waitForRefinePopup(20_000)) return;
+
+    await humanClick(button);
+    await expect(this.refineConvertButton).toBeVisible({ timeout: 180_000 });
+  }
+
   /** 인프라 수집 실행 (그룹단위 import-infra) — 선택된 그룹 상세에서 Refresh 후 Collect Infra */
   async collectInfra(): Promise<void> {
-    await this.refreshGroupStatus();
-    await humanClick(this.collectInfraButton);
+    await this.collectAndOpenRefine(this.collectInfraButton);
   }
 
   /** 소프트웨어 수집 실행 (그룹단위 import-software) — Refresh 후 Collect SW */
   async collectSoftware(): Promise<void> {
-    await this.refreshGroupStatus();
-    await humanClick(this.collectSwButton);
+    await this.collectAndOpenRefine(this.collectSwButton);
   }
 
   /**
