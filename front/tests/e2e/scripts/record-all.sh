@@ -20,7 +20,7 @@ if [ "${#SEGMENTS[@]}" -eq 0 ]; then
   # 구간11 은 기본 목록에 넣지 않는다 — *이미 실패한 실행*이 있어야 성립하므로 늘 찍을 수 있는
   # 것이 아니다. 필요할 때 이름을 지정해 따로 찍는다:
   #   TEST_FAILED_WORKFLOW=<실패한 워크플로우> scripts/record-all.sh 11
-  SEGMENTS=(1 2a 2 3 4 5 6 6b 7 8 8b 9 10)
+  SEGMENTS=(1 2a 2 3 4 5 6 6b 7 8 8b 9 10 13 14)
 fi
 
 : "${BASE_URL:?BASE_URL 이 필요하다}"
@@ -113,6 +113,24 @@ for seg in "${SEGMENTS[@]}"; do
   fi
   scripts/keep-take.sh "$seg" || true
 done
+
+# 보고서와 구간별 캡처를 영상 옆에 둔다.
+#
+# 흩어져 있으면 영상만 넘겨받은 사람이 "이 구간이 무엇을 확인한 것인지" 를 알 수 없다. 결과는
+# 한 폴더에서 끝나야 한다 — 영상·보고서·캡처.
+KEEP_ROOT="/home/ubuntu/mzc/ant/workflow/cmig-workflow/conf/private/E2E결과"
+DEST="${KEEP_DIR:-$KEEP_ROOT/통합시나리오-v060-${E2E_TAKE_DIR:-$(date +%Y%m%d)}}"
+mkdir -p "$DEST"
+
+if [ -f e2e-report/index.html ]; then
+  cp -r e2e-report "$DEST/보고서" 2>/dev/null || true
+  echo "[결과] 보고서 → $DEST/보고서/index.html"
+fi
+if [ -d test-results/screens ]; then
+  rm -rf "$DEST/캡처"
+  cp -r test-results/screens "$DEST/캡처" 2>/dev/null || true
+  echo "[결과] 캡처 → $DEST/캡처/"
+fi
 
 echo
 if [ "${#failed[@]}" -eq 0 ]; then

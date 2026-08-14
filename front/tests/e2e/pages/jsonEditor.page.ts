@@ -162,6 +162,20 @@ export class JsonEditorPage {
   }
 
   /**
+   * Open every folded node so the whole document is on screen as rows.
+   *
+   * A folded node's children are not rows at all - they are absent from the DOM, not merely hidden.
+   * Anything that reads the grid without doing this reads whatever happens to be open, which is a
+   * different set on the source model and on the target model.
+   */
+  async expandAll(): Promise<void> {
+    await humanClick(
+      this.page.locator('.jse-menu button[title="Expand all"]').first(),
+    );
+    await this.page.waitForTimeout(500);
+  }
+
+  /**
    * The port row of an IPv4 rule.
    *
    * ★ A collected firewall carries both families, so a port appears twice - once in a rule with

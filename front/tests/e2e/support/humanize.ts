@@ -204,6 +204,77 @@ async function travelTo(locator: Locator): Promise<void> {
 }
 
 /**
+ * Drag something by its handle, the way a hand would.
+ *
+ * ★ Not `page.mouse.down()` on a spot. The drawn cursor follows `page.mouse`, so a drag that starts
+ *   without travelling there first shows the window moving while the pointer sits somewhere else
+ *   entirely - which is what the help window did: it slid across the screen with the cursor still
+ *   over the button that had undocked it. The pointer has to arrive at the handle, press, carry it,
+ *   and let go.
+ *
+ * @param handle what is grabbed - a title bar, a resize corner
+ * @param by how far to carry it
+ */
+export async function humanDrag(
+  handle: Locator,
+  by: { dx: number; dy: number },
+): Promise<void> {
+  const page: Page = handle.page();
+  await handle.scrollIntoViewIfNeeded().catch(() => {});
+  const box = await handle.boundingBox().catch(() => null);
+  if (!box) return;
+
+  const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+  // Arrive first, so the press happens where the pointer is.
+  await travelToPoint(page, from);
+  await pause(isDemoPace() ? 320 : 60);
+  await page.mouse.down();
+  await pause(isDemoPace() ? 220 : 40);
+
+  // Carry it in steps - a single jump reads as the window teleporting.
+  const steps = isDemoPace() ? 40 : 12;
+  for (let i = 1; i <= steps; i++) {
+    const t = ease(i / steps);
+    await page.mouse.move(from.x + by.dx * t, from.y + by.dy * t);
+    await pause(isDemoPace() ? 14 : 4);
+  }
+  pointerAt = { x: from.x + by.dx, y: from.y + by.dy };
+
+  await pause(isDemoPace() ? 220 : 40);
+  await page.mouse.up();
+  await pause(isDemoPace() ? 420 : 80);
+}
+
+/** Move the pointer to a point with the same pacing `travelTo` uses for elements. */
+async function travelToPoint(
+  page: Page,
+  to: { x: number; y: number },
+): Promise<void> {
+  const from = pointerAt ?? { x: to.x, y: Math.max(0, to.y - 200) };
+  const distance = Math.hypot(to.x - from.x, to.y - from.y);
+  const viewport = page.viewportSize();
+  const reach = viewport
+    ? Math.hypot(viewport.width, viewport.height)
+    : DEMO_TRAVEL_REFERENCE_REACH;
+  const share = Math.min(1, distance / reach);
+  const duration =
+    DEMO_TRAVEL_MIN_MS + (DEMO_TRAVEL_MS - DEMO_TRAVEL_MIN_MS) * share;
+  const steps = Math.max(6, Math.round(DEMO_TRAVEL_STEPS * share));
+  const perStep = Math.max(6, Math.round(duration / steps));
+
+  for (let i = 1; i <= steps; i++) {
+    const t = ease(i / steps);
+    await page.mouse.move(
+      from.x + (to.x - from.x) * t,
+      from.y + (to.y - from.y) * t,
+    );
+    await pause(perStep);
+  }
+  pointerAt = to;
+}
+
+/**
  * Click with human pacing when enabled: hover/focus the target (~0.5s) → small beat (~0.5s) →
  * click → hold the resulting screen (~1s). When disabled, a plain `.click(opts)`.
  *

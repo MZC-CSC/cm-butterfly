@@ -21,7 +21,7 @@ import { spotlight } from '../support/spotlight';
 import { getSessionToken } from '../support/apiWait';
 import { scenarioState } from '../support/world';
 import { recall, remember } from '../support/handoff';
-import { humanClick } from '../support/humanize';
+import { humanClick, humanDrag } from '../support/humanize';
 import { openScreen } from '../support/navigate';
 
 const { Given, When, Then } = createBdd(test);
@@ -138,16 +138,17 @@ Then('도움말에 현재 화면 설명이 보인다', async ({ page }) => {
  *   인코딩해도 복구되지 않으므로 *찍을 때* 프레임 간 변화량을 줄이는 수밖에 없다. 걸음을 잘게 나눠
  *   조금씩 움직이면 같은 거리를 가도 한 프레임이 담는 변화가 작아진다. (2026-07-31)
  */
+/**
+ * Widen the docked panel and put it back.
+ *
+ * The pointer travels to the edge before pressing - see `humanDrag`. Pressing without arriving
+ * showed the panel resizing while the cursor was elsewhere.
+ */
 Given('도움말 패널의 폭을 넓혔다 줄인다', async ({ page }) => {
-  const box = await page.getByTestId('help-resizer').first().boundingBox();
-  if (!box) return;
-  const y = box.y + box.height / 2;
-  await page.mouse.move(box.x + box.width / 2, y);
-  await page.mouse.down();
-  await page.mouse.move(box.x - 220, y, { steps: 60 });
+  const edge = page.getByTestId('help-resizer').first();
+  await humanDrag(edge, { dx: -220, dy: 0 });
   await page.waitForTimeout(500);
-  await page.mouse.move(box.x + 60, y, { steps: 60 });
-  await page.mouse.up();
+  await humanDrag(edge, { dx: 220, dy: 0 });
   await page.waitForTimeout(500);
 });
 
@@ -168,24 +169,19 @@ Then('도움말이 떠 있는 창으로 바뀐다', async ({ page }) => {
   );
 });
 
+/**
+ * Move the floating help window by its title bar.
+ *
+ * ★ Grabbed by the header, and the pointer travels there first. It used to press wherever the
+ *   handle happened to be without moving to it, so the take showed the window sliding across the
+ *   screen while the cursor was still over the button that had undocked it - the window appeared to
+ *   move on its own. `humanDrag` arrives, presses, carries, and lets go.
+ */
 Given('도움말 창을 다른 위치로 옮긴다', async ({ page }) => {
-  const box = await page.getByTestId('help-header').first().boundingBox();
-  if (!box) return;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(box.x - 300, box.y + 180, { steps: 60 });
-  await page.mouse.up();
-  await page.waitForTimeout(400);
-});
-
-Given('도움말 창의 크기를 키운다', async ({ page }) => {
-  const box = await page.getByTestId('help-resizer').first().boundingBox();
-  if (!box) return;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(box.x - 240, box.y + 120, { steps: 60 });
-  await page.mouse.up();
-  await page.waitForTimeout(400);
+  await humanDrag(page.getByTestId('help-header').first(), {
+    dx: -300,
+    dy: 180,
+  });
 });
 
 Given('도움말을 닫는다', async ({ page }) => {
@@ -357,6 +353,11 @@ When(
 async function openPortByDuplicating(page: Page): Promise<void> {
   const editor = new JsonEditorPage(page);
   await editor.switchToTable();
+  /*
+    Everything open first. A folded node has no rows at all, so the family of a rule cannot be read
+    - and which nodes start folded differs between the source model and the target model.
+  */
+  await editor.expandAll();
   await editor.search('22');
   /*
     Not filtered. The family of a rule is on its `dstCIDR` row, and filtering to rows that say `22`
