@@ -64,9 +64,13 @@ export interface IVm {
   createdTime: string;
   label: any; // Assuming label can be any type
   description: string;
+  // Lower case is what the response actually carries (`region`/`zone`); the capitalised form is
+  // kept because older responses used it and reading only one spelling leaves the row blank.
   region: {
-    Region: string;
-    Zone: string;
+    region?: string;
+    zone?: string;
+    Region?: string;
+    Zone?: string;
   };
   publicIP: string;
   sshPort: string;
@@ -78,6 +82,10 @@ export interface IVm {
   rootDeviceName: string;
   connectionName: string;
   connectionConfig: ConnectionConfig;
+  // The CSP's own identifiers for the instance. cb-tumblebug returns both; ours (`id`) does not
+  // exist in the CSP console, so these are what a person needs to find the real machine.
+  cspResourceId: string;
+  cspResourceName: string;
   specId: string;
   cspSpecName: string;
   imageId: string;

@@ -1597,3 +1597,90 @@ Then('알림을 하나씩 열어 확인하고 지운다', async ({ page }) => {
 Then('알림함이 비었다', async ({ page }) => {
   await new NotificationPage(page).expectEmpty();
 });
+
+// ── 구간6b 보강: 만들어진 서버를 노드 상세에서 확인한다 ───────────────────────
+
+/**
+ * Open the node detail of the infrastructure a track built.
+ *
+ * Why here rather than in the workflow: the values a person changed - the spec, the port - are
+ * carried in the workflow's request body, and reading them there means expanding folded panels
+ * and scrolling for a string. The node detail says what was actually created, in one place.
+ */
+When(
+  '{string} 번 트랙이 만든 인프라의 노드 상세를 열면',
+  async ({ page }, track: string) => {
+    const infraId = infraFor(track);
+    const wl = new WorkloadPage(page);
+    await wl.gotoMci();
+    await wl.selectMci(infraId);
+    await wl.selectNode('');
+  },
+);
+
+/**
+ * The fields that say what was built.
+ *
+ * Each is checked for a real value, not merely for being on screen: the row renders either way,
+ * and a field read under the wrong name comes out as the placeholder. That is exactly how the
+ * region row would have failed - the response spells it lower case while the declared type said
+ * otherwise - and nothing would have complained.
+ */
+Then(
+  '노드 상세에 사양·이미지·네트워크·CSP 자원 ID 가 보인다',
+  async ({ page }) => {
+    const fields = [
+      'node-info-spec',
+      'node-info-image',
+      'node-info-vnet',
+      'node-info-subnet',
+      'node-info-sshkey',
+      'node-info-disk',
+      'node-info-region',
+      'node-info-csp-resource-id',
+    ];
+    for (const testId of fields) {
+      const cell = page.getByTestId(testId).first();
+      await expect(cell, `${testId} 가 화면에 없다`).toBeVisible({
+        timeout: 20_000,
+      });
+      const text = ((await cell.textContent()) ?? '').trim();
+      expect(
+        text,
+        `${testId} 가 비어 있다 — 필드 이름이 응답과 어긋났을 수 있다`,
+      ).not.toBe('');
+      expect(text, `${testId} 가 값 대신 자리표시자다`).not.toBe('--');
+    }
+  },
+);
+
+/** Expand a security group - the call goes out at this click, not before. */
+When('노드 상세에서 보안 그룹을 펼치면', async ({ page }) => {
+  const toggle = page.locator('[data-testid^="node-sg-toggle-"]').first();
+  await expect(toggle, '보안 그룹이 없다').toBeVisible({ timeout: 20_000 });
+  await humanClick(toggle);
+});
+
+/**
+ * The port a person added to the model, read from the rules of the group that was created.
+ *
+ * This is the check the scenario used to make against the workflow's request body. There it only
+ * proved that we had *asked* for the port; here it proves the security group actually carries it.
+ */
+Then(
+  '보안 그룹 규칙에 {string} 포트가 보인다',
+  async ({ page }, port: string) => {
+    const ports = page.locator('[data-testid^="node-sg-rule-port-"]');
+    await expect(ports.first(), '보안 그룹 규칙이 그려지지 않았다').toBeVisible(
+      {
+        timeout: 20_000,
+      },
+    );
+    const values = await ports.allTextContents();
+    const found = values.some(v => v.split(/[^0-9]+/).includes(port));
+    expect(
+      found,
+      `보안 그룹 규칙에 ${port} 이 없다 — 규칙: ${values.join(', ')}`,
+    ).toBe(true);
+  },
+);
