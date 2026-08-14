@@ -188,9 +188,7 @@ export class SourceServicesPage {
   }
   private connectionRow(name: string): Locator {
     // 위 groupRow 와 같은 이유 — 행은 표 안에서만 찾는다.
-    const table = this.page
-      .getByTestId('source-connection-list-table')
-      .or(this.page.locator('table'));
+    const table = this.page.getByTestId('source-connection-list-table');
     return table.getByRole('row', { name: new RegExp(name) }).first();
   }
   /** 연결 목록의 "Export" 버튼 — 선택한 연결이 없으면 비활성 */

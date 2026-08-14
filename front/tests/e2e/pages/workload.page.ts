@@ -755,12 +755,9 @@ export class WorkloadPage {
     //   its tabs from a prop with no slot, so a data-testid cannot be attached to the tab button
     //   without modifying mirinae; scoping to the tab strip disambiguates it cleanly instead.
     return this.page
-      .getByTestId('vm-tab-evaluatePerf')
-      .or(
-        this.page
-          .locator('.p-button-tab .button-group button')
-          .filter({ hasText: /evaluate perf/i }),
-      )
+      .getByTestId('vm-detail-tabs')
+      .locator('.button-group button')
+      .filter({ hasText: /evaluate perf/i })
       .first();
   }
   private get loadConfigButton(): Locator {

@@ -121,9 +121,11 @@ export class JsonEditorPage {
    *   (2026-07-31)
    */
   async close(): Promise<void> {
+    // 타깃·소스 두 편집기가 같은 자리를 쓴다. 열려 있는 쪽 하나만 화면에 있으므로 둘을 함께 잡는다.
     const cancel = this.page
-      .getByTestId('target-custom-cancel')
-      .or(this.page.getByTestId('source-custom-cancel'))
+      .locator(
+        '[data-testid="target-custom-cancel"], [data-testid="source-custom-cancel"]',
+      )
       .first();
     if (await cancel.isVisible({ timeout: 3_000 }).catch(() => false)) {
       await humanClick(cancel);

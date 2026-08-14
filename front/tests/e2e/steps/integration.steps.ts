@@ -178,10 +178,67 @@ Then('도움말이 떠 있는 창으로 바뀐다', async ({ page }) => {
  *   move on its own. `humanDrag` arrives, presses, carries, and lets go.
  */
 Given('도움말 창을 다른 위치로 옮긴다', async ({ page }) => {
+  const panel = page.getByTestId('help-panel');
+  const before = await panel.boundingBox();
   await humanDrag(page.getByTestId('help-header').first(), {
-    dx: -300,
+    dx: -320,
     dy: 180,
   });
+  /*
+    가로와 세로가 *둘 다* 움직였는지 본다.
+
+    ★ 예전에는 가로로만 움직였다. 도킹을 해제해도 창이 자기 크기를 갖지 않아 화면만큼 키가
+      컸고, 옮기기가 그 높이로 세로 한계를 계산해 y 가 못 박혔다. 화면에서는 커서가 제목 줄을
+      놓친 것처럼 보였다. 한쪽만 확인하면 그 상태가 그대로 통과한다.
+  */
+  const after = await panel.boundingBox();
+  expect(before && after, '도움말 창의 위치를 읽지 못했다').toBeTruthy();
+  expect(
+    Math.round(before!.x - after!.x),
+    '가로로 움직이지 않았다',
+  ).toBeGreaterThan(100);
+  expect(
+    Math.round(after!.y - before!.y),
+    '세로로 움직이지 않았다',
+  ).toBeGreaterThan(100);
+});
+
+/*
+  옮긴 자리에서 크기를 바꾼다.
+
+  ★ 끌고 있는 변이 포인터를 따라오는지가 요점이다. 떠 있는 창은 왼쪽이 고정돼 있어, 왼쪽 모서리를
+    잡고 끌면 정작 오른쪽 변이 늘어나 창이 손에서 달아나 보였다. 그래서 넓힐 때는 *오른쪽 변이
+    그대로*, 높일 때는 *윗변이 그대로*인지 함께 확인한다.
+*/
+Given('도움말 창의 크기를 조절한다', async ({ page }) => {
+  const panel = page.getByTestId('help-panel');
+  const before = await panel.boundingBox();
+
+  await humanDrag(page.getByTestId('help-resizer').first(), {
+    dx: -180,
+    dy: 0,
+  });
+  const wider = await panel.boundingBox();
+  expect(wider!.width, '폭이 넓어지지 않았다').toBeGreaterThan(
+    before!.width + 80,
+  );
+  expect(
+    Math.abs(wider!.x + wider!.width - (before!.x + before!.width)),
+    '왼쪽 모서리를 끌었는데 오른쪽 변이 움직였다',
+  ).toBeLessThan(8);
+
+  await humanDrag(page.getByTestId('help-resizer-bottom').first(), {
+    dx: 0,
+    dy: -200,
+  });
+  const shorter = await panel.boundingBox();
+  expect(shorter!.height, '높이가 줄지 않았다').toBeLessThan(
+    wider!.height - 80,
+  );
+  expect(
+    Math.abs(shorter!.y - wider!.y),
+    '아래를 끌었는데 윗변이 움직였다',
+  ).toBeLessThan(8);
 });
 
 Given('도움말을 닫는다', async ({ page }) => {
