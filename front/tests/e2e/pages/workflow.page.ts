@@ -847,6 +847,75 @@ export class WorkflowPage {
    *
    * @returns the port that was replaced
    */
+  /**
+   * Open a port by adding a firewall rule, rather than by rewriting one that is already there.
+   *
+   * ★ Adding is what the other two routes do - the target model and the source model each gain a
+   *   rule - so this one adds too, and all three can be compared. Rewriting an existing rule was
+   *   what this used to do, and it meant the workflow track was demonstrating something the others
+   *   were not.
+   *
+   * The rule is copied field for field from the one that allows 22, because a rule needs protocol,
+   * direction and CIDR as well as a port, and a blank field turns into an infrastructure that comes
+   * up unreachable. Only the port differs.
+   *
+   * @returns the index the new rule was given
+   */
+  async addPortRuleInWorkflow(port: string): Promise<number> {
+    await this.expandAllParams();
+
+    /*
+      The array cb-tumblebug actually builds the security group from.
+
+      ★ Several arrays in this body have names that read the same. `targetK8sCluster.securityGroupIds`
+        is not built here at all, and `targetSpecList[0].details` / `targetOsImageList[0].details`
+        are the recommendation's own notes. A rule added to any of those changes nothing on the
+        machine, and the run still succeeds - the take would show a port being typed and a machine
+        without it.
+
+        Confirmed against a machine that was built: a rule added here at `Ports` came back on the
+        created security group. Note the name changes on the way - the model says `Ports`, the
+        created resource says `Port`, so a check that reads the built group has to ask for both.
+    */
+    const rules = 'body_params.targetSecurityGroupList[0].firewallRules';
+    const before = await this.page
+      .locator(`[data-testid^="wf-field-${rules}["]`)
+      .evaluateAll(els =>
+        els
+          .map(e => e.getAttribute('data-testid') ?? '')
+          .map(id => Number(id.match(/firewallRules\[(\d+)\]/)?.[1] ?? -1)),
+      );
+    const nextIndex = before.length ? Math.max(...before) + 1 : 0;
+
+    await humanClick(this.page.getByTestId(`wf-array-add-${rules}`));
+    await this.expandAllParams();
+
+    const field = (name: string) =>
+      this.page.getByTestId(`wf-field-${rules}[${nextIndex}].${name}`);
+    await expect(
+      field('Ports'),
+      `방화벽 규칙을 더했는데 ${nextIndex} 번 항목의 칸이 나타나지 않았다`,
+    ).toBeVisible({ timeout: 15_000 });
+
+    // Everything except the port matches the rule that already allows SSH.
+    for (const [name, value] of [
+      ['CIDR', '0.0.0.0/0'],
+      ['Direction', 'inbound'],
+      ['Protocol', 'tcp'],
+      ['Ports', port],
+    ] as const) {
+      const input = field(name);
+      await input.scrollIntoViewIfNeeded().catch(() => {});
+      await input.click();
+      await input.fill('');
+      await input.pressSequentially(value, { delay: 40 });
+      await this.page.waitForTimeout(200);
+    }
+
+    await spotlight(this.page, field('Ports'));
+    return nextIndex;
+  }
+
   async setPortInWorkflow(from: string, to: string): Promise<string> {
     await this.expandAllParams();
 

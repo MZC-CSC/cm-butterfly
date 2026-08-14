@@ -366,6 +366,16 @@ async function openPortByDuplicating(page: Page): Promise<void> {
     '방화벽에 22번 규칙이 없다 — 소스 서버에 방화벽이 설정돼 있어야 수집에 잡힌다',
   ).toBeVisible({ timeout: 15_000 });
 
+  /*
+    How many rows already say 22, before anything is copied.
+
+    ★ Not a fixed number. The target model has one; the on-prem model has two, because the port
+      appears once in the firewall rule and again in the connection details. Asserting "two
+      afterwards" passes on one of them and fails on the other while nothing is actually wrong -
+      which is what happened the first time this check was written.
+  */
+  const before = await editor.rowsMatching('22').count();
+
   const item = await editor.enclosingItem(portRow);
   await editor.duplicateRow(item);
 
@@ -379,10 +389,10 @@ async function openPortByDuplicating(page: Page): Promise<void> {
   await expect(
     editor.rowsMatching('22'),
     '22번 규칙이 복제되지 않았다 — 복제 버튼이 방화벽 규칙이 아닌 다른 항목에 눌렸을 수 있다',
-  ).toHaveCount(2, { timeout: 10_000 });
+  ).toHaveCount(before + 1, { timeout: 10_000 });
 
-  // The copy is the second row now matching 22; changing it leaves the original alone.
-  const copy = editor.rowsMatching('22').nth(1);
+  // The copy sits right after the original, so it is the last of the rows matching 22.
+  const copy = editor.rowsMatching('22').nth(before);
   await editor.setRowValue(copy, '5555');
 
   // Now show that it is there.
@@ -703,10 +713,22 @@ When(
     await wf.selectTaskInDesigner(workflowData.infraMigrationTask);
     await wf.setTaskParam('query', 'nameSeed', seed);
 
-    // Both edits happen here, in the workflow, on a model nobody touched.
-    const port = process.env.TEST_WF_PORT_OVERRIDE || '6666';
-    const replaced = await wf.setPortInWorkflow('5555', port);
-    console.log(`[트랙${track}] 워크플로우에서 포트 ${replaced} → ${port}`);
+    /*
+      Both edits happen here, in the workflow, on a model nobody touched.
+
+      ★ The port is *added*, not rewritten. The other two routes each add a rule - one at the target
+        model, one at the source model - so this one adds too, and the three can be compared. It
+        used to clone the track that already had 5555 and change that rule to 6666, which made this
+        the only route doing something different, and left nothing to say whether 5555 had survived.
+
+        The workflow copied is the plain one, which has no 5555 anywhere, so a 5555 on the built
+        machine can only have come from here.
+    */
+    const port = process.env.TEST_WF_PORT_OVERRIDE || '5555';
+    const index = await wf.addPortRuleInWorkflow(port);
+    console.log(
+      `[트랙${track}] 워크플로우에서 방화벽 규칙 추가 — [${index}] ${port}/tcp`,
+    );
 
     const spec = await wf.setSpecInWorkflow(
       process.env.TEST_WF_SPEC_OVERRIDE || 't3a.small',
