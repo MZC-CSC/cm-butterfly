@@ -57,9 +57,53 @@ export async function openScreen(
     await page.goto(path);
   }
 
+  await passFirstVisitWelcome(page, path);
+
   await expect(page).toHaveURL(new RegExp(escapeForUrl(path)), {
     timeout: 20_000,
   });
+}
+
+/**
+ * Get past the welcome an empty installation puts in the way.
+ *
+ * On an installation where nothing has been done yet, the console sends the first
+ * navigation to the migration guide and opens a welcome dialog over it
+ * (`features/guidedSetup`). It is a full-screen layer, so it swallows every click meant
+ * for the screen underneath - which is how it showed up here: not as a failed assertion
+ * about the dialog, but as a click on a link that "intercepts pointer events".
+ *
+ * This is not a fallback selector. The dialog is a real state the product has, it appears
+ * exactly once per browser, and a scenario that asked for some other screen has to pass
+ * through it the same way a person does.
+ *
+ * Asking for the guide itself is left alone - arriving there is the destination, and
+ * 구간1 shows the dialog on purpose.
+ */
+async function passFirstVisitWelcome(page: Page, path: string): Promise<void> {
+  if (path.includes('/migration-guide')) return;
+
+  // The redirect only decides after a progress lookup returns, so it can land a moment
+  // after the navigation. Wait for whichever address wins rather than guessing a delay.
+  await page
+    .waitForURL(
+      url =>
+        url.pathname.includes(path) ||
+        url.pathname.includes('/main/migration-guide'),
+      { timeout: 20_000 },
+    )
+    .catch(() => undefined);
+
+  if (page.url().includes(path)) return;
+
+  const welcome = page.getByTestId('guided-setup-welcome');
+  if (!(await welcome.isVisible().catch(() => false))) return;
+
+  // "Just looking" - close it and go where we were going. Start would take us to the
+  // first step's screen, which is not necessarily the one that was asked for.
+  await humanClick(page.getByTestId('guided-setup-welcome-dismiss'));
+  await expect(welcome).toBeHidden({ timeout: 10_000 });
+  await page.goto(path);
 }
 
 /**

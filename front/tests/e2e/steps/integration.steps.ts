@@ -47,6 +47,32 @@ When('마이그레이션 가이드 화면을 열면', async ({ page }) => {
   await openScreen(page, 'migrationguide', '/main/migration-guide');
 });
 
+/**
+ * The welcome an empty installation opens over the guide.
+ *
+ * It is asserted, not tolerated. Something that is only checked when it happens to be
+ * there is not checked at all - if the dialog stopped appearing on a fresh installation,
+ * a conditional step would go green and the one screen a first-time visitor actually sees
+ * would be gone without a word.
+ *
+ * That does mean this step needs an installation with nothing in it. 구간1 says so, and it
+ * is why 구간1 is filmed first.
+ */
+Then('처음 방문 안내가 보인다', async ({ page }) => {
+  await expect(page.getByTestId('guided-setup-welcome')).toBeVisible({
+    timeout: 20_000,
+  });
+  // The dialog's worth is the list of steps it names. An empty box would still be visible.
+  await expect(page.getByTestId('guided-setup-welcome-steps')).not.toBeEmpty();
+});
+
+When('처음 방문 안내에서 시작을 누르면', async ({ page }) => {
+  await humanClick(page.getByTestId('guided-setup-welcome-start'));
+  await expect(page.getByTestId('guided-setup-welcome')).toBeHidden({
+    timeout: 10_000,
+  });
+});
+
 Then('마이그레이션 가이드가 보인다', async ({ page }) => {
   await expect(page.getByTestId('migration-guide-page')).toBeVisible({
     timeout: 20_000,
