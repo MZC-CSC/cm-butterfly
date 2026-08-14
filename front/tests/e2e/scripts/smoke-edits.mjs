@@ -109,8 +109,17 @@ for (const [kind, name] of [
   ['target', process.env.TARGET_MODEL || 'infra-nano-aws'],
 ]) {
   console.log(`=== ${kind} · ${name} ===`);
+  /*
+    없으면 건너뛴다 — 실패가 아니다.
+
+    ★ 이 점검이 보는 것은 *편집이 되는가* 이지 모델이 있는가가 아니다. 촬영은 자료를 비우고
+      시작하므로 그 직후에는 모델이 하나도 없고, 그것을 실패로 세면 촬영 자체가 막힌다(실제로
+      막았다). 있을 때만 확인하고, 없으면 그 구간이 만들면서 확인된다.
+  */
   if (!(await openEditor(kind, name))) {
-    ok('모델 열기', false, '목록에 없음');
+    console.log(
+      `  ⏭  건너뜀 — "${name}" 이 목록에 없다(자료를 비운 직후라면 정상)`,
+    );
     continue;
   }
 
