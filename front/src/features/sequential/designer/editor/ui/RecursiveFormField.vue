@@ -63,7 +63,11 @@
           </label>
         </div>
         <div class="header-actions">
-          <button @click="addArrayItem" class="btn-add-item">+ Add entity</button>
+          <button
+            :data-testid="arrayAddTestId"
+            @click="addArrayItem"
+            class="btn-add-item"
+          >+ Add entity</button>
         </div>
       </div>
       
@@ -79,7 +83,11 @@
               class="field-input"
               :placeholder="`Item ${index + 1}`"
             />
-            <button @click="removeArrayItem(index)" class="btn-remove-item">×</button>
+            <button
+              :data-testid="arrayRemoveTestId(index)"
+              @click="removeArrayItem(index)"
+              class="btn-remove-item"
+            >×</button>
           </div>
         </div>
         
@@ -96,7 +104,11 @@
                   ({{ Object.keys(fieldSchema.items.properties || {}).length }} properties)
                 </span>
               </div>
-              <button @click.stop="removeArrayItem(index)" class="btn-remove-item">× Remove</button>
+              <button
+                :data-testid="arrayRemoveTestId(index)"
+                @click.stop="removeArrayItem(index)"
+                class="btn-remove-item"
+              >× Remove</button>
             </div>
             <div v-if="!isItemCollapsed(index)" class="item-properties">
               <recursive-form-field
@@ -243,6 +255,15 @@ export default defineComponent({
     };
     const arrayItemTestId = (arrayIndex: number) =>
       `wf-field-${props.indexPath || props.currentPath || props.fieldName}[${arrayIndex}]`;
+
+    /** The button that adds an entry to this array, named after the array it acts on. */
+    const arrayAddTestId = computed(
+      () => `wf-array-add-${props.indexPath || props.currentPath || props.fieldName}`,
+    );
+
+    /** The button that removes one entry, which needs the entry's position as well. */
+    const arrayRemoveTestId = (arrayIndex: number) =>
+      `wf-array-remove-${props.indexPath || props.currentPath || props.fieldName}[${arrayIndex}]`;
 
     // Check whether required
     const isRequired = computed(() => {
@@ -573,6 +594,8 @@ export default defineComponent({
       fieldTestId,
       childIndexPath,
       arrayItemTestId,
+      arrayAddTestId,
+      arrayRemoveTestId,
       isSimpleType,
       isStringArray,
       arrayValue,
