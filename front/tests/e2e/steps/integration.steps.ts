@@ -358,21 +358,32 @@ async function openPortByDuplicating(page: Page): Promise<void> {
   const editor = new JsonEditorPage(page);
   await editor.switchToTable();
   await editor.search('22');
-  await editor.enableFilter();
+  /*
+    Not filtered. The family of a rule is on its `dstCIDR` row, and filtering to rows that say `22`
+    takes that row away - leaving no way to tell the IPv4 rule from the IPv6 one. The search still
+    highlights, so the screen shows where the rule is.
+  */
 
-  const portRow = editor.row('22');
+  /*
+    The rule to copy has to be an IPv4 one.
+
+    ★ A collected firewall carries both families, so `22` appears twice - once with `0.0.0.0/0` and
+      once with `::/0`. Taking whichever came first took the IPv6 rule about half the time, and the
+      copy inherited `::/0` along with everything else. cm-beetle does not carry IPv6 rules into a
+      recommendation, so the port was in the source model, absent from the target model, and absent
+      from the machine - while every step reported success. (2026-08-14. The target model came back
+      with `no match` for 5555, and the source model had it on `::/0`.)
+
+      The on-prem model is where both families show up; a target model has one rule per port.
+  */
+  const portRow = await editor.ipv4PortRow('22');
   await expect(
     portRow,
-    '방화벽에 22번 규칙이 없다 — 소스 서버에 방화벽이 설정돼 있어야 수집에 잡힌다',
+    '방화벽에 IPv4 22번 규칙이 없다 — 소스 서버에 방화벽이 설정돼 있어야 수집에 잡힌다',
   ).toBeVisible({ timeout: 15_000 });
 
   /*
-    How many rows already say 22, before anything is copied.
-
-    ★ Not a fixed number. The target model has one; the on-prem model has two, because the port
-      appears once in the firewall rule and again in the connection details. Asserting "two
-      afterwards" passes on one of them and fails on the other while nothing is actually wrong -
-      which is what happened the first time this check was written.
+    How many rows already say 22, before anything is copied. Not a fixed number - see above.
   */
   const before = await editor.rowsMatching('22').count();
 
@@ -1065,12 +1076,15 @@ Then(
     //   인프라는 장비가 한 대도 뜨지 않아도 *레코드*로 남는다. AWS 가 그 가용영역에 스펙 용량이
     //   없어 전량 실패한 적이 있는데, 그때도 행은 그대로 목록에 있었고 이 검사는 통과했다 —
     //   "네 대가 다 만들어졌다"고 말하면서 그중 하나는 빈 껍데기였다. 실제로 돌고 있는지까지 본다.
+    //   Running 이거나 Suspended 이면 장비는 만들어진 것이다. 확인이 끝난 트랙은 그 자리에서
+    //   멈추므로(구간3·5·6 끝), 여기까지 오면 트랙1·3 은 이미 Suspended 다. 빈 껍데기는 그
+    //   어느 쪽도 아니고, 상태 뒤의 개수도 0 이라 여전히 걸린다.
     const status = await getInfraStatus(page, infraId);
     console.log(`[인프라] ${infraId} = ${status}`);
     expect(
       status,
-      `${track} 번 트랙 인프라가 정상 상태가 아니다 (${status}) — 목록에 보이는 것과 실제로 떠 있는 것은 다르다`,
-    ).toMatch(/Running/i);
+      `${track} 번 트랙 인프라에 떠 있는 장비가 없다 (${status}) — 목록에 보이는 것과 실제로 만들어진 것은 다르다`,
+    ).toMatch(/(Running|Suspended):[1-9]/i);
   },
 );
 

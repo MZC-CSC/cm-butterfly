@@ -161,6 +161,56 @@ export class JsonEditorPage {
     });
   }
 
+  /**
+   * The port row of an IPv4 rule.
+   *
+   * ★ A collected firewall carries both families, so a port appears twice - once in a rule with
+   *   `0.0.0.0/0` and once in a rule with `::/0`. Which comes first is not ours to decide, and
+   *   copying the IPv6 one produces a rule cm-beetle will not carry into a recommendation: the port
+   *   ends up in the source model and nowhere else, while every step still reports success.
+   *   (2026-08-14. The target model came back with `no match` for 5555, and the source model had it
+   *   on `::/0`.)
+   *
+   *   The family is not on the port row - rows are flat, and `dstCIDR` is a sibling within the same
+   *   rule. So the rows are read as a list and the rule each port row belongs to is inspected.
+   *   The grid must not be filtered when this is called, or the sibling rows are not there to read.
+   */
+  async ipv4PortRow(value: string): Promise<Locator> {
+    const index = await this.gridRows.evaluateAll((rows, wanted) => {
+      const depthOf = (el: Element) =>
+        Number((el.className.match(/depth-(\d+)/) ?? [])[1] ?? '0');
+      const text = (el: Element, sel: string) =>
+        (el.querySelector(sel)?.textContent ?? '').trim();
+
+      for (let i = 0; i < rows.length; i++) {
+        if (text(rows[i], '.pg-value') !== wanted) continue;
+        const depth = depthOf(rows[i]);
+
+        // The rule this row sits in: everything from the nearest shallower row above until the
+        // next row at that same shallower depth.
+        let start = i;
+        while (start > 0 && depthOf(rows[start - 1]) >= depth) start--;
+        let end = i;
+        while (end + 1 < rows.length && depthOf(rows[end + 1]) >= depth) end++;
+
+        let ipv6 = false;
+        for (let k = start; k <= end; k++) {
+          if (text(rows[k], '.pg-value').includes('::/')) ipv6 = true;
+        }
+        if (!ipv6) return i;
+      }
+      return -1;
+    }, value);
+
+    if (index < 0) {
+      throw new Error(
+        `IPv4 규칙에서 값이 "${value}" 인 행을 찾지 못했다 — 표가 필터링돼 있으면 같은 규칙의 ` +
+          `dstCIDR 행이 보이지 않아 판별할 수 없다(필터를 켜지 않은 상태로 호출한다).`,
+      );
+    }
+    return this.gridRows.nth(index);
+  }
+
   /** The row whose *key* is this, for fields addressed by name rather than by value. */
   rowByKey(key: string): Locator {
     return this.gridRows

@@ -96,6 +96,22 @@ for pair in "nano ${TEST_SOURCE_NANO_IP:-}" "micro ${TEST_SOURCE_MICRO_IP:-}"; d
     if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -i "$SSH_KEY" "ubuntu@$HOST" \
         "timeout 5 bash -c '</dev/tcp/$ip/22'" 2>/dev/null; then
       say "소스 $label ($ip)" "호스트에서 SSH 도달"
+      # ★ 소프트웨어 마이그레이션의 소스가 되는 쪽은 nginx 가 *떠 있어야* 한다.
+      #   cm-grasshopper 는 소스의 실행 상태를 대상에서도 재현하려 하고, 대상은 설치 직후 자동
+      #   기동되므로, 소스가 꺼져 있으면 "active state mismatch" 로 검증이 실패한다. 부하 테스트도
+      #   대상의 nginx 가 떠 있어야 성립한다. (2026-08-14 구간8 실패)
+      if [ "$label" = "nano" ]; then
+        st="$(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=8 \
+               -i "${E2E_SOURCE_KEY:-$HOME/.ssh/e2e-source-key}" \
+               "ubuntu@$ip" 'systemctl is-active nginx' 2>/dev/null || true)"
+        if [ "$st" = "active" ]; then
+          say "  nginx (소프트웨어 소스)" "실행 중"
+        else
+          say "  nginx (소프트웨어 소스)" "❌ $st — 꺼져 있으면 SW 마이그레이션이 상태 불일치로 실패한다"
+          echo "     → ssh ubuntu@$ip 'sudo systemctl start nginx'"
+          fail=1
+        fi
+      fi
     else
       say "소스 $label ($ip)" "❌ 호스트에서 22 안 열림 — 서버가 꺼졌거나 사설 IP 가 아니다"; fail=1
     fi
