@@ -87,6 +87,7 @@ export function useControlMciNode(params: IControlMciNodeParams) {
 // (beetle internally calls tumblebug ReadAllInfra/ReadInfra and the response models are identical.)
 // GetInfra exists on both cb-tumblebug and cm-beetle, so operationId alone collides — we use explicit subsystem routing.
 const GET_ALL_MCI = 'cm-beetle/ListInfra';
+const GET_SECURITY_GROUP = 'cb-tumblebug/GetSecurityGroup';
 const GET_MCI_INFO = 'cm-beetle/GetInfra';
 const DELETE_INFRA = 'cm-beetle/DeleteInfra';
 // cm-beetle tracks requests by X-Request-Id (GET /request/{reqId} → Handling|Success|Error).
@@ -190,5 +191,22 @@ export function useDeleteMci(params: IDeleteMciParams, reqId?: string) {
 export function useGetBeetleRequest(reqId: string) {
   return useAxiosPost<IAxiosResponse<any>, any>(GET_BEETLE_REQUEST, {
     pathParams: { reqId },
+  });
+}
+
+/**
+ * Read one security group, with its rules.
+ *
+ * ★ Called only when the reader expands the group on the node detail - never while drawing a
+ *   list. Fanning a call out per row is what took the workloads screen down with 429s once
+ *   three infrastructures were present.
+ *
+ * ★ The answer is deliberately not cached. A security group can change, and a cached copy
+ *   cannot say that it did; a person who opens this is asking what the rules are *now*. The
+ *   call only goes out on an explicit click, so it comes nowhere near a rate limit.
+ */
+export function useGetSecurityGroup(nsId: string, securityGroupId: string) {
+  return useAxiosPost<IAxiosResponse<any>, any>(GET_SECURITY_GROUP, {
+    pathParams: { nsId, securityGroupId },
   });
 }
