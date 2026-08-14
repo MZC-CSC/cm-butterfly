@@ -266,17 +266,21 @@ export class JsonEditorPage {
   }
 
   /**
-   * The path of the item right after this one.
+   * The paths of every firewall rule currently in the document.
    *
-   * A duplicate lands immediately after its original, so this is where the copy is. Reaching for
-   * "the last row with that value" instead takes whatever slid down to make room.
+   * Taken before and after a duplication so the new one can be found by comparison. The alternative
+   * - assuming the copy lands at the next index - is a guess about what the editor does, and the
+   * index of any rule depends entirely on how the document was collected.
    */
-  nextIndexOf(itemPath: string): string {
-    const index = Number(itemPath.match(/\.(\d+)$/)?.[1] ?? NaN);
-    if (Number.isNaN(index)) {
-      throw new Error(`배열 항목 경로가 아니다: ${itemPath}`);
-    }
-    return itemPath.replace(/\.\d+$/, `.${index + 1}`);
+  async rulePaths(): Promise<string[]> {
+    return this.page.evaluate(() =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>('.pg-table tbody tr.pg-row'),
+      )
+        .map(r => r.dataset.path ?? '')
+        .filter(p => /\.dstPorts$/.test(p))
+        .map(p => p.replace(/\.dstPorts$/, '')),
+    );
   }
 
   /** The row whose *key* is this, for fields addressed by name rather than by value. */

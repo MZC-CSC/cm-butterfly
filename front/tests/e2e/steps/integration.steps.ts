@@ -391,25 +391,30 @@ async function openPortByDuplicating(page: Page): Promise<void> {
       removed.
   */
   const rulePath = await editor.rulePathOf(portRow);
-  await editor.duplicateRow(editor.rowAt(rulePath));
+  const portPath = `${rulePath}.dstPorts`;
+  const before = await editor.rowsMatching('22').count();
 
   /*
-    The copy lands immediately after the original, so its path is the next index.
+    Copy the rule, then change the row that was copied *from*.
 
-    ★ Not "the last row that says 22". Duplicating shifts every rule after it down by one, so the
-      IPv6 rule that used to be `firewallTable.18` becomes `.19` - and picking the last match takes
-      *that*, not the copy. The port then goes onto the IPv6 rule, which cm-beetle drops on the way
-      into a recommendation: it stays in the source model and reaches neither the target model nor
-      the machine, with every step still reporting success. Watched happen: copying `.6` produced
-      `.7` correctly while `.18` slid to `.19`. (2026-08-14)
+    ★ The two are identical, so which one is edited makes no difference to what the document ends
+      up holding - one rule allowing 22, one allowing 5555, both IPv4. And the original's path is
+      already in hand, while the copy's would have to be found.
+
+      Finding it is where this went wrong twice. Duplicating shifts every rule after the original
+      down one place, so "the last row that says 22" is whatever slid into that spot - here the
+      IPv6 rule, which cm-beetle drops on the way into a recommendation: the port stayed in the
+      source model and reached neither the target model nor the machine, with every step still
+      reporting success. Assuming the copy sits at the next index is the same guess in another
+      form, and where any rule sits depends on how the document was collected.
   */
-  const copyPath = editor.nextIndexOf(rulePath);
+  await editor.duplicateRow(editor.rowAt(rulePath));
   await expect(
-    editor.rowAt(`${copyPath}.dstPorts`),
+    editor.rowsMatching('22'),
     '22번 규칙이 복제되지 않았다 — 복제 버튼이 방화벽 규칙이 아닌 다른 항목에 눌렸을 수 있다',
-  ).toBeVisible({ timeout: 10_000 });
+  ).toHaveCount(before + 1, { timeout: 10_000 });
 
-  await editor.setRowValue(editor.rowAt(`${copyPath}.dstPorts`), '5555');
+  await editor.setRowValue(editor.rowAt(portPath), '5555');
 
   const family = await editor.familyOfRuleContaining('5555');
   expect(
@@ -428,7 +433,7 @@ async function openPortByDuplicating(page: Page): Promise<void> {
   //   a row that is not drawn cannot be found by any means; asking for the exact path says which
   //   row is meant and fails plainly when it is not there.
   await editor.search('5555');
-  const added = editor.rowAt(`${copyPath}.dstPorts`);
+  const added = editor.rowAt(portPath);
   await expect(
     added,
     '5555 규칙이 추가되지 않았다 — 복제한 행의 포트가 바뀌지 않았을 수 있다',
@@ -496,6 +501,15 @@ When(
     const editor = new JsonEditorPage(page);
     await editor.openFromTargetModel();
     await editor.switchToTable();
+    /*
+      Open the document out before searching.
+
+      ★ A folded node has no rows at all - they are absent from the DOM, not hidden - and the
+        search only narrows what is drawn. Searching a folded document finds nothing and reads as
+        "the port is not there", which is what happened while the port was sitting in the model all
+        along. (2026-08-14)
+    */
+    await editor.expandAll();
     await editor.search(query);
     await editor.enableFilter();
   },
