@@ -7,6 +7,7 @@ import {
   ILoadTestExecutionStep,
 } from '@/entities/mci/model';
 import LoadTestProgress from '@/widgets/workload/vm/loadTestProgress/ui/LoadTestProgress.vue';
+import SecurityGroupRules from '@/widgets/workload/vm/securityGroupRules/ui/SecurityGroupRules.vue';
 
 interface IProps {
   nsId: string;
@@ -50,7 +51,7 @@ onBeforeMount(() => {
 
 watch(
   () => props.vmId,
-  (newVmId) => {
+  newVmId => {
     setMci(props.mciId); // Refresh MCI data when VM changes
     setVmId(newVmId);
     remappingData();
@@ -60,7 +61,7 @@ watch(
 
 watch(
   () => props.lastloadtestStateResponse?.executionStatus,
-  (executionStatus) => {
+  executionStatus => {
     if (executionStatus) {
       mappdingLoadConfigStatus(executionStatus);
     }
@@ -118,6 +119,49 @@ watch(
           :failure-message="props.loadTestFailureMessage"
         />
         <span v-else>{{ data }}</span>
+      </template>
+      <!--
+        Security groups. The names come free with the node; the rules behind each one are
+        fetched when the reader expands it (SecurityGroupRules).
+
+        The slot always renders an element - a slot left as an empty comment makes
+        PDefinitionTable fall back to its default cell and dump the raw value
+        (DESIGN-MIRINAE §1.7).
+      -->
+      <template #data-securityGroups="{ data }">
+        <div v-if="data && data.length" class="flex flex-col gap-1">
+          <security-group-rules
+            v-for="sgId in data"
+            :key="sgId"
+            :ns-id="props.nsId"
+            :security-group-id="sgId"
+          />
+        </div>
+        <span v-else>--</span>
+      </template>
+      <template #data-spec="{ data }">
+        <span data-testid="node-info-spec">{{ data }}</span>
+      </template>
+      <template #data-image="{ data }">
+        <span data-testid="node-info-image">{{ data }}</span>
+      </template>
+      <template #data-vNet="{ data }">
+        <span data-testid="node-info-vnet">{{ data }}</span>
+      </template>
+      <template #data-subnet="{ data }">
+        <span data-testid="node-info-subnet">{{ data }}</span>
+      </template>
+      <template #data-sshKey="{ data }">
+        <span data-testid="node-info-sshkey">{{ data }}</span>
+      </template>
+      <template #data-rootDisk="{ data }">
+        <span data-testid="node-info-disk">{{ data }}</span>
+      </template>
+      <template #data-region="{ data }">
+        <span data-testid="node-info-region">{{ data }}</span>
+      </template>
+      <template #data-cspResourceId="{ data }">
+        <span data-testid="node-info-csp-resource-id">{{ data }}</span>
       </template>
       <template #data-provider="{ data }">
         <p-badge
