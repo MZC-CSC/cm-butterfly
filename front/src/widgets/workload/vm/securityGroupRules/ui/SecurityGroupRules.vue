@@ -113,8 +113,15 @@ function toggle() {
       :disabled="loading"
       @click="toggle"
     >
-      <span class="caret">{{ expanded ? '▾' : '▸' }}</span>
-      <span :data-testid="`node-sg-${props.securityGroupId}`">{{
+      <!--
+        Down when closed, up when open.
+
+        The rules open *below* the row, so the arrow points the way the panel will go - which is
+        how an accordion reads. A right-pointing arrow says "there is more beside this" and left
+        it unclear that anything would happen at all.
+      -->
+      <span class="caret">{{ expanded ? '▴' : '▾' }}</span>
+      <span class="sg-name" :data-testid="`node-sg-${props.securityGroupId}`">{{
         props.securityGroupId
       }}</span>
       <span v-if="loading" class="hint">loading…</span>
@@ -186,7 +193,19 @@ function toggle() {
   color: inherit;
 }
 .caret {
-  color: #6b7280;
+  /* Loud enough to read as a control. Grey made it look like punctuation. */
+  color: #2563eb;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+.sg-toggle:hover .caret,
+.sg-toggle:hover .sg-name {
+  color: #1d4ed8;
+}
+.sg-name {
+  color: #2563eb;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .hint {
   color: #6b7280;

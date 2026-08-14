@@ -3,6 +3,7 @@ export interface MciResponseData {
 }
 
 export type McisTableType =
+  | 'nsId'
   | 'name'
   | 'id'
   | 'status'
