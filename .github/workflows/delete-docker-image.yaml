@@ -1,0 +1,100 @@
+# Deletes a tag from Docker Hub, for cleaning up an image that should not have been published.
+#
+# This repository publishes two images from one release - `-api` and `-front` - so a tag that
+# needs removing usually needs removing from both. Which ones to act on is chosen at dispatch:
+# a build can fail for one image and succeed for the other, leaving exactly one to clean up.
+name: Delete Docker Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Docker tag to delete (e.g. 0.5.9)'
+        required: true
+        type: string
+      images:
+        description: 'Which images to delete the tag from'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - api
+          - front
+      confirm_delete:
+        description: '⚠️ This permanently deletes the image. Type "DELETE" to confirm'
+        required: true
+        type: string
+
+env:
+  DOCKER_REGISTRY_NAME: cloudbaristaorg
+  IMAGE_NAME: ${{ github.event.repository.name }}
+
+jobs:
+  delete-docker-image:
+    name: Delete Docker Image
+    runs-on: ubuntu-22.04
+    if: github.event.inputs.confirm_delete == 'DELETE'
+
+    steps:
+      - name: Validate tag name
+        run: |
+          TAG_NAME="${{ github.event.inputs.tag_name }}"
+          if [[ ! "$TAG_NAME" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+            echo "Tag name may only contain letters, digits, dots, underscores and hyphens."
+            exit 1
+          fi
+          echo "Tag to delete: $TAG_NAME"
+
+      - name: Delete the tag
+        run: |
+          TAG_NAME="${{ github.event.inputs.tag_name }}"
+          CHOICE="${{ github.event.inputs.images }}"
+
+          case "$CHOICE" in
+            both)  SUFFIXES="api front" ;;
+            api)   SUFFIXES="api" ;;
+            front) SUFFIXES="front" ;;
+          esac
+
+          # A token is asked for once and reused, since two deletions are the normal case.
+          TOKEN=$(curl -s -H "Content-Type: application/json" \
+            -d "{\"username\": \"${{ secrets.DOCKER_USERNAME }}\", \"password\": \"${{ secrets.DOCKER_PASSWORD }}\"}" \
+            https://hub.docker.com/v2/users/login/ | python3 -c 'import sys,json; print(json.load(sys.stdin).get("token",""))')
+
+          if [ -z "$TOKEN" ]; then
+            echo "Could not authenticate to Docker Hub."
+            exit 1
+          fi
+
+          FAILED=0
+          for SUFFIX in $SUFFIXES; do
+            REPO="${{ env.DOCKER_REGISTRY_NAME }}/${{ env.IMAGE_NAME }}-$SUFFIX"
+            URL="https://hub.docker.com/v2/repositories/$REPO/tags/$TAG_NAME/"
+
+            EXISTS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
+            if [ "$EXISTS" != "200" ]; then
+              # Not an error: the point is that the tag is gone, and it already is.
+              echo "$REPO:$TAG_NAME is not there ($EXISTS) - nothing to delete."
+              continue
+            fi
+
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+              -H "Authorization: JWT $TOKEN" "$URL")
+
+            if [ "$CODE" = "204" ] || [ "$CODE" = "202" ]; then
+              echo "Deleted $REPO:$TAG_NAME"
+            else
+              echo "Failed to delete $REPO:$TAG_NAME (HTTP $CODE)"
+              FAILED=1
+            fi
+          done
+
+          exit $FAILED
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Delete Docker Image" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag**: ${{ github.event.inputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Images**: ${{ github.event.inputs.images }}" >> $GITHUB_STEP_SUMMARY
