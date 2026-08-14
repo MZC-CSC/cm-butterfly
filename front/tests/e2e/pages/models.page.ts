@@ -620,9 +620,11 @@ export class ModelsPage {
    *   but *fake values* like `string` are not "empty" and slipped through. So we decide by the
    *   `data-complete` marker the front attaches by inspecting the model values themselves (based on useRecommendedInfraModel.hasMissingRequiredFields).
    *
-   *   Selection policy — among complete candidates, pick the *largest* spec that is at or below the cost cap (maxClass) (the cap is
-   *   still kept for cost protection). If there is no complete candidate at all, throw an exception — in that case the problem is not the front but
-   *   that the cm-beetle recommendation response fails to fill the values, so it must be verified in parallel at the source level.
+   *   Selection policy — among complete candidates within the cost cap (maxClass), take the
+   *   *cheapest*. That is what someone following a recommendation gets, and it is what the track
+   *   claims to demonstrate. If there is no complete candidate at all, throw an exception — in that
+   *   case the problem is not the front but that the cm-beetle recommendation response fails to fill
+   *   the values, so it must be verified in parallel at the source level.
    */
   async selectCompleteCandidate(
     maxClass: string,
@@ -630,11 +632,11 @@ export class ModelsPage {
     const rows = this.recommendRows;
     const count = await rows.count();
     let bestIndex = -1;
-    let bestRank = -1;
     let bestSpec = '';
-    let bestPrice = 0;
+    let bestPrice = Number.POSITIVE_INFINITY;
     let completeCount = 0;
     let incompleteCount = 0;
+    let unpricedCount = 0;
 
     for (let i = 0; i < count; i++) {
       const marker = rows
@@ -661,31 +663,48 @@ export class ModelsPage {
       // Keep the cost cap as is (only when the class can be determined). If it cannot, let it pass.
       if (spec && !isSpecWithinClass(spec, maxClass)) continue;
 
-      const token = Object.keys(SPEC_CLASS_RANK).find(k =>
-        spec.toLowerCase().includes(k),
-      );
-      const rank = token ? SPEC_CLASS_RANK[token] : 0;
+      /*
+        The cheapest one, because that is what a recommendation is for.
+
+        ★ This used to take the *largest* spec under the cap, and it showed: a t3.nano source
+          produced a t3a.medium machine. cm-beetle had recommended t3a.nano at $0.0059/hour and
+          ranked it first; the choice here walked past it to the biggest thing it was allowed to
+          take. Nobody migrating a nano wants a medium, and the take then demonstrated the
+          opposite of what the track claims - that following the recommendation gives you what
+          the recommendation said.
+
+        The price comes from the cell, which reads `4.2480/mon (0.00590/hour)USD`. A row whose
+        price cannot be read is not silently treated as free - it is skipped, and if that leaves
+        nothing the error below says so. Treating an unreadable price as zero would make it win.
+      */
       const priceMatch = text.match(/([\d.]+)\s*\/\s*mon/i);
-      if (rank > bestRank) {
-        bestRank = rank;
+      if (!priceMatch) {
+        unpricedCount++;
+        continue;
+      }
+      const price = parseFloat(priceMatch[1]);
+      if (bestIndex < 0 || price < bestPrice) {
         bestIndex = i;
         bestSpec = spec;
-        bestPrice = priceMatch ? parseFloat(priceMatch[1]) : 0;
+        bestPrice = price;
       }
     }
 
     if (bestIndex < 0) {
       throw new Error(
-        `추천 결과에 완전한(data-complete=true) 후보가 "${maxClass}" 급 이하로 없다 — ` +
-          `후보 ${count}개 중 완전 ${completeCount}·불완전 ${incompleteCount}. ` +
+        `추천 결과에서 고를 수 있는 후보가 없다 — 후보 ${count}개 중 ` +
+          `완전 ${completeCount}·불완전 ${incompleteCount}·가격을 읽지 못한 것 ${unpricedCount}, ` +
+          `"${maxClass}" 급 이하 조건. ` +
           `완전 후보가 0개이면 문제는 프론트가 아니라 cm-beetle 추천 응답이 spec/image를 ` +
-          `채우지 못하는 것이므로 RecommendVmInfraCandidates 응답을 소스레벨로 병행 검증해야 한다.`,
+          `채우지 못하는 것이므로 RecommendVmInfraCandidates 응답을 소스레벨로 병행 검증해야 한다. ` +
+          `가격을 읽지 못한 것만 남았다면 화면의 비용 열 표기가 바뀐 것이다(예: "4.2480/mon (0.00590/hour)USD").`,
       );
     }
 
     await humanClick(rows.nth(bestIndex));
     console.log(
-      `[recommend] selected a complete candidate (by marker): ${bestSpec} — complete ${completeCount}/${count}, incomplete ${incompleteCount}`,
+      `[recommend] cheapest complete candidate: ${bestSpec} at ${bestPrice}/mon — ` +
+        `complete ${completeCount}/${count}, incomplete ${incompleteCount}, unpriced ${unpricedCount}`,
     );
     return { spec: bestSpec, monthlyPrice: bestPrice };
   }

@@ -41,7 +41,40 @@ const { Given, When, Then } = createBdd(test);
  * Both are judged by their real result instead.
  */
 
-// ── 구간1: the migration guide and the help panel ───────────────────────
+// ── 구간1: the first-visit guidance, the migration guide and the help panel ──
+
+/**
+ * The welcome someone with nothing here yet is shown, once.
+ *
+ * ★ It is asserted rather than dismissed if present. The console offers it only while the reader
+ *   is still on step 1 - one source group left behind by an earlier run is enough to stop it
+ *   appearing. Passing either way would mean the take shows the opening a first-time reader sees
+ *   on some runs and not on others, with nothing to say which. `record-all.sh` clears the data
+ *   before a take so this holds; a single-segment retake needs the same.
+ *
+ *   Both of these were seen on 2026-08-14: the first take failed here because the modal covered
+ *   the guide and nothing dealt with it, and the second passed because the modal never appeared.
+ */
+Then('처음 방문 안내가 보인다', async ({ page }) => {
+  await expect(page.getByTestId('guided-setup-welcome')).toBeVisible({
+    timeout: 20_000,
+  });
+});
+
+Then('안내에 마이그레이션 다섯 단계가 보인다', async ({ page }) => {
+  const steps = page.getByTestId('guided-setup-welcome-steps');
+  await expect(steps).toBeVisible();
+  // Five, because that is what the guide screen also counts. A different number here and the two
+  // screens disagree about what the migration is.
+  await expect(steps.locator('li')).toHaveCount(5);
+});
+
+When('안내에서 시작을 누르면', async ({ page }) => {
+  await humanClick(page.getByTestId('guided-setup-welcome-start'));
+  await expect(page.getByTestId('guided-setup-welcome')).toBeHidden({
+    timeout: 15_000,
+  });
+});
 
 When('마이그레이션 가이드 화면을 열면', async ({ page }) => {
   await openScreen(page, 'migrationguide', '/main/migration-guide');
@@ -1014,6 +1047,28 @@ Given(
     scenarioState.infraName = infraId;
     scenarioState.infraId = infraId;
     await new WorkloadPage(page).selectMci(infraId);
+  },
+);
+
+/**
+ * Stop a track's infra once there is nothing left to do with it.
+ *
+ * Three of the four tracks exist to show that a value changed at their own point reaches the
+ * machine that gets built. Once that is on screen, the machine has served its purpose - and four
+ * of them running until the cleanup segment is simply four machines being paid for. Only track 2
+ * stays up, because the software migration and the load test run against it.
+ *
+ * Stopped, not deleted. The cleanup segment still has to show a deletion, and the workload list
+ * still has to show all four side by side in 구간6b.
+ */
+Given(
+  '{string} 번 트랙이 만든 인프라를 중지한다',
+  async ({ page }, track: string) => {
+    const infraId = infraFor(track);
+    const wl = new WorkloadPage(page);
+    await wl.gotoMci();
+    await wl.selectMci(infraId);
+    await wl.stopInstance(infraId);
   },
 );
 
