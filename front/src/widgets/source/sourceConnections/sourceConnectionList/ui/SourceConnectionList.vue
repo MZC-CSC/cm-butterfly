@@ -369,6 +369,7 @@ function handleSourceConnectionList() {
               !tableModel.tableState.loading
             "
             ref="toolboxTableRef"
+            data-testid="source-connection-list-table"
             :items="tableModel.tableState.displayItems"
             :fields="tableModel.tableState.fields"
             :total-count="tableModel.tableState.tableCount"

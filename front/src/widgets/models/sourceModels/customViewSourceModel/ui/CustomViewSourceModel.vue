@@ -65,26 +65,42 @@ watch(
     targetModel.value = sourceModelStore.getSourceModelById(
       props.sourceModelId,
     );
-    
+
     // Log output for debugging
     console.log('=== CustomViewSourceModel Debug Info ===');
     console.log('targetModel.value:', targetModel.value);
-    console.log('isSoftwareModel (from targetModel):', targetModel.value?.isSoftwareModel);
+    console.log(
+      'isSoftwareModel (from targetModel):',
+      targetModel.value?.isSoftwareModel,
+    );
     console.log('migrationType:', targetModel.value?.migrationType);
     console.log('computed isSoftwareModel:', isSoftwareModel.value);
     console.log('onpremiseInfraModel:', targetModel.value?.onpremiseInfraModel);
     console.log('sourceSoftwareModel:', targetModel.value?.sourceSoftwareModel);
-    console.log('connection_info_list:', targetModel.value?.connection_info_list);
-    console.log('connection_info_list type:', typeof targetModel.value?.connection_info_list);
-    console.log('connection_info_list length:', targetModel.value?.connection_info_list?.length);
+    console.log(
+      'connection_info_list:',
+      targetModel.value?.connection_info_list,
+    );
+    console.log(
+      'connection_info_list type:',
+      typeof targetModel.value?.connection_info_list,
+    );
+    console.log(
+      'connection_info_list length:',
+      targetModel.value?.connection_info_list?.length,
+    );
     console.log('=====================================');
-    
+
     // Handle the data differently depending on migrationType
     if (isSoftwareModel.value) {
       // For a Software model
       if (targetModel.value?.sourceSoftwareModel) {
         try {
-          serverCode.value = JSON.stringify(targetModel.value.sourceSoftwareModel, null, 2);
+          serverCode.value = JSON.stringify(
+            targetModel.value.sourceSoftwareModel,
+            null,
+            2,
+          );
         } catch (error) {
           console.error('Failed to stringify software data:', error);
           serverCode.value = '';
@@ -136,13 +152,16 @@ function handleSaveModal(e) {
     };
 
     console.log('Software request body:', softwareRequestBody);
-    
+
     resCreateSoftwareModel
       .execute({
         request: softwareRequestBody,
       })
       .then(res => {
-        showSuccessMessage('success', 'Successfully created software source model');
+        showSuccessMessage(
+          'success',
+          'Successfully created software source model',
+        );
         emit('update:close-modal', false);
         emit('update:trigger');
         modalState.open = false;
@@ -165,20 +184,25 @@ function handleSaveModal(e) {
       onpremiseInfraModel: {
         nodes: JSON.parse(serverCode.value),
         network: {
-          ipv4Networks: targetModel.value.onpremiseInfraModel.network?.ipv4Networks || [],
-          ipv6Networks: targetModel.value.onpremiseInfraModel.network?.ipv6Networks || [],
+          ipv4Networks:
+            targetModel.value.onpremiseInfraModel.network?.ipv4Networks || [],
+          ipv6Networks:
+            targetModel.value.onpremiseInfraModel.network?.ipv6Networks || [],
         },
       },
     };
 
     console.log('Infra request body:', infraRequestBody);
-    
+
     resCreateSourceModel
       .execute({
         request: infraRequestBody,
       })
       .then(res => {
-        showSuccessMessage('success', 'Successfully created infra source model');
+        showSuccessMessage(
+          'success',
+          'Successfully created infra source model',
+        );
         emit('update:close-modal', false);
         emit('update:trigger');
         modalState.open = false;
@@ -220,7 +244,11 @@ function handleCodeUpdate(value: string) {
         </div>
       </template>
       <template #buttons>
-        <p-button style-type="tertiary" @click="handleModal">
+        <p-button
+          style-type="tertiary"
+          data-testid="source-custom-cancel"
+          @click="handleModal"
+        >
           {{ i18n.t('COMPONENT.BUTTON_MODAL.CANCEL') }}
         </p-button>
         <p-button data-testid="create-form-save" @click="handleSave">
