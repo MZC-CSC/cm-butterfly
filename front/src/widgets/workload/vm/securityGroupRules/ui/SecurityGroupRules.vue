@@ -193,10 +193,14 @@ function toggle() {
   color: inherit;
 }
 .caret {
-  /* Loud enough to read as a control. Grey made it look like punctuation. */
+  /*
+    Loud enough to read as a control. Grey made it look like punctuation, and at 0.75rem the
+    glyph came out smaller than the text beside it - so it read as a mark rather than a button.
+  */
   color: #2563eb;
-  font-size: 0.75rem;
+  font-size: 1.125rem;
   line-height: 1;
+  font-weight: 700;
 }
 .sg-toggle:hover .caret,
 .sg-toggle:hover .sg-name {
