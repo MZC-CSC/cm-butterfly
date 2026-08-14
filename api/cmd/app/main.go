@@ -59,6 +59,7 @@ func main() {
 	authHandler := handler.NewAuthHandler(db)
 	diskHandler := handler.NewDiskHandler()
 	menuHandler := handler.NewMenuHandler()
+	healthHandler := handler.NewHealthHandler()
 	workspaceHandler := handler.NewWorkspaceHandler()
 
 	// API routes
@@ -76,6 +77,11 @@ func main() {
 
 	// API routes (with auth middleware)
 	api := e.Group(apiPath, middleware.AuthMiddleware(db))
+
+	// Whether the linked services are answering. Behind the auth middleware: it
+	// reports which services exist and where their specifications come from, which
+	// is not for anyone who has not signed in.
+	api.POST("/health/subsystems", healthHandler.Subsystems)
 
 	// Disk endpoints
 	api.POST("/disklookup", diskHandler.DiskLookup)
