@@ -243,6 +243,42 @@ export class JsonEditorPage {
     );
   }
 
+  /** The row at this document path. */
+  rowAt(path: string): Locator {
+    return this.page.locator(`[data-path="${path}"]`);
+  }
+
+  /**
+   * The path of the array item this field belongs to.
+   *
+   * ★ Not worked out by walking up until the indentation shallows - that is a guess about where one
+   *   item ends and the next begins, and it kept landing one rule over. A row carrying
+   *   `$.0.firewallTable.6.dstPorts` says outright that its item is `$.0.firewallTable.6`.
+   */
+  async rulePathOf(row: Locator): Promise<string> {
+    const path = await row.getAttribute('data-path');
+    if (!path) {
+      throw new Error(
+        '행에 data-path 가 없다 — 이 판이 오래된 이미지다. 경로 없이는 어느 규칙인지 짚을 수 없다.',
+      );
+    }
+    return path.replace(/\.[^.]+$/, '');
+  }
+
+  /**
+   * The path of the item right after this one.
+   *
+   * A duplicate lands immediately after its original, so this is where the copy is. Reaching for
+   * "the last row with that value" instead takes whatever slid down to make room.
+   */
+  nextIndexOf(itemPath: string): string {
+    const index = Number(itemPath.match(/\.(\d+)$/)?.[1] ?? NaN);
+    if (Number.isNaN(index)) {
+      throw new Error(`배열 항목 경로가 아니다: ${itemPath}`);
+    }
+    return itemPath.replace(/\.\d+$/, `.${index + 1}`);
+  }
+
   /** The row whose *key* is this, for fields addressed by name rather than by value. */
   rowByKey(key: string): Locator {
     return this.gridRows

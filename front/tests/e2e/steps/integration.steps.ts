@@ -384,37 +384,33 @@ async function openPortByDuplicating(page: Page): Promise<void> {
   ).toBeVisible({ timeout: 15_000 });
 
   /*
-    How many rows already say 22, before anything is copied. Not a fixed number - see above.
-  */
-  const before = await editor.rowsMatching('22').count();
+    The rule to copy, taken by its path rather than by walking up from the port row.
 
-  const item = await editor.enclosingItem(portRow);
-  await editor.duplicateRow(item);
+    ★ Walking up meant deciding where a rule begins, and it kept landing one rule over. The row
+      knows its own path (`$.0.firewallTable.6.dstPorts`); the rule is that path with the field
+      removed.
+  */
+  const rulePath = await editor.rulePathOf(portRow);
+  await editor.duplicateRow(editor.rowAt(rulePath));
 
   /*
-    Say it here if the copy was not made.
+    The copy lands immediately after the original, so its path is the next index.
 
-    Without this the next line waits fifteen seconds for a row that was never created and reports a
-    double-click that timed out - which points at the editing, not at the duplication that actually
-    went wrong. It is the difference between "the copy is missing" and "a cell would not open".
+    ★ Not "the last row that says 22". Duplicating shifts every rule after it down by one, so the
+      IPv6 rule that used to be `firewallTable.18` becomes `.19` - and picking the last match takes
+      *that*, not the copy. The port then goes onto the IPv6 rule, which cm-beetle drops on the way
+      into a recommendation: it stays in the source model and reaches neither the target model nor
+      the machine, with every step still reporting success. Watched happen: copying `.6` produced
+      `.7` correctly while `.18` slid to `.19`. (2026-08-14)
   */
+  const copyPath = editor.nextIndexOf(rulePath);
   await expect(
-    editor.rowsMatching('22'),
+    editor.rowAt(`${copyPath}.dstPorts`),
     '22번 규칙이 복제되지 않았다 — 복제 버튼이 방화벽 규칙이 아닌 다른 항목에 눌렸을 수 있다',
-  ).toHaveCount(before + 1, { timeout: 10_000 });
+  ).toBeVisible({ timeout: 10_000 });
 
-  // The copy sits right after the original, so it is the last of the rows matching 22.
-  const copy = editor.rowsMatching('22').nth(before);
-  await editor.setRowValue(copy, '5555');
+  await editor.setRowValue(editor.rowAt(`${copyPath}.dstPorts`), '5555');
 
-  /*
-    The new rule has to be an IPv4 one, checked here rather than three steps later.
-
-    ★ cm-beetle drops IPv6 rules on the way into a recommendation, so a copy taken from the wrong
-      family leaves the port in the model and nowhere else - and the run carries on reporting
-      success until the target model turns up without it. Saying so at the moment of the copy names
-      what went wrong; the later failure only says a port is missing.
-  */
   const family = await editor.familyOfRuleContaining('5555');
   expect(
     family,
@@ -424,12 +420,15 @@ async function openPortByDuplicating(page: Page): Promise<void> {
 
   // Now show that it is there.
   //
-  // ★ The grid is filtered to rows matching 22, so the moment the copy becomes 5555 it drops out of
-  //   the view - on screen the rule appears to have been typed and then lost, and nothing says the
-  //   port was added. Searching for the new value brings it back into a view that contains only it,
-  //   which is the thing worth looking at.
+  // ★ Searching brings the new value into view - the grid was showing rows that say 22, and the
+  //   copy stopped saying that the moment it became 5555. On screen the rule would otherwise appear
+  //   to have been typed and then lost.
+  //
+  //   The row is taken by its path rather than by its value. A search narrows what is *drawn*, and
+  //   a row that is not drawn cannot be found by any means; asking for the exact path says which
+  //   row is meant and fails plainly when it is not there.
   await editor.search('5555');
-  const added = editor.row('5555');
+  const added = editor.rowAt(`${copyPath}.dstPorts`);
   await expect(
     added,
     '5555 규칙이 추가되지 않았다 — 복제한 행의 포트가 바뀌지 않았을 수 있다',
