@@ -369,6 +369,18 @@ async function openPortByDuplicating(page: Page): Promise<void> {
   const item = await editor.enclosingItem(portRow);
   await editor.duplicateRow(item);
 
+  /*
+    Say it here if the copy was not made.
+
+    Without this the next line waits fifteen seconds for a row that was never created and reports a
+    double-click that timed out - which points at the editing, not at the duplication that actually
+    went wrong. It is the difference between "the copy is missing" and "a cell would not open".
+  */
+  await expect(
+    editor.rowsMatching('22'),
+    '22번 규칙이 복제되지 않았다 — 복제 버튼이 방화벽 규칙이 아닌 다른 항목에 눌렸을 수 있다',
+  ).toHaveCount(2, { timeout: 10_000 });
+
   // The copy is the second row now matching 22; changing it leaves the original alone.
   const copy = editor.rowsMatching('22').nth(1);
   await editor.setRowValue(copy, '5555');

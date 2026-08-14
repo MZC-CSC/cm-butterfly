@@ -202,19 +202,31 @@ export class JsonEditorPage {
    */
   async enclosingItem(row: Locator): Promise<Locator> {
     const rows = this.gridRows;
-    const total = await rows.count();
-    const target = await row.getAttribute('class');
     const depthOf = (cls: string | null) =>
       Number((cls ?? '').match(/depth-(\d+)/)?.[1] ?? '0');
-    const want = depthOf(target);
+    const want = depthOf(await row.getAttribute('class'));
 
-    let index = -1;
-    for (let i = 0; i < total; i++) {
-      if ((await rows.nth(i).getAttribute('class')) === target) {
-        index = i;
-        break;
-      }
-    }
+    /*
+      Where this row actually sits, asked of the row itself.
+
+      ★ It used to find the position by scanning for the first row whose `class` string matched.
+        Class carries depth, not identity - every row at the same depth has the same one - so the
+        scan stopped at whichever row came first and called it the target. The walk upwards then
+        started from a stranger, and the copy was taken of whatever array item happened to enclose
+        *that*.
+
+        Seen on 2026-08-14: filtering the grid to `22` also brings in the image rows, because the
+        AMI id was `ami-05fa22e12f2cb12aa`. The port rule was found correctly, the position was
+        not, and the duplicate landed inside the image subtree. Nothing failed at that moment -
+        it surfaced fifteen seconds later as a second `22` row that was never created.
+    */
+    const index = await row.evaluate(el => {
+      const body = el.closest('tbody');
+      if (!body) return -1;
+      return Array.from(body.querySelectorAll('tr.pg-row')).indexOf(el);
+    });
+    if (index < 0) return row;
+
     for (let i = index - 1; i >= 0; i--) {
       const candidate = rows.nth(i);
       if (depthOf(await candidate.getAttribute('class')) >= want) continue;
