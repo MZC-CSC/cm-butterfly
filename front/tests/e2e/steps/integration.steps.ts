@@ -464,6 +464,22 @@ async function openPortByDuplicating(page: Page): Promise<void> {
       reporting success. Assuming the copy sits at the next index is the same guess in another
       form, and where any rule sits depends on how the document was collected.
   */
+  /*
+    복제하기 전에 *다음 규칙의 포트 줄까지* 화면에 들어오게 한다.
+
+    ★ 복제하면 바로 아래에 사본이 생기는데, 그 자리가 화면 밖이면 **22 가 두 개가 됐다는 것이
+      영상에 남지 않는다.** 실제로 [3]·[4] 의 Ports 만 보이고 새로 생긴 [5] 는 아래로 밀려 나가
+      무엇이 일어났는지 알 수 없었다(2026-08-19 사용자 지적).
+
+      복제한 뒤에 옮기면 화면이 한 번 튀므로, *누르기 전에* 자리를 잡아 둔다.
+  */
+  const nextRule = rulePath.replace(/\.(\d+)$/, (_, n) => `.${Number(n) + 1}`);
+  const below = editor.portRowOf(nextRule);
+  if (await below.count()) {
+    await below.scrollIntoViewIfNeeded().catch(() => {});
+    await page.waitForTimeout(600);
+  }
+
   await editor.duplicateRow(editor.rowAt(rulePath));
   /*
     Open it out again. The new item arrives folded, so its fields are not rows yet - the rule count

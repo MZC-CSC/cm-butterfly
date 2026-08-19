@@ -823,9 +823,8 @@ export class WorkflowPage {
   }
 
   async setSpecInWorkflow(size: string): Promise<string> {
-    // 스펙은 노드 그룹 아래에 있다.
+    // 스펙은 노드 그룹 아래에 있다. 그 자리까지만 열고 나머지는 건드리지 않는다.
     await this.openPathTo('body_params.targetInfra.nodeGroups[0]');
-    await this.expandAllParams();
 
     // ★ Only the node's own spec counts, and it is found by its *path*.
     //
@@ -935,7 +934,8 @@ export class WorkflowPage {
     const nextIndex = before.length ? Math.max(...before) + 1 : 0;
 
     await humanClick(this.page.getByTestId(`wf-array-add-${rules}`));
-    await this.expandAllParams();
+    // 새로 생긴 항목만 연다 — 전부 펼치면 화면이 다시 클릭만 반복한다.
+    await this.openPathTo(`${rules}[${nextIndex}]`);
 
     const field = (name: string) =>
       this.page.getByTestId(`wf-field-${rules}[${nextIndex}].${name}`);
