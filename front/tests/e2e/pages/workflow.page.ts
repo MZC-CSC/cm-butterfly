@@ -1326,10 +1326,32 @@ export class WorkflowPage {
     //   작업을 고르자마자 확인 창이 떠 버리면, 보는 사람은 *무엇을 눌러서* 그 창이 떴는지 알 수
     //   없다. 커서가 버튼에 닿고 한 박자 쉬었다 눌러야 누른 것이 보인다. (2026-07-31)
     await button.scrollIntoViewIfNeeded().catch(() => {});
-    await humanClick(button, { pauseBeforeMs: 700 });
 
+    /*
+      눌렸는지를 *결과*로 판정한다.
+
+      ★ 미리내는 비활성을 표준 속성이 아니라 클래스로만 표현한다(DESIGN-MIRINAE §1.6).
+        이 버튼은 실행이 도는 동안 잠기는데, 잠긴 버튼을 눌러도 Playwright 는 아무 불평 없이
+        지나가고 화면에서는 **아무 일도 일어나지 않는다**. 그러고는 20초 뒤 확인 창이 없다는
+        엉뚱한 자리에서 죽는다(2026-08-19 구간8b 가 그것이었다).
+
+        앞 단계의 재실행이 막 끝난 참이라 화면이 아직 '도는 중'을 붙들고 있을 수 있다.
+        확인 창이 뜰 때까지 몇 번 더 눌러 본다 - 뜨면 눌린 것이고, 끝내 안 뜨면 그때 실패한다.
+    */
     const confirm = this.page.getByTestId('workflow-rerun-confirm');
-    await expect(confirm).toBeVisible({ timeout: 20_000 });
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await humanClick(button, { pauseBeforeMs: attempt === 0 ? 700 : 150 });
+      const shown = await confirm
+        .isVisible({ timeout: 5_000 })
+        .catch(() => false);
+      if (shown) break;
+      await this.page.waitForTimeout(3_000);
+    }
+
+    await expect(
+      confirm,
+      '재실행 확인 창이 뜨지 않는다 - 버튼이 잠겨 있어 클릭이 먹지 않았을 수 있다',
+    ).toBeVisible({ timeout: 20_000 });
     await spotlight(
       this.page,
       this.page.getByTestId('workflow-rerun-target').first(),
