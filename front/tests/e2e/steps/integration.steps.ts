@@ -1162,7 +1162,10 @@ Then(
       노드는 이 스텝이 직접 고른다. 앞 단계는 *목록*까지만 열어 두고, Spec 은 *상세*에 있다 —
       카드를 눌러야 나온다(2026-08-19 실측). 구간을 따로 돌릴 때도 앞 단계에 기대지 않는다.
     */
-    await new WorkloadPage(page).selectNode('');
+    const wl = new WorkloadPage(page);
+    await wl.openServerTab().catch(() => {});
+    await page.waitForTimeout(1_500);
+    await wl.selectNode('');
     await page.waitForTimeout(2_000);
 
     /*
@@ -1201,7 +1204,17 @@ Then(
 Then(
   '워크로드 상세의 보안그룹에서 {string} 포트를 확인한다',
   async ({ page }, port: string) => {
-    await new WorkloadPage(page).selectNode('');
+    /*
+      서버 탭을 이 스텝이 연다.
+
+      ★ 노드는 *Server* 탭에 있고, 인프라를 고르면 열리는 것은 *Detail* 탭이다. 구간4 는 앞에
+        "노드 목록이 보인다" 단계가 있어 탭이 열려 있었지만 구간6 에는 그 단계가 없어, 같은
+        스텝이 거기서만 "노드를 찾을 수 없다"로 죽었다(2026-08-19). 앞 단계에 기대지 않는다.
+    */
+    const wl = new WorkloadPage(page);
+    await wl.openServerTab().catch(() => {});
+    await page.waitForTimeout(1_500);
+    await wl.selectNode('');
     await page.waitForTimeout(2_000);
 
     const toggle = page.locator('[data-testid^="node-sg-toggle-"]').first();

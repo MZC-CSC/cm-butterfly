@@ -111,19 +111,21 @@ cat > "$PYWORK/blank.py" <<'PY'
 import glob, os, sys
 from PIL import Image
 
-# 글자가 사실상 없는 프레임 = 보여줄 것이 없는 화면.
+# 보여줄 것이 없는 화면 = *고른* 화면.
+#
+# ★ 어둡기로 재지 않는다. 흰 바탕의 콘솔 화면은 320px 로 줄이면 글자가 옅은 회색이 되어
+#   "어두운 픽셀"이 거의 없다. 주소창을 잘라내 어두운 껍데기까지 사라지면 멀쩡한 화면이
+#   빈 화면으로 잡힌다(2026-08-19 실제로 그렇게 잘려 나갔다).
+#   빈 화면은 흰색이든 검은색이든 고르고, 내용이 있으면 고르지 않다.
 frames = sorted(glob.glob(os.path.join(sys.argv[1], "*.png")))
 for i, p in enumerate(frames):
     im = Image.open(p).convert("L")
     px = im.load()
     w, h = im.size
-    ink = tot = 0
-    for y in range(0, h, 2):
-        for x in range(0, w, 2):
-            tot += 1
-            if px[x, y] < 160:
-                ink += 1
-    if tot and ink * 1000 // tot < 1:      # 천분율 1 미만
+    vals = [px[x, y] for y in range(0, h, 2) for x in range(0, w, 2)]
+    mean = sum(vals) / len(vals)
+    sd = (sum((v - mean) ** 2 for v in vals) / len(vals)) ** 0.5
+    if sd < 4:
         print("%.2f" % (i / 4))
 PY
 

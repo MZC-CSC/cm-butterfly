@@ -131,39 +131,41 @@ for i, p in enumerate(frames):
     im = Image.open(p).convert("L")
     px = im.load()
     w, h = im.size
-    light = ink = tot = 0
-    for y in range(0, h, 3):
-        for x in range(0, w, 3):
-            tot += 1
-            v = px[x, y]
-            if v > 120:
-                light += 1
-            elif v < 110:
-                ink += 1
-    # 밝기만 보면 부족하다 - 창은 떴는데 페이지가 아직 비어 있는 about:blank 도 밝다.
-    # 글자가 어느 정도 있어야 *보여줄 것이 있는* 화면이다.
-    if tot and light * 100 // tot > 50 and ink * 1000 // tot >= 3:
+    vals = [px[x, y] for y in range(0, h, 3) for x in range(0, w, 3)]
+
+    # *변화량*으로 본다 - 어둡기로 보면 안 된다.
+    #
+    # ★ 예전에는 "어두운 픽셀이 얼마나 있나"로 글자 유무를 재고 있었다. 그때는 화면에 브라우저
+    #   껍데기(어두운 탭 줄)가 함께 담겨 있어 그 값이 저절로 채워졌다. **주소창을 잘라내기
+    #   시작하면서 그 공급원이 사라졌고**, 흰 바탕의 콘솔 화면이 통째로 "빈 화면"으로 판정돼
+    #   234초짜리가 69초로, 40초짜리가 3초로 잘려 나갔다(2026-08-19).
+    #
+    #   진짜 빈 화면은 흰색이든 검은색이든 *고르다*. 내용이 있으면 고르지 않다. 그것만 보면 된다.
+    mean = sum(vals) / len(vals)
+    sd = (sum((v - mean) ** 2 for v in vals) / len(vals)) ** 0.5
+    if sd >= 4:
         good.append(i / 2)
 print("%.2f %.2f" % (good[0], good[-1]) if good else "0 0")
 PY
 )"
 START="$(echo "$BOUNDS" | cut -d' ' -f1)"
 STOP="$(echo "$BOUNDS" | cut -d' ' -f2)"
+# 원본은 *손대지 않은 것*이어야 한다.
+#
+# ★ 예전에는 앞뒤를 다듬은 결과를 원본/ 에 넣고 찍은 그대로는 지웠다. 그런데 그 다듬기가 바로
+#   내용을 잘라먹은 장본인이었고, 지워 버린 탓에 되돌릴 수도 없었다(2026-08-19). 다듬기도
+#   편집이다 - 편집한 것을 원본이라 부르지 않는다.
+mv "$RAW" "$OUT"
+
+EDITED="$KEEP_DIR/$(basename "$OUT")"
 if [ "$STOP" != "0" ]; then
   echo "[x11] 내용 구간 ${START}~${STOP}초"
-  ffmpeg -v error -y -ss "$START" -to "$STOP" -i "$RAW" \
-    -c:v libx264 -preset slow -crf "$CRF" -pix_fmt yuv420p -movflags +faststart "$OUT"
-  rm -f "$RAW"
+  ffmpeg -v error -y -ss "$START" -to "$STOP" -i "$OUT" \
+    -c:v libx264 -preset slow -crf "$CRF" -pix_fmt yuv420p -movflags +faststart "$EDITED"
 else
-  mv "$RAW" "$OUT"
+  echo "[x11] 내용 구간을 찾지 못했다 - 다듬지 않고 그대로 둔다"
+  cp "$OUT" "$EDITED"
 fi
-
-# 원본은 원본/ 에 두고, 편집본을 그 옆에 만든다.
-#
-# ★ 원본을 지우지 않는 이유 - 정지 구간 잘라내기가 *보여줘야 할 장면*을 통째로 없앤 적이 있다.
-#   편집이 잘못됐을 때 되돌아갈 자리가 있어야 한다(사용자 지시).
-EDITED="$KEEP_DIR/$(basename "$OUT")"
-cp "$OUT" "$EDITED"
 if [ "${E2E_KEEP_STILL:-}" = "1" ]; then
   echo "[x11] 정지 구간을 그대로 둔다 (E2E_KEEP_STILL=1)"
 else
