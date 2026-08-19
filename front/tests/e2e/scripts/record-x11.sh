@@ -22,12 +22,16 @@ FPS="${FPS:-15}"
 CRF="${CRF:-16}"           # 낮을수록 좋다. 18 이하면 눈으로는 원본과 구분되지 않는다
 DISPLAY_NUM="${DISPLAY_NUM:-:98}"
 
-# 브라우저 껍데기(탭 줄·주소창)를 잘라낼 높이. 0 이면 그대로 둔다.
+# 화면 가장자리에서 잘라낼 만큼.
 #
-# * 주소창에는 접속한 주소가 그대로 보인다. 공개해도 되는 주소면 그대로 두는 편이 낫다 -
-#   어디에 접속해 무엇을 했는지가 영상에 남는다. 가려야 할 때만 값을 준다: CHROME_TOP=95
-#   (실측으로 탭 줄과 주소창이 위쪽 95px 이다.)
-CHROME_TOP="${CHROME_TOP:-0}"
+# * 위쪽 90px 은 브라우저 껍데기(탭 줄·주소창)다. 주소창에는 접속한 주소가 그대로 보이므로
+#   기본으로 잘라낸다 - 영상은 제품 화면만 담는다. 남기려면 CHROME_TOP=0.
+# * 왼쪽 10px 은 창이 가상 화면을 다 채우지 못해 생기는 검은 띠다. 실측값이고, 남기면
+#   영상 왼쪽에 검은 선으로 남는다.
+#
+#   두 값 모두 1920x1080 가상 화면에서 실측했다(2026-08-19). 화면 크기를 바꾸면 다시 잰다.
+CHROME_TOP="${CHROME_TOP:-90}"
+CHROME_LEFT="${CHROME_LEFT:-10}"
 
 KEEP_ROOT="${KEEP_ROOT:-/home/ubuntu/mzc/ant/workflow/cmig-workflow/conf/private/E2E결과}"
 KEEP_DIR="${KEEP_DIR:-$KEEP_ROOT/통합시나리오-v060-${E2E_TAKE_DIR:-$(date +%Y%m%d)}}"
@@ -39,9 +43,12 @@ command -v ffmpeg >/dev/null || { echo "ffmpeg 이 없다" >&2; exit 1; }
 command -v Xvfb   >/dev/null || { echo "Xvfb 가 없다" >&2; exit 1; }
 
 CROP_ARG=""
-if [ "$CHROME_TOP" -gt 0 ]; then
-  CROP_ARG="-vf crop=${W}:$((H - CHROME_TOP)):0:${CHROME_TOP}"
-  echo "[x11] 상단 ${CHROME_TOP}px(탭 줄·주소창)을 잘라낸다"
+if [ "$CHROME_TOP" -gt 0 ] || [ "$CHROME_LEFT" -gt 0 ]; then
+  # 폭·높이는 짝수여야 한다 - 4:2:0 색 표본이 2픽셀 단위라 홀수면 인코딩이 거부된다.
+  CW=$(( (W - CHROME_LEFT) / 2 * 2 ))
+  CH=$(( (H - CHROME_TOP) / 2 * 2 ))
+  CROP_ARG="-vf crop=${CW}:${CH}:${CHROME_LEFT}:${CHROME_TOP}"
+  echo "[x11] 위 ${CHROME_TOP}px(탭 줄·주소창)·왼쪽 ${CHROME_LEFT}px(검은 띠)을 잘라낸다 → ${CW}x${CH}"
 fi
 echo "[x11] 가상 화면 $DISPLAY_NUM (${W}x${H}) · ${FPS}fps · crf ${CRF}"
 Xvfb "$DISPLAY_NUM" -screen 0 "${W}x${H}x24" -nolisten tcp &
