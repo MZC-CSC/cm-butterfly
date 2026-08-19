@@ -412,6 +412,42 @@ export class WorkflowPage {
     return opened;
   }
 
+  /**
+   * 목표가 보일 때까지만 펼친다.
+   *
+   * ★ 전부 펼치면 접힌 것이 이백 개 가까워, 화면에는 *줄을 하나씩 눌러 내려가는* 장면만 몇 분
+   *   남는다. 정작 고치는 장면은 짧아서 정지 제거에 함께 잘려 나간다 — 보는 쪽에서는 "펼치기만
+   *   계속하다 끝났다"가 된다(2026-08-19 사용자 지적).
+   *
+   *   고칠 칸이 드러나면 거기서 멈춘다. 한 단계를 열면 그 아래가 드러나므로, 라운드마다 목표를
+   *   확인하고 나오면 대개 두세 라운드로 끝난다.
+   */
+  async expandUntil(testid: string, maxRounds = 6): Promise<number> {
+    let opened = 0;
+    for (let round = 0; round < maxRounds; round++) {
+      if (await this.page.getByTestId(testid).count()) break;
+
+      const closed = this.taskEditor.locator(
+        'button.btn-collapse, button.btn-item-collapse',
+      );
+      const count = await closed.count().catch(() => 0);
+      let clicked = 0;
+      for (let i = 0; i < count; i++) {
+        const button = closed.nth(i);
+        const label = (await button.innerText().catch(() => '')).trim();
+        if (!label.includes('\u25b6')) continue; // ▶ 만 접힌 것
+        await button.click({ timeout: 5_000 }).catch(() => {});
+        clicked++;
+        opened++;
+        await this.page.waitForTimeout(12);
+        if (await this.page.getByTestId(testid).count()) break;
+      }
+      if (clicked === 0) break;
+    }
+    await this.page.waitForTimeout(300);
+    return opened;
+  }
+
   /** Rename the task whose edit panel is open. */
   async renameSelectedTask(name: string): Promise<void> {
     const field = this.page.getByTestId('wf-task-name');
@@ -862,7 +898,10 @@ export class WorkflowPage {
    * @returns the index the new rule was given
    */
   async addPortRuleInWorkflow(port: string): Promise<number> {
-    await this.expandAllParams();
+    // 방화벽 규칙 배열이 드러날 때까지만 펼친다 — 전부 펼치면 화면이 클릭만 반복한다.
+    await this.expandUntil(
+      'wf-array-add-body_params.targetSecurityGroupList[0].firewallRules',
+    );
 
     /*
       The array cb-tumblebug actually builds the security group from.

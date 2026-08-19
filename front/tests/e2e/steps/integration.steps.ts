@@ -1133,6 +1133,41 @@ Then(
  *   보안그룹이 나온다. 앞 단계가 골라 두었으려니 하고 넘어가면 "보안그룹이 없다"로 죽는다
  *   (2026-08-19 실제로 그랬다). 구간을 따로 돌릴 때도 앞 단계에 기대지 않는다.
  */
+/**
+ * 고친 값이 실제로 올라온 기계에 반영됐는지 **화면에서** 본다.
+ *
+ * ★ 두 가지를 고쳤으면 두 가지를 다 본다. 방화벽만 보고 넘어가면 스펙이 반영되지 않았어도
+ *   통과한다 — 실제로 스펙은 워크플로우 파라미터에서만 확인하고 있었다(2026-08-19 사용자 지적).
+ */
+Then(
+  '워크로드 상세에서 스펙이 {string} 인지 확인한다',
+  async ({ page }, spec: string) => {
+    const row = page
+      .locator('tr', { hasText: /^\s*Spec\s*$/ })
+      .first()
+      .or(
+        page
+          .getByText(/^Spec$/)
+          .first()
+          .locator('xpath=ancestor::tr[1]'),
+      );
+
+    await expect(
+      row,
+      '노드 상세에 Spec 행이 없다 — 노드를 고르지 않았을 수 있다',
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(
+      row,
+      `노드 상세의 스펙이 ${spec} 이 아니다 — 모델에서 올린 스펙이 인스턴스까지 오지 않았다`,
+    ).toContainText(spec, { timeout: 15_000 });
+
+    await spotlight(page, row);
+    console.log(
+      `[스펙·화면] ${(await row.innerText()).replace(/\s+/g, ' ').trim()}`,
+    );
+  },
+);
+
 Then(
   '워크로드 상세의 보안그룹에서 {string} 포트를 확인한다',
   async ({ page }, port: string) => {
@@ -1829,16 +1864,38 @@ Given('알림함을 비운다', async ({ page }) => {
  */
 Then('알림이 도착할 때까지 이 화면에서 기다린다', async ({ page, request }) => {
   const token = await getSessionToken(page);
+  const post = (op: string) =>
+    request.post(`${config.baseURL}/api/${op}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {},
+    });
+
+  /*
+    기다리기 전에 비운다.
+
+    ★ 이미 와 있던 알림은 봉투를 띄우지 않는다. 저장소가 첫 적재분을 *로그인 직후의 밀린 목록*
+      으로 보고 신호로 치지 않기 때문이다(notificationStore 의 primed). 직전 회차가 남긴 것이
+      하나라도 있으면 이 화면이 열리는 순간 그것으로 채워지고, 그 뒤로는 새 것이 와도 "이미 있던
+      것"과 섞여 버린다. 실제로 그렇게 애니메이션이 아예 뜨지 않은 회차가 있었다(2026-08-19).
+
+      여기서 비우면 이 화면이 열려 있는 동안 *처음으로* 들어오는 것이 이번 실행의 알림이고,
+      들어오는 그 순간 봉투가 뜬다.
+  */
+  const before = await post('listnotifications')
+    .then(r => r.json())
+    .then(b => (b?.responseData ?? []).length)
+    .catch(() => 0);
+  if (before > 0) {
+    await post('readallnotifications').catch(() => null);
+    console.log(`[알림] 앞선 회차가 남긴 ${before} 건을 비우고 기다린다`);
+    await page.waitForTimeout(2_000);
+  }
+
   const deadline = Date.now() + 10 * 60_000;
   let arrived = 0;
 
   for (let i = 0; Date.now() < deadline; i++) {
-    const res = await request
-      .post(`${config.baseURL}/api/listnotifications`, {
-        headers: { Authorization: `Bearer ${token}` },
-        data: {},
-      })
-      .catch(() => null);
+    const res = await post('listnotifications').catch(() => null);
     const body = await res?.json().catch(() => ({}));
     const items = body?.responseData ?? [];
     if (Array.isArray(items) && items.length > 0) {
