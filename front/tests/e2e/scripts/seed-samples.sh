@@ -15,6 +15,9 @@ set -uo pipefail
 
 HOST="${HOST:-${BASE_URL#*://}}"
 HOST="${HOST%%/*}"
+# 포트를 뗀다 - BASE_URL 이 front-dev(:5174) 를 가리킬 때가 있고, 그대로 두면 ssh 가 그것을
+# 호스트 이름의 일부로 읽어 "No such file or directory" 로 죽는다(2026-08-19).
+HOST="${HOST%%:*}"
 SSH_KEY="${E2E_SSH_KEY:-$HOME/.ssh/cb-webtool.pem}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
