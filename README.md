@@ -113,28 +113,37 @@ Modify the value of services.{subsystem-name}.baseurl. The host currently in use
    
 ```yaml
   cb-spider: #service name
-    version: 0.12.35
+    version: 0.12.42(latest)
     baseurl: http://cb-spider:1024/spider  ## change this end with /spider
     auth:
       type: basic
-      username:
-      password:
+      username: ${SPIDER_USERNAME}
+      password: ${SPIDER_PASSWORD}
 
   cb-tumblebug:
-    version: 0.12.25
+    version: 0.12.30(latest)
     baseurl: http://cb-tumblebug:1323/tumblebug ## change this end with /tumblebug
     auth:
       type: basic
-      username: default
-      password: default
+      username: ${TB_API_USERNAME}
+      password: ${TB_API_PASSWORD}
 
   cm-beetle:
-    version: 0.6.0
+    version: 0.6.0(latest)
     baseurl: http://cm-beetle:8056/beetle  ## change this end with /beetle
     auth:
+      type: basic
+      username: ${BEETLE_API_USERNAME}
+      password: ${BEETLE_API_PASSWORD}
 
   # others ...
 ```
+
+A username or password written as `${VAR}` is read from the process environment when the server starts.
+Under docker compose the values come from the single shared `.env`, which cm-mayfly passes into this container.
+**There is no fallback**: a variable that resolves to nothing stops the server and names it, rather than quietly sending something else.
+
+`version` records the tag the operations were generated from, and it is kept in step with the image tag the lineup runs.
  
 
 ### 6. Self auth settings (Optional)
@@ -210,3 +219,7 @@ If you run it through docker compose, you can see the login page by accessing `h
 | [Bulk Import of Source Connections](docs/guide/source-connection-bulk-import.md) | Register many source connections at once from a CSV or Excel file |
 | [Running Workflow Tasks in Parallel](docs/guide/workflow-parallel-steps.md) | Place workflow tasks side by side so they run at the same time |
 | [Reading the Run Status Screen](docs/guide/workflow-run-status.md) | What the run view shows at each moment — progress, waiting, failures, and running part of it again |
+| [Editing a Model as JSON](docs/guide/json-editor.md) | The table and tree views, searching, and reshaping an array with sort and transform |
+| [Checking That Source Servers Can Be Reached](docs/guide/source-connection-status.md) | What each connection message means, and what to check when a server does not answer |
+| [Finding Your Way with the Migration Guide](docs/guide/migration-guide.md) | Where to start, what comes next, and how the console works that out |
+| [Checking That the Linked Services Are Answering](docs/guide/service-status.md) | The Service Status screen, and the alert that reaches you wherever you are |
