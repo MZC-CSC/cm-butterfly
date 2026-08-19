@@ -60,6 +60,52 @@ for a, b in spans:
         print(f'{a + keep:.2f} {b:.2f}')
 PY
 
+cat > "$PYWORK/detect.py" <<'PY'
+import glob, os, sys
+from PIL import Image
+
+# 쪽지 봉투의 채움색(#f6c445) 언저리. 화면 어디에 있든 잡는다 - 가운데에서 배지로 날아간다.
+frames = sorted(glob.glob(os.path.join(sys.argv[1], "*.png")))
+for i, p in enumerate(frames):
+    im = Image.open(p).convert("RGB")
+    px = im.load()
+    w, h = im.size
+    n = 0
+    for y in range(0, h, 2):
+        for x in range(0, w, 2):
+            r, g, b = px[x, y]
+            if r > 225 and 175 < g < 215 and b < 105:
+                n += 1
+    if n > 30:                      # 배지/태그 같은 작은 노란 조각과 가른다
+        print("%.2f" % (i / 4))
+PY
+
+cat > "$PYWORK/protect.py" <<'PY'
+import sys
+
+pad = float(sys.argv[1])
+keeps = [(float(t) - pad, float(t) + pad) for t in sys.argv[2].split()]
+for line in sys.stdin:
+    if not line.strip():
+        continue
+    a, b = map(float, line.split())
+    spans = [(a, b)]
+    for ka, kb in keeps:
+        nxt = []
+        for sa, sb in spans:
+            if kb <= sa or ka >= sb:
+                nxt.append((sa, sb))
+                continue
+            if ka > sa:
+                nxt.append((sa, ka))
+            if kb < sb:
+                nxt.append((kb, sb))
+        spans = nxt
+    for sa, sb in spans:
+        if sb - sa > 0.3:
+            print("%.2f %.2f" % (sa, sb))
+PY
+
 cat > "$PYWORK/keeps.py" <<'PY'
 import sys
 
@@ -76,6 +122,33 @@ print('+'.join(f'between(t,{a:.2f},{b:.2f})' for a, b in out))
 print(f'{sum(b - a for a, b in out):.1f}')
 PY
 
+
+# -- 잘라내면 안 되는 순간을 먼저 찾는다 --------------------------------------
+#
+# * 화면이 멈춘 것처럼 보여도 *보여줘야 하는 것*이 그 안에 있을 수 있다.
+#
+#   알림 도착 신호(가운데에 떴다 배지로 날아가는 노란 쪽지)가 그렇다. 1700px 화면에서 64px 이라
+#   freezedetect 의 잡음 한계를 넘지 못해 그 구간이 통째로 정지로 잡히고 그대로 잘려 나갔다 -
+#   애니메이션은 제대로 떴는데 최종 영상에는 없었다(2026-08-19). 화면에 억지로 움직임을 만드는
+#   대신 그 순간을 찾아 앞뒤를 보호한다.
+#
+#   PROTECT_PAD 로 앞뒤 여유를 준다. 검출은 색으로 하므로 놓치면 보호가 없을 뿐 잘못 자르지는 않는다.
+PROTECT_PAD="${PROTECT_PAD:-2.0}"
+
+find_protected() {
+  command -v python3 >/dev/null 2>&1 || return 0
+  python3 -c 'import PIL' 2>/dev/null || return 0
+  local dir="$PYWORK/scan"
+  mkdir -p "$dir"
+  ffmpeg -v error -i "$SRC" -vf "fps=4,scale=480:-1" "$dir/%05d.png" 2>/dev/null || return 0
+  python3 "$PYWORK/detect.py" "$dir"
+}
+
+PROTECT="$(find_protected)"
+if [ -n "$PROTECT" ]; then
+  echo "[cut-still] 보호할 순간 $(printf '%s\n' "$PROTECT" | wc -l) 곳 - 앞뒤 ${PROTECT_PAD}초를 남긴다"
+fi
+
 RANGES="$(ffmpeg -v info -i "$SRC" -vf "freezedetect=n=-55dB:d=2" -f null - 2>&1 |
   awk '
       match($0, /freeze_start: [0-9.]+/) { s = substr($0, RSTART+14, RLENGTH-14); open=1 }
@@ -84,6 +157,11 @@ RANGES="$(ffmpeg -v info -i "$SRC" -vf "freezedetect=n=-55dB:d=2" -f null - 2>&1
   ')"
 
 CUTS="$(printf '%s\n' "$RANGES" | python3 "$PYWORK/spans.py" "$TOTAL" "$MIN" "$KEEP")"
+
+# 보호할 순간이 걸린 구간은 그만큼 잘라내기에서 뺀다.
+if [ -n "$PROTECT" ]; then
+  CUTS="$(printf '%s\n' "$CUTS" | python3 "$PYWORK/protect.py" "$PROTECT_PAD" "$(printf '%s ' $PROTECT)")"
+fi
 
 if [ -z "$CUTS" ]; then
   echo "[cut-still] 잘라 낼 정지 없음 — 그대로 둔다"

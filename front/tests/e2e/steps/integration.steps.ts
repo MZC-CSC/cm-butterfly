@@ -1832,25 +1832,6 @@ Then('알림이 도착할 때까지 이 화면에서 기다린다', async ({ pag
   const deadline = Date.now() + 10 * 60_000;
   let arrived = 0;
 
-  /*
-    ★ 기다리는 동안 커서를 조금씩 움직인다.
-
-      화면이 완전히 멈춰 있으면 그 구간이 **한 덩어리의 정지로 판정돼 통째로 잘린다**
-      (`scripts/cut-still.sh`). 실제로 그렇게 349.6초가 82.1초가 되면서, 그 안에 있던 봉투가
-      함께 사라졌다 — 애니메이션은 제대로 떴는데 최종 영상에는 없었다 (2026-08-19).
-
-      봉투 자체는 1700px 화면에서 64px 이라 정지 판정의 잡음 한계를 넘지 못한다. 그러니 봉투에
-      기대지 말고, 대기 자체가 정지가 아니게 만든다. 화면에 그린 커서가 움직이면 그 프레임은
-      더 이상 정지가 아니다.
-  */
-  const drift = async (i: number) => {
-    const size = page.viewportSize();
-    if (!size) return;
-    const x = size.width / 2 + Math.sin(i / 2) * 120;
-    const y = size.height / 2 + Math.cos(i / 2) * 80;
-    await page.mouse.move(x, y);
-  };
-
   for (let i = 0; Date.now() < deadline; i++) {
     const res = await request
       .post(`${config.baseURL}/api/listnotifications`, {
@@ -1864,10 +1845,7 @@ Then('알림이 도착할 때까지 이 화면에서 기다린다', async ({ pag
       arrived = items.length;
       break;
     }
-    await drift(i);
-    await page.waitForTimeout(1_000);
-    await drift(i + 1);
-    await page.waitForTimeout(1_000);
+    await page.waitForTimeout(2_000);
   }
 
   expect(
