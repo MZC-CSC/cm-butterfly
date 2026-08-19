@@ -80,6 +80,26 @@ for i, p in enumerate(frames):
         print("%.2f" % (i / 4))
 PY
 
+cat > "$PYWORK/blank.py" <<'PY'
+import glob, os, sys
+from PIL import Image
+
+# 글자가 사실상 없는 프레임 = 보여줄 것이 없는 화면.
+frames = sorted(glob.glob(os.path.join(sys.argv[1], "*.png")))
+for i, p in enumerate(frames):
+    im = Image.open(p).convert("L")
+    px = im.load()
+    w, h = im.size
+    ink = tot = 0
+    for y in range(0, h, 2):
+        for x in range(0, w, 2):
+            tot += 1
+            if px[x, y] < 160:
+                ink += 1
+    if tot and ink * 1000 // tot < 1:      # 천분율 1 미만
+        print("%.2f" % (i / 4))
+PY
+
 cat > "$PYWORK/protect.py" <<'PY'
 import sys
 
@@ -144,7 +164,26 @@ find_protected() {
   python3 "$PYWORK/detect.py" "$dir"
 }
 
+find_blank() {
+  command -v python3 >/dev/null 2>&1 || return 0
+  python3 -c 'import PIL' 2>/dev/null || return 0
+  [ -d "$PYWORK/scan" ] || return 0
+  python3 "$PYWORK/blank.py" "$PYWORK/scan"
+}
+
 PROTECT="$(find_protected)"
+
+# -- 내용이 없는 화면은 잘라낸다 -----------------------------------------------
+#
+# * 화면이 갈아엎히는 사이에 백지가 1초쯤 지나간다. 정지 제거로는 안 잡힌다 - 백지도 "정지"지만
+#   6초를 넘겨야 자르는데 이건 1초 남짓이라 그대로 남는다. 보는 쪽에는 화면이 깜빡한 것으로만
+#   보이고 아무 내용이 없다(2026-08-19 사용자 지적).
+#
+#   글자가 사실상 없는 프레임을 찾아 그 구간을 잘라낸다. 짧아도 자른다 - 보여줄 것이 없는 자리다.
+BLANK="$(find_blank)"
+if [ -n "$BLANK" ]; then
+  echo "[cut-still] 내용 없는 화면 $(printf '%s\n' "$BLANK" | wc -l) 프레임 - 그 구간을 잘라낸다"
+fi
 if [ -n "$PROTECT" ]; then
   echo "[cut-still] 보호할 순간 $(printf '%s\n' "$PROTECT" | wc -l) 곳 - 앞뒤 ${PROTECT_PAD}초를 남긴다"
 fi
@@ -157,6 +196,23 @@ RANGES="$(ffmpeg -v info -i "$SRC" -vf "freezedetect=n=-55dB:d=2" -f null - 2>&1
   ')"
 
 CUTS="$(printf '%s\n' "$RANGES" | python3 "$PYWORK/spans.py" "$TOTAL" "$MIN" "$KEEP")"
+
+# 내용 없는 화면을 잘라낼 목록에 더한다. 프레임 간격(0.25초)만큼 앞뒤로 붙여 한 덩어리로 만든다.
+if [ -n "$BLANK" ]; then
+  CUTS="$(printf '%s\n%s\n' "$CUTS" "$(printf '%s\n' "$BLANK" | python3 -c '
+import sys
+ts = [float(l) for l in sys.stdin if l.strip()]
+spans = []
+for t in ts:
+    a, b = t - 0.13, t + 0.38
+    if spans and a - spans[-1][1] < 0.4:
+        spans[-1][1] = max(spans[-1][1], b)
+    else:
+        spans.append([a, b])
+for a, b in spans:
+    print("%.2f %.2f" % (max(a, 0), b))
+')" | grep -v '^$' | sort -n)"
+fi
 
 # 보호할 순간이 걸린 구간은 그만큼 잘라내기에서 뺀다.
 if [ -n "$PROTECT" ]; then
