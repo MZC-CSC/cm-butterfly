@@ -215,7 +215,7 @@ if [ -n "$PROTECT" ]; then
   echo "[cut-still] 보호할 순간 $(printf '%s\n' "$PROTECT" | wc -l) 곳 - 앞뒤 ${PROTECT_PAD}초를 남긴다"
 fi
 
-RANGES="$(ffmpeg -v info -i "$SRC" -vf "freezedetect=n=-55dB:d=2" -f null - 2>&1 |
+RANGES="$(ffmpeg -v info -i "$SRC" -vf "freezedetect=n=${FREEZE_N:--70dB}:d=2" -f null - 2>&1 |
   awk '
       match($0, /freeze_start: [0-9.]+/) { s = substr($0, RSTART+14, RLENGTH-14); open=1 }
       match($0, /freeze_end: [0-9.]+/)   { e = substr($0, RSTART+12, RLENGTH-12); if (open) print s, e; open=0 }

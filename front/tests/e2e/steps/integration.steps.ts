@@ -17,7 +17,7 @@ import {
   descriptions,
 } from '../fixtures/test-data';
 import { uniqueName } from '../support/naming';
-import { spotlight } from '../support/spotlight';
+import { spotlight, spotlightText } from '../support/spotlight';
 import { getSessionToken } from '../support/apiWait';
 import { scenarioState } from '../support/world';
 import { recall, remember } from '../support/handoff';
@@ -1177,7 +1177,13 @@ Then(
       `노드 상세의 스펙이 ${spec} 이 아니다 — 모델에서 올린 스펙이 인스턴스까지 오지 않았다`,
     ).toContainText(spec, { timeout: 15_000 });
 
-    await spotlight(page, row);
+    /*
+      값을 짚는다. 행 전체를 짚으면 커서가 넓은 영역을 도느라 *무엇을 가리키는지* 읽히지 않는다 —
+      보안 포트는 값에 붙는데 스펙만 겉돌아, 두 가지를 고쳤는데 하나만 확인한 것처럼 보였다
+      (2026-08-19 사용자 지적).
+    */
+    const pointed = await spotlightText(page, row, spec);
+    if (!pointed) await spotlight(page, row);
     console.log(
       `[스펙·화면] ${(await row.innerText()).replace(/\s+/g, ' ').trim()}`,
     );
