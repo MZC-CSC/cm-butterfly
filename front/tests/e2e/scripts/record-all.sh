@@ -54,12 +54,45 @@ export E2E_DEMO_PACE=1
 #   글자를 회색으로만 부드럽게 하는 설정은 playwright.config.ts 에서 항상 적용된다.
 #
 #   빠른 검증에는 켜지 않는다 — 메모리와 시간이 든다: REC_FAST=1 로 끈다.
-if [ "${REC_FAST:-0}" = "1" ]; then
-  echo "[품질] 빠른 검증 모드 — 2배 렌더링 없이 찍는다"
-else
-  export E2E_HQ="${E2E_HQ:-1}"
-  echo "[품질] 촬영 품질 우선 — 2배로 그려 1080p 로 내린다 (빠르게 하려면 REC_FAST=1)"
+# 품질 단계 — REC_QUALITY 로 고른다.
+#
+#   fast    Playwright 녹화 · 1배        검증 전용. 가장 빠르고 가볍다
+#   normal  Playwright 녹화 · 2배 렌더   지금까지의 기본
+#   fullhd  x11 녹화 · 1920x1080         보여줄 영상
+#   4k      x11 녹화 · 2배 렌더 3840x2160  최고 품질. 메모리를 두 배로 쓴다
+#
+# ★ x11 쪽이 화질이 확연히 낫다. Playwright 녹화기는 비트레이트를 우리가 정할 수 없어
+#   1080p 에서 700kbps 남짓으로 나오고, 그 얇은 대역에서 가장 먼저 무너지는 것이 글자다.
+#   x11 은 코덱과 품질을 우리가 정하므로 같은 길이에 파일이 오히려 작으면서 더 선명하다.
+#
+# 옛 이름(REC_FAST·E2E_HQ)도 계속 받는다 — 기존 호출을 깨지 않는다.
+REC_QUALITY="${REC_QUALITY:-}"
+if [ -z "$REC_QUALITY" ]; then
+  [ "${REC_FAST:-0}" = "1" ] && REC_QUALITY=fast || REC_QUALITY=normal
 fi
+
+USE_X11=0
+case "$REC_QUALITY" in
+  fast)
+    echo "[품질] fast — Playwright 녹화, 2배 렌더링 없이. 검증용이다"
+    ;;
+  normal)
+    export E2E_HQ=1
+    echo "[품질] normal — Playwright 녹화, 2배로 그려 1080p 로 내린다"
+    ;;
+  fullhd)
+    USE_X11=1; export REC_SCALE=1
+    echo "[품질] fullhd — x11 녹화, 1920x1080"
+    ;;
+  4k)
+    USE_X11=1; export REC_SCALE=2
+    echo "[품질] 4k — x11 녹화, 2배로 그려 3840x2160. 메모리를 두 배로 쓴다"
+    ;;
+  *)
+    echo "REC_QUALITY 는 fast·normal·fullhd·4k 중 하나다 (받은 값: $REC_QUALITY)" >&2
+    exit 2
+    ;;
+esac
 
 # 한 벌 전체가 같은 이름표를 쓰게 한다.
 #
@@ -142,13 +175,23 @@ failed=()
 for seg in "${SEGMENTS[@]}"; do
   echo
   echo "════════ 구간 $seg ════════"
-  if npx playwright test --project=integration --grep "@seg${seg}\b"; then
-    echo "구간 $seg 통과"
+  if [ "$USE_X11" = 1 ]; then
+    # x11 은 스스로 찍고·다듬고·보관한다. keep-take 를 다시 부르지 않는다.
+    if SCALE="$REC_SCALE" scripts/record-x11.sh "seg${seg}"; then
+      echo "구간 $seg 통과"
+    else
+      echo "구간 $seg 실패 — 영상은 남긴다(어디서 어긋났는지는 거기에만 있다)"
+      failed+=("$seg")
+    fi
   else
-    echo "구간 $seg 실패 — 영상은 남긴다(어디서 어긋났는지는 거기에만 있다)"
-    failed+=("$seg")
+    if npx playwright test --project=integration --grep "@seg${seg}\b"; then
+      echo "구간 $seg 통과"
+    else
+      echo "구간 $seg 실패 — 영상은 남긴다(어디서 어긋났는지는 거기에만 있다)"
+      failed+=("$seg")
+    fi
+    scripts/keep-take.sh "$seg" || true
   fi
-  scripts/keep-take.sh "$seg" || true
 done
 
 # 보고서와 구간별 캡처를 영상 옆에 둔다.

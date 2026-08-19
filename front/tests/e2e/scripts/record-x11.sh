@@ -16,8 +16,22 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 TAG="${1:?구간 태그가 필요하다 (예: seg1)}"
-W="${REC_W:-1920}"
-H="${REC_H:-1080}"
+
+# 배율 - 화면을 몇 배로 *그려* 내릴지.
+#
+# ★ 화면 크기만 키우면 화질은 그대로다. 글자가 작아지고 더 많이 담길 뿐이다. 선명해지려면
+#   같은 배치를 두 배 촘촘히 그려야 하고, 그것이 --force-device-scale-factor 다.
+#   SCALE=2 면 배치는 1920x1080 그대로인 채 실제 픽셀만 3840x2160 이 된다.
+#
+#   비용: 1080p 는 0.4Mbps 남짓이라 4K 로 올려도 전 구간 1GB 안쪽이다. 메모리는 2배로 그리는
+#   만큼 더 쓴다.
+SCALE="${SCALE:-1}"
+
+# 잘라낸 *뒤* 남길 크기. 여기서 거꾸로 화면 크기를 정한다 - 그래야 결과가 정확히 1080p/4K 다.
+#
+# ★ 예전에는 1920x1080 을 찍어 껍데기를 잘라내 1910x990 이 나왔다. 풀 HD 가 아니다.
+OUT_W="${OUT_W:-1920}"
+OUT_H="${OUT_H:-1080}"
 FPS="${FPS:-15}"
 CRF="${CRF:-16}"           # 낮을수록 좋다. 18 이하면 눈으로는 원본과 구분되지 않는다
 DISPLAY_NUM="${DISPLAY_NUM:-:98}"
@@ -33,6 +47,12 @@ DISPLAY_NUM="${DISPLAY_NUM:-:98}"
 CHROME_TOP="${CHROME_TOP:-90}"
 CHROME_LEFT="${CHROME_LEFT:-10}"
 
+# 실제 픽셀 단위로 환산한다 - 배율을 올리면 껍데기도 같이 커진다.
+PAD_T=$((CHROME_TOP * SCALE))
+PAD_L=$((CHROME_LEFT * SCALE))
+W=$((OUT_W * SCALE + PAD_L))
+H=$((OUT_H * SCALE + PAD_T))
+
 KEEP_ROOT="${KEEP_ROOT:-/home/ubuntu/mzc/ant/workflow/cmig-workflow/conf/private/E2E결과}"
 KEEP_DIR="${KEEP_DIR:-$KEEP_ROOT/통합시나리오-v060-${E2E_TAKE_DIR:-$(date +%Y%m%d)}}"
 mkdir -p "$KEEP_DIR/원본"
@@ -42,14 +62,12 @@ RAW="${OUT%.mp4}.raw.mp4"
 command -v ffmpeg >/dev/null || { echo "ffmpeg 이 없다" >&2; exit 1; }
 command -v Xvfb   >/dev/null || { echo "Xvfb 가 없다" >&2; exit 1; }
 
-CROP_ARG=""
-if [ "$CHROME_TOP" -gt 0 ] || [ "$CHROME_LEFT" -gt 0 ]; then
-  # 폭·높이는 짝수여야 한다 - 4:2:0 색 표본이 2픽셀 단위라 홀수면 인코딩이 거부된다.
-  CW=$(( (W - CHROME_LEFT) / 2 * 2 ))
-  CH=$(( (H - CHROME_TOP) / 2 * 2 ))
-  CROP_ARG="-vf crop=${CW}:${CH}:${CHROME_LEFT}:${CHROME_TOP}"
-  echo "[x11] 위 ${CHROME_TOP}px(탭 줄·주소창)·왼쪽 ${CHROME_LEFT}px(검은 띠)을 잘라낸다 → ${CW}x${CH}"
-fi
+# 폭·높이는 짝수여야 한다 - 4:2:0 색 표본이 2픽셀 단위라 홀수면 인코딩이 거부된다.
+CW=$(( OUT_W * SCALE / 2 * 2 ))
+CH=$(( OUT_H * SCALE / 2 * 2 ))
+CROP_ARG="-vf crop=${CW}:${CH}:${PAD_L}:${PAD_T}"
+echo "[x11] 가상 화면 ${W}x${H} 에서 위 ${PAD_T}·왼쪽 ${PAD_L} 을 잘라 ${CW}x${CH} 로 남긴다"
+[ "$SCALE" -gt 1 ] && echo "[x11] ${SCALE}배로 그린다 - 배치는 ${OUT_W}x${OUT_H} 그대로, 픽셀만 촘촘해진다"
 echo "[x11] 가상 화면 $DISPLAY_NUM (${W}x${H}) · ${FPS}fps · crf ${CRF}"
 Xvfb "$DISPLAY_NUM" -screen 0 "${W}x${H}x24" -nolisten tcp &
 XVFB_PID=$!
@@ -83,6 +101,7 @@ sleep 1
 
 # 창을 실제로 띄워야 화면에 그려진다. Playwright 자체 녹화는 끈다 — 여기서는 화면을 찍는다.
 E2E_VIDEO=off E2E_DEMO_PACE=1 DISPLAY="$DISPLAY_NUM" \
+  E2E_X11_SCALE="$SCALE" E2E_X11_W="$OUT_W" E2E_X11_H="$OUT_H" \
   npx playwright test --grep "@${TAG} " --workers=1 --headed
 CODE=$?
 
@@ -139,5 +158,19 @@ else
   mv "$RAW" "$OUT"
 fi
 
-echo "[x11] $( [ "$CODE" -eq 0 ] && echo 완료 || echo "실패($CODE) — 영상은 남긴다") → $OUT"
+# 원본은 원본/ 에 두고, 편집본을 그 옆에 만든다.
+#
+# ★ 원본을 지우지 않는 이유 - 정지 구간 잘라내기가 *보여줘야 할 장면*을 통째로 없앤 적이 있다.
+#   편집이 잘못됐을 때 되돌아갈 자리가 있어야 한다(사용자 지시).
+EDITED="$KEEP_DIR/$(basename "$OUT")"
+cp "$OUT" "$EDITED"
+if [ "${E2E_KEEP_STILL:-}" = "1" ]; then
+  echo "[x11] 정지 구간을 그대로 둔다 (E2E_KEEP_STILL=1)"
+else
+  "$(dirname "$0")/cut-still.sh" "$EDITED" || true
+fi
+
+echo "[x11] $( [ "$CODE" -eq 0 ] && echo 완료 || echo "실패($CODE) — 영상은 남긴다")"
+echo "[x11]   편집본 $EDITED"
+echo "[x11]   원본   $OUT"
 exit "$CODE"
