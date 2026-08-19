@@ -76,8 +76,35 @@ for i, p in enumerate(frames):
             r, g, b = px[x, y]
             if r > 225 and 175 < g < 215 and b < 105:
                 n += 1
-    if n > 30:                      # 배지/태그 같은 작은 노란 조각과 가른다
-        print("%.2f" % (i / 4))
+    # 480px 로 줄인 화면에서 봉투는 20~30 픽셀쯤 잡힌다. 워크로드 목록의 `aws` 배지도 비슷해
+    # 수만으로는 갈리지 않으므로 지속 시간으로 가른다(runs.py) - 여기서는 후보만 넘긴다.
+    if n > 18:
+        print("%.2f %d" % (i / 4, n))
+PY
+
+cat > "$PYWORK/runs.py" <<'PY'
+import sys
+
+# (시각, 픽셀수) 를 연속 구간으로 묶고 *짧게 나타났다 사라지는* 것만 남긴다.
+#
+# 봉투와 워크로드 목록의 `aws` 배지는 색도 크기도 비슷해 픽셀 수만으로는 갈리지 않는다.
+# 갈리는 것은 지속 시간이다 - 봉투는 1초 남짓이고 배지는 그 화면에 있는 내내 붙어 있다.
+rows = []
+for line in sys.stdin:
+    parts = line.split()
+    if len(parts) == 2:
+        rows.append((float(parts[0]), float(parts[1])))
+
+runs = []
+for t, _ in rows:
+    if runs and t - runs[-1][-1] <= 0.4:
+        runs[-1].append(t)
+    else:
+        runs.append([t])
+
+for r in runs:
+    if r[-1] - r[0] <= 4.0:
+        print("%.2f" % r[0])
 PY
 
 cat > "$PYWORK/blank.py" <<'PY'
@@ -171,7 +198,7 @@ find_blank() {
   python3 "$PYWORK/blank.py" "$PYWORK/scan"
 }
 
-PROTECT="$(find_protected)"
+PROTECT="$(find_protected | python3 "$PYWORK/runs.py")"
 
 # -- 내용이 없는 화면은 잘라낸다 -----------------------------------------------
 #
