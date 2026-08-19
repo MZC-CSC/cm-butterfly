@@ -438,7 +438,7 @@ export class JsonEditorPage {
    * Saving from here never overwrites the original - it creates a new model under the name given.
    * That is the point of the custom pass: the collected model stays as collected.
    */
-  async saveAsCustom(name: string, description?: string): Promise<void> {
+  async saveAsCustom(name: string, description?: string): Promise<string> {
     // The two custom-view screens name their save button differently - the source one has carried
     // `create-form-save` for a while, the target one had no identifier at all until now.
     await humanClick(
@@ -466,7 +466,35 @@ export class JsonEditorPage {
       );
     }
 
+    /*
+      저장 응답에서 그 모델의 **고유 ID** 를 받아 둔다.
+
+      ★ 이름으로 고르면 화면이 따라오지 않아도 알 수 없다. 목록의 표시만 바뀌고 상세는 이전
+        모델을 잡고 있는 상태가 실제로 생겼고, 그대로 추천이 나가 *원본 기준 결과*가 돌아왔다.
+        규칙에 5555 가 없어 제품 결함으로 볼 뻔했다(2026-08-01, 2026-08-19 재발).
+        ID 는 그 모델만 가리키므로 고르는 것도 확인하는 것도 어긋날 수 없다.
+    */
+    const created = this.page.waitForResponse(
+      r =>
+        /cm-damselfly\/(CreateOnPremModel|CreateCloudModel)/.test(r.url()) &&
+        r.request().method() === 'POST',
+      { timeout: 30_000 },
+    );
     await humanClick(this.page.getByTestId('model-name-save'));
+
+    let savedId = '';
+    try {
+      const body = await (await created).json();
+      savedId =
+        body?.responseData?.id ??
+        body?.responseData?.data?.id ??
+        body?.data?.id ??
+        body?.id ??
+        '';
+    } catch {
+      savedId = '';
+    }
+    console.log(`[모델저장] ${name} → id=${savedId || '(응답에서 못 읽음)'}`);
 
     // ★ 저장했으면 편집기를 닫고 나온다.
     //
@@ -476,5 +504,6 @@ export class JsonEditorPage {
     //   데였다(모델 편집기 두 번, 설치 목록 창, 복제한 워크플로우). 나가는 자리에서 닫는 것이
     //   부르는 쪽마다 기억하는 것보다 낫다. (2026-08-01)
     await this.close();
+    return savedId;
   }
 }

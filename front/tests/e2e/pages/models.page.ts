@@ -257,15 +257,46 @@ export class ModelsPage {
     //
     //   그래서 상세가 *그 모델의 것*인지까지 확인하고, 아니면 누른다. (2026-08-01)
     const row = this.modelRow(name).first();
-    const cls = (await row.getAttribute('class').catch(() => '')) ?? '';
-    const detailShowsThis =
-      /selected/.test(cls) &&
-      (await this.detailNameFor(name)
-        .isVisible({ timeout: 1_000 })
-        .catch(() => false));
-    if (detailShowsThis) return;
 
-    await humanClick(row);
+    /*
+      ★ 이름이 아니라 **그 행의 고유 ID** 로 확인한다.
+
+        예전 판정은 *이름을 담은 컨테이너가 보이는가* 였는데, 목록 자체가 그 조건을 만족한다 -
+        아무것도 고르지 않은 상태에서도 1건이 잡힌다(2026-08-19 실측). 그래서 클릭을 건너뛰었고,
+        목록의 표시만 바뀐 채 화면은 이전 모델을 잡고 있었다. 그대로 추천이 나가 *원본 기준*
+        결과가 돌아왔고 규칙에 5555 가 없어 제품 결함으로 볼 뻔했다.
+
+        ID 는 고른 뒤에만 상세에도 나타나므로, **화면 어딘가에 두 번 이상 보이는가**가
+        상세가 그 모델을 잡았다는 신호다(목록에 한 번 + 상세에 한 번).
+    */
+    const id = await this.rowId(row);
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (
+        id &&
+        (await this.page.getByText(id, { exact: false }).count()) >= 2
+      ) {
+        return;
+      }
+      await humanClick(row);
+      await this.page.waitForTimeout(1_500);
+    }
+
+    if (id) {
+      await expect(
+        this.page.getByText(id, { exact: false }),
+        `모델 ${name}(${id}) 을 골랐는데 상세가 따라오지 않았다 - 이 상태로 진행하면 이전 모델 기준으로 동작한다`,
+      ).toHaveCount(2, { timeout: 10_000 });
+    }
+  }
+
+  /** 목록 행에서 그 모델의 고유 ID 를 읽는다. 없으면 빈 문자열. */
+  private async rowId(row: Locator): Promise<string> {
+    const cells = await row
+      .locator('td')
+      .allInnerTexts()
+      .catch(() => [] as string[]);
+    return cells.map(c => c.trim()).find(c => /^[0-9a-f-]{36}$/i.test(c)) ?? '';
   }
 
   /**
