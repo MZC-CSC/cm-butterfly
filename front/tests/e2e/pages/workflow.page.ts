@@ -413,38 +413,44 @@ export class WorkflowPage {
   }
 
   /**
-   * 목표가 보일 때까지만 펼친다.
+   * 고칠 칸이 있는 자리까지 **경로를 따라** 연다.
    *
-   * ★ 전부 펼치면 접힌 것이 이백 개 가까워, 화면에는 *줄을 하나씩 눌러 내려가는* 장면만 몇 분
-   *   남는다. 정작 고치는 장면은 짧아서 정지 제거에 함께 잘려 나간다 — 보는 쪽에서는 "펼치기만
-   *   계속하다 끝났다"가 된다(2026-08-19 사용자 지적).
+   * ★ 전부 펼치지 않는다. 접힌 것이 이백 개 가까워, 화면에는 *줄을 하나씩 눌러 내려가는* 장면만
+   *   몇 분 남고 정작 고치는 장면은 짧아서 정지 제거에 함께 잘려 나간다 — 보는 쪽에서는
+   *   "펼치기만 계속하다 끝났다"가 된다(2026-08-19 사용자 지적).
    *
-   *   고칠 칸이 드러나면 거기서 멈춘다. 한 단계를 열면 그 아래가 드러나므로, 라운드마다 목표를
-   *   확인하고 나오면 대개 두세 라운드로 끝난다.
+   *   토글에 그 자리의 경로가 이름으로 붙어 있으므로(`wf-toggle-{경로}`), 목표 경로의 조상만
+   *   골라 누르면 된다. 세 번이면 닿는다. 이미 펼쳐져 있으면 누르지 않는다.
+   *
+   * @param path 목표 칸의 경로 (예: `body_params.targetSecurityGroupList[0].firewallRules`)
    */
-  async expandUntil(testid: string, maxRounds = 6): Promise<number> {
-    let opened = 0;
-    for (let round = 0; round < maxRounds; round++) {
-      if (await this.page.getByTestId(testid).count()) break;
-
-      const closed = this.taskEditor.locator(
-        'button.btn-collapse, button.btn-item-collapse',
-      );
-      const count = await closed.count().catch(() => 0);
-      let clicked = 0;
-      for (let i = 0; i < count; i++) {
-        const button = closed.nth(i);
-        const label = (await button.innerText().catch(() => '')).trim();
-        if (!label.includes('\u25b6')) continue; // ▶ 만 접힌 것
-        await button.click({ timeout: 5_000 }).catch(() => {});
-        clicked++;
-        opened++;
-        await this.page.waitForTimeout(12);
-        if (await this.page.getByTestId(testid).count()) break;
+  async openPathTo(path: string): Promise<number> {
+    // body_params.targetSecurityGroupList[0].firewallRules
+    //   → body_params / …targetSecurityGroupList / …[0] / …firewallRules
+    const steps: string[] = [];
+    let acc = '';
+    for (const part of path.split('.')) {
+      acc = acc ? `${acc}.${part}` : part;
+      const m = part.match(/^(.*?)(\[\d+\])$/);
+      if (m) {
+        steps.push(acc.slice(0, acc.length - m[2].length));
+        steps.push(acc);
+      } else {
+        steps.push(acc);
       }
-      if (clicked === 0) break;
     }
-    await this.page.waitForTimeout(300);
+
+    let opened = 0;
+    for (const step of steps) {
+      const toggle = this.page.getByTestId(`wf-toggle-${step}`).first();
+      if (!(await toggle.count())) continue; // 접히지 않는 자리는 토글이 없다
+      const label = (await toggle.innerText().catch(() => '')).trim();
+      if (!label.includes('\u25b6')) continue; // ▶ 만 접힌 것
+      await toggle.scrollIntoViewIfNeeded().catch(() => {});
+      await humanClick(toggle);
+      opened++;
+      await this.page.waitForTimeout(250);
+    }
     return opened;
   }
 
@@ -817,6 +823,8 @@ export class WorkflowPage {
   }
 
   async setSpecInWorkflow(size: string): Promise<string> {
+    // 스펙은 노드 그룹 아래에 있다.
+    await this.openPathTo('body_params.targetInfra.nodeGroups[0]');
     await this.expandAllParams();
 
     // ★ Only the node's own spec counts, and it is found by its *path*.
@@ -898,9 +906,9 @@ export class WorkflowPage {
    * @returns the index the new rule was given
    */
   async addPortRuleInWorkflow(port: string): Promise<number> {
-    // 방화벽 규칙 배열이 드러날 때까지만 펼친다 — 전부 펼치면 화면이 클릭만 반복한다.
-    await this.expandUntil(
-      'wf-array-add-body_params.targetSecurityGroupList[0].firewallRules',
+    // 규칙 배열이 있는 자리까지 경로를 따라 연다 — 전부 펼치면 화면이 클릭만 반복한다.
+    await this.openPathTo(
+      'body_params.targetSecurityGroupList[0].firewallRules',
     );
 
     /*
