@@ -813,6 +813,16 @@ When(
     await wf.fillWorkflowName(name, trackDescription(track));
 
     await wf.selectTaskInDesigner(workflowData.infraMigrationTask);
+
+    /*
+      스크롤은 여기서 한 번뿐이다.
+
+      ★ 예전에는 칸을 찾기 전에도, 값을 짚은 뒤에도, 편집을 마친 뒤에도 굴렸다. 영상에서는 그것이
+        *계속 스크롤만 하는* 장면으로 남아 무엇을 고치는지가 묻혔다. 사람이 하는 일은 한 번 굴려
+        무엇이 있는지 보고 곧바로 고칠 자리로 가는 것이다. 그 뒤의 이동은 spotlight 가 해당 칸을
+        화면에 들여 주므로 따로 굴릴 필요가 없다. (2026-08-19 사용자 지적)
+    */
+    await wf.scrollThroughParams();
     await wf.setTaskParam('query', 'nameSeed', seed);
 
     /*
@@ -837,9 +847,6 @@ When(
     );
     scenarioState.workflowSpec = spec;
     console.log(`[트랙${track}] 워크플로우에서 스펙 → ${spec}`);
-
-    // Show what else is in there before leaving the panel.
-    await wf.scrollThroughParams();
 
     await wf.saveWorkflow();
     await waitForDagRegistered(page, name);
@@ -1111,6 +1118,50 @@ Then(
       ports.join(','),
       `${infraName} 의 보안그룹에 5555 가 없다 — 모델 단계에서 넣은 방화벽 규칙이 인프라까지 오지 않았다`,
     ).toContain('5555');
+    console.log(`[보안그룹] ${infraName} — 열린 포트 ${ports.join(', ')}`);
+  },
+);
+
+/**
+ * 같은 답을 **화면에서** 다시 얻는다.
+ *
+ * ★ 위 판정은 REST 로 물어 확실하지만 화면에는 아무것도 남지 않는다. 최종 확인은 워크로드 상세에서
+ *   하기로 했으므로(사용자 결정), 노드 상세의 보안그룹을 펼쳐 그 포트를 눈으로 보이는 자리에서
+ *   확인한다. 영상에 남는 것은 이쪽이다.
+ *
+ *   ★ 노드는 이 스텝이 직접 고른다. 목록을 여는 것과 상세를 여는 것은 다르다 — 카드를 눌러야
+ *   보안그룹이 나온다. 앞 단계가 골라 두었으려니 하고 넘어가면 "보안그룹이 없다"로 죽는다
+ *   (2026-08-19 실제로 그랬다). 구간을 따로 돌릴 때도 앞 단계에 기대지 않는다.
+ */
+Then(
+  '워크로드 상세의 보안그룹에서 {string} 포트를 확인한다',
+  async ({ page }, port: string) => {
+    await new WorkloadPage(page).selectNode('');
+    await page.waitForTimeout(2_000);
+
+    const toggle = page.locator('[data-testid^="node-sg-toggle-"]').first();
+    await expect(
+      toggle,
+      '노드 상세에 보안그룹이 없다 — 노드를 고르지 않았거나 아직 만들어지지 않았다',
+    ).toBeVisible({ timeout: 30_000 });
+
+    await humanClick(toggle);
+
+    const cells = page.locator('[data-testid^="node-sg-rule-port-"]');
+    await expect(
+      cells.first(),
+      '보안그룹을 펼쳤는데 규칙이 나오지 않는다',
+    ).toBeVisible({ timeout: 30_000 });
+
+    const shown = await cells.allInnerTexts();
+    const hit = cells.filter({ hasText: port }).first();
+    await expect(
+      hit,
+      `화면의 보안그룹에 ${port} 이 없다 — 화면에 보이는 포트: ${shown.join(', ')}`,
+    ).toBeVisible({ timeout: 15_000 });
+
+    await spotlight(page, hit);
+    console.log(`[보안그룹·화면] 열린 포트 ${shown.join(', ')}`);
   },
 );
 
@@ -1759,6 +1810,56 @@ Given('알림함을 비운다', async ({ page }) => {
  * Not fatal if it never turns up - the job was already judged by its real result, and a missing
  * announcement is not worth losing a take over.
  */
+/**
+ * 알림이 올 때까지 지금 화면에 그대로 머무른다.
+ *
+ * ★ 화면 요소를 기다리지 않는다. 도착 신호는 화면 가운데에 잠깐 떴다 사라지는 봉투인데, DOM 으로
+ *   붙잡으려 하면 타이밍에 걸려 놓치고 놓쳐도 조용히 지나간다. 대신 **콘솔 자신의 API** 로
+ *   "확인할 메시지가 있는지"만 본다.
+ *
+ * ★ 메시지가 생기는 순간이 곧 애니메이션이 뜨는 순간이다. 브라우저 쪽 트래커가 10초마다 작업
+ *   완료를 확인하다가, 발견하면 메시지를 넣고 *그 자리에서* 목록을 다시 읽어 봉투를 띄운다
+ *   (`shared/libs/tracking/runner.ts` · `entities/notification/lib/notificationStore.ts`).
+ *   그러니 API 에 메시지가 보이면 봉투는 이미 떴거나 뜨는 중이다 — 오래 기다릴 이유가 없다.
+ *
+ * ★ 발견하면 곧바로 알림 배지로 커서를 옮긴다. 두 가지를 한다 — 사람이 알림을 보고 그리로
+ *   가는 동선이 되고, **그 구간에 실제 움직임이 생겨 정지 제거에 잘려 나가지 않는다.**
+ *   봉투는 1700px 화면에서 64px 짜리라 정지 판정의 잡음 한계를 못 넘길 수 있고, 앞뒤가 모두
+ *   멈춰 있으면 그 대기가 통째로 잘린다.
+ */
+Then('알림이 도착할 때까지 이 화면에서 기다린다', async ({ page, request }) => {
+  const token = await getSessionToken(page);
+  const deadline = Date.now() + 10 * 60_000;
+  let arrived = 0;
+
+  while (Date.now() < deadline) {
+    const res = await request
+      .post(`${config.baseURL}/api/listnotifications`, {
+        headers: { Authorization: `Bearer ${token}` },
+        data: {},
+      })
+      .catch(() => null);
+    const body = await res?.json().catch(() => ({}));
+    const items = body?.responseData ?? [];
+    if (Array.isArray(items) && items.length > 0) {
+      arrived = items.length;
+      break;
+    }
+    await page.waitForTimeout(2_000);
+  }
+
+  expect(
+    arrived,
+    '10분을 기다려도 알림이 오지 않았다 — 완료를 확인해 알림을 넣는 쪽을 봐야 한다',
+  ).toBeGreaterThan(0);
+  console.log(`[알림] ${arrived} 건 도착 — 봉투가 배지로 날아가는 자리다`);
+
+  // 봉투가 날아가는 1초를 지켜본 뒤 배지로 커서를 옮긴다.
+  await page.waitForTimeout(1_500);
+  await spotlight(page, page.getByTestId('notification-badge'));
+  await page.waitForTimeout(1_500);
+});
+
 Then('완료 알림을 읽고 지운다', async ({ page }) => {
   const notifications = new NotificationPage(page);
   const mine = recall(`workflow:last`) ?? scenarioState.softwareWorkflowName;

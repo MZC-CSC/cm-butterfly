@@ -919,13 +919,8 @@ export class WorkflowPage {
   async setPortInWorkflow(from: string, to: string): Promise<string> {
     await this.expandAllParams();
 
-    // 화면이 움직인다는 것을 먼저 한 번 보이고, 그 다음에 칸을 찾는다.
-    //
-    // 순서가 반대였다. 칸을 먼저 잡아 두고 굴렸더니, 굴리는 사이에 그 칸이 다시 접혀 눌리지
-    // 않았다 — 요소는 있는데 보이지 않으니 클릭이 끝나지 않고 15초를 채우고 죽었다. 굴리기를
-    // 끝낸 *뒤에* 찾으면 그 자리에 있는 것을 잡는다. (2026-08-01)
-    await this.scrollThroughParams();
-    await this.expandAllParams();
+    // 여기서는 굴리지 않는다 — 편집 화면에 들어갈 때 한 번 굴린 것으로 충분하다.
+    // 접힌 것을 편 뒤 곧바로 그 칸을 잡고, spotlight 가 그 자리로 화면을 옮겨 준다. (2026-08-19)
 
     const all = await this.readBodyFields();
     const found = all.find(
@@ -1131,7 +1126,14 @@ export class WorkflowPage {
     const pointed = await spotlightText(this.page, hit, value);
     if (!pointed) await spotlight(this.page, hit);
 
-    await this.scrollThroughParams(params);
+    /*
+      여기서 다시 훑지 않는다.
+
+      ★ 짚은 다음에도 패널을 끝까지 굴리고 있었다. 보는 쪽에서는 값을 찾은 뒤에도 화면이 계속
+        내려가는 것으로 보여, 무엇을 확인한 것인지 흐려진다. 스크롤은 *편집 화면에 처음 들어갈 때
+        한 번*만 하고(사람도 그렇게 한다), 그 뒤에는 고칠 자리·볼 자리로 곧장 간다. (2026-08-19)
+    */
+    await this.page.waitForTimeout(700);
   }
 
   /**
