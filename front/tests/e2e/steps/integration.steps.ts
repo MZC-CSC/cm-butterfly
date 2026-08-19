@@ -1158,19 +1158,27 @@ Then(
 Then(
   '워크로드 상세에서 스펙이 {string} 인지 확인한다',
   async ({ page }, spec: string) => {
+    /*
+      노드는 이 스텝이 직접 고른다. 앞 단계는 *목록*까지만 열어 두고, Spec 은 *상세*에 있다 —
+      카드를 눌러야 나온다(2026-08-19 실측). 구간을 따로 돌릴 때도 앞 단계에 기대지 않는다.
+    */
+    await new WorkloadPage(page).selectNode('');
+    await page.waitForTimeout(2_000);
+
+    /*
+      행은 라벨 칸에서 거슬러 올라가 잡는다.
+        `locator('tr', { hasText: /^Spec$/ })` 은 맞지 않는다 — hasText 는 행 *전체* 글자를 보는데
+        그 값이 "Spec t3a.large (aws+ap-northeast-2+t3a.large)" 라 `^Spec$` 에 걸리지 않는다.
+        정확히 이 이유로 "Spec 행이 없다"로 죽었다(2026-08-19).
+    */
     const row = page
-      .locator('tr', { hasText: /^\s*Spec\s*$/ })
+      .getByText('Spec', { exact: true })
       .first()
-      .or(
-        page
-          .getByText(/^Spec$/)
-          .first()
-          .locator('xpath=ancestor::tr[1]'),
-      );
+      .locator('xpath=ancestor::tr[1]');
 
     await expect(
       row,
-      '노드 상세에 Spec 행이 없다 — 노드를 고르지 않았을 수 있다',
+      '노드 상세에 Spec 행이 없다 — 노드 상세가 열리지 않았다',
     ).toBeVisible({ timeout: 20_000 });
     await expect(
       row,
