@@ -130,7 +130,7 @@ sleep 1
 # 창을 실제로 띄워야 화면에 그려진다. Playwright 자체 녹화는 끈다 — 여기서는 화면을 찍는다.
 E2E_VIDEO=off E2E_DEMO_PACE=1 DISPLAY="$DISPLAY_NUM" \
   E2E_X11_SCALE="$SCALE" E2E_X11_W="$OUT_W" E2E_X11_H="$OUT_H" \
-  npx playwright test --grep "@${TAG} " --workers=1 --headed
+  npx playwright test --grep "@${TAG}\b" --workers=1 --headed
 CODE=$?
 
 sleep 1
