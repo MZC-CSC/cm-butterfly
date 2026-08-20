@@ -1440,6 +1440,25 @@ export class WorkflowPage {
    *
    * @param taskName the task in the run graph that did the installing
    */
+  /**
+   * 설치 목록에서 이름 하나를 찾아 짚는다. 없으면 그냥 지나간다 — 판정은 위에서 이미 했다.
+   */
+  private async pointAtSoftware(table: Locator, name: string): Promise<void> {
+    const pager = new TablePagination(this.page, table);
+    for (let i = 0; i < 6; i++) {
+      const row = table.locator('tbody tr', { hasText: name }).first();
+      if (await row.count()) {
+        await row.scrollIntoViewIfNeeded().catch(() => {});
+        await spotlightText(this.page, row, name);
+        await this.page.waitForTimeout(1_500);
+        return;
+      }
+      if (!(await pager.next())) break;
+      await this.page.waitForTimeout(900);
+    }
+    console.log(`[소프트웨어] 목록에서 ${name} 을 찾지 못했다`);
+  }
+
   async showInstalledSoftware(taskName: string): Promise<number> {
     await this.pickTask(taskName, false);
 
@@ -1466,6 +1485,15 @@ export class WorkflowPage {
       .locator('tbody tr')
       .count()
       .catch(() => 0);
+
+    /*
+      약속한 것을 화면에서 짚는다.
+
+      ★ 이 구간의 제목은 *nginx 를 확인한다* 인데, 목록이 이름순이라 첫 페이지에는 nginx 가 없다.
+        스크롤만 하고 넘어가면 45건이 스쳐 지나갈 뿐 정작 약속한 항목은 영상에 담기지 않는다
+        (2026-08-19 실제로 그랬다). 이 표에는 검색칸이 없으므로 페이지를 넘겨 찾는다.
+    */
+    await this.pointAtSoftware(table, 'nginx');
 
     // ★ Close it before leaving.
     //
