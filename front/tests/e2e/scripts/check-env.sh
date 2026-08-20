@@ -52,9 +52,23 @@ else say "콘솔 $HOST" "❌ 응답 $code — 서버가 꺼져 있을 수 있다
 # 되돌린다**(REMOTE-SERVER-LIFECYCLE §5.4). 어제 걸어 둔 것은 오늘 소용이 없다. 한 벌을 찍는 데
 # 25분이 걸리므로 그 사이에 종료 시각이 걸리면 중간부터 통째로 날아간다 — 실제로 그렇게
 # 구간 4~9 를 잃었다(2026-07-30, 도메인이 사라져 ERR_NAME_NOT_RESOLVED).
+#
+# ★ 찾는 이름은 *접속한 호스트*가 아니라 **그 서버의 실제 도메인**이다.
+#
+#   촬영은 가짜 도메인(v0.6.0.cmig-mzc.com)으로 접속한다 - 영상에 내부 호스트가 남지 않게 하려는
+#   것이라 hosts 에만 있고 EC2 태그에는 없다. 그대로 찾으면 "걸려 있지 않다"가 나와 촬영이
+#   시작되지 못한다(2026-08-20). 가짜 이름이면 실제 도메인으로 바꿔 찾는다.
+E2E_REAL_HOST="${E2E_REAL_HOST:-}"
+if [ -z "$E2E_REAL_HOST" ]; then
+  case "$HOST" in
+    *cmig-mzc.com) E2E_REAL_HOST="cmig.dev.cscmzc.com" ;;
+    *)             E2E_REAL_HOST="$HOST" ;;
+  esac
+fi
+
 if command -v aws >/dev/null 2>&1; then
   hold="$(aws ec2 describe-instances --region ap-northeast-2 \
-      --filters "Name=tag:Auto.Dns,Values=$HOST" \
+      --filters "Name=tag:Auto.Dns,Values=$E2E_REAL_HOST" \
       --query "Reservations[].Instances[].Tags[?Key=='Auto.StopHold']|[0][0].Value" \
       --output text 2>/dev/null)"
   case "$hold" in
