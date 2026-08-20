@@ -20,7 +20,7 @@ if [ "${#SEGMENTS[@]}" -eq 0 ]; then
   # 구간11 은 기본 목록에 넣지 않는다 — *이미 실패한 실행*이 있어야 성립하므로 늘 찍을 수 있는
   # 것이 아니다. 필요할 때 이름을 지정해 따로 찍는다:
   #   TEST_FAILED_WORKFLOW=<실패한 워크플로우> scripts/record-all.sh 11
-  SEGMENTS=(1 2a 2 3 4 5 6 6b 7 8 8b 9 10 13)
+  SEGMENTS=(1 0 2a 2 3 4 5 6 6b 7 8 8b 9 10 13)
 fi
 
 : "${BASE_URL:?BASE_URL 이 필요하다}"
@@ -182,6 +182,11 @@ for seg in "${SEGMENTS[@]}"; do
     else
       echo "구간 $seg 실패 — 영상은 남긴다(어디서 어긋났는지는 거기에만 있다)"
       failed+=("$seg")
+    fi
+    # 구간0 은 뒤 구간이 쓸 것을 만들어 두는 자리일 뿐이라 영상으로 남기지 않는다.
+    if [ "$seg" = "0" ]; then
+      d="${KEEP_DIR:-/home/ubuntu/mzc/ant/workflow/cmig-workflow/conf/private/E2E결과/통합시나리오-v060-${E2E_TAKE_DIR:-$(date +%Y%m%d)}}"
+      rm -f "$d"/seg0-*.mp4 "$d"/원본/seg0-*.mp4 2>/dev/null
     fi
   else
     if npx playwright test --project=integration --grep "@seg${seg}\b"; then
