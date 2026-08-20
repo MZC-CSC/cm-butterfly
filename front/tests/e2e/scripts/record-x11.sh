@@ -53,6 +53,13 @@ DISPLAY_NUM="${DISPLAY_NUM:-:98}"
 #   영상 왼쪽에 검은 선으로 남는다.
 #
 #   두 값 모두 1920x1080 가상 화면에서 실측했다(2026-08-19). 화면 크기를 바꾸면 다시 잰다.
+# ★ X 포인터는 찍지 않는다 (-draw_mouse 0).
+#
+#   화면에 커서가 **둘** 보였다. 하나는 우리가 그려 움직이는 커서고, 다른 하나는 가상 화면의
+#   실제 X 포인터다 — Playwright 는 브라우저 안으로 이벤트를 넣을 뿐 OS 포인터를 움직이지 않아
+#   그것이 처음 위치(화면 한가운데)에 붙박여 있다. 모양만 손↔화살표로 바뀌며 남아 있었다.
+#   찍지 않으면 사라진다.
+
 CHROME_TOP="${CHROME_TOP:-90}"
 CHROME_LEFT="${CHROME_LEFT:-10}"
 
@@ -101,8 +108,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# 구간이 남기는 신호를 받을 자리. 로그인이 끝난 시각이 여기 적힌다.
+CUE_FILE="$(mktemp)"
+export E2E_CUE_FILE="$CUE_FILE"
+
+REC_EPOCH_MS=$(($(date +%s%N) / 1000000))
+
 ffmpeg -nostdin -loglevel error -y \
-  -f x11grab -framerate "$FPS" -video_size "${W}x${H}" -i "$DISPLAY_NUM" \
+  -f x11grab -draw_mouse 0 -framerate "$FPS" -video_size "${W}x${H}" -i "$DISPLAY_NUM" \
   ${CROP_ARG} \
   -c:v libx264 -preset slow -crf "$CRF" -pix_fmt yuv420p \
   -g "$((FPS * KEYINT_SEC))" -keyint_min "$((FPS * KEYINT_SEC))" -sc_threshold 0 \
@@ -161,6 +174,24 @@ PY
 )"
 START="$(echo "$BOUNDS" | cut -d' ' -f1)"
 STOP="$(echo "$BOUNDS" | cut -d' ' -f2)"
+
+# 로그인 장면은 구간1 에서 한 번이면 된다. 나머지는 로그인이 끝난 지점부터 쓴다.
+#
+# ★ 구간마다 로그인을 다시 하는 것은 각 구간이 혼자서도 돌기 위해서다. 영상에서까지 같은 장면을
+#   열다섯 번 되풀이할 이유는 없다(사용자 지시 2026-08-20). 화면을 보고 찾지 않고, 로그인 스텝이
+#   적어 준 시각을 쓴다 - 그 편이 정확하다.
+if [ "$TAG" != "seg1" ] && [ -s "$CUE_FILE" ]; then
+  LOGIN_MS="$(awk '/^login-done /{print $2; exit}' "$CUE_FILE")"
+  if [ -n "$LOGIN_MS" ]; then
+    LOGIN_AT="$(python3 -c "print(max(0.0, ($LOGIN_MS - $REC_EPOCH_MS) / 1000.0))" 2>/dev/null)"
+    NEW_START="$(python3 -c "print(max($START, $LOGIN_AT - 0.5))" 2>/dev/null)"
+    if [ -n "$NEW_START" ] && python3 -c "import sys; sys.exit(0 if $NEW_START < $STOP - 3 else 1)"; then
+      echo "[x11] 로그인 장면을 버린다 - ${START}초 → ${NEW_START}초부터"
+      START="$NEW_START"
+    fi
+  fi
+fi
+rm -f "$CUE_FILE"
 # 원본은 *손대지 않은 것*이어야 한다.
 #
 # ★ 예전에는 앞뒤를 다듬은 결과를 원본/ 에 넣고 찍은 그대로는 지웠다. 그런데 그 다듬기가 바로
