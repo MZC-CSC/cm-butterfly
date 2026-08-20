@@ -184,7 +184,7 @@ if [ "$TAG" != "seg1" ] && [ -s "$CUE_FILE" ]; then
   LOGIN_MS="$(awk '/^login-done /{print $2; exit}' "$CUE_FILE")"
   if [ -n "$LOGIN_MS" ]; then
     LOGIN_AT="$(python3 -c "print(max(0.0, ($LOGIN_MS - $REC_EPOCH_MS) / 1000.0))" 2>/dev/null)"
-    NEW_START="$(python3 -c "print(max($START, $LOGIN_AT - 0.5))" 2>/dev/null)"
+    NEW_START="$(python3 -c "print(max($START, $LOGIN_AT + 1.0))" 2>/dev/null)"
     if [ -n "$NEW_START" ] && python3 -c "import sys; sys.exit(0 if $NEW_START < $STOP - 3 else 1)"; then
       echo "[x11] 로그인 장면을 버린다 - ${START}초 → ${NEW_START}초부터"
       START="$NEW_START"
