@@ -32,7 +32,16 @@ SCALE="${SCALE:-1}"
 # ★ 예전에는 1920x1080 을 찍어 껍데기를 잘라내 1910x990 이 나왔다. 풀 HD 가 아니다.
 OUT_W="${OUT_W:-1920}"
 OUT_H="${OUT_H:-1080}"
-FPS="${FPS:-15}"
+# 초당 프레임 수 - *부드러움*을 정한다.
+#
+# ★ 24 는 영화와 같은 값이다. 15 로 찍었더니 마우스가 움직일 때 계단처럼 보였다.
+FPS="${FPS:-24}"
+
+# 키프레임 간격(초) - *자를 수 있는 눈금*을 정한다. 부드러움과는 무관하다.
+#
+# ★ 1초로 두면 편집을 **재인코딩 없이** 잘라내기로 끝낼 수 있다. 화질 손실이 사라지고
+#   편집도 빨라진다. 기본값(약 16초)으로는 초 단위로 자를 수가 없어 매번 다시 인코딩했다.
+KEYINT_SEC="${KEYINT_SEC:-1}"
 CRF="${CRF:-16}"           # 낮을수록 좋다. 18 이하면 눈으로는 원본과 구분되지 않는다
 DISPLAY_NUM="${DISPLAY_NUM:-:98}"
 
@@ -68,7 +77,7 @@ CH=$(( OUT_H * SCALE / 2 * 2 ))
 CROP_ARG="-vf crop=${CW}:${CH}:${PAD_L}:${PAD_T}"
 echo "[x11] 가상 화면 ${W}x${H} 에서 위 ${PAD_T}·왼쪽 ${PAD_L} 을 잘라 ${CW}x${CH} 로 남긴다"
 [ "$SCALE" -gt 1 ] && echo "[x11] ${SCALE}배로 그린다 - 배치는 ${OUT_W}x${OUT_H} 그대로, 픽셀만 촘촘해진다"
-echo "[x11] 가상 화면 $DISPLAY_NUM (${W}x${H}) · ${FPS}fps · crf ${CRF}"
+echo "[x11] 가상 화면 $DISPLAY_NUM (${W}x${H}) · ${FPS}fps · crf ${CRF} · 키프레임 ${KEYINT_SEC}초"
 Xvfb "$DISPLAY_NUM" -screen 0 "${W}x${H}x24" -nolisten tcp &
 XVFB_PID=$!
 sleep 2
@@ -95,7 +104,9 @@ trap cleanup EXIT
 ffmpeg -nostdin -loglevel error -y \
   -f x11grab -framerate "$FPS" -video_size "${W}x${H}" -i "$DISPLAY_NUM" \
   ${CROP_ARG} \
-  -c:v libx264 -preset slow -crf "$CRF" -pix_fmt yuv420p -movflags +faststart "$RAW" &
+  -c:v libx264 -preset slow -crf "$CRF" -pix_fmt yuv420p \
+  -g "$((FPS * KEYINT_SEC))" -keyint_min "$((FPS * KEYINT_SEC))" -sc_threshold 0 \
+  -movflags +faststart "$RAW" &
 FFMPEG_PID=$!
 sleep 1
 
@@ -160,8 +171,10 @@ mv "$RAW" "$OUT"
 EDITED="$KEEP_DIR/$(basename "$OUT")"
 if [ "$STOP" != "0" ]; then
   echo "[x11] 내용 구간 ${START}~${STOP}초"
+  # 재인코딩하지 않는다 - 키프레임이 1초 간격이라 그대로 잘라내도 눈금이 충분하다.
+  # 다시 인코딩하면 세대가 하나 더 쌓여 화질이 깎이고 용량이 오히려 는다.
   ffmpeg -v error -y -ss "$START" -to "$STOP" -i "$OUT" \
-    -c:v libx264 -preset slow -crf "$CRF" -pix_fmt yuv420p -movflags +faststart "$EDITED"
+    -c copy -movflags +faststart "$EDITED"
 else
   echo "[x11] 내용 구간을 찾지 못했다 - 다듬지 않고 그대로 둔다"
   cp "$OUT" "$EDITED"

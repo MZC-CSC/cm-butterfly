@@ -169,6 +169,13 @@ if total - t > 0.05:
     out.append((t, total))
 print('+'.join(f'between(t,{a:.2f},{b:.2f})' for a, b in out))
 print(f'{sum(b - a for a, b in out):.1f}')
+# 남길 구간을 그대로도 내보낸다 - 재인코딩 없이 잘라 붙일 때 쓴다.
+#
+# ★ 자를 자리를 *키프레임 눈금*(1초)에 맞춘다. 시작은 내림, 끝은 올림이라 조금 넉넉히 남는다 -
+#   보여줄 것을 잘라 먹는 쪽보다 정지가 반 초 더 남는 쪽이 낫다.
+import math
+for a, b in out:
+    print(f'RANGE {math.floor(a)} {math.ceil(b)}')
 PY
 
 
@@ -267,13 +274,30 @@ if python3 -c "import sys; sys.exit(0 if float('$NEWLEN') < float('$TOTAL') * 0.
 fi
 
 TMP="${SRC%.mp4}.cut.mp4"
-ffmpeg -v error -y -i "$SRC" \
-  -vf "select='${EXPR}',setpts=N/FRAME_RATE/TB" \
-  -an -c:v libx264 -preset slow -crf 20 -pix_fmt yuv420p -movflags +faststart "$TMP" || {
-  echo "[cut-still] 다시 인코딩하지 못했다 — 원본을 그대로 둔다" >&2
-  rm -f "$TMP"
+
+# 재인코딩하지 않고 잘라 붙인다.
+#
+# ★ 예전에는 프레임을 골라 내느라 통째로 다시 인코딩했고, 그것도 crf 20 이라 **촬영본(crf 16)보다
+#   화질을 깎고** 있었다. 세대가 하나 쌓이면 압축 자국이 '무늬'로 남아 용량까지 오히려 는다.
+#   촬영을 키프레임 1초로 찍으므로 이제 구간 단위로 그냥 오려 붙이면 된다 - 손실이 없다.
+PARTS="$(mktemp -d)"
+LIST="$PARTS/list.txt"
+: > "$LIST"
+n=0
+printf '%s\n' "$KEEPS" | grep '^RANGE ' | while read -r _ a b; do
+  n=$((n + 1))
+  part="$PARTS/$(printf '%03d' "$n").mp4"
+  ffmpeg -v error -y -ss "$a" -to "$b" -i "$SRC" -c copy "$part" 2>/dev/null || continue
+  printf "file '%s'\n" "$part" >> "$LIST"
+done
+
+if [ ! -s "$LIST" ] || ! ffmpeg -v error -y -f concat -safe 0 -i "$LIST" \
+     -c copy -movflags +faststart "$TMP" 2>/dev/null; then
+  echo "[cut-still] 잘라 붙이지 못했다 — 원본을 그대로 둔다" >&2
+  rm -rf "$PARTS"; rm -f "$TMP"
   exit 1
-}
+fi
+rm -rf "$PARTS"
 
 mv -f "$TMP" "$SRC"
 printf '[cut-still] %s  %s초 → %s초\n' "$(basename "$SRC")" "$TOTAL" "$NEWLEN"
