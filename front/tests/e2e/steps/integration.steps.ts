@@ -445,7 +445,11 @@ async function openPortByDuplicating(page: Page): Promise<void> {
     Not filtered. The family of a rule is on its `dstCIDR` row, and filtering to rows that say `22`
     takes that row away - leaving no way to tell the IPv4 rule from the IPv6 one. The search still
     highlights, so the screen shows where the rule is.
+
+    ★ 대신 *다음 일치* 를 눌러 옮겨 간다. 검색만 하면 표가 스스로 첫 일치로 움직여, 누른 것도
+      없이 화면이 좁혀진 것처럼 보인다 - 걸지도 않은 필터가 걸린 줄로 읽힌다(사용자 지적).
   */
+  await editor.stepThroughMatches(2);
 
   /*
     The rule to copy has to be an IPv4 one.

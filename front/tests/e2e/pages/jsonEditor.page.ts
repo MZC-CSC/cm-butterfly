@@ -111,6 +111,25 @@ export class JsonEditorPage {
   }
 
   /**
+   * 일치 지점을 하나씩 짚어 간다.
+   *
+   * ★ 검색만 하면 표가 첫 일치로 *스스로 옮겨 간다*. 보는 사람에게는 누른 것도 없이 화면이
+   *   좁혀진 것처럼 보여, 걸지도 않은 필터가 걸린 줄로 읽힌다(2026-08-19 사용자 지적).
+   *
+   *   여기서 필터를 켜지 않는 데에는 이유가 있다 — 켜면 규칙의 갈래를 말해 주는 `dstCIDR` 행이
+   *   사라져 IPv4 와 IPv6 를 가릴 수 없다. 그러니 필터를 켜는 대신 *다음 일치* 를 눌러 옮겨
+   *   간다. 화면이 왜 움직였는지가 그 동작으로 설명된다.
+   */
+  async stepThroughMatches(times = 1): Promise<void> {
+    const next = this.page.getByTestId('json-grid-search-next');
+    for (let i = 0; i < times; i++) {
+      if (!(await next.count())) return;
+      await humanClick(next, { pauseBeforeMs: 500 });
+      await this.page.waitForTimeout(900);
+    }
+  }
+
+  /**
    * Leave the editor without saving.
    *
    * ★ The editor is an overlay on the model's own route, so the address does not change when it
