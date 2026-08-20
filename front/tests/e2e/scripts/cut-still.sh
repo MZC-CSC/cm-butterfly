@@ -269,8 +269,23 @@ NEWLEN="$(printf '%s\n' "$KEEPS" | tail -1)"
 # 때를 대비해 바닥은 둔다. 정지 판정은 한 픽셀이라도 바뀌면 깨지므로 잘라 낸 자리는 정말로
 # 멈춰 있던 자리다.
 if python3 -c "import sys; sys.exit(0 if float('$NEWLEN') < float('$TOTAL') * 0.12 else 1)"; then
-  echo "[cut-still] 너무 많이 잘린다(${TOTAL}초 → ${NEWLEN}초) — 그대로 둔다"
-  exit 0
+  # ★ 통째로 포기하지 않는다.
+  #
+  #   판정이 너무 공격적일 때가 있다 - 부하 테스트처럼 *천천히* 바뀌는 화면은 프레임 사이
+  #   차이가 작아 정지로 잡힌다. 그렇다고 아무것도 안 자르면 **10분 중 7분 30초가 멈춰 있는
+  #   영상**이 그대로 남는다(2026-08-19 구간8 이 그랬다: 598초 → 30.9초로 잡혀 포기).
+  #
+  #   그럴 때는 *길게 멈춘 것만* 자른다. 30초 넘게 한 픽셀도 안 바뀌었다면 그것은 기다림이지
+  #   보여줄 장면이 아니다. 짧은 정지는 그대로 두므로 값을 읽을 시간은 남는다.
+  echo "[cut-still] 판정이 과하다(${TOTAL}초 → ${NEWLEN}초) — 길게 멈춘 것만 자른다"
+  CUTS="$(printf '%s\n' "$CUTS" | awk '$2 - $1 >= 30')"
+  if [ -z "$CUTS" ]; then
+    echo "[cut-still] 30초 넘게 멈춘 구간은 없다 — 그대로 둔다"
+    exit 0
+  fi
+  KEEPS="$(printf '%s\n' "$CUTS" | python3 "$PYWORK/keeps.py" "$TOTAL")"
+  NEWLEN="$(printf '%s\n' "$KEEPS" | sed -n 2p)"
+  echo "[cut-still] 긴 정지만 걷어내 ${TOTAL}초 → ${NEWLEN}초"
 fi
 
 TMP="${SRC%.mp4}.cut.mp4"
