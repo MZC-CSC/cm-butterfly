@@ -333,6 +333,31 @@ Given(
   },
 );
 
+/*
+  보여주기 위한 등록 — 개인키 자리에 *안내 문구*만 넣는다.
+
+  ★ 이 칸만 평문으로 그려져, 실제 키를 치면 그 본문이 영상에 그대로 남는다. 그런데 수집에 쓰는
+    연결은 진짜 키가 있어야 한다. 그래서 둘로 나눴다 — *쓰는 것*은 사전 작업에서 조용히 만들고,
+    *보여주는 것*은 여기서 찍는다. 등록되는 내용은 같고 키만 문구다.
+*/
+When(
+  '소스 서비스에 {string} 소스서버를 안내 문구만 넣어 등록한다',
+  async ({ page }, groupName: string) => {
+    const name = uniqueName(groupName);
+    const source = new SourceServicesPage(page);
+    await source.goto();
+    await source.createSourceGroupWithConnection(name, {
+      ...connectionFor('onprem-web', 'nano'),
+      name,
+      privateKey: [
+        '-----BEGIN OPENSSH PRIVATE KEY-----',
+        '  여기에 접속할 서버의 개인키 전문을 붙여 넣습니다',
+        '-----END OPENSSH PRIVATE KEY-----',
+      ].join('\n'),
+    });
+  },
+);
+
 Then('소스그룹 목록에 {string} 이 보인다', async ({ page }, name: string) => {
   const source = new SourceServicesPage(page);
   await source.goto();
