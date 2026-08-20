@@ -190,23 +190,6 @@ export class JsonEditorPage {
    * Anything that reads the grid without doing this reads whatever happens to be open, which is a
    * different set on the source model and on the target model.
    */
-  /**
-   * 한 항목만 펼친다. 접혀서 들어온 사본을 여는 자리다.
-   *
-   * ★ 전체 펼치기를 다시 누르면 표 전체가 다시 그려져 화면이 크게 튀고, 보는 사람에게는
-   *   *쓸데없는 클릭*으로 읽힌다(2026-08-19 사용자 지적). 접힌 그 줄의 토글만 누르면 된다.
-   */
-  async expandRow(path: string): Promise<boolean> {
-    const toggle = this.rowAt(path)
-      .locator('.pg-toggle, [class*="toggle"]')
-      .first();
-    if (!(await toggle.count())) return false;
-    await toggle.scrollIntoViewIfNeeded().catch(() => {});
-    await humanClick(toggle);
-    await this.page.waitForTimeout(600);
-    return true;
-  }
-
   async expandAll(): Promise<void> {
     await humanClick(
       this.page.locator('.jse-menu button[title="Expand all"]').first(),
