@@ -511,11 +511,14 @@ async function openPortByDuplicating(page: Page): Promise<void> {
 
   await editor.duplicateRow(editor.rowAt(rulePath));
   /*
-    Open it out again. The new item arrives folded, so its fields are not rows yet - the rule count
-    stays where it was and the copy looks as though it was never made. (Watched happen: the table
-    went 327 → 328 rows while the rules stayed at 26.)
+    사본만 펼친다. 접힌 채로 들어오면 그 안의 칸들이 아직 행이 아니라, 규칙 수가 그대로여서
+    복제가 안 된 것처럼 보인다(표는 327→328 로 늘었는데 규칙은 26 그대로였던 적이 있다).
+
+    ★ 전체 펼치기를 다시 누르지 않는다. 표가 통째로 다시 그려져 화면이 크게 튀고, 보는 사람에게는
+      쓸데없는 클릭으로 읽힌다(2026-08-19 사용자 지적). 사본은 원본 바로 아래에 생기므로 그
+      자리만 열면 된다.
   */
-  await editor.expandAll();
+  if (!(await editor.expandRow(nextRule))) await editor.expandAll();
   await expect(
     editor.rowsMatching('22'),
     '22번 규칙이 복제되지 않았다 — 복제 버튼이 방화벽 규칙이 아닌 다른 항목에 눌렸을 수 있다',

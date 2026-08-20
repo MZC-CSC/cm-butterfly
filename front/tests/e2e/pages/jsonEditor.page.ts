@@ -1,5 +1,6 @@
 import { Page, Locator, expect } from '@playwright/test';
 import { humanClick, humanFill } from '../support/humanize';
+import { spotlight } from '../support/spotlight';
 import { describe as writeDescription } from '../support/describe';
 
 /**
@@ -189,6 +190,23 @@ export class JsonEditorPage {
    * Anything that reads the grid without doing this reads whatever happens to be open, which is a
    * different set on the source model and on the target model.
    */
+  /**
+   * 한 항목만 펼친다. 접혀서 들어온 사본을 여는 자리다.
+   *
+   * ★ 전체 펼치기를 다시 누르면 표 전체가 다시 그려져 화면이 크게 튀고, 보는 사람에게는
+   *   *쓸데없는 클릭*으로 읽힌다(2026-08-19 사용자 지적). 접힌 그 줄의 토글만 누르면 된다.
+   */
+  async expandRow(path: string): Promise<boolean> {
+    const toggle = this.rowAt(path)
+      .locator('.pg-toggle, [class*="toggle"]')
+      .first();
+    if (!(await toggle.count())) return false;
+    await toggle.scrollIntoViewIfNeeded().catch(() => {});
+    await humanClick(toggle);
+    await this.page.waitForTimeout(600);
+    return true;
+  }
+
   async expandAll(): Promise<void> {
     await humanClick(
       this.page.locator('.jse-menu button[title="Expand all"]').first(),
@@ -337,8 +355,26 @@ export class JsonEditorPage {
    * and the copy's port is changed. Writing a whole rule by hand would test the keyboard, not the
    * product.
    */
+  /**
+   * 어느 항목의 사본을 뜨는지 화면에서 먼저 짚는다.
+   *
+   * ★ 복제 버튼은 그 줄의 **오른쪽 끝**에 있다. 값은 왼쪽에 있으니, 그냥 누르면 화면에서는
+   *   커서가 값과 상관없는 자리로 건너뛰어 *엉뚱한 데를 누르는 것*처럼 보인다
+   *   (2026-08-19 사용자 지적).
+   *
+   *   그래서 그 줄을 먼저 짚어 두고 버튼으로 옮겨 간다. 무엇을 복제하는지가 눈으로 이어진다.
+   */
+  private async pointAtRowBeforeDuplicating(locator: Locator): Promise<void> {
+    const value = locator.locator('.pg-value').first();
+    if (await value.count()) {
+      await spotlight(this.page, value);
+      await this.page.waitForTimeout(600);
+    }
+  }
+
   async duplicateRow(locator: Locator): Promise<void> {
     await expect(locator).toBeVisible({ timeout: 15_000 });
+    await this.pointAtRowBeforeDuplicating(locator);
     const inline = locator.getByTestId('json-grid-row-duplicate');
     if (await inline.count()) {
       await humanClick(inline.first());
