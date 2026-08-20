@@ -1340,12 +1340,23 @@ export class WorkflowPage {
     */
     const confirm = this.page.getByTestId('workflow-rerun-confirm');
     for (let attempt = 0; attempt < 4; attempt++) {
-      await humanClick(button, { pauseBeforeMs: attempt === 0 ? 700 : 150 });
+      /*
+        ★ 누르기 *전에* 확인한다.
+
+          창이 이미 떠 있으면 그것이 화면을 덮고 있어, 그 아래 버튼을 다시 누르려다 15초를
+          기다리다 죽는다 — 창은 정상적으로 떴는데 실패로 끝난다(2026-08-20 실제로 그랬다).
+          잠긴 버튼을 대비한 재시도가 그 반대 상황을 만든 것이다.
+      */
+      if (await confirm.isVisible({ timeout: 1_000 }).catch(() => false)) break;
+
+      await humanClick(button, {
+        pauseBeforeMs: attempt === 0 ? 700 : 150,
+      }).catch(() => {});
       const shown = await confirm
-        .isVisible({ timeout: 5_000 })
+        .isVisible({ timeout: 8_000 })
         .catch(() => false);
       if (shown) break;
-      await this.page.waitForTimeout(3_000);
+      await this.page.waitForTimeout(2_000);
     }
 
     await expect(
