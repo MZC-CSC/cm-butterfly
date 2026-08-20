@@ -891,6 +891,17 @@ export class SourceServicesPage {
     await expect(this.groupStatus).toHaveAttribute('data-status', 'Success', {
       timeout: 60_000,
     });
+
+    /*
+      결과를 *보고 나서* 다음으로 넘어간다.
+
+      ★ 상태는 이미 Success 인 채로 목록에 나오는 경우가 많다. 그러면 위 기다림이 그 자리에서
+        바로 통과해, 화면에서는 **누르자마자 다음 버튼을 누르는 것처럼** 보인다. 결과가 나오기도
+        전에 움직이는 모양새다(2026-08-19 사용자 지적).
+
+        보는 사람이 갱신된 상태를 읽을 만큼은 멈춘다. 판정과는 무관하고 *보여주기* 위한 시간이다.
+    */
+    await this.page.waitForTimeout(1_500);
   }
 
   /**
