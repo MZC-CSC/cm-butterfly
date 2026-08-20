@@ -262,7 +262,7 @@ fi
 
 KEEPS="$(printf '%s\n' "$CUTS" | python3 "$PYWORK/keeps.py" "$TOTAL")"
 EXPR="$(printf '%s\n' "$KEEPS" | head -1)"
-NEWLEN="$(printf '%s\n' "$KEEPS" | tail -1)"
+NEWLEN="$(printf '%s\n' "$KEEPS" | sed -n 2p)"
 
 # 대부분이 기다림인 구간은 실제로 있다 — 한 구간은 257초 중 196초가 정지였다(워크플로우가 읽히기를
 # 기다린 시간). 그래서 "많이 잘린다"는 것 자체는 이상 신호가 아니다. 다만 판정이 통째로 어긋났을
