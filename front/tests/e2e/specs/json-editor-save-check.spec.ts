@@ -20,7 +20,7 @@ import { ModelsPage } from '../pages/models.page';
  *   4. change the file, import it, save, reopen, and confirm that survived too
  *
  * Run:
- *   BASE_URL=http://cmig.dev.cscmzc.com:5174 \
+ *   BASE_URL=http://localhost:5174 \
  *   npx playwright test tests/e2e/specs/json-editor-save-check.spec.ts \
  *     --config=tests/e2e/playwright.runviewer.config.ts
  */

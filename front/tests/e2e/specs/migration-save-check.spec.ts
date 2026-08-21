@@ -14,7 +14,7 @@ import { WorkflowPage } from '../pages/workflow.page';
  * The body is not edited (since the literal filled from the target model must be saved as-is).
  *
  * Run:
- *   BASE_URL=http://cmig.dev.cscmzc.com TARGET_MODEL_NAME=e2e-lowcost-target-974924 \
+ *   BASE_URL=http://localhost TARGET_MODEL_NAME=e2e-lowcost-target-974924 \
  *   npx playwright test tests/e2e/specs/migration-save-check.spec.ts \
  *     --config=tests/e2e/playwright.runviewer.config.ts
  */

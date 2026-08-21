@@ -12,7 +12,7 @@ import { spotlight } from '../support/spotlight';
  * moments the ring is drawn. The frames are then read back to see where it went - the ring should
  * hug the text, not the column it sits in.
  *
- *   BASE_URL=http://cmig.dev.cscmzc.com npx playwright test \
+ *   BASE_URL=http://localhost npx playwright test \
  *     --config=tests/e2e/playwright.specs.config.ts spotlight-check
  */
 test('the highlight lands on the value @integration', async ({ page }) => {
