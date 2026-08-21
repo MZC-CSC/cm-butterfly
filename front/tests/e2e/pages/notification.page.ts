@@ -2,7 +2,7 @@ import { Page, expect, Locator } from '@playwright/test';
 import { humanClick } from '../support/humanize';
 
 /**
- * NotificationPage — the top-bar notification badge (BAR-1536 stage 1~3).
+ * NotificationPage — the top-bar notification badge (stage 1~3).
  *
  * The badge is where a long job's outcome surfaces after the user has left the screen that
  * started it. Selectors live here so scenarios only speak of intent.

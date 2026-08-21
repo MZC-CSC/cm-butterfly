@@ -16,7 +16,7 @@ import { openSubScreen } from '../support/navigate';
  *   - Load testing is cm-ant — `Runloadtest`, `Getlastloadtestexecutionstate`,
  *     `Getlastloadtestresult`, `Getlastloadtestmetrics`, scenario catalog `*LoadTestScenarioCatalog*`.
  *
- * Prefer data-testid, and where it is not yet assigned (BAR-880) fall back to the actual .vue markup (placeholder/role/text).
+ * Prefer data-testid, and where it is not yet assigned fall back to the actual .vue markup (placeholder/role/text).
  */
 export class WorkloadPage {
   /** ★ Screen location (URL) — routing: /main → workload-operations → workloads → mci-wls|pmk-wls */
@@ -255,7 +255,7 @@ export class WorkloadPage {
   /**
    * The confirm (Delete) button of the delete modal.
    *
-   * With BAR-1444 the modal became a 3-stage async flow (confirm/progress/error) and renders its footer as a custom slot.
+   * The modal is a 3-stage async flow (confirm/progress/error) and renders its footer as a custom slot.
    * Each button carries a testid, so we grab it by that (the previous default `.confirm-button` button no longer exists).
    */
   private get deleteConfirmButton(): Locator {
@@ -309,7 +309,7 @@ export class WorkloadPage {
    * closed on the way (three scenarios were red on that alone).
    *
    * The phrase is whatever the dialog is asking for — one target's name, several names, or a
-   * phrase carrying the count — so it is passed in rather than assumed (BAR-1717).
+   * phrase carrying the count — so it is passed in rather than assumed.
    */
   async sendDelete(
     keyword: string,
@@ -387,7 +387,7 @@ export class WorkloadPage {
     // The dialog says so itself: closing it does not stop the delete, and the list carries the
     // state in its Delete Status column. So this is what a person does here too.
     await expect(this.deleteProgress).toBeVisible({ timeout: 30_000 });
-    // Wait out the hold the dialog puts on Close (BAR-1717).
+    // Wait out the hold the dialog puts on Close.
     await this.waitDeleteCloseReleased();
 
     // Then let it be seen before closing it.
@@ -402,7 +402,7 @@ export class WorkloadPage {
   }
 
   /**
-   * Waits out the hold the dialog puts on Close right after a request goes out (BAR-1717).
+   * Waits out the hold the dialog puts on Close right after a request goes out.
    *
    * The dialog stays put for a few seconds so the request has time to be written down before
    * anyone can walk away from it. Clicking through that hold does nothing — and mirinae marks a
@@ -448,7 +448,7 @@ export class WorkloadPage {
       .catch(() => false);
   }
 
-  // ── BAR-1444 async delete flow ──────────────────────────────────────────────
+  // ── Asynchronous delete flow ──────────────────────────────────────────────
 
   /** After pressing delete, whether the modal switched to "deletion in progress" (progress). */
   async expectDeleteInProgress(): Promise<void> {
@@ -461,7 +461,7 @@ export class WorkloadPage {
     await humanClick(this.deleteCloseButton);
   }
 
-  // ── Deleting a mixed selection (BAR-1717) ──────────────────────────────
+  // ── Deleting a mixed selection ──────────────────────────────
 
   /** Selects several rows at once, in the order given. */
   async selectMcis(infraNames: string[]): Promise<void> {
@@ -470,7 +470,7 @@ export class WorkloadPage {
     }
   }
 
-  // ── Sending several at once (BAR-1719) ───────────────────────────────
+  // ── Sending several at once ───────────────────────────────
 
   /** The notice shown before a large selection is sent. */
   async expectSubmitNotice(): Promise<void> {
@@ -755,12 +755,9 @@ export class WorkloadPage {
     //   its tabs from a prop with no slot, so a data-testid cannot be attached to the tab button
     //   without modifying mirinae; scoping to the tab strip disambiguates it cleanly instead.
     return this.page
-      .getByTestId('vm-tab-evaluatePerf')
-      .or(
-        this.page
-          .locator('.p-button-tab .button-group button')
-          .filter({ hasText: /evaluate perf/i }),
-      )
+      .getByTestId('vm-detail-tabs')
+      .locator('.button-group button')
+      .filter({ hasText: /evaluate perf/i })
       .first();
   }
   private get loadConfigButton(): Locator {

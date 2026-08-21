@@ -3,6 +3,11 @@ import { TablePagination } from '../support/pagination';
 import { humanClick, humanFill } from '../support/humanize';
 import { openScreen } from '../support/navigate';
 import { spotlight } from '../support/spotlight';
+import {
+  screenCapturesTheDesktop,
+  writeTempFile,
+  pickFileInDesktopDialog,
+} from '../support/desktopFileDialog';
 
 /**
  * SourceServicesPage — 소스 서비스(소스 컴퓨팅, cm-honeybee) 화면의 "어디서/어떻게".
@@ -19,7 +24,7 @@ import { spotlight } from '../support/spotlight';
  *  - 소프트웨어 수집          : import-software
  *
  * 셀렉터는 data-testid 우선(getByTestId) + 아직 미부여 구간은 실제 .vue의
- * placeholder/label/버튼 텍스트로 fallback. data-testid 부여(BAR-880) 후 fallback 제거.
+ * placeholder/label/버튼 텍스트로 fallback. data-testid 부여 후 fallback 제거.
  */
 export class SourceServicesPage {
   /** ★ 화면 위치(URL) — 라우트 /main + source-computing/source-services */
@@ -188,9 +193,7 @@ export class SourceServicesPage {
   }
   private connectionRow(name: string): Locator {
     // 위 groupRow 와 같은 이유 — 행은 표 안에서만 찾는다.
-    const table = this.page
-      .getByTestId('source-connection-list-table')
-      .or(this.page.locator('table'));
+    const table = this.page.getByTestId('source-connection-list-table');
     return table.getByRole('row', { name: new RegExp(name) }).first();
   }
   /** 연결 목록의 "Export" 버튼 — 선택한 연결이 없으면 비활성 */
@@ -421,30 +424,42 @@ export class SourceServicesPage {
     //
     // Waiting for the chooser is what keeps the operating system's own window from opening -
     // the browser asks for a file, this catches the request first and answers it.
-    const chooser = this.page.waitForEvent('filechooser');
-    await humanClick(this.page.getByTestId('source-import-file'));
+    const chosenName = 'sources.csv';
 
-    // Stay on the button for a beat before the file turns up.
-    //
-    // ★ The chooser is the operating system's window and never appears in the recording. Answer it
-    //   the instant it opens and the filename lands in the same frame as the press, which reads as
-    //   the button having produced it. Holding the pointer there for a moment leaves a gap the
-    //   viewer fills in themselves - that is where the file was picked, off screen.
-    await this.page.waitForTimeout(1_500);
+    if (screenCapturesTheDesktop()) {
+      // The desktop itself is being recorded, so let the real window open and answer it the way a
+      // person does. This is the only route that puts the act of choosing a file on screen; the
+      // one below skips it, and the recording then shows a filename arriving on its own.
+      const csvPath = writeTempFile(chosenName, csv);
+      await humanClick(this.page.getByTestId('source-import-file'));
+      await this.page.waitForTimeout(2_500);
+      await pickFileInDesktopDialog(csvPath);
+      await this.page.waitForTimeout(2_500);
+    } else {
+      // Nothing outside the browser is being recorded, so answering the request before the window
+      // opens costs nothing and keeps the run from depending on a desktop being there at all.
+      const chooser = this.page.waitForEvent('filechooser');
+      await humanClick(this.page.getByTestId('source-import-file'));
 
-    await (
-      await chooser
-    ).setFiles({
-      name: 'sources.csv',
-      mimeType: 'text/csv',
-      buffer: Buffer.from(csv, 'utf-8'),
-    });
+      // Stay on the button for a beat before the file turns up, so the filename does not land in
+      // the same frame as the press and read as the button having produced it. The gap is where a
+      // viewer puts the choosing they cannot see.
+      await this.page.waitForTimeout(1_500);
+
+      await (
+        await chooser
+      ).setFiles({
+        name: chosenName,
+        mimeType: 'text/csv',
+        buffer: Buffer.from(csv, 'utf-8'),
+      });
+    }
 
     // The chosen file is named on screen before anything is read. This is the step that used to be
     // missing: rows appeared in the preview with nothing to say where they came from, and there was
     // no way to tell a file had been attached at all.
     const filename = this.page.getByTestId('source-import-filename');
-    await expect(filename).toContainText('sources.csv', { timeout: 10_000 });
+    await expect(filename).toContainText(chosenName, { timeout: 10_000 });
 
     // Point at the name itself.
     //
@@ -893,18 +908,70 @@ export class SourceServicesPage {
     await expect(this.groupStatus).toHaveAttribute('data-status', 'Success', {
       timeout: 60_000,
     });
+
+    /*
+      결과를 *보고 나서* 다음으로 넘어간다.
+
+      ★ 상태는 이미 Success 인 채로 목록에 나오는 경우가 많다. 그러면 위 기다림이 그 자리에서
+        바로 통과해, 화면에서는 **누르자마자 다음 버튼을 누르는 것처럼** 보인다. 결과가 나오기도
+        전에 움직이는 모양새다(2026-08-19 사용자 지적).
+
+        보는 사람이 갱신된 상태를 읽을 만큼은 멈춘다. 판정과는 무관하고 *보여주기* 위한 시간이다.
+    */
+    await this.page.waitForTimeout(1_500);
+  }
+
+  /**
+   * 수집이 끝나 정제 팝업이 열릴 때까지 기다린다.
+   *
+   * ★ 수집은 honeybee 가 소스 서버에 SSH 로 붙어 하는 일이라 **누른 즉시 끝나지 않는다.**
+   *   버튼을 누르고 바로 다음 단계로 넘어가면, 팝업이 아직 없는 상태에서 Convert 를 누르려다
+   *   기본 시한(15초)에 걸려 실패한다.
+   *
+   *   인프라 수집은 빨라 우연히 그 시한 안에 들어왔고, 소프트웨어 수집은 패키지를 훑느라 더
+   *   오래 걸려 걸렸다 — 즉 **원래 둘 다 기다리지 않고 있었고**, 하나만 운 좋게 통과한 것이다.
+   *   기다릴 것은 버튼이 아니라 *수집이 끝났다는 신호*, 곧 정제 팝업이다.
+   */
+  private async waitForRefinePopup(timeout: number): Promise<boolean> {
+    return this.refineConvertButton
+      .waitFor({ state: 'visible', timeout })
+      .then(() => true)
+      .catch(() => false);
+  }
+
+  /**
+   * Refresh 로 상태를 확인한 뒤 수집 버튼을 누르고, 정제 팝업이 열릴 때까지 기다린다.
+   *
+   * ★ 누르자마자 다음으로 넘어가면 안 된다 — 수집은 honeybee 가 소스 서버에 SSH 로 붙어 하는
+   *   일이라 즉시 끝나지 않는다. 기다릴 것은 버튼이 아니라 *수집이 끝났다는 신호*, 곧 팝업이다.
+   *
+   * ★ 한 번 더 누르는 이유. Refresh 는 상태 값만 바꾸는 것이 아니라 그 아래 버튼들을 다시
+   *   그린다. `data-status` 가 Success 가 된 직후는 아직 그리는 중일 수 있고, 그 순간의 클릭은
+   *   **아무 일도 하지 않는다**(요청이 나가지 않는다). 브라우저를 직접 몰아 같은 화면을 확인해
+   *   보면, Refresh 뒤에 잠깐 여유를 두면 2초 만에 팝업이 열리고 여유 없이 누르면 열리지
+   *   않는다 — 수집이 느린 것이 아니라 클릭이 사라진 것이다.
+   *
+   *   그래서 짧게 기다려 보고 팝업이 없으면 한 번 더 누른다. 수집은 같은 자료를 다시 읽는
+   *   것이라 두 번 눌려도 결과가 달라지지 않는다. 실패를 덮는 폴백이 아니라, 클릭이 먹었는지를
+   *   확인하는 것이다 — 두 번째도 열리지 않으면 그대로 실패한다.
+   */
+  private async collectAndOpenRefine(button: Locator): Promise<void> {
+    await this.refreshGroupStatus();
+    await humanClick(button);
+    if (await this.waitForRefinePopup(20_000)) return;
+
+    await humanClick(button);
+    await expect(this.refineConvertButton).toBeVisible({ timeout: 180_000 });
   }
 
   /** 인프라 수집 실행 (그룹단위 import-infra) — 선택된 그룹 상세에서 Refresh 후 Collect Infra */
   async collectInfra(): Promise<void> {
-    await this.refreshGroupStatus();
-    await humanClick(this.collectInfraButton);
+    await this.collectAndOpenRefine(this.collectInfraButton);
   }
 
   /** 소프트웨어 수집 실행 (그룹단위 import-software) — Refresh 후 Collect SW */
   async collectSoftware(): Promise<void> {
-    await this.refreshGroupStatus();
-    await humanClick(this.collectSwButton);
+    await this.collectAndOpenRefine(this.collectSwButton);
   }
 
   /**

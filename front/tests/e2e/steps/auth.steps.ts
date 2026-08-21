@@ -18,6 +18,23 @@ Given('{string}로 로그인한다', async ({ page }, id: string) => {
   await login.goto();
   await login.login(u.id, u.password);
   await login.expectLoggedIn();
+
+  /*
+    로그인이 끝난 시각을 남긴다 — 편집이 그 앞을 잘라낼 수 있게.
+
+    ★ 구간마다 로그인을 다시 하는 것은 각 구간이 혼자서도 돌아야 하기 때문이다. 그런데 *영상*
+      으로는 같은 로그인 장면이 열다섯 번 반복될 이유가 없다 — 보여줄 값어치는 구간1 에서 한 번
+      이면 충분하다(사용자 지시 2026-08-20).
+
+      화면을 보고 로그인이 끝난 지점을 찾아내는 것보다, 끝난 쪽이 직접 시각을 적어 주는 편이
+      정확하다. 촬영 스크립트가 이 값을 읽어 그 앞을 버린다.
+  */
+  const cue = process.env.E2E_CUE_FILE;
+  if (cue) {
+    await import('node:fs').then(fs =>
+      fs.appendFileSync(cue, `login-done ${Date.now()}\n`),
+    );
+  }
 });
 
 /** Step "open the login screen" */

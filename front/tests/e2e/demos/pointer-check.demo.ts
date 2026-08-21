@@ -12,7 +12,7 @@ import { humanClick } from '../support/humanize';
  * enough pointer travel and typing to judge all three. Nothing is created.
  *
  * Run:
- *   E2E_DEMO_PACE=1 E2E_DEMO_BEAT_MS=800 BASE_URL=http://cmig.dev.cscmzc.com \
+ *   E2E_DEMO_PACE=1 E2E_DEMO_BEAT_MS=800 BASE_URL=http://localhost \
  *   npx playwright test tests/e2e/demos/pointer-check.demo.ts \
  *     --config=tests/e2e/playwright.demo.config.ts
  */

@@ -34,9 +34,12 @@ Then('도움말 상단에 완료 조건이 보인다', async ({ page }) => {
 });
 
 Then('도움말 상단에 지금까지 충족한 내용이 보인다', async ({ page }) => {
-  await expect(page.getByTestId('help-guided-progress')).toContainText('So far', {
-    timeout: 15_000,
-  });
+  await expect(page.getByTestId('help-guided-progress')).toContainText(
+    'So far',
+    {
+      timeout: 15_000,
+    },
+  );
 });
 
 /*
@@ -60,7 +63,9 @@ Then(
 When(
   '{string} 도움말 절차 {int} 의 제목을 누르면',
   async ({ page }, groupId: string, index: number) => {
-    await humanClick(page.getByTestId(`help-section-toggle-${groupId}-${index}`));
+    await humanClick(
+      page.getByTestId(`help-section-toggle-${groupId}-${index}`),
+    );
   },
 );
 

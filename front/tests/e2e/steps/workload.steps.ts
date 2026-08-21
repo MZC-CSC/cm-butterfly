@@ -62,7 +62,7 @@ Then('목록에 인프라가 3개 이상 보인다', async ({ page }) => {
  * Step "no per-infra detail lookup happened".
  *
  * Reads the recorded outbound calls, not the screen. The screen looked right even while the
- * per-infra lookups were breaking it (BAR-1637), so the request count is the only honest witness.
+ * per-infra lookups were breaking it, so the request count is the only honest witness.
  */
 Then('인프라별 상세 조회가 발생하지 않았다', async () => {
   const mock = getMock();
@@ -166,7 +166,7 @@ Then(
   },
 );
 
-// ── BAR-1444 asynchronous deletion flow ──────────────────────────────────
+// ── Asynchronous deletion flow ──────────────────────────────────
 
 /** Step "deleting the {infra} infra shows a deletion-in-progress screen" — select -> modal -> confirm -> confirm progress */
 When(
@@ -176,7 +176,7 @@ When(
     await wl.selectMci(infraName);
     await wl.openDeleteModal();
     // Sent without closing what comes up — this step is about the progress screen being there,
-    // and `confirmDelete` closes it on the way out (BAR-1717).
+    // and `confirmDelete` closes it on the way out.
     await wl.sendDelete(infraName, 'normal');
     await wl.expectDeleteInProgress();
   },
@@ -218,7 +218,7 @@ When('삭제 처리 중 모달을 닫는다', async ({ page }) => {
  *
  * Read from that infra's own row. Looking for the state anywhere in the column cannot tell one
  * row from another, and a mixed selection is exactly the case where another row is already in
- * that state before the request under test goes out (BAR-1717).
+ * that state before the request under test goes out.
  */
 Then(
   '목록에서 {string} 의 삭제 상태가 {string} 으로 보인다',
@@ -230,7 +230,7 @@ Then(
   },
 );
 
-// ── Sending several at once (BAR-1719) ───────────────────────────────────
+// ── Sending several at once ───────────────────────────────────
 
 /** Step "pick {a}..{e} and open the delete dialog" — five at a time, the notice threshold. */
 When(
@@ -302,7 +302,7 @@ Then('접수가 끝나면 삭제 처리 중 화면으로 바뀐다', async ({ pa
   await new WorkloadPage(page).expectDeleteInProgress();
 });
 
-// ── Taken on acceptance, and sent again when turned away (BAR-1722) ──────
+// ── Taken on acceptance, and sent again when turned away ──────
 
 /**
  * Step "request the delete of {infra} and stay on the submitting screen".
@@ -395,7 +395,7 @@ Then('목록의 남은 시간이 1초씩 줄어든다', async ({ page }) => {
   );
 });
 
-// ── Deleting a mixed selection (BAR-1717) ────────────────────────────────
+// ── Deleting a mixed selection ────────────────────────────────
 
 /** Step "pick {a} and {b} together and open the delete dialog" */
 When(

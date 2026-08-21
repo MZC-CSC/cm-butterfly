@@ -28,7 +28,7 @@ export class ModelsPage {
 
   // ───────────────────────────────────────────────────────────────────
   // Selectors (prefer data-testid; before it is assigned, fall back to role/text placeholder)
-  //  → the fallback will be removed once data-testid is assigned in the front (BAR-880).
+  //  → the fallback will be removed once data-testid is assigned in the front.
   // ───────────────────────────────────────────────────────────────────
 
   /** Model list table (shared by source/target — the first p-toolbox-table after entering the screen) */
@@ -257,15 +257,46 @@ export class ModelsPage {
     //
     //   그래서 상세가 *그 모델의 것*인지까지 확인하고, 아니면 누른다. (2026-08-01)
     const row = this.modelRow(name).first();
-    const cls = (await row.getAttribute('class').catch(() => '')) ?? '';
-    const detailShowsThis =
-      /selected/.test(cls) &&
-      (await this.detailNameFor(name)
-        .isVisible({ timeout: 1_000 })
-        .catch(() => false));
-    if (detailShowsThis) return;
 
-    await humanClick(row);
+    /*
+      ★ 이름이 아니라 **그 행의 고유 ID** 로 확인한다.
+
+        예전 판정은 *이름을 담은 컨테이너가 보이는가* 였는데, 목록 자체가 그 조건을 만족한다 -
+        아무것도 고르지 않은 상태에서도 1건이 잡힌다(2026-08-19 실측). 그래서 클릭을 건너뛰었고,
+        목록의 표시만 바뀐 채 화면은 이전 모델을 잡고 있었다. 그대로 추천이 나가 *원본 기준*
+        결과가 돌아왔고 규칙에 5555 가 없어 제품 결함으로 볼 뻔했다.
+
+        ID 는 고른 뒤에만 상세에도 나타나므로, **화면 어딘가에 두 번 이상 보이는가**가
+        상세가 그 모델을 잡았다는 신호다(목록에 한 번 + 상세에 한 번).
+    */
+    const id = await this.rowId(row);
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (
+        id &&
+        (await this.page.getByText(id, { exact: false }).count()) >= 2
+      ) {
+        return;
+      }
+      await humanClick(row);
+      await this.page.waitForTimeout(1_500);
+    }
+
+    if (id) {
+      await expect(
+        this.page.getByText(id, { exact: false }),
+        `모델 ${name}(${id}) 을 골랐는데 상세가 따라오지 않았다 - 이 상태로 진행하면 이전 모델 기준으로 동작한다`,
+      ).toHaveCount(2, { timeout: 10_000 });
+    }
+  }
+
+  /** 목록 행에서 그 모델의 고유 ID 를 읽는다. 없으면 빈 문자열. */
+  private async rowId(row: Locator): Promise<string> {
+    const cells = await row
+      .locator('td')
+      .allInnerTexts()
+      .catch(() => [] as string[]);
+    return cells.map(c => c.trim()).find(c => /^[0-9a-f-]{36}$/i.test(c)) ?? '';
   }
 
   /**
@@ -461,7 +492,7 @@ export class ModelsPage {
   /**
    * Run the recommendation and hand back the query parameters the front actually sent.
    *
-   * ★ Why the request and not the screen: the whole point of BAR-1634 is that a wrong value
+   * ★ Why the request and not the screen: the whole point here is that a wrong value
    *   reached the server and the server quietly fell back to its default — the results looked
    *   fine either way. Only the outgoing request tells the two apart.
    */
@@ -489,7 +520,7 @@ export class ModelsPage {
    *   ② pick the candidate with the *lowest estimated monthly cost*.
    *
    *   Reason: in the recommendation response some candidates come with empty fields, and saving such a candidate as a target model
-   *   makes the empty values / description text carry over on workflow execution and fail ([[ISSUE-workflow-form-desc-as-value]] / BAR-1393).
+   *   makes the empty values / description text carry over on workflow execution and fail.
    *   So only candidates *with all values filled in* are considered.
    *
    *   If all candidates are incomplete, throw an exception → in that case the cm-beetle recommendation response (field coverage)
@@ -620,9 +651,11 @@ export class ModelsPage {
    *   but *fake values* like `string` are not "empty" and slipped through. So we decide by the
    *   `data-complete` marker the front attaches by inspecting the model values themselves (based on useRecommendedInfraModel.hasMissingRequiredFields).
    *
-   *   Selection policy — among complete candidates, pick the *largest* spec that is at or below the cost cap (maxClass) (the cap is
-   *   still kept for cost protection). If there is no complete candidate at all, throw an exception — in that case the problem is not the front but
-   *   that the cm-beetle recommendation response fails to fill the values, so it must be verified in parallel at the source level.
+   *   Selection policy — among complete candidates within the cost cap (maxClass), take the
+   *   *cheapest*. That is what someone following a recommendation gets, and it is what the track
+   *   claims to demonstrate. If there is no complete candidate at all, throw an exception — in that
+   *   case the problem is not the front but that the cm-beetle recommendation response fails to fill
+   *   the values, so it must be verified in parallel at the source level.
    */
   async selectCompleteCandidate(
     maxClass: string,
@@ -630,11 +663,11 @@ export class ModelsPage {
     const rows = this.recommendRows;
     const count = await rows.count();
     let bestIndex = -1;
-    let bestRank = -1;
     let bestSpec = '';
-    let bestPrice = 0;
+    let bestPrice = Number.POSITIVE_INFINITY;
     let completeCount = 0;
     let incompleteCount = 0;
+    let unpricedCount = 0;
 
     for (let i = 0; i < count; i++) {
       const marker = rows
@@ -661,31 +694,48 @@ export class ModelsPage {
       // Keep the cost cap as is (only when the class can be determined). If it cannot, let it pass.
       if (spec && !isSpecWithinClass(spec, maxClass)) continue;
 
-      const token = Object.keys(SPEC_CLASS_RANK).find(k =>
-        spec.toLowerCase().includes(k),
-      );
-      const rank = token ? SPEC_CLASS_RANK[token] : 0;
+      /*
+        The cheapest one, because that is what a recommendation is for.
+
+        ★ This used to take the *largest* spec under the cap, and it showed: a t3.nano source
+          produced a t3a.medium machine. cm-beetle had recommended t3a.nano at $0.0059/hour and
+          ranked it first; the choice here walked past it to the biggest thing it was allowed to
+          take. Nobody migrating a nano wants a medium, and the take then demonstrated the
+          opposite of what the track claims - that following the recommendation gives you what
+          the recommendation said.
+
+        The price comes from the cell, which reads `4.2480/mon (0.00590/hour)USD`. A row whose
+        price cannot be read is not silently treated as free - it is skipped, and if that leaves
+        nothing the error below says so. Treating an unreadable price as zero would make it win.
+      */
       const priceMatch = text.match(/([\d.]+)\s*\/\s*mon/i);
-      if (rank > bestRank) {
-        bestRank = rank;
+      if (!priceMatch) {
+        unpricedCount++;
+        continue;
+      }
+      const price = parseFloat(priceMatch[1]);
+      if (bestIndex < 0 || price < bestPrice) {
         bestIndex = i;
         bestSpec = spec;
-        bestPrice = priceMatch ? parseFloat(priceMatch[1]) : 0;
+        bestPrice = price;
       }
     }
 
     if (bestIndex < 0) {
       throw new Error(
-        `추천 결과에 완전한(data-complete=true) 후보가 "${maxClass}" 급 이하로 없다 — ` +
-          `후보 ${count}개 중 완전 ${completeCount}·불완전 ${incompleteCount}. ` +
+        `추천 결과에서 고를 수 있는 후보가 없다 — 후보 ${count}개 중 ` +
+          `완전 ${completeCount}·불완전 ${incompleteCount}·가격을 읽지 못한 것 ${unpricedCount}, ` +
+          `"${maxClass}" 급 이하 조건. ` +
           `완전 후보가 0개이면 문제는 프론트가 아니라 cm-beetle 추천 응답이 spec/image를 ` +
-          `채우지 못하는 것이므로 RecommendVmInfraCandidates 응답을 소스레벨로 병행 검증해야 한다.`,
+          `채우지 못하는 것이므로 RecommendVmInfraCandidates 응답을 소스레벨로 병행 검증해야 한다. ` +
+          `가격을 읽지 못한 것만 남았다면 화면의 비용 열 표기가 바뀐 것이다(예: "4.2480/mon (0.00590/hour)USD").`,
       );
     }
 
     await humanClick(rows.nth(bestIndex));
     console.log(
-      `[recommend] selected a complete candidate (by marker): ${bestSpec} — complete ${completeCount}/${count}, incomplete ${incompleteCount}`,
+      `[recommend] cheapest complete candidate: ${bestSpec} at ${bestPrice}/mon — ` +
+        `complete ${completeCount}/${count}, incomplete ${incompleteCount}, unpriced ${unpricedCount}`,
     );
     return { spec: bestSpec, monthlyPrice: bestPrice };
   }

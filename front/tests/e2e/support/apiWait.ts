@@ -225,7 +225,7 @@ export async function waitLoadTestTerminal(opts: {
  * (WorkloadPage.expectInstanceCreated / expectInfraGone), which page the MCI list. The front reads
  * infra node status from cm-beetle/ListInfra|GetInfra, but the exact status field that means
  * "Running" vs "Terminated" is rendered as a composed string ("Running:1 (R:1/1)") rather than a
- * single documented field, so polling it by API here would be guessing. Per BAR-1595 guidance we do
+ * single documented field, so polling it by API here would be guessing. By design we do
  * NOT invent that endpoint — the screen wait remains the source of truth for infra up/down, and only
  * the well-confirmed workflow-run and load-test result APIs are polled here. (TODO: once cm-beetle's
  * GetInfra node-status field is confirmed from source, add waitInfraNodesRunning / waitInfraAbsent.)

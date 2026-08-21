@@ -1,3 +1,6 @@
+// Workers load this file for every generated spec — pull `e2e.config` in here too.
+import './loadConfig';
+
 import { test as base } from 'playwright-bdd';
 import { ApiMock } from './apiMock';
 import { registerHoneybeeMocks } from './mocks/honeybee';

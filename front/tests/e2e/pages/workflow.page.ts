@@ -22,7 +22,7 @@ import { openScreen } from '../support/navigate';
  * template + type/spec tasks in the SequentialDesigner (designer/editor).
  *
  * ⚠️ Sections without data-testid: the workflow domain .vue files currently have no data-testid.
- *   BAR-880 (selector stabilization) — data-testid has been added at the key points of the workflow domain:
+ *   Selector stabilization — data-testid has been added at the key points of the workflow domain:
  *     workflow-list-table · taskcomponent-list-table · workflow-template-list-table ·
  *     workflow-json-view (open JSON from detail) · workflow-json-viewer (viewer body).
  *   Even if screen text or DOM structure changes, these testids locate elements precisely. Only sections
@@ -45,7 +45,7 @@ export class WorkflowPage {
   /**
    * List table — each screen uses its *own* testid.
    * If multiple screens share the same testid, it becomes ambiguous which table is meant,
-   * and it grabs the wrong place when the screen changes. (BAR-880 — selector stabilization)
+   * and it grabs the wrong place when the screen changes.
    */
   // The table testid differs per screen. Because a new Page Object is created for each step,
   // we must not hold "the current screen" as instance state — each method points at its own table directly.
@@ -409,6 +409,48 @@ export class WorkflowPage {
       if (clickedThisRound === 0) break;
     }
     await this.page.waitForTimeout(400);
+    return opened;
+  }
+
+  /**
+   * 고칠 칸이 있는 자리까지 **경로를 따라** 연다.
+   *
+   * ★ 전부 펼치지 않는다. 접힌 것이 이백 개 가까워, 화면에는 *줄을 하나씩 눌러 내려가는* 장면만
+   *   몇 분 남고 정작 고치는 장면은 짧아서 정지 제거에 함께 잘려 나간다 — 보는 쪽에서는
+   *   "펼치기만 계속하다 끝났다"가 된다(2026-08-19 사용자 지적).
+   *
+   *   토글에 그 자리의 경로가 이름으로 붙어 있으므로(`wf-toggle-{경로}`), 목표 경로의 조상만
+   *   골라 누르면 된다. 세 번이면 닿는다. 이미 펼쳐져 있으면 누르지 않는다.
+   *
+   * @param path 목표 칸의 경로 (예: `body_params.targetSecurityGroupList[0].firewallRules`)
+   */
+  async openPathTo(path: string): Promise<number> {
+    // body_params.targetSecurityGroupList[0].firewallRules
+    //   → body_params / …targetSecurityGroupList / …[0] / …firewallRules
+    const steps: string[] = [];
+    let acc = '';
+    for (const part of path.split('.')) {
+      acc = acc ? `${acc}.${part}` : part;
+      const m = part.match(/^(.*?)(\[\d+\])$/);
+      if (m) {
+        steps.push(acc.slice(0, acc.length - m[2].length));
+        steps.push(acc);
+      } else {
+        steps.push(acc);
+      }
+    }
+
+    let opened = 0;
+    for (const step of steps) {
+      const toggle = this.page.getByTestId(`wf-toggle-${step}`).first();
+      if (!(await toggle.count())) continue; // 접히지 않는 자리는 토글이 없다
+      const label = (await toggle.innerText().catch(() => '')).trim();
+      if (!label.includes('\u25b6')) continue; // ▶ 만 접힌 것
+      await toggle.scrollIntoViewIfNeeded().catch(() => {});
+      await humanClick(toggle);
+      opened++;
+      await this.page.waitForTimeout(250);
+    }
     return opened;
   }
 
@@ -781,7 +823,8 @@ export class WorkflowPage {
   }
 
   async setSpecInWorkflow(size: string): Promise<string> {
-    await this.expandAllParams();
+    // 스펙은 노드 그룹 아래에 있다. 그 자리까지만 열고 나머지는 건드리지 않는다.
+    await this.openPathTo('body_params.targetInfra.nodeGroups[0]');
 
     // ★ Only the node's own spec counts, and it is found by its *path*.
     //
@@ -847,16 +890,84 @@ export class WorkflowPage {
    *
    * @returns the port that was replaced
    */
+  /**
+   * Open a port by adding a firewall rule, rather than by rewriting one that is already there.
+   *
+   * ★ Adding is what the other two routes do - the target model and the source model each gain a
+   *   rule - so this one adds too, and all three can be compared. Rewriting an existing rule was
+   *   what this used to do, and it meant the workflow track was demonstrating something the others
+   *   were not.
+   *
+   * The rule is copied field for field from the one that allows 22, because a rule needs protocol,
+   * direction and CIDR as well as a port, and a blank field turns into an infrastructure that comes
+   * up unreachable. Only the port differs.
+   *
+   * @returns the index the new rule was given
+   */
+  async addPortRuleInWorkflow(port: string): Promise<number> {
+    // 규칙 배열이 있는 자리까지 경로를 따라 연다 — 전부 펼치면 화면이 클릭만 반복한다.
+    await this.openPathTo(
+      'body_params.targetSecurityGroupList[0].firewallRules',
+    );
+
+    /*
+      The array cb-tumblebug actually builds the security group from.
+
+      ★ Several arrays in this body have names that read the same. `targetK8sCluster.securityGroupIds`
+        is not built here at all, and `targetSpecList[0].details` / `targetOsImageList[0].details`
+        are the recommendation's own notes. A rule added to any of those changes nothing on the
+        machine, and the run still succeeds - the take would show a port being typed and a machine
+        without it.
+
+        Confirmed against a machine that was built: a rule added here at `Ports` came back on the
+        created security group. Note the name changes on the way - the model says `Ports`, the
+        created resource says `Port`, so a check that reads the built group has to ask for both.
+    */
+    const rules = 'body_params.targetSecurityGroupList[0].firewallRules';
+    const before = await this.page
+      .locator(`[data-testid^="wf-field-${rules}["]`)
+      .evaluateAll(els =>
+        els
+          .map(e => e.getAttribute('data-testid') ?? '')
+          .map(id => Number(id.match(/firewallRules\[(\d+)\]/)?.[1] ?? -1)),
+      );
+    const nextIndex = before.length ? Math.max(...before) + 1 : 0;
+
+    await humanClick(this.page.getByTestId(`wf-array-add-${rules}`));
+    // 새로 생긴 항목만 연다 — 전부 펼치면 화면이 다시 클릭만 반복한다.
+    await this.openPathTo(`${rules}[${nextIndex}]`);
+
+    const field = (name: string) =>
+      this.page.getByTestId(`wf-field-${rules}[${nextIndex}].${name}`);
+    await expect(
+      field('Ports'),
+      `방화벽 규칙을 더했는데 ${nextIndex} 번 항목의 칸이 나타나지 않았다`,
+    ).toBeVisible({ timeout: 15_000 });
+
+    // Everything except the port matches the rule that already allows SSH.
+    for (const [name, value] of [
+      ['CIDR', '0.0.0.0/0'],
+      ['Direction', 'inbound'],
+      ['Protocol', 'tcp'],
+      ['Ports', port],
+    ] as const) {
+      const input = field(name);
+      await input.scrollIntoViewIfNeeded().catch(() => {});
+      await input.click();
+      await input.fill('');
+      await input.pressSequentially(value, { delay: 40 });
+      await this.page.waitForTimeout(200);
+    }
+
+    await spotlight(this.page, field('Ports'));
+    return nextIndex;
+  }
+
   async setPortInWorkflow(from: string, to: string): Promise<string> {
     await this.expandAllParams();
 
-    // 화면이 움직인다는 것을 먼저 한 번 보이고, 그 다음에 칸을 찾는다.
-    //
-    // 순서가 반대였다. 칸을 먼저 잡아 두고 굴렸더니, 굴리는 사이에 그 칸이 다시 접혀 눌리지
-    // 않았다 — 요소는 있는데 보이지 않으니 클릭이 끝나지 않고 15초를 채우고 죽었다. 굴리기를
-    // 끝낸 *뒤에* 찾으면 그 자리에 있는 것을 잡는다. (2026-08-01)
-    await this.scrollThroughParams();
-    await this.expandAllParams();
+    // 여기서는 굴리지 않는다 — 편집 화면에 들어갈 때 한 번 굴린 것으로 충분하다.
+    // 접힌 것을 편 뒤 곧바로 그 칸을 잡고, spotlight 가 그 자리로 화면을 옮겨 준다. (2026-08-19)
 
     const all = await this.readBodyFields();
     const found = all.find(
@@ -1062,7 +1173,14 @@ export class WorkflowPage {
     const pointed = await spotlightText(this.page, hit, value);
     if (!pointed) await spotlight(this.page, hit);
 
-    await this.scrollThroughParams(params);
+    /*
+      여기서 다시 훑지 않는다.
+
+      ★ 짚은 다음에도 패널을 끝까지 굴리고 있었다. 보는 쪽에서는 값을 찾은 뒤에도 화면이 계속
+        내려가는 것으로 보여, 무엇을 확인한 것인지 흐려진다. 스크롤은 *편집 화면에 처음 들어갈 때
+        한 번*만 하고(사람도 그렇게 한다), 그 뒤에는 고칠 자리·볼 자리로 곧장 간다. (2026-08-19)
+    */
+    await this.page.waitForTimeout(700);
   }
 
   /**
@@ -1208,10 +1326,43 @@ export class WorkflowPage {
     //   작업을 고르자마자 확인 창이 떠 버리면, 보는 사람은 *무엇을 눌러서* 그 창이 떴는지 알 수
     //   없다. 커서가 버튼에 닿고 한 박자 쉬었다 눌러야 누른 것이 보인다. (2026-07-31)
     await button.scrollIntoViewIfNeeded().catch(() => {});
-    await humanClick(button, { pauseBeforeMs: 700 });
 
+    /*
+      눌렸는지를 *결과*로 판정한다.
+
+      ★ 미리내는 비활성을 표준 속성이 아니라 클래스로만 표현한다(DESIGN-MIRINAE §1.6).
+        이 버튼은 실행이 도는 동안 잠기는데, 잠긴 버튼을 눌러도 Playwright 는 아무 불평 없이
+        지나가고 화면에서는 **아무 일도 일어나지 않는다**. 그러고는 20초 뒤 확인 창이 없다는
+        엉뚱한 자리에서 죽는다(2026-08-19 구간8b 가 그것이었다).
+
+        앞 단계의 재실행이 막 끝난 참이라 화면이 아직 '도는 중'을 붙들고 있을 수 있다.
+        확인 창이 뜰 때까지 몇 번 더 눌러 본다 - 뜨면 눌린 것이고, 끝내 안 뜨면 그때 실패한다.
+    */
     const confirm = this.page.getByTestId('workflow-rerun-confirm');
-    await expect(confirm).toBeVisible({ timeout: 20_000 });
+    for (let attempt = 0; attempt < 4; attempt++) {
+      /*
+        ★ 누르기 *전에* 확인한다.
+
+          창이 이미 떠 있으면 그것이 화면을 덮고 있어, 그 아래 버튼을 다시 누르려다 15초를
+          기다리다 죽는다 — 창은 정상적으로 떴는데 실패로 끝난다(2026-08-20 실제로 그랬다).
+          잠긴 버튼을 대비한 재시도가 그 반대 상황을 만든 것이다.
+      */
+      if (await confirm.isVisible({ timeout: 1_000 }).catch(() => false)) break;
+
+      await humanClick(button, {
+        pauseBeforeMs: attempt === 0 ? 700 : 150,
+      }).catch(() => {});
+      const shown = await confirm
+        .isVisible({ timeout: 8_000 })
+        .catch(() => false);
+      if (shown) break;
+      await this.page.waitForTimeout(2_000);
+    }
+
+    await expect(
+      confirm,
+      '재실행 확인 창이 뜨지 않는다 - 버튼이 잠겨 있어 클릭이 먹지 않았을 수 있다',
+    ).toBeVisible({ timeout: 20_000 });
     await spotlight(
       this.page,
       this.page.getByTestId('workflow-rerun-target').first(),
@@ -1300,6 +1451,25 @@ export class WorkflowPage {
    *
    * @param taskName the task in the run graph that did the installing
    */
+  /**
+   * 설치 목록에서 이름 하나를 찾아 짚는다. 없으면 그냥 지나간다 — 판정은 위에서 이미 했다.
+   */
+  private async pointAtSoftware(table: Locator, name: string): Promise<void> {
+    const pager = new TablePagination(this.page, table);
+    for (let i = 0; i < 6; i++) {
+      const row = table.locator('tbody tr', { hasText: name }).first();
+      if (await row.count()) {
+        await row.scrollIntoViewIfNeeded().catch(() => {});
+        await spotlightText(this.page, row, name);
+        await this.page.waitForTimeout(1_500);
+        return;
+      }
+      if (!(await pager.next())) break;
+      await this.page.waitForTimeout(900);
+    }
+    console.log(`[소프트웨어] 목록에서 ${name} 을 찾지 못했다`);
+  }
+
   async showInstalledSoftware(taskName: string): Promise<number> {
     await this.pickTask(taskName, false);
 
@@ -1326,6 +1496,15 @@ export class WorkflowPage {
       .locator('tbody tr')
       .count()
       .catch(() => 0);
+
+    /*
+      약속한 것을 화면에서 짚는다.
+
+      ★ 이 구간의 제목은 *nginx 를 확인한다* 인데, 목록이 이름순이라 첫 페이지에는 nginx 가 없다.
+        스크롤만 하고 넘어가면 45건이 스쳐 지나갈 뿐 정작 약속한 항목은 영상에 담기지 않는다
+        (2026-08-19 실제로 그랬다). 이 표에는 검색칸이 없으므로 페이지를 넘겨 찾는다.
+    */
+    await this.pointAtSoftware(table, 'nginx');
 
     // ★ Close it before leaving.
     //

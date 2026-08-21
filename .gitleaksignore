@@ -1,0 +1,4 @@
+
+# 개인키가 아니라 *개인키를 넣는 자리*를 알려 주는 안내 문구다.
+# 촬영본에 실제 키 본문이 남지 않게 하려고 넣은 것이라, 이 줄이 사라지면 안 된다.
+front/tests/e2e/steps/integration.steps.ts:private-key:353

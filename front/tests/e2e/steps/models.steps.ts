@@ -247,7 +247,7 @@ When(
 );
 
 // ───────────────────────────────────────────────────────────────────────
-// Minimum Match Rate (recommendation condition) — BAR-1634
+// Minimum Match Rate (recommendation condition)
 //
 // The screen sends `minMatchRate` to cm-beetle. cm-beetle answers a value it cannot parse, or one
 // outside 0-100, by quietly using its own default (90) — the result list looks the same either way.

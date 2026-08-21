@@ -134,6 +134,23 @@ export default defineConfig({
        * the size is set here so every take is the same shape and they cut together.
        */
       name: 'integration',
+
+      /**
+       * ★ 구간2x 는 이 레인에서 빼 둔다 — 구간2 와 *택일* 이기 때문이다.
+       *
+       * 둘 다 `onprem-web` 을 등록하는데 이름 접미사는 실행 단위라 같다. 그래서 한 실행에
+       * 같이 들어가면 두 번째가 이름 충돌로 거부되고, 모달이 열린 채 남아 그 뒤 구간까지
+       * 함께 무너진다. 구간2 는 녹화용(한 건이면 조작을 다 보여준다)이고 구간2x 는 두 대가
+       * 필요한 검증용이다.
+       *
+       * `scripts/record-all.sh` 의 구간 목록에는 원래 2x 가 없다. 그런데 그것을 모르고
+       * `--grep @integration` 으로 통째로 돌리면 2x 가 딸려 들어온다 — 실제로 그렇게 돌려
+       * 이름 충돌을 냈다. 실행하는 사람이 규칙을 알고 있기를 기대하는 대신 여기서 뺀다.
+       *
+       * 2x 만 돌리려면 그 태그를 직접 지정한다: `--project=integration --grep @seg2x`.
+       */
+      grepInvert: process.env.E2E_ALLOW_SEG2X === '1' ? undefined : /@seg2x/,
+
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1920, height: 1080 },

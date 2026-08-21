@@ -14,11 +14,20 @@
 # 인프라(워크로드)는 여기서 건드리지 않는다. CSP 자원이 걸려 있어 제품의 삭제 기능으로 지워야 한다.
 #
 # 사용법:
-#   HOST=cmig.dev.cscmzc.com scripts/reset-dev-data.sh
+#   scripts/reset-dev-data.sh          # e2e.config 의 BASE_URL 을 따른다
+#   HOST=other-host scripts/reset-dev-data.sh
 set -uo pipefail
 
-HOST="${HOST:-cmig.dev.cscmzc.com}"
-SSH_KEY="${E2E_SSH_KEY:-$HOME/.ssh/cb-webtool.pem}"
+# 개인 설정(e2e.config)을 읽는다. 이미 준 환경변수가 우선이다.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/load-config.sh"
+
+# 대상 장비. 따로 주지 않으면 e2e.config 의 BASE_URL 에서 호스트만 떼어 쓴다 —
+# 콘솔 주소를 한 곳에만 적어 두게 하려는 것이다.
+if [ -z "${HOST:-}" ]; then
+  HOST="${BASE_URL:?BASE_URL 또는 HOST 가 필요하다 — e2e.config 를 만들었는지 확인한다}"
+  HOST="${HOST#*://}"; HOST="${HOST%%/*}"; HOST="${HOST%%:*}"
+fi
+SSH_KEY="${E2E_SSH_KEY:?E2E_SSH_KEY 가 필요하다 — e2e.config 에 적는다}"
 AUTH="${DEV_BASIC_AUTH:-default:default}"
 
 ssh -o StrictHostKeyChecking=no -i "$SSH_KEY" "ubuntu@$HOST" AUTH="$AUTH" 'bash -s' <<'REMOTE'
