@@ -3,6 +3,11 @@ import { TablePagination } from '../support/pagination';
 import { humanClick, humanFill } from '../support/humanize';
 import { openScreen } from '../support/navigate';
 import { spotlight } from '../support/spotlight';
+import {
+  screenCapturesTheDesktop,
+  writeTempFile,
+  pickFileInDesktopDialog,
+} from '../support/desktopFileDialog';
 
 /**
  * SourceServicesPage — 소스 서비스(소스 컴퓨팅, cm-honeybee) 화면의 "어디서/어떻게".
@@ -419,30 +424,42 @@ export class SourceServicesPage {
     //
     // Waiting for the chooser is what keeps the operating system's own window from opening -
     // the browser asks for a file, this catches the request first and answers it.
-    const chooser = this.page.waitForEvent('filechooser');
-    await humanClick(this.page.getByTestId('source-import-file'));
+    const chosenName = 'sources.csv';
 
-    // Stay on the button for a beat before the file turns up.
-    //
-    // ★ The chooser is the operating system's window and never appears in the recording. Answer it
-    //   the instant it opens and the filename lands in the same frame as the press, which reads as
-    //   the button having produced it. Holding the pointer there for a moment leaves a gap the
-    //   viewer fills in themselves - that is where the file was picked, off screen.
-    await this.page.waitForTimeout(1_500);
+    if (screenCapturesTheDesktop()) {
+      // The desktop itself is being recorded, so let the real window open and answer it the way a
+      // person does. This is the only route that puts the act of choosing a file on screen; the
+      // one below skips it, and the recording then shows a filename arriving on its own.
+      const csvPath = writeTempFile(chosenName, csv);
+      await humanClick(this.page.getByTestId('source-import-file'));
+      await this.page.waitForTimeout(2_500);
+      await pickFileInDesktopDialog(csvPath);
+      await this.page.waitForTimeout(2_500);
+    } else {
+      // Nothing outside the browser is being recorded, so answering the request before the window
+      // opens costs nothing and keeps the run from depending on a desktop being there at all.
+      const chooser = this.page.waitForEvent('filechooser');
+      await humanClick(this.page.getByTestId('source-import-file'));
 
-    await (
-      await chooser
-    ).setFiles({
-      name: 'sources.csv',
-      mimeType: 'text/csv',
-      buffer: Buffer.from(csv, 'utf-8'),
-    });
+      // Stay on the button for a beat before the file turns up, so the filename does not land in
+      // the same frame as the press and read as the button having produced it. The gap is where a
+      // viewer puts the choosing they cannot see.
+      await this.page.waitForTimeout(1_500);
+
+      await (
+        await chooser
+      ).setFiles({
+        name: chosenName,
+        mimeType: 'text/csv',
+        buffer: Buffer.from(csv, 'utf-8'),
+      });
+    }
 
     // The chosen file is named on screen before anything is read. This is the step that used to be
     // missing: rows appeared in the preview with nothing to say where they came from, and there was
     // no way to tell a file had been attached at all.
     const filename = this.page.getByTestId('source-import-filename');
-    await expect(filename).toContainText('sources.csv', { timeout: 10_000 });
+    await expect(filename).toContainText(chosenName, { timeout: 10_000 });
 
     // Point at the name itself.
     //

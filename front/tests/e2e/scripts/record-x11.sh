@@ -119,6 +119,10 @@ trap cleanup EXIT
 CUE_FILE="$(mktemp)"
 export E2E_CUE_FILE="$CUE_FILE"
 
+# 화면 전체를 찍고 있으므로, 파일 고르는 창은 가로채지 말고 실제로 열리게 둔다.
+# 창이 뜨고 경로가 들어가고 닫히는 것까지 영상에 담긴다 (support/desktopFileDialog.ts).
+export E2E_DESKTOP_CAPTURE=1
+
 REC_EPOCH_MS=$(($(date +%s%N) / 1000000))
 
 ffmpeg -nostdin -loglevel error -y \
