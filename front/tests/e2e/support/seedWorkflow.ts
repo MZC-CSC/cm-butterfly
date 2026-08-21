@@ -70,6 +70,15 @@ export async function seedChainOfTasks(opts: {
   taskNames: string[];
   /** Component per position, where it should not be the script task — e.g. one that returns nothing. */
   components?: (string | undefined)[];
+  /**
+   * Fields already filled from an earlier task, per position — `{ ns_id: '${first_step.$.output}' }`.
+   *
+   * A workflow that arrives already using references is worth opening, because restoring them is
+   * the part that fails quietly. The shipped templates used to give us one, then stopped: they
+   * belong to cm-cicada and their task lineup changes with the lineup. Building our own keeps the
+   * scenario standing on something we own.
+   */
+  references?: (Record<string, string> | undefined)[];
   baseURL?: string;
 }): Promise<string> {
   const base = opts.baseURL ?? config.baseURL;
@@ -82,8 +91,13 @@ export async function seedChainOfTasks(opts: {
       spec:
         component === 'cicada_task_run_script'
           ? {
-              request_body:
-                '{"content":"ZWNobyBoaQ==","infra_id":"","node_id":"","ns_id":""}',
+              request_body: JSON.stringify({
+                content: 'ZWNobyBoaQ==',
+                infra_id: '',
+                node_id: '',
+                ns_id: '',
+                ...(opts.references?.[index] ?? {}),
+              }),
             }
           : {},
       dependencies: index === 0 ? [] : [opts.taskNames[index - 1]],

@@ -121,6 +121,44 @@ Given(
   },
 );
 
+Given(
+  '참조가 이미 들어 있는 워크플로우를 에디터에서 연다',
+  async ({ page }) => {
+    // A workflow that arrives already using references is the case where restoring them fails
+    // quietly — the value comes back as text, and if it is not recognised again the user sees
+    // `${task.$.path}` sitting in a box.
+    //
+    // The shipped templates used to supply one and stopped; they belong to cm-cicada and change
+    // with the lineup. This builds its own so the scenario does not rest on someone else's data.
+    const wf = new WorkflowPage(page);
+    const name = uniqueName('ref-existing');
+    scenarioState.taskReferenceWorkflowName = name;
+
+    scenarioState.taskReferenceSeededWorkflowId = await seedChainOfTasks({
+      request: page.request,
+      token: await getSessionToken(page),
+      name,
+      taskNames: ['first_step', 'second_step'],
+      references: [
+        undefined,
+        {
+          infra_id: '${first_step.$.output}',
+          node_id: '${first_step.$.error}',
+          ns_id: 'mig01',
+        },
+      ],
+    });
+
+    await page.reload();
+    await wf.gotoWorkflows();
+    await wf.selectWorkflow(name);
+    await wf.openEditorFromDetail();
+    await expect(page.locator('.sqd-step-task').first()).toBeVisible({
+      timeout: 20_000,
+    });
+  },
+);
+
 Given('{string} 태스크를 편집한다', async ({ page }, taskName: string) => {
   await new WorkflowPage(page).selectTaskInDesigner('', taskName);
 });
