@@ -537,6 +537,20 @@ const HELP: Array<{ path: string; help: Help }> = [
                 'Only tasks that run before this one are offered. Opening a workflow that reads a later task - one built elsewhere - says so and marks the fields in red.',
               ],
             },
+            {
+              heading: 'How the value gets there',
+              guide: {
+                label: "Using a previous task's result",
+                url: DOC_LINKS.workflowTaskReference,
+              },
+              steps: [
+                'The workflow stores where to get the value, not the value itself. It is fetched when the workflow runs, so it can be something that does not exist yet - an id for a network the previous task is about to create.',
+                'Fill in fields keeps the body you built and swaps in one value where you asked for it. Take the whole result replaces the body outright, which is why no fields are left to edit.',
+                'Take the whole result can also narrow to one value inside that result - the whole of it, or one part, still replaces the body.',
+                'A whole object may not fit a text field: it arrives carrying its own quotes and leaves the body malformed, and the task fails when it runs. The Type line says so before you commit.',
+                'The whole of an earlier result cannot be dropped into a single field. Switch to Take the whole result for that.',
+              ],
+            },
           ],
         },
         {

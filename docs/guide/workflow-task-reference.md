@@ -49,6 +49,40 @@ see what the task will send.
 
 ---
 
+## What is actually saved
+
+The workflow does not store the value — it stores **where to get it**. Following one value through makes the rest of this guide easier to read.
+
+Say an earlier task named `source` returns this:
+
+```json
+{ "id": "example-001",
+  "name": "sample-record",
+  "payload": { "tag": "demo", "value": 42 } }
+```
+
+There are three ways the next task can receive it, and the two choices at the top of the panel decide which one you get.
+
+| What you choose | What is stored | What the task receives |
+| --- | --- | --- |
+| **Take the whole result** | `source` | the entire response |
+| **Take the whole result**, then one value from it | `source.$.payload` | `{"tag":"demo","value":42}` |
+| **Fill in fields** | `{"picked":"${source.$.id}"}` | `{"picked":"example-001"}` |
+
+The first two **replace the body outright** — that is why there are no fields left to edit. The third **keeps the body you built** and swaps in a value where you asked for one.
+
+### Why a whole object may not fit a text field
+
+Filling a field is a text substitution: the reference is swapped for the value where it sits. A piece of text drops in cleanly. A whole object does not — it arrives carrying its own quotes, which close the field's quotes early and leave the body malformed. The task then fails when the workflow runs.
+
+That is what the **Type** line is telling you when it says the types do not fit. It does not stop you, because what a task declares and what it really returns can differ — but if you go ahead with an object in a text field, expect the run to fail there.
+
+### The whole result cannot be dropped into one field
+
+`Fill in fields` always takes *one value out of* an earlier task, never the whole of it. To pass the whole result, switch to **Take the whole result** instead — that replaces the body rather than filling a slot in it.
+
+---
+
 ## Picking a value
 
 There are three ways in. They do the same thing — use whichever suits you.
