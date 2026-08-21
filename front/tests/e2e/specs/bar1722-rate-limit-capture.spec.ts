@@ -15,13 +15,13 @@ import { WorkloadPage } from '../pages/workload.page';
  * Saves nothing to the environment beyond deleting the workloads it is pointed at — which is the
  * thing being watched.
  *
- *   BASE_URL=http://cmig.dev.cscmzc.com API_URL=http://cmig.dev.cscmzc.com:4000 \
+ *   BASE_URL=http://localhost API_URL=http://localhost:4000 \
  *   SHOT_DIR=/tmp/shots npx playwright test \
  *     --config=tests/e2e/playwright.specs.config.ts bar1722-rate-limit-capture
  */
 
 const DIR = process.env.SHOT_DIR || '/tmp/claude-1000/bar1722';
-const API = process.env.API_URL || 'http://cmig.dev.cscmzc.com:4000';
+const API = process.env.API_URL || 'http://localhost:4000';
 const NS = testNamespace.id;
 
 /** The workloads this run deletes. Whatever is not there is skipped. */

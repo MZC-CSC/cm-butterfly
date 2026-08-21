@@ -13,7 +13,7 @@ import { NotificationPage } from '../pages/notification.page';
  *
  * Needs at least one notice on the account; the scenario leaves plenty.
  *
- *   BASE_URL=http://cmig.dev.cscmzc.com npx playwright test \
+ *   BASE_URL=http://localhost npx playwright test \
  *     --config=tests/e2e/playwright.specs.config.ts notification-clear
  */
 test('reading a notice removes it @integration', async ({ page }) => {
