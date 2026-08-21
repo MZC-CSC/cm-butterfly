@@ -132,30 +132,31 @@ const playArrivalCue = () => {
   );
 
   ring.finished
-    .then(() =>
-      // Phase 2 — rise all the way to the badge, then vanish *into* it. Stays fully opaque for
-      // most of the trip (fading early made it look like it disappeared mid-air); only the last
-      // stretch shrinks and fades as it lands on the badge.
-      el.animate(
-        [
-          { transform: 'translate(0,0) scale(1)', opacity: 1, offset: 0 },
+    .then(
+      () =>
+        // Phase 2 — rise all the way to the badge, then vanish *into* it. Stays fully opaque for
+        // most of the trip (fading early made it look like it disappeared mid-air); only the last
+        // stretch shrinks and fades as it lands on the badge.
+        el.animate(
+          [
+            { transform: 'translate(0,0) scale(1)', opacity: 1, offset: 0 },
+            {
+              transform: `translate(${dx * 0.9}px, ${dy * 0.9}px) scale(0.55)`,
+              opacity: 1,
+              offset: 0.8,
+            },
+            {
+              transform: `translate(${dx}px, ${dy}px) scale(0.12)`,
+              opacity: 0,
+              offset: 1,
+            },
+          ],
           {
-            transform: `translate(${dx * 0.9}px, ${dy * 0.9}px) scale(0.55)`,
-            opacity: 1,
-            offset: 0.8,
+            duration: 1000,
+            easing: 'cubic-bezier(.35,0,.6,1)',
+            fill: 'forwards',
           },
-          {
-            transform: `translate(${dx}px, ${dy}px) scale(0.12)`,
-            opacity: 0,
-            offset: 1,
-          },
-        ],
-        {
-          duration: 1000,
-          easing: 'cubic-bezier(.35,0,.6,1)',
-          fill: 'forwards',
-        },
-      ).finished,
+        ).finished,
     )
     .then(done)
     .catch(done);
