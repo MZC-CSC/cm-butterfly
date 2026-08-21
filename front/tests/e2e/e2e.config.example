@@ -1,0 +1,60 @@
+# e2e 실행 환경 설정 — 예시
+#
+# 이 파일을 e2e.config 로 복사해서 자기 환경 값으로 채운다. e2e.config 는 git 에 올라가지 않는다.
+#
+#   cp e2e.config.example e2e.config
+#
+# 스크립트와 playwright 가 실행 시작할 때 이 파일을 읽는다.
+# 이미 환경변수로 준 값이 있으면 그쪽이 이긴다 — 한 번만 다르게 돌리고 싶을 때 쓴다.
+#
+#   BASE_URL=http://other-host npm run test:e2e
+#
+# 형식은 KEY=VALUE 한 줄씩. 따옴표는 없어도 되고, 값에 공백이 있으면 감싼다.
+
+# ── 콘솔 ────────────────────────────────────────────────────────────────
+# 시나리오가 열 웹 콘솔 주소. 프로토콜과 포트까지 그대로 쓴다.
+BASE_URL=http://localhost
+
+# 로그인 계정.
+TEST_USERNAME=
+TEST_PASSWORD=
+
+# 마이그레이션 인프라가 들어갈 cb-tumblebug 네임스페이스.
+TEST_NS=mig01
+
+# ── 소스 서버 (통합 시나리오 @integration 전용) ──────────────────────────
+# 온프렘 역할을 할 실제 VM. cm-honeybee 가 여기에 SSH 로 붙어 수집한다.
+#
+# ★ 사설 IP 를 넣는다. 공인 IP 를 넣으면 연결 등록은 그냥 성공하고 수집만 조용히 비어서,
+#   몇 단계 뒤에 "수집 결과가 없다" 로 뒤늦게 드러난다.
+# 단건 시나리오는 TEST_SOURCE_IP 하나만 본다.
+TEST_SOURCE_IP=
+
+# 통합 시나리오는 두 대를 쓴다(작은 것·조금 큰 것).
+TEST_SOURCE_NANO_IP=
+TEST_SOURCE_MICRO_IP=
+
+TEST_SOURCE_SSH_USER=ubuntu
+TEST_SOURCE_SSH_PORT=22
+
+# 소스 VM SSH 개인키 — 경로가 아니라 **키 내용**이다. 한 줄로 넣기 어려우므로 보통
+# 명령줄에서 준다:  TEST_SOURCE_PRIVATE_KEY="$(cat e2e-source-key)" npm run test:e2e
+#
+# ★ 이 시험 전용 키를 쓴다. cm-honeybee 가 넘겨받은 키를 자기 DB 에 저장하므로,
+#   공용 키를 넣으면 그 키로 열리는 다른 환경까지 함께 열린다.
+TEST_SOURCE_PRIVATE_KEY=
+
+# ── 원격 장비 접속 (스크립트용) ─────────────────────────────────────────
+# reset-dev-data.sh · prepare-source-server.sh 가 대상 장비에 붙을 때 쓴다.
+E2E_SSH_KEY=~/.ssh/id_rsa
+
+# 프레임워크 REST 를 직접 부를 때의 basic auth (id:password).
+DEV_BASIC_AUTH=
+
+# ── 마이그레이션 대상 (@costly 구간) ────────────────────────────────────
+# 실제 CSP 자원을 만든다. 자기 계정의 크리덴셜을 쓴다.
+TEST_TARGET_CSP=aws
+TEST_TARGET_REGION=ap-northeast-2
+TEST_CRED_NAME=
+TEST_AWS_ACCESS_KEY=
+TEST_AWS_SECRET_KEY=

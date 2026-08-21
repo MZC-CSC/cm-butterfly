@@ -10,8 +10,11 @@
 # 이미 있으면 아무것도 하지 않으므로 몇 번을 돌려도 안전하다.
 #
 # 사용법:
-#   HOST=cmig.dev.cscmzc.com scripts/seed-samples.sh
+#   scripts/seed-samples.sh            # e2e.config 의 BASE_URL 을 따른다
 set -uo pipefail
+
+# 개인 설정(e2e.config)을 읽는다. 이미 준 환경변수가 우선이다.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/load-config.sh"
 
 HOST="${HOST:-${BASE_URL#*://}}"
 HOST="${HOST%%/*}"

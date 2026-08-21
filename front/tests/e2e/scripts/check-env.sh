@@ -9,11 +9,15 @@
 # 자동 종료 보류(Auto.StopHold=keep)는 매일 06:00 에 풀린다. 하루짜리이므로 그날 다시 건다.
 #
 # 사용법:
-#   BASE_URL=http://cmig.dev.cscmzc.com \
+#   scripts/check-env.sh               # e2e.config 의 값을 따른다
+#   BASE_URL=http://other-host \
 #   TEST_SOURCE_NANO_IP=172.31.7.0 TEST_SOURCE_MICRO_IP=172.31.10.55 \
 #   scripts/check-env.sh
 #
 set -uo pipefail
+
+# 개인 설정(e2e.config)을 읽는다. 이미 준 환경변수가 우선이다.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/load-config.sh"
 
 BASE="${BASE_URL:?BASE_URL 이 필요하다}"
 HOST="${BASE#*://}"; HOST="${HOST%%/*}"; HOST="${HOST%%:*}"

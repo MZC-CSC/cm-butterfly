@@ -13,6 +13,9 @@
 #   scripts/record-all.sh 3 4 5          # 지정한 구간만 (다시 찍기)
 set -uo pipefail
 
+# 개인 설정(e2e.config)을 읽는다. 이미 준 환경변수가 우선이다.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/load-config.sh"
+
 cd "$(dirname "$0")/.."
 
 SEGMENTS=("$@")
