@@ -16,7 +16,7 @@ import { ModelsPage } from '../pages/models.page';
  * have to survive the filter or the rows lose their place in the document.
  *
  * Run:
- *   BASE_URL=http://cmig.dev.cscmzc.com \
+ *   BASE_URL=http://<console-host> \
  *   npx playwright test tests/e2e/specs/json-editor-search.spec.ts \
  *     --config=tests/e2e/playwright.runviewer.config.ts
  */
