@@ -141,9 +141,12 @@ export function editorProviders() {
         console.log('=============================');
 
         // See where toolboxModel does the processing
+        // `definition` carries the whole task graph. The editor needs it to work
+        // out which tasks run before this one — those are the only ones whose
+        // result this task may reference (the engine does not check that).
         insertDynamicComponent(
           TaskEditorComponent,
-          { step },
+          { step, definition },
           {
             saveComponentName: e => {
               step.name = e;

@@ -9,43 +9,94 @@
       >
         {{ fieldName }}<span v-if="isRequired" class="required-mark">*</span>
       </label>
+      <!-- Filled from a previous task: rendered as a reference, not editable text. A
+           `${task.path}` reference is ordinary JSON text, so left in an input a user
+           edits it by accident and it breaks with nothing to say so. -->
+      <TaskReferenceValue
+        v-if="reference"
+        :task="reference.task"
+        :path="reference.path"
+        :field="referenceKey"
+        :multiple="reference.multiple"
+        @edit="$emit('reference', referenceKey, fieldSchema.type)"
+        @clear="$emit('reference-clear', referenceKey)"
+      />
       <textarea
-        v-if="fieldSchema.type === 'string' && shouldUseTextarea"
+        v-if="!reference && fieldSchema.type === 'string' && shouldUseTextarea"
         :data-testid="fieldTestId"
         :value="fieldValue || ''"
-        @input="handleInput($event)"
-        class="field-textarea"
+        :class="['field-textarea', { 'field-invalid': isInvalid }]"
         :placeholder="`Enter ${fieldName}`"
         rows="6"
-      ></textarea>
+        @input="handleInput($event)"
+      />
       <input
-        v-else-if="fieldSchema.type === 'string'"
+        v-else-if="!reference && fieldSchema.type === 'string'"
         :data-testid="fieldTestId"
         type="text"
         :value="fieldValue || ''"
-        @input="handleInput($event)"
-        class="field-input"
+        :class="['field-input', { 'field-invalid': isInvalid }]"
         :placeholder="`Enter ${fieldName}`"
+        @input="handleInput($event)"
       />
       <input
         v-else-if="
-          fieldSchema.type === 'number' || fieldSchema.type === 'integer'
+          !reference &&
+          (fieldSchema.type === 'number' || fieldSchema.type === 'integer')
         "
         :data-testid="fieldTestId"
         type="number"
         :value="fieldValue || 0"
-        @input="handleInput($event)"
-        class="field-input"
+        :class="['field-input', { 'field-invalid': isInvalid }]"
         :placeholder="`Enter ${fieldName}`"
+        @input="handleInput($event)"
       />
       <input
-        v-else-if="fieldSchema.type === 'boolean'"
+        v-else-if="!reference && fieldSchema.type === 'boolean'"
         :data-testid="fieldTestId"
         type="checkbox"
         :checked="!!fieldValue"
-        @change="handleInput($event)"
         class="field-checkbox"
+        @change="handleInput($event)"
       />
+      <!-- Pull a value out of a previous task. Dragging it onto the canvas lights up
+           the tasks that may be picked; clicking opens the same picker. -->
+      <button
+        v-if="!reference && canBind"
+        type="button"
+        class="btn-ref-add"
+        draggable="true"
+        :data-testid="`wf-field-ref-add-${referenceKey}`"
+        title="Take a value from an earlier task"
+        @click="$emit('reference', referenceKey, fieldSchema.type)"
+        @dragstart="$emit('ref-drag-start', referenceKey, fieldSchema.type)"
+        @dragend="$emit('ref-drag-end')"
+      >
+        <svg viewBox="0 0 16 16" class="ref-add-icon" aria-hidden="true">
+          <circle
+            cx="8"
+            cy="8"
+            r="3.2"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          />
+          <path
+            d="M8 1v2.4M8 12.6V15M1 8h2.4M12.6 8H15"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
+      <p
+        v-if="isInvalid"
+        class="field-invalid-note"
+        :data-testid="`wf-field-ref-invalid-${referenceKey}`"
+      >
+        This reads a task that does not run first, so it will fail when the
+        workflow runs.
+      </p>
     </div>
 
     <!-- Array Type -->
@@ -54,8 +105,8 @@
         <div class="header-left">
           <button
             :data-testid="arrayToggleTestId"
-            @click="toggleArrayCollapse"
             class="btn-collapse"
+            @click="toggleArrayCollapse"
           >
             {{ isArrayCollapsed ? '▶' : '▼' }}
           </button>
@@ -72,8 +123,8 @@
         <div class="header-actions">
           <button
             :data-testid="arrayAddTestId"
-            @click="addArrayItem"
             class="btn-add-item"
+            @click="addArrayItem"
           >
             + Add entity
           </button>
@@ -92,14 +143,14 @@
               :data-testid="arrayItemTestId(index)"
               type="text"
               :value="item"
-              @input="updateArrayItem(index, $event)"
-              class="field-input"
+              :class="['field-input', { 'field-invalid': isInvalid }]"
               :placeholder="`Item ${index + 1}`"
+              @input="updateArrayItem(index, $event)"
             />
             <button
               :data-testid="arrayRemoveTestId(index)"
-              @click="removeArrayItem(index)"
               class="btn-remove-item"
+              @click="removeArrayItem(index)"
             >
               ×
             </button>
@@ -118,29 +169,27 @@
           >
             <div
               class="item-header"
-              @click="toggleItemCollapse(index)"
               style="cursor: pointer"
+              @click="toggleItemCollapse(index)"
             >
               <div class="item-header-left">
                 <button
                   :data-testid="arrayItemToggleTestId(index)"
-                  @click.stop="toggleItemCollapse(index)"
                   class="btn-item-collapse"
+                  @click.stop="toggleItemCollapse(index)"
                 >
                   {{ isItemCollapsed(index) ? '▶' : '▼' }}
                 </button>
                 <span class="item-title">Item {{ index + 1 }}</span>
                 <span v-if="isItemCollapsed(index)" class="item-prop-count">
-                  ({{
-                    Object.keys(fieldSchema.items.properties || {}).length
-                  }}
+                  ({{ Object.keys(fieldSchema.items.properties || {}).length }}
                   properties)
                 </span>
               </div>
               <button
                 :data-testid="arrayRemoveTestId(index)"
-                @click.stop="removeArrayItem(index)"
                 class="btn-remove-item"
+                @click.stop="removeArrayItem(index)"
               >
                 × Remove
               </button>
@@ -158,17 +207,22 @@
                 :task-name="taskName"
                 :current-path="`${currentPath}[]`"
                 :index-path="childIndexPath(String(propName), index)"
+                :references="references"
+                :invalid-paths="invalidPaths"
+                :can-bind="canBind"
+                :depth="depth + 1"
                 @update="
                   updateObjectArrayItemProperty(index, String(propName), $event)
                 "
-                :depth="depth + 1"
+                @reference="(k, t) => $emit('reference', k, t)"
+                @reference-clear="k => $emit('reference-clear', k)"
+                @ref-drag-start="(k, t) => $emit('ref-drag-start', k, t)"
+                @ref-drag-end="$emit('ref-drag-end')"
               />
             </div>
             <div v-else class="item-collapsed-indicator">
               <span class="item-collapsed-text">
-                {{
-                  Object.keys(fieldSchema.items.properties || {}).length
-                }}
+                {{ Object.keys(fieldSchema.items.properties || {}).length }}
                 properties (collapsed)
               </span>
             </div>
@@ -193,8 +247,8 @@
         <div class="header-left">
           <button
             :data-testid="objectToggleTestId"
-            @click="toggleObjectCollapse"
             class="btn-collapse"
+            @click="toggleObjectCollapse"
           >
             {{ isObjectCollapsed ? '▶' : '▼' }}
           </button>
@@ -231,8 +285,15 @@
           :task-name="taskName"
           :current-path="computedChildPath(propName)"
           :index-path="childIndexPath(String(propName))"
-          @update="updateObjectProperty(String(propName), $event)"
+          :references="references"
+          :invalid-paths="invalidPaths"
+          :can-bind="canBind"
           :depth="depth + 1"
+          @update="updateObjectProperty(String(propName), $event)"
+          @reference="(k, t) => $emit('reference', k, t)"
+          @reference-clear="k => $emit('reference-clear', k)"
+          @ref-drag-start="(k, t) => $emit('ref-drag-start', k, t)"
+          @ref-drag-end="$emit('ref-drag-end')"
         />
       </div>
       <div v-else class="collapsed-indicator">
@@ -251,9 +312,11 @@ import {
   getPropertyOrder,
   sortPropertiesByOrder,
 } from '../config/taskPropertyOrderConfig';
+import TaskReferenceValue from './TaskReferenceValue.vue';
 
 export default defineComponent({
   name: 'RecursiveFormField',
+  components: { TaskReferenceValue },
   props: {
     fieldName: {
       type: String,
@@ -297,8 +360,30 @@ export default defineComponent({
       type: String,
       default: '',
     },
+    // Fields bound to a previous task's output, keyed by the same path the test ids
+    // use. Threaded down the recursion so any depth can render a reference.
+    references: {
+      type: Object,
+      default: () => ({}),
+    },
+    // Paths whose reference points at a task that does not run first.
+    invalidPaths: {
+      type: Array,
+      default: () => [],
+    },
+    // False when this task has nothing before it, so there is nothing to pull from.
+    canBind: {
+      type: Boolean,
+      default: false,
+    },
   },
-  emits: ['update'],
+  emits: [
+    'update',
+    'reference',
+    'reference-clear',
+    'ref-drag-start',
+    'ref-drag-end',
+  ],
   setup(props, { emit }) {
     // Every leaf input gets a stable id built from its path in the schema, e.g.
     // `wf-field-body_params.targetInfra.name`. The label text is the only other thing that identifies
@@ -307,6 +392,22 @@ export default defineComponent({
     const fieldTestId = computed(
       () =>
         `wf-field-${props.indexPath || props.currentPath || props.fieldName}`,
+    );
+
+    /** Key this field is known by in the reference map — the same path the test ids use. */
+    const referenceKey = computed(
+      () => props.indexPath || props.currentPath || props.fieldName,
+    );
+
+    /** The reference on this field, if any. */
+    const reference = computed(
+      () =>
+        (props.references as Record<string, any>)[referenceKey.value] || null,
+    );
+
+    /** True when this field references a task that does not run before this one. */
+    const isInvalid = computed(() =>
+      (props.invalidPaths as string[]).includes(referenceKey.value),
     );
 
     /** Child path for the test id, keeping the array index so siblings do not collide. */
@@ -325,25 +426,25 @@ export default defineComponent({
         `wf-array-add-${props.indexPath || props.currentPath || props.fieldName}`,
     );
 
-    /*
-      The toggles that open a field, named by the path they open.
-
-      Without these a walkthrough has to open every collapsed row in turn to reach one field -
-      two hundred clicks, and on a recording that is all the viewer sees. Named, it opens the
-      handful of ancestors on the way to what it came for.
-    */
+    /**
+     * The toggles that open and close a nested field.
+     *
+     * They all read the same from the outside — a triangle — so a test that reaches for one by
+     * position picks a different toggle as soon as the form gains a field. The path names which
+     * one it opens, the same way the leaf inputs are named.
+     */
     const arrayToggleTestId = computed(
       () =>
-        `wf-toggle-${props.indexPath || props.currentPath || props.fieldName}`,
+        `wf-array-toggle-${props.indexPath || props.currentPath || props.fieldName}`,
     );
 
     const objectToggleTestId = computed(
       () =>
-        `wf-toggle-${props.indexPath || props.currentPath || props.fieldName}`,
+        `wf-object-toggle-${props.indexPath || props.currentPath || props.fieldName}`,
     );
 
     const arrayItemToggleTestId = (arrayIndex: number) =>
-      `wf-toggle-${props.indexPath || props.currentPath || props.fieldName}[${arrayIndex}]`;
+      `wf-array-item-toggle-${props.indexPath || props.currentPath || props.fieldName}[${arrayIndex}]`;
 
     /** The button that removes one entry, which needs the entry's position as well. */
     const arrayRemoveTestId = (arrayIndex: number) =>
@@ -736,13 +837,16 @@ export default defineComponent({
 
     return {
       fieldTestId,
+      referenceKey,
+      reference,
+      isInvalid,
       childIndexPath,
       arrayItemTestId,
       arrayAddTestId,
-      arrayRemoveTestId,
       arrayToggleTestId,
       objectToggleTestId,
       arrayItemToggleTestId,
+      arrayRemoveTestId,
       isSimpleType,
       isStringArray,
       arrayValue,
@@ -1192,5 +1296,44 @@ export default defineComponent({
 .depth-4 .field-input {
   font-size: 0.813rem;
   padding: 0.375rem 0.5rem;
+}
+
+/* --- value reference --- */
+.btn-ref-add {
+  flex: none;
+  border: 1px solid #c6c7f5;
+  background: #eeeefc;
+  color: #4b4ddb;
+  border-radius: 5px;
+  padding: 3px 5px;
+  cursor: grab;
+  line-height: 0;
+}
+.btn-ref-add:hover {
+  background: #e2e2fa;
+}
+.btn-ref-add:active {
+  cursor: grabbing;
+}
+.btn-ref-add:focus-visible {
+  outline: 2px solid #4b4ddb;
+  outline-offset: 1px;
+}
+.ref-add-icon {
+  width: 13px;
+  height: 13px;
+}
+
+/* A reference pointing at a task that does not run first. Left alone it saves
+   fine and then fails at run time, so it has to be visible here. */
+.field-invalid {
+  background: #fdecec;
+  border-color: #d94a4a;
+}
+.field-invalid-note {
+  margin: 3px 0 0;
+  font-size: 11px;
+  color: #b02a2a;
+  line-height: 1.5;
 }
 </style>
