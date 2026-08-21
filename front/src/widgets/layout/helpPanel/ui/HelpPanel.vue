@@ -221,12 +221,14 @@ const HELP: Array<{ path: string; help: Help }> = [
         {
           item: 'Save',
           kind: 'btn2',
-          meaning: 'Bottom right of the source connection form. Stays off until the required fields, marked in red, are filled in.',
+          meaning:
+            'Bottom right of the source connection form. Stays off until the required fields, marked in red, are filled in.',
         },
         {
           item: 'Name',
           kind: 'column',
-          meaning: 'The name you gave the source service. Selecting it opens its source connections below.',
+          meaning:
+            'The name you gave the source service. Selecting it opens its source connections below.',
         },
         {
           item: 'Connection #',
@@ -243,7 +245,8 @@ const HELP: Array<{ path: string; help: Help }> = [
         {
           item: 'Description',
           kind: 'column',
-          meaning: 'Whatever you wrote when creating it, as a note to yourself. Nothing depends on it.',
+          meaning:
+            'Whatever you wrote when creating it, as a note to yourself. Nothing depends on it.',
         },
       ],
       groups: [
@@ -278,7 +281,8 @@ const HELP: Array<{ path: string; help: Help }> = [
                   ],
                 },
                 {
-                  heading: 'Bring source connections in from an Excel or CSV file',
+                  heading:
+                    'Bring source connections in from an Excel or CSV file',
                   guide: {
                     label: 'Preparing the connection file',
                     url: DOC_LINKS.sourceConnectionBulkImport,
@@ -294,7 +298,8 @@ const HELP: Array<{ path: string; help: Help }> = [
               ],
             },
             {
-              heading: 'Add source connections to a source service that already exists',
+              heading:
+                'Add source connections to a source service that already exists',
               // Registered a service and stopped there: this is the one thing left.
               openWhen: f => f.sourceServices > 0 && f.connections === 0,
               steps: [
@@ -820,6 +825,8 @@ const HEIGHT_KEY = 'cm.helpPanel.height';
 const MIN_HEIGHT = 220;
 /** The header the panel has to stay clear of, so its own icon stays reachable. */
 const HEADER_HEIGHT = 40;
+/** The gap a detached panel keeps from the window edge and from the header. */
+const FLOAT_MARGIN = 12;
 
 const route = useRoute();
 const { $refs } = getCurrentInstance()!.proxy as unknown as {
@@ -856,7 +863,21 @@ function applyDock() {
 
 function setDocked(next: boolean) {
   docked.value = next;
-  if (next) offset.value = null;
+  /*
+    Undocking settles the panel where it stands, rather than leaving it "as opened".
+
+    While the offset is null the floating panel keeps no height of its own and fills the screen the
+    way the docked one does. Dragging it then cannot move it downwards at all: the move clamps
+    against the height it has at that moment, and a panel as tall as the window has nowhere to go.
+    The window slid sideways while the pointer went down and across, which read as the pointer
+    having let go of the title bar.
+  */
+  offset.value = next
+    ? null
+    : {
+        x: Math.max(0, window.innerWidth - width.value - FLOAT_MARGIN),
+        y: HEADER_HEIGHT + FLOAT_MARGIN,
+      };
   localStorage.setItem(MODE_KEY, next ? 'dock' : 'float');
   applyDock();
 }
@@ -873,7 +894,9 @@ function maxHeight(): number {
 
 function readHeight(): number {
   const saved = Number(localStorage.getItem(HEIGHT_KEY));
-  return saved >= MIN_HEIGHT ? Math.min(saved, maxHeight()) : Math.round(window.innerHeight * 0.7);
+  return saved >= MIN_HEIGHT
+    ? Math.min(saved, maxHeight())
+    : Math.round(window.innerHeight * 0.7);
 }
 
 const height = ref(readHeight());
@@ -1079,7 +1102,7 @@ watch(helpPanelOpenRequests, () => {
   answer either way, and the reader has just asked for an explanation, so a moment's work
   is what they came for.
 */
-watch(open, async (isOpen) => {
+watch(open, async isOpen => {
   // Read again every time, not only the first. Opening the help is the moment the
   // reader most needs the answer to match what is on the screen behind it, and by
   // then they may have registered, collected or saved something.
@@ -1087,7 +1110,8 @@ watch(open, async (isOpen) => {
 });
 
 const guidedLine = computed(() => {
-  if (guidanceOff.value || !progressKnown.value || isFinished.value) return null;
+  if (guidanceOff.value || !progressKnown.value || isFinished.value)
+    return null;
   const step = currentGuidedStep.value;
   if (!step) return null;
   return {
@@ -1140,7 +1164,10 @@ function openReferenced(target: string | undefined): void {
   const [groupId, rawIndex] = target.split('#');
   const index = Number(rawIndex);
   if (!groupId || !Number.isFinite(index)) return;
-  openSections.value = { ...openSections.value, [sectionKey(groupId, index)]: true };
+  openSections.value = {
+    ...openSections.value,
+    [sectionKey(groupId, index)]: true,
+  };
   requestAnimationFrame(() => {
     document
       .querySelector(`[data-testid="help-section-toggle-${groupId}-${index}"]`)
@@ -1240,9 +1267,24 @@ function startResize(event: MouseEvent) {
   const startX = event.clientX;
   const startWidth = width.value;
 
+  /*
+    A docked panel is held against the right of the window, so widening it takes the left edge
+    outwards on its own and the edge stays under the pointer. A detached one is held by its left,
+    so the same widening pushes the *right* edge out instead and the edge being dragged does not
+    move at all. Keeping the right edge where it was puts the left edge back under the pointer.
+  */
+  const fixedRight =
+    !docked.value && offset.value ? offset.value.x + startWidth : null;
+
   const onMove = (e: MouseEvent) => {
     const next = startWidth + (startX - e.clientX);
     width.value = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, next));
+    if (fixedRight !== null && offset.value) {
+      offset.value = {
+        x: Math.max(0, fixedRight - width.value),
+        y: offset.value.y,
+      };
+    }
     applyDock();
   };
   const onUp = () => {
@@ -1267,15 +1309,21 @@ function startMove(event: MouseEvent) {
   const grabX = event.clientX - box.left;
   const grabY = event.clientY - box.top;
 
+  /*
+    Measured on every move, not once at the start. The panel takes its floating size as it is being
+    let go of, and a limit worked out from the size it had a moment earlier pins it in place.
+  */
   const onMove = (e: MouseEvent) => {
+    const w = panel.offsetWidth;
+    const h = panel.offsetHeight;
     offset.value = {
-      x: Math.max(
-        0,
-        Math.min(window.innerWidth - box.width, e.clientX - grabX),
-      ),
+      x: Math.max(0, Math.min(window.innerWidth - w, e.clientX - grabX)),
       y: Math.max(
         HEADER_HEIGHT,
-        Math.min(window.innerHeight - box.height, e.clientY - grabY),
+        Math.min(
+          Math.max(HEADER_HEIGHT, window.innerHeight - h),
+          e.clientY - grabY,
+        ),
       ),
     };
   };
@@ -1305,7 +1353,10 @@ onBeforeUnmount(() => {
       one appearing at once and the other after a second's wait read as two different
       kinds of control.
     -->
-    <p-tooltip :contents="`Help for this screen (${help.title})`" position="absolute">
+    <p-tooltip
+      :contents="`Help for this screen (${help.title})`"
+      position="absolute"
+    >
       <button
         class="help-button"
         data-testid="help-toggle"
@@ -1412,9 +1463,11 @@ onBeforeUnmount(() => {
             >Step {{ guidedLine.no }} of {{ guidedLine.total }}</span
           >
           <span class="help-guided-text">{{ guidedLine.title }}</span>
-          <span class="help-guided-standing" data-testid="help-guided-standing">{{
-            guidedLine.standing
-          }}</span>
+          <span
+            class="help-guided-standing"
+            data-testid="help-guided-standing"
+            >{{ guidedLine.standing }}</span
+          >
           <!--
             What finishes this step, and how far it is met. Without it a step that stays
             put after you have registered something reads as broken rather than as work
@@ -1482,7 +1535,9 @@ onBeforeUnmount(() => {
             >
               <li v-for="(step, t) in sec.steps" :key="t">
                 <template v-for="(tok, k) in tokensOf(step)">
-                  <span v-if="tok.t === 'text'" :key="`t${k}`">{{ tok.v }}</span>
+                  <span v-if="tok.t === 'text'" :key="`t${k}`">{{
+                    tok.v
+                  }}</span>
                   <button
                     v-else-if="tok.t === 'see'"
                     :key="`s${k}`"
@@ -1493,12 +1548,18 @@ onBeforeUnmount(() => {
                   >
                     {{ tok.v }}
                   </button>
-                  <strong v-else-if="tok.t === 'b'" :key="`b${k}`" class="help-strong">{{
-                    tok.v
-                  }}</strong>
-                  <span v-else :key="`c${k}`" :class="`help-chip help-chip-${tok.t}`">{{
-                    tok.v
-                  }}</span>
+                  <strong
+                    v-else-if="tok.t === 'b'"
+                    :key="`b${k}`"
+                    class="help-strong"
+                    >{{ tok.v }}</strong
+                  >
+                  <span
+                    v-else
+                    :key="`c${k}`"
+                    :class="`help-chip help-chip-${tok.t}`"
+                    >{{ tok.v }}</span
+                  >
                 </template>
               </li>
             </ol>
@@ -1508,12 +1569,18 @@ onBeforeUnmount(() => {
               v-if="sec.sub && isSectionOpen(group.id, x)"
               class="help-subsections"
             >
-              <div v-for="(sub, y) in sec.sub" :key="`sub${y}`" class="help-subsection">
+              <div
+                v-for="(sub, y) in sec.sub"
+                :key="`sub${y}`"
+                class="help-subsection"
+              >
                 <button
                   type="button"
                   class="help-subheading"
                   :data-testid="`help-subsection-toggle-${group.id}-${x}-${y}`"
-                  :aria-expanded="isSectionOpen(`${group.id}#${x}`, y) ? 'true' : 'false'"
+                  :aria-expanded="
+                    isSectionOpen(`${group.id}#${x}`, y) ? 'true' : 'false'
+                  "
                   @click="toggleSection(`${group.id}#${x}`, y)"
                 >
                   <span class="help-heading-mark" aria-hidden="true">{{
@@ -1528,7 +1595,9 @@ onBeforeUnmount(() => {
                 >
                   <li v-for="(step, t) in sub.steps" :key="t">
                     <template v-for="(tok, k) in tokensOf(step)">
-                      <span v-if="tok.t === 'text'" :key="`t${k}`">{{ tok.v }}</span>
+                      <span v-if="tok.t === 'text'" :key="`t${k}`">{{
+                        tok.v
+                      }}</span>
                       <button
                         v-else-if="tok.t === 'see'"
                         :key="`s${k}`"
@@ -1559,12 +1628,18 @@ onBeforeUnmount(() => {
                   :data-testid="`help-subsection-guide-${group.id}-${x}-${y}`"
                   @click="openDocLink(sub.guide.url)"
                 >
-                  <svg class="help-doc-icon" viewBox="0 0 16 16" aria-hidden="true">
+                  <svg
+                    class="help-doc-icon"
+                    viewBox="0 0 16 16"
+                    aria-hidden="true"
+                  >
                     <path
                       d="M4 1.5h5.2L13 5.3V14a.5.5 0 0 1-.5.5h-8A.5.5 0 0 1 4 14V1.5Zm1 1V13.5h7V6H8.7V2.5H5Zm4.7.7V5H12L9.7 3.2ZM6 7.5h5v1H6v-1Zm0 2.5h5v1H6v-1Z"
                     />
                   </svg>
-                  <span class="help-guide-text">Guide: {{ sub.guide.label }}</span>
+                  <span class="help-guide-text"
+                    >Guide: {{ sub.guide.label }}</span
+                  >
                   <span class="help-guide-out">&#8599;</span>
                 </button>
               </div>
@@ -1653,7 +1728,9 @@ onBeforeUnmount(() => {
             <span class="help-heading-mark" aria-hidden="true">{{
               isSectionOpen('__reference', 0) ? '\u25be' : '\u25b8'
             }}</span>
-            <span class="help-heading-text">Buttons and columns on this screen</span>
+            <span class="help-heading-text"
+              >Buttons and columns on this screen</span
+            >
           </button>
           <dl
             v-if="isSectionOpen('__reference', 0)"
@@ -1662,9 +1739,10 @@ onBeforeUnmount(() => {
           >
             <template v-for="(r, k) in help.reference">
               <dt :key="`rt${k}`">
-                <span :class="`help-chip help-chip-${r.kind === 'column' ? 'menu' : r.kind}`">{{
-                  r.item
-                }}</span>
+                <span
+                  :class="`help-chip help-chip-${r.kind === 'column' ? 'menu' : r.kind}`"
+                  >{{ r.item }}</span
+                >
               </dt>
               <dd :key="`rd${k}`">{{ r.meaning }}</dd>
             </template>
@@ -1689,7 +1767,11 @@ onBeforeUnmount(() => {
             }}</span>
             <span class="help-heading-text">Key terms</span>
           </button>
-          <dl v-if="isSectionOpen('__terms', 0)" class="help-terms" data-testid="help-terms-list">
+          <dl
+            v-if="isSectionOpen('__terms', 0)"
+            class="help-terms"
+            data-testid="help-terms-list"
+          >
             <template v-for="(t, k) in help.terms">
               <dt :key="`t${k}`">{{ t.term }}</dt>
               <dd :key="`d${k}`">{{ t.meaning }}</dd>
@@ -2156,7 +2238,6 @@ onBeforeUnmount(() => {
 .help-subheading-text {
   flex: 1;
 }
-
 
 .help-chip {
   display: inline-block;

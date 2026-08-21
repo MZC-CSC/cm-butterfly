@@ -473,7 +473,51 @@ function duplicateRow(row: FlatRow) {
 
   const index = Number(row.keys[row.keys.length - 1]);
   container.splice(index + 1, 0, copyOf(container[index]));
+  carryExpansionThroughInsert(row, index);
   commit(data);
+}
+
+/*
+  The copy opens the way its original was, and everything below keeps the state it had.
+
+  Paths carry the index, so inserting at 6 makes what was `…firewallTable.7` into `.8` - and the
+  set of opened paths, which is keyed by path, would otherwise be pointing at the wrong entries.
+  Every path at or after the insert is shifted up one, then the copy is given whatever the original
+  had.
+
+  Not "always open the copy": duplicating a folded entry and having it spring open lengthens the
+  list and pushes the next entry out of reach. What was folded stays folded.
+*/
+function carryExpansionThroughInsert(row: FlatRow, index: number) {
+  const arrayPath = row.path.replace(/\.[^.]+$/, '');
+  const prefix = `${arrayPath}.`;
+  const next = new Set<string>();
+
+  for (const path of expandedPaths.value) {
+    if (!path.startsWith(prefix)) {
+      next.add(path);
+      continue;
+    }
+    const rest = path.slice(prefix.length);
+    const [head, ...tail] = rest.split('.');
+    const at = Number(head);
+    if (Number.isNaN(at) || at <= index) {
+      next.add(path);
+      continue;
+    }
+    next.add([prefix + String(at + 1), ...tail].join('.'));
+  }
+
+  // The copy inherits the original's state, itself and everything under it.
+  const originalPrefix = `${prefix}${index}`;
+  const copyPrefix = `${prefix}${index + 1}`;
+  for (const path of expandedPaths.value) {
+    if (path === originalPrefix || path.startsWith(`${originalPrefix}.`)) {
+      next.add(copyPrefix + path.slice(originalPrefix.length));
+    }
+  }
+
+  expandedPaths.value = next;
 }
 
 function removeRow(row: FlatRow) {
@@ -663,9 +707,20 @@ function cancelEdit() {
           </tr>
         </thead>
         <tbody>
+          <!--
+            The row carries where it came from.
+
+            Without it a row is only a key and a value, and telling one `dstPorts` from another
+            means counting rows or reading the neighbours - both of which move when the document
+            changes. `firewallTable[7].dstPorts` says which rule it belongs to, and a caller that
+            wants the address of that same rule asks for `firewallTable[7].dstCIDR` rather than
+            guessing where the rule begins and ends.
+          -->
           <tr
             v-for="row in filteredRows"
             :key="row.path"
+            :data-path="row.path"
+            :data-testid="`json-grid-row-${row.path}`"
             :class="[
               'pg-row',
               `depth-${Math.min(row.depth, 8)}`,
