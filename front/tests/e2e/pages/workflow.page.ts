@@ -22,7 +22,7 @@ import { openScreen } from '../support/navigate';
  * template + type/spec tasks in the SequentialDesigner (designer/editor).
  *
  * ⚠️ Sections without data-testid: the workflow domain .vue files currently have no data-testid.
- *   BAR-880 (selector stabilization) — data-testid has been added at the key points of the workflow domain:
+ *   Selector stabilization — data-testid has been added at the key points of the workflow domain:
  *     workflow-list-table · taskcomponent-list-table · workflow-template-list-table ·
  *     workflow-json-view (open JSON from detail) · workflow-json-viewer (viewer body).
  *   Even if screen text or DOM structure changes, these testids locate elements precisely. Only sections
@@ -45,7 +45,7 @@ export class WorkflowPage {
   /**
    * List table — each screen uses its *own* testid.
    * If multiple screens share the same testid, it becomes ambiguous which table is meant,
-   * and it grabs the wrong place when the screen changes. (BAR-880 — selector stabilization)
+   * and it grabs the wrong place when the screen changes.
    */
   // The table testid differs per screen. Because a new Page Object is created for each step,
   // we must not hold "the current screen" as instance state — each method points at its own table directly.

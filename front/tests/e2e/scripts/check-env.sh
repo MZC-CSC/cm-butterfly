@@ -9,10 +9,12 @@
 # 자동 종료 보류(Auto.StopHold=keep)는 매일 06:00 에 풀린다. 하루짜리이므로 그날 다시 건다.
 #
 # 사용법:
-#   scripts/check-env.sh               # e2e.config 의 값을 따른다
-#   BASE_URL=http://other-host \
-#   TEST_SOURCE_NANO_IP=172.31.7.0 TEST_SOURCE_MICRO_IP=172.31.10.55 \
 #   scripts/check-env.sh
+#
+# 주소·IP·키는 e2e.config 에서 읽는다 (docs/03-환경설정.md). 한 번만 다른 곳을 겨눌 때만
+# 앞에 붙인다.
+#
+#   BASE_URL=http://other-host scripts/check-env.sh
 #
 set -uo pipefail
 
@@ -21,7 +23,7 @@ set -uo pipefail
 
 BASE="${BASE_URL:?BASE_URL 이 필요하다}"
 HOST="${BASE#*://}"; HOST="${HOST%%/*}"; HOST="${HOST%%:*}"
-SSH_KEY="${E2E_SSH_KEY:-$HOME/.ssh/cb-webtool.pem}"
+SSH_KEY="${E2E_SSH_KEY:?E2E_SSH_KEY 가 필요하다 — e2e.config 에 적는다}"
 fail=0
 
 say() { printf '  %-28s %s\n' "$1" "$2"; }
@@ -59,16 +61,11 @@ else say "콘솔 $HOST" "❌ 응답 $code — 서버가 꺼져 있을 수 있다
 #
 # ★ 찾는 이름은 *접속한 호스트*가 아니라 **그 서버의 실제 도메인**이다.
 #
-#   촬영은 가짜 도메인(v0.6.2.cmig-mzc.com)으로 접속한다 - 영상에 내부 호스트가 남지 않게 하려는
-#   것이라 hosts 에만 있고 EC2 태그에는 없다. 그대로 찾으면 "걸려 있지 않다"가 나와 촬영이
-#   시작되지 못한다(2026-08-20). 가짜 이름이면 실제 도메인으로 바꿔 찾는다.
-E2E_REAL_HOST="${E2E_REAL_HOST:-}"
-if [ -z "$E2E_REAL_HOST" ]; then
-  case "$HOST" in
-    *cmig-mzc.com) E2E_REAL_HOST="cmig.dev.cscmzc.com" ;;
-    *)             E2E_REAL_HOST="$HOST" ;;
-  esac
-fi
+#   촬영은 대역용 이름으로 접속한다 - 영상에 실제 호스트가 남지 않게 하려는 것이라 hosts 에만
+#   있고 EC2 태그에는 없다. 그대로 찾으면 "걸려 있지 않다"가 나와 촬영이 시작되지 못한다
+#   (2026-08-20). 대역용 이름으로 접속할 때는 e2e.config 의 E2E_REAL_HOST 에 실제 도메인을
+#   적어 둔다 - 그러면 태그는 그 이름으로 찾는다.
+E2E_REAL_HOST="${E2E_REAL_HOST:-$HOST}"
 
 if command -v aws >/dev/null 2>&1; then
   hold="$(aws ec2 describe-instances --region ap-northeast-2 \

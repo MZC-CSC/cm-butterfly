@@ -21,8 +21,8 @@ writeFileSync(
   '﻿' +
     [
       'name,description,ip_address,ssh_port,user,password,private_key',
-      `onprem-web-${RUN},웹 서버,172.31.7.0,22,ubuntu,,`,
-      `onprem-app-${RUN},애플리케이션 서버,172.31.10.55,22,ubuntu,,`,
+      `onprem-web-${RUN},웹 서버,${process.env.TEST_SOURCE_NANO_IP ?? ''},22,ubuntu,,`,
+      `onprem-app-${RUN},애플리케이션 서버,${process.env.TEST_SOURCE_MICRO_IP ?? ''},22,ubuntu,,`,
     ].join('\n') +
     '\n',
   'utf-8',
@@ -68,7 +68,10 @@ await page.waitForTimeout(3_000);
 // 그룹을 만들면서 연결정보를 파일로 넣는다.
 await page.getByTestId('source-group-add').click();
 await page.waitForTimeout(1_200);
-await page.locator('input[data-testid="source-service-name"]').first().fill(GROUP);
+await page
+  .locator('input[data-testid="source-service-name"]')
+  .first()
+  .fill(GROUP);
 await page.waitForTimeout(800);
 await page.getByTestId('source-service-with-connection').click();
 await page.waitForTimeout(1_200);
@@ -95,7 +98,10 @@ await wait(2_500);
 
 await page.getByTestId('source-import-count').waitFor({ timeout: 20_000 });
 await page.waitForTimeout(1_500);
-await page.locator('button', { has: page.getByTestId('source-service-confirm') }).first().click();
+await page
+  .locator('button', { has: page.getByTestId('source-service-confirm') })
+  .first()
+  .click();
 await page.waitForTimeout(3_000);
 
 console.log(`[import] ${GROUP} 등록 완료`);

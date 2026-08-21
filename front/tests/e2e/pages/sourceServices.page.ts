@@ -19,7 +19,7 @@ import { spotlight } from '../support/spotlight';
  *  - 소프트웨어 수집          : import-software
  *
  * 셀렉터는 data-testid 우선(getByTestId) + 아직 미부여 구간은 실제 .vue의
- * placeholder/label/버튼 텍스트로 fallback. data-testid 부여(BAR-880) 후 fallback 제거.
+ * placeholder/label/버튼 텍스트로 fallback. data-testid 부여 후 fallback 제거.
  */
 export class SourceServicesPage {
   /** ★ 화면 위치(URL) — 라우트 /main + source-computing/source-services */

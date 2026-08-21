@@ -27,7 +27,7 @@ if [ -z "${HOST:-}" ]; then
   HOST="${BASE_URL:?BASE_URL 또는 HOST 가 필요하다 — e2e.config 를 만들었는지 확인한다}"
   HOST="${HOST#*://}"; HOST="${HOST%%/*}"; HOST="${HOST%%:*}"
 fi
-SSH_KEY="${E2E_SSH_KEY:-$HOME/.ssh/cb-webtool.pem}"
+SSH_KEY="${E2E_SSH_KEY:?E2E_SSH_KEY 가 필요하다 — e2e.config 에 적는다}"
 AUTH="${DEV_BASIC_AUTH:-default:default}"
 
 ssh -o StrictHostKeyChecking=no -i "$SSH_KEY" "ubuntu@$HOST" AUTH="$AUTH" 'bash -s' <<'REMOTE'

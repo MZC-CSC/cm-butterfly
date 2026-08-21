@@ -17,8 +17,7 @@ const HOST = (() => {
   return base.replace(/^https?:\/\//, '').replace(/[:/].*$/, '');
 })();
 
-const KEY =
-  process.env.E2E_SSH_KEY ?? `${process.env.HOME}/.ssh/cb-webtool.pem`;
+const KEY = process.env.E2E_SSH_KEY ?? '';
 
 /**
  * The service to stop for the demonstration.

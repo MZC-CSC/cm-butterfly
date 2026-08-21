@@ -17,7 +17,7 @@ export class LoginPage {
   /**
    * Centralized selectors (on source changes, only this file is edited).
    * Prefer data-testid for stability, falling back to placeholder/role where it isn't assigned yet.
-   * → The fallback will be removed once data-testid is assigned in the front (BAR-880).
+   * → The fallback will be removed once data-testid is assigned in the front.
    */
   private get idInput(): Locator {
     return this.page

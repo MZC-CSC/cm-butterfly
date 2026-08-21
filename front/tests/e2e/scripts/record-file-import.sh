@@ -13,8 +13,11 @@
 # 이렇게 찍는 이유는 그것뿐이다.
 #
 # 사용법:
-#   BASE_URL=http://cmig.dev.cscmzc.com scripts/record-file-import.sh
+#   BASE_URL=http://localhost scripts/record-file-import.sh
 set -uo pipefail
+
+# 개인 설정(e2e.config)을 읽는다. 이미 준 환경변수가 우선이다.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/load-config.sh"
 
 cd "$(dirname "$0")/.."
 

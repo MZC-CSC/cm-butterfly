@@ -1,6 +1,6 @@
 # language: ko
 @workflow @live
-기능: 워크플로우 실행 완료 알림 — 실 데이터 (BAR-1545)
+기능: 워크플로우 실행 완료 알림 — 실 데이터
   mock 시나리오가 tracker 의 로직을 검증한다면, 이 시나리오는 마지막 연결을 실제로 확인한다 —
   실제 화면의 Run 클릭이 trackWorkflow 를 부르고, 실제 cm-cicada 실행이 끝나며, 실제 알림 저장소가
   배지에 그 결과를 올리는 것까지. 요금 안전 예제(bash·http echo — 클라우드 자원 없음)를 써서 비용

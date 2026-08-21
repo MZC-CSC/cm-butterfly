@@ -13,12 +13,29 @@ import os from 'os';
 
 let loaded = false;
 
+function findConfig(): string | null {
+  let dir = process.cwd();
+  for (let i = 0; i < 6; i++) {
+    for (const rel of ['e2e.config', path.join('tests', 'e2e', 'e2e.config')]) {
+      const candidate = path.join(dir, rel);
+      if (fs.existsSync(candidate)) return candidate;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
 export function loadE2eConfig(): void {
   if (loaded) return;
   loaded = true;
 
-  const file = path.resolve(__dirname, '..', 'e2e.config');
-  if (!fs.existsSync(file)) return;
+  // Resolved by walking up from the working directory rather than from this file: the suite is
+  // loaded as an ES module in some entry points (bddgen) and as CommonJS in others, and `__dirname`
+  // only exists in one of them.
+  const file = findConfig();
+  if (!file) return;
 
   for (const raw of fs.readFileSync(file, 'utf8').split('\n')) {
     const line = raw.trim();

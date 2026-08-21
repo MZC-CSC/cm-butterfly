@@ -13,6 +13,9 @@
 #   BASE_URL=... scripts/record-x11.sh seg1
 #   CRF=16 FPS=20 scripts/record-x11.sh seg4
 set -uo pipefail
+
+# 개인 설정(e2e.config)을 읽는다. 이미 준 환경변수가 우선이다.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/load-config.sh"
 cd "$(dirname "$0")/.."
 
 TAG="${1:?구간 태그가 필요하다 (예: seg1)}"

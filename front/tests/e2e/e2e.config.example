@@ -15,6 +15,10 @@
 # 시나리오가 열 웹 콘솔 주소. 프로토콜과 포트까지 그대로 쓴다.
 BASE_URL=http://localhost
 
+# 촬영할 때만. hosts 에만 있는 대역용 이름으로 접속하면 EC2 태그를 그 이름으로는 못 찾으므로,
+# 실제 도메인을 여기 적어 둔다. 평소엔 비워 둔다.
+E2E_REAL_HOST=
+
 # 로그인 계정.
 TEST_USERNAME=
 TEST_PASSWORD=

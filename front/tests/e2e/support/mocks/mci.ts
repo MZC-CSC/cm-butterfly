@@ -3,7 +3,7 @@ import { ApiMock, ok, fail } from '../apiMock';
 /**
  * Workload (infra) mock — for verifying the delete screen's *state machine* without any infra.
  *
- * ★ What is mocked and what is not (BAR-1530)
+ * ★ What is mocked and what is not
  *
  *   mocked     — `ListInfra` (a minimal list of rows) · `GetInfra` (echo the requested infra) · `DeleteInfra` (accept the request) · `GetRequest` (**"still running" only**)
  *   not mocked — the delete status *transitions* (`Success`/`Error`)
@@ -61,7 +61,7 @@ function infraItem(id: string) {
 export const MOCK_INFRA_ID = 'mock-del-infra';
 
 /**
- * Filler infras so the list holds more than two rows (BAR-1637).
+ * Filler infras so the list holds more than two rows.
  *
  * The count matters. cb-tumblebug lets only two infra lookups run at once and turns away the rest,
  * so a screen that looks up each listed infra separately breaks from the third one on — and a list
@@ -101,7 +101,7 @@ export const MOCK_REFRESH_INFRA_ID = 'mock-refresh-infra';
 export const MOCK_MIXED_INFRA_ID = 'mock-mixed-infra';
 
 /**
- * A block of infras for the scenarios about picking several at once (BAR-1719).
+ * A block of infras for the scenarios about picking several at once.
  *
  * Kept apart from the fillers above because those are already targets elsewhere: a scenario that
  * deletes one of them leaves it running, and a run that finds it in that state would be counting
@@ -116,7 +116,7 @@ export const MOCK_BULK_INFRA_IDS = [
 ];
 
 /**
- * A target the server turns away twice before taking it (BAR-1722).
+ * A target the server turns away twice before taking it.
  *
  * Being turned away is not a failure — the request was not taken, and sending it again is the
  * whole of the remedy. It needs its own target because the point is what happens *before* the
@@ -139,7 +139,7 @@ const BUSY_INFRA_IDS = [MOCK_BUSY_INFRA_ID, MOCK_BUSY_HOLD_INFRA_ID];
 let busyRefusals: Record<string, number> = {};
 
 /**
- * How many more list lookups to turn away (BAR-1722).
+ * How many more list lookups to turn away.
  *
  * Off unless a scenario asks for it. The list is loaded by every scenario's background, so
  * refusing by default would put six seconds of waiting in front of all of them — and the

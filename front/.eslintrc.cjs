@@ -10,6 +10,14 @@ module.exports = {
     '@vue/eslint-config-prettier',
     'plugin:vue/recommended',
   ],
+  // Plain .mjs helper scripts are parsed by espree, which defaults to an older language
+  // level than they are written in — numeric separators and top-level await both fail there.
+  overrides: [
+    {
+      files: ['**/*.mjs'],
+      parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
+    },
+  ],
   rules: {
     'prettier/prettier': [
       'error',

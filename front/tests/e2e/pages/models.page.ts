@@ -28,7 +28,7 @@ export class ModelsPage {
 
   // ───────────────────────────────────────────────────────────────────
   // Selectors (prefer data-testid; before it is assigned, fall back to role/text placeholder)
-  //  → the fallback will be removed once data-testid is assigned in the front (BAR-880).
+  //  → the fallback will be removed once data-testid is assigned in the front.
   // ───────────────────────────────────────────────────────────────────
 
   /** Model list table (shared by source/target — the first p-toolbox-table after entering the screen) */
@@ -492,7 +492,7 @@ export class ModelsPage {
   /**
    * Run the recommendation and hand back the query parameters the front actually sent.
    *
-   * ★ Why the request and not the screen: the whole point of BAR-1634 is that a wrong value
+   * ★ Why the request and not the screen: the whole point here is that a wrong value
    *   reached the server and the server quietly fell back to its default — the results looked
    *   fine either way. Only the outgoing request tells the two apart.
    */
@@ -520,7 +520,7 @@ export class ModelsPage {
    *   ② pick the candidate with the *lowest estimated monthly cost*.
    *
    *   Reason: in the recommendation response some candidates come with empty fields, and saving such a candidate as a target model
-   *   makes the empty values / description text carry over on workflow execution and fail ([[ISSUE-workflow-form-desc-as-value]] / BAR-1393).
+   *   makes the empty values / description text carry over on workflow execution and fail.
    *   So only candidates *with all values filled in* are considered.
    *
    *   If all candidates are incomplete, throw an exception → in that case the cm-beetle recommendation response (field coverage)

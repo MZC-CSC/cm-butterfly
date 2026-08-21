@@ -9,7 +9,7 @@ import { ModelsPage } from '../pages/models.page';
  * presses the help icon with the editor in front of them wants the editor.
  *
  * Run:
- *   BASE_URL=http://cmig.dev.cscmzc.com \
+ *   BASE_URL=http://localhost \
  *   npx playwright test tests/e2e/specs/help-panel-json-editor.spec.ts \
  *     --config=tests/e2e/playwright.runviewer.config.ts
  */

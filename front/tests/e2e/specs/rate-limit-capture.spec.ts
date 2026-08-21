@@ -5,7 +5,7 @@ import { LoginPage } from '../pages/login.page';
 import { WorkloadPage } from '../pages/workload.page';
 
 /**
- * Photograph the workload screens with a real lineup, quiet and busy (BAR-1722).
+ * Photograph the workload screens with a real lineup, quiet and busy.
  *
  * What the retry notices look like cannot be judged from a mock: the mock is what decides to
  * refuse, so the screen it produces is the screen we asked for. Here the refusals come from the
@@ -15,19 +15,19 @@ import { WorkloadPage } from '../pages/workload.page';
  * Saves nothing to the environment beyond deleting the workloads it is pointed at — which is the
  * thing being watched.
  *
- *   BASE_URL=http://cmig.dev.cscmzc.com API_URL=http://cmig.dev.cscmzc.com:4000 \
+ *   BASE_URL=http://localhost API_URL=http://localhost:4000 \
  *   SHOT_DIR=/tmp/shots npx playwright test \
- *     --config=tests/e2e/playwright.specs.config.ts bar1722-rate-limit-capture
+ *     --config=tests/e2e/playwright.specs.config.ts rate-limit-capture
  */
 
-const DIR = process.env.SHOT_DIR || '/tmp/claude-1000/bar1722';
-const API = process.env.API_URL || 'http://cmig.dev.cscmzc.com:4000';
+const DIR = process.env.SHOT_DIR || '/tmp/rate-limit-shots';
+const API = process.env.API_URL || 'http://localhost:4000';
 const NS = testNamespace.id;
 
 /** The workloads this run deletes. Whatever is not there is skipped. */
-const QUIET_TARGET = process.env.BAR1722_QUIET || 'bar1722-nano-1';
+const QUIET_TARGET = process.env.RATELIMIT_QUIET || 'ratelimit-nano-1';
 const BUSY_TARGETS = (
-  process.env.BAR1722_BUSY || 'bar1722-nano-2,bar1722-nano-4'
+  process.env.RATELIMIT_BUSY || 'ratelimit-nano-2,ratelimit-nano-4'
 )
   .split(',')
   .map(s => s.trim())
@@ -48,7 +48,7 @@ class Load {
     private token: string,
     // How many at once. The far side admits a fixed number of waiting callers before it starts
     // turning them away, so this is the knob that decides whether a refusal happens at all.
-    private concurrency = Number(process.env.BAR1722_LOAD || 12),
+    private concurrency = Number(process.env.RATELIMIT_LOAD || 12),
   ) {}
 
   start(): void {
@@ -131,7 +131,7 @@ test('workload screens, quiet and busy @integration', async ({ page }) => {
   await shot(page, '10-정상-워크로드-목록');
 
   // Just the list, for a shot of how it stands. Nothing is deleted.
-  if (process.env.BAR1722_SHOT_ONLY === '1') return;
+  if (process.env.RATELIMIT_SHOT_ONLY === '1') return;
 
   /**
    * The list waiting its turn, and nothing else. Deletes nothing, so it needs no workloads.
@@ -139,7 +139,7 @@ test('workload screens, quiet and busy @integration', async ({ page }) => {
    * Useful on its own because the wait the list shows is the one thing that changes when the
    * far side starts answering these refusals with a status and a time of its own.
    */
-  if (process.env.BAR1722_MODE === 'list-only') {
+  if (process.env.RATELIMIT_MODE === 'list-only') {
     load.start();
     await page.waitForTimeout(1_500);
     const reloading = page.reload();
@@ -169,7 +169,7 @@ test('workload screens, quiet and busy @integration', async ({ page }) => {
    * The load has to come from outside: it is built out of deletes, which is the only thing that
    * queues deeply enough, and this run has one workload to spare rather than fifty.
    */
-  if (process.env.BAR1722_MODE === 'async-refusal') {
+  if (process.env.RATELIMIT_MODE === 'async-refusal') {
     await wl.selectMci(QUIET_TARGET);
     await wl.openDeleteModal();
 
@@ -228,7 +228,7 @@ test('workload screens, quiet and busy @integration', async ({ page }) => {
    * occupying those jobs from elsewhere. That is done outside this file, and this mode is what
    * photographs the screen while it holds.
    */
-  if (process.env.BAR1722_MODE === 'external-load') {
+  if (process.env.RATELIMIT_MODE === 'external-load') {
     await wl.selectMci(QUIET_TARGET);
     await wl.openDeleteModal();
     await wl.sendDelete(QUIET_TARGET, 'normal');

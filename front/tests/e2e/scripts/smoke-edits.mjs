@@ -7,7 +7,7 @@
 //   저장하지 않는다 — 확인이 끝나면 취소하고 나오므로 환경이 더러워지지 않는다.
 //
 // 사용법:
-//   BASE_URL=http://cmig.dev.cscmzc.com node scripts/smoke-edits.mjs
+//   BASE_URL=http://localhost node scripts/smoke-edits.mjs
 //   SOURCE_MODEL=onprem-web TARGET_MODEL=infra-nano-aws ... (이름이 다를 때)
 import { chromium } from '@playwright/test';
 
