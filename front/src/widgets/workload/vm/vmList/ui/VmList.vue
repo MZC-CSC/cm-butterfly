@@ -83,8 +83,7 @@ const currentLoadTestResult = computed<any | undefined>(() => {
 // Status label shown in the Evaluate Perf header next to Load Config; refreshed on each poll.
 const currentLoadTestStatusLabel = computed(() => {
   const status = currentLoadTestResult.value?.executionStatus as
-    | string
-    | undefined;
+    string | undefined;
   return status ? (LOADTEST_STATUS_LABEL[status] ?? status) : '';
 });
 // loadTestKey used for stopping and re-running.
@@ -653,10 +652,18 @@ function handleTemplateManagerClose() {
       </div>
     </section>
     <section>
+      <!--
+        e2e anchor only. mirinae PButtonTab draws its buttons from the :tabs prop and offers no
+        slot inside them, so a tab cannot carry an identifier of its own. Naming the strip is
+        enough to tell these tabs apart from the disabled placeholders of the same name on the
+        workload Detail tab, which is what automation was mis-clicking. The attribute lands on
+        the component's root element, so nothing extra is rendered.
+      -->
       <p-button-tab
         v-if="selectedVm?.id"
         v-model="vmDetailTabState.activeTab"
         :tabs="vmDetailTabState.tabs"
+        data-testid="vm-detail-tabs"
       >
         <template #information>
           <VmInformation

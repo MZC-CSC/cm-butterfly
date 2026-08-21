@@ -175,36 +175,46 @@ export class NotificationPage {
     const deadline = Date.now() + waitForArrival;
     const count = this.page.getByTestId('notification-count');
 
-    // Wait outside the panel, the same way as before - an open, empty panel on screen reads as
-    // checking the corner over and over.
-    while (Date.now() < deadline) {
-      if (await count.isVisible({ timeout: 15_000 }).catch(() => false)) {
-        await this.open();
-        const row = this.items.filter({ hasText: keyword }).first();
-        if (await row.isVisible({ timeout: 3_000 }).catch(() => false)) {
-          const id = await row.getAttribute('data-notification-id');
-
-          await humanClick(row.getByRole('button').first());
-          await expect(row.getByTestId('notification-detail')).toBeVisible({
-            timeout: 10_000,
-          });
-          // A beat to read it.
-          await this.page.waitForTimeout(1_500);
-
-          await humanClick(row.getByTestId('notification-confirm'));
-          if (id) {
-            await expect(
-              this.page.locator(`[data-notification-id="${id}"]`),
-            ).toBeHidden({ timeout: 15_000 });
-          }
-          await this.page.keyboard.press('Escape').catch(() => {});
-          return true;
-        }
-        // Not here yet - close up and wait rather than sit with the panel open.
-        await this.page.keyboard.press('Escape').catch(() => {});
-      }
-      await this.page.waitForTimeout(5_000);
+    // Wait for the badge before touching anything.
+    //
+    // ★ The panel is opened **once**. An earlier version re-opened it on every turn of the loop -
+    //   open, find nothing, close, wait, open again - which on screen looked like someone tapping
+    //   the corner over and over for a message that had not been sent. Worse, it did that even
+    //   when no badge was showing at all, so the recording had the box being searched for a notice
+    //   that was never announced. (2026-08-14, from watching the take)
+    if (
+      !(await count.isVisible({ timeout: waitForArrival }).catch(() => false))
+    ) {
+      return false;
     }
+
+    await this.open();
+    // Wait for our notice *inside* the open panel - it fills in live, so there is nothing to
+    // gain by closing and looking again.
+    const row = this.items.filter({ hasText: keyword }).first();
+    const left = Math.max(5_000, deadline - Date.now());
+    if (await row.isVisible({ timeout: left }).catch(() => false)) {
+      const id = await row.getAttribute('data-notification-id');
+
+      await humanClick(row.getByRole('button').first());
+      await expect(row.getByTestId('notification-detail')).toBeVisible({
+        timeout: 10_000,
+      });
+      // A beat to read it.
+      await this.page.waitForTimeout(1_500);
+
+      await humanClick(row.getByTestId('notification-confirm'));
+      if (id) {
+        await expect(
+          this.page.locator(`[data-notification-id="${id}"]`),
+        ).toBeHidden({ timeout: 15_000 });
+      }
+      await this.page.keyboard.press('Escape').catch(() => {});
+      return true;
+    }
+
+    // Never turned up - close the panel and say so.
+    await this.page.keyboard.press('Escape').catch(() => {});
     return false;
   }
 
@@ -217,9 +227,15 @@ export class NotificationPage {
    *
    * @returns how many were cleared
    */
-  async readAndClearEachOne(limit = 30): Promise<number> {
+  async readAndClearEachOne(limit = 2): Promise<number> {
     await this.open();
 
+    // ★ Two, not the whole stack.
+    //
+    //   Reading one notice and closing it is the thing being shown; doing it thirty times shows
+    //   nothing further and the cursor spends the whole time travelling to a row and back. What is
+    //   left goes in one press of "Mark all read", which is also what a person does once they have
+    //   seen what the messages are. (2026-08-14, from watching the take)
     let cleared = 0;
     for (let i = 0; i < limit; i++) {
       const row = this.items.first();

@@ -92,7 +92,10 @@ function handleSelectVmListTableRow(id: string) {
                 </p-button>
               </div>
             </div>
-            <MciDetail :selected-mci-id="selectedMciId" />
+            <MciDetail
+              :selected-mci-id="selectedMciId"
+              :ns-id="DEFAULT_NAMESPACE"
+            />
           </template>
           <template #server>
             <div class="tab-section-header">

@@ -46,14 +46,19 @@ const onLogoutClick = () => {
         Mirinae has no logout icon, so we inline the svg directly — it stays even when Mirinae is removed.
         The icon itself receives the click. If a wrapping div received it as before, clicking a notification could log you out.
       -->
-      <button
-        type="button"
-        class="logout-button"
-        data-testid="topbar-logout"
-        title="Logout"
-        aria-label="Logout"
-        @click="onLogoutClick"
-      >
+      <!--
+        The same layer the bell beside it uses. With the browser's own tooltip this one
+        waited about a second while its neighbour answered at once, which reads as the
+        two being different kinds of control rather than two icons in a row.
+      -->
+      <p-tooltip contents="Logout" position="absolute">
+        <button
+          type="button"
+          class="logout-button"
+          data-testid="topbar-logout"
+          aria-label="Logout"
+          @click="onLogoutClick"
+        >
         <!--
           The size, color, and stroke width are matched to the adjacent notification icon
           (Mirinae `ic_gnb_bell`). That icon draws a 32 coordinate system at 22px filled
@@ -61,21 +66,22 @@ const onLogoutClick = () => {
           system to the same 22px and lower the stroke to 1.3 to match the effective width.
           Changing the numbers makes the two icons' weight and height diverge, so check them together.
         -->
-        <svg
-          width="22"
-          height="22"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-          <polyline points="16 17 21 12 16 7" />
-          <line x1="21" y1="12" x2="9" y2="12" />
-        </svg>
-      </button>
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+        </button>
+      </p-tooltip>
     </div>
     <p-tooltip position="bottom">
       <!-- TODO: TopBar Admin toggle button -->

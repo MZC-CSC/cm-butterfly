@@ -117,7 +117,11 @@
           </label>
         </div>
         <div class="header-actions">
-          <button class="btn-add-item" @click="addArrayItem">
+          <button
+            :data-testid="arrayAddTestId"
+            class="btn-add-item"
+            @click="addArrayItem"
+          >
             + Add entity
           </button>
         </div>
@@ -139,7 +143,11 @@
               :placeholder="`Item ${index + 1}`"
               @input="updateArrayItem(index, $event)"
             />
-            <button class="btn-remove-item" @click="removeArrayItem(index)">
+            <button
+              :data-testid="arrayRemoveTestId(index)"
+              class="btn-remove-item"
+              @click="removeArrayItem(index)"
+            >
               ×
             </button>
           </div>
@@ -174,6 +182,7 @@
                 </span>
               </div>
               <button
+                :data-testid="arrayRemoveTestId(index)"
                 class="btn-remove-item"
                 @click.stop="removeArrayItem(index)"
               >
@@ -401,6 +410,15 @@ export default defineComponent({
     };
     const arrayItemTestId = (arrayIndex: number) =>
       `wf-field-${props.indexPath || props.currentPath || props.fieldName}[${arrayIndex}]`;
+
+    /** The button that adds an entry to this array, named after the array it acts on. */
+    const arrayAddTestId = computed(
+      () => `wf-array-add-${props.indexPath || props.currentPath || props.fieldName}`,
+    );
+
+    /** The button that removes one entry, which needs the entry's position as well. */
+    const arrayRemoveTestId = (arrayIndex: number) =>
+      `wf-array-remove-${props.indexPath || props.currentPath || props.fieldName}[${arrayIndex}]`;
 
     // Check whether required
     const isRequired = computed(() => {
@@ -794,6 +812,8 @@ export default defineComponent({
       isInvalid,
       childIndexPath,
       arrayItemTestId,
+      arrayAddTestId,
+      arrayRemoveTestId,
       isSimpleType,
       isStringArray,
       arrayValue,

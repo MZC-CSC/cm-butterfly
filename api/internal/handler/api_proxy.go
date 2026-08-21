@@ -42,6 +42,16 @@ type Auth struct {
 type Service struct {
 	BaseURL string `mapstructure:"baseurl"`
 	Auth    Auth   `mapstructure:"auth"`
+
+	// Which release this service's operations were generated from, and where that
+	// specification came from. Both are carried so the service-status screen can
+	// say what the console is calling against: when a screen shows nothing, the
+	// question is whether the service is down or the spec here is older than the
+	// service, and the version alone does not answer it.
+	//
+	// Neither is a secret, and neither takes part in a call.
+	Version string            `mapstructure:"version"`
+	Swagger map[string]string `mapstructure:"swagger"`
 }
 
 // Spec represents an API specification
@@ -93,13 +103,22 @@ func InitAPISpec() error {
 		return fmt.Errorf("unable to decode into struct: %v", err)
 	}
 
+	resolved, missing := resolveAuthEnv(ApiYamlSet.Services)
+	if len(missing) > 0 {
+		return missingEnvError(missing)
+	}
+	ApiYamlSet.Services = resolved
+
 	log.Printf("DEBUG: ApiYamlSet initialized successfully")
 	log.Printf("DEBUG: - CLISpecVersion: %s", ApiYamlSet.CLISpecVersion)
 	log.Printf("DEBUG: - Services count: %d", len(ApiYamlSet.Services))
 	log.Printf("DEBUG: - ServiceActions count: %d", len(ApiYamlSet.ServiceActions))
 
 	for serviceName, service := range ApiYamlSet.Services {
-		log.Printf("DEBUG: - Service: %s -> %+v", serviceName, service)
+		// The struct carries the credentials, so only the parts that are safe to
+		// print are logged. Dumping it whole put usernames and passwords in the
+		// container log.
+		log.Printf("DEBUG: - Service: %s -> baseurl=%s auth=%s", serviceName, service.BaseURL, service.Auth.Type)
 	}
 
 	return nil
@@ -148,7 +167,10 @@ func AnyCaller(c echo.Context, operationId string, commonRequest *CommonRequest,
 // SubsystemAnyCaller routes requests to a specific subsystem
 func SubsystemAnyCaller(c echo.Context, subsystemName, operationId string, commonRequest *CommonRequest, auth bool) (*response.CommonResponse, error) {
 	targetFrameworkInfo, targetApiSpec, err := getApiSpecBySubsystem(subsystemName, operationId)
-	if err != nil || targetFrameworkInfo == (Service{}) || targetApiSpec == (Spec{}) {
+	// The service is judged by whether it has an address to call rather than by
+	// comparing the whole struct: it now carries the specification's version and
+	// source, and a struct holding a map cannot be compared.
+	if err != nil || targetFrameworkInfo.BaseURL == "" || targetApiSpec == (Spec{}) {
 		return response.CommonResponseStatusNotFound(operationId + "-" + err.Error()), err
 	}
 
@@ -198,7 +220,9 @@ func getAuth(c echo.Context, service Service) (string, error) {
 	case "basic":
 		if apiUserInfo := service.Auth.Username + ":" + service.Auth.Password; service.Auth.Username != "" && service.Auth.Password != "" {
 			encA := base64.StdEncoding.EncodeToString([]byte(apiUserInfo))
-			log.Printf("DEBUG: Basic auth generated: Basic %s", encA)
+			// The encoded value is the credentials in a reversible form, so only
+			// the fact that a header was built is logged.
+			log.Printf("DEBUG: Basic auth header built for %s", service.BaseURL)
 			return "Basic " + encA, nil
 		}
 		log.Printf("ERROR: username or password is empty")
@@ -206,7 +230,8 @@ func getAuth(c echo.Context, service Service) (string, error) {
 
 	case "bearer":
 		if authValue, ok := c.Get(contextKeyAuthorization).(string); ok {
-			log.Printf("DEBUG: Bearer auth from context: %s", authValue)
+			// The token itself is not logged.
+			log.Printf("DEBUG: Bearer auth taken from the request context")
 			return authValue, nil
 		}
 		log.Printf("ERROR: authorization key does not exist or is not a string")

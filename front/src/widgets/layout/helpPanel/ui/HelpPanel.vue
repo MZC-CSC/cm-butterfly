@@ -10,15 +10,56 @@
  * repository as the single source, and each entry links to its own.
  */
 import { computed, ref, watch, onBeforeUnmount, getCurrentInstance } from 'vue';
-import { useRoute } from 'vue-router/composables';
+import { useRoute, useRouter } from 'vue-router/composables';
+/*
+  Imported here even though Mirinae is installed app-wide: without it the tag stayed an
+  unresolved custom element, so the browser kept a <p-tooltip> in the DOM that drew
+  nothing at all. The two icons beside this one import it the same way; this file was
+  the only one that did not, which is why only this one was silent.
+*/
+import { PTooltip } from '@cloudforet-test/mirinae';
 import { DOC_LINKS, openDocLink } from '@/shared/constants/docLinks';
 import { isJsonEditorOpen } from '@/shared/ui/EnhancedJsonEditor/editorPresence';
+import { helpPanelOpenRequests } from '@/widgets/layout/helpPanel/model/helpPanelPresence';
+import type { ProgressFacts } from '@/features/guidedSetup';
+import {
+  refreshProgress,
+  currentGuidedStep,
+  progressKnown,
+  progressFacts,
+  isFinished,
+  guidanceOff,
+} from '@/features/guidedSetup';
+import { MENU_ID } from '@/entities';
+import { GUIDED_STEPS, stepTitle } from '@/features/guidedSetup';
 
 type Section = {
   heading: string;
   steps: string[];
   /** A guide that belongs to this way of doing it, rather than to the whole job. */
   guide?: { label: string; url: string };
+  /**
+   * Ways of carrying out one part of this procedure, folded inside it.
+   *
+   * Adding servers is one step of creating a service, but there are two ways to do it -
+   * by hand and from a file - and each is a procedure of its own. Left flat they would
+   * either bury the outer steps or be split off into a heading that no longer says which
+   * moment it belongs to.
+   */
+  sub?: Array<{
+    heading: string;
+    steps: string[];
+    guide?: { label: string; url: string };
+  }>;
+  /**
+   * Open this one without being asked, when the reader is in the state it answers.
+   *
+   * Everything is folded by default so a screen's help is a list of choices rather than
+   * a wall. But there is a state where the choice is already made: a service registered
+   * with no server under it has exactly one thing left to do, and making the reader
+   * hunt for the procedure that does it is the confusion this was built to remove.
+   */
+  openWhen?: (facts: ProgressFacts) => boolean;
 };
 
 /**
@@ -36,10 +77,26 @@ type Group = {
   sections: Section[];
 };
 
+/**
+ * One button, column or field named on the screen, with what it is for.
+ *
+ * The procedures say what to do in order; this answers the other question - "what is this
+ * column telling me", asked while looking at it rather than while following steps. Kept
+ * apart from the procedures so neither buries the other, and folded away by default.
+ */
+type Reference = {
+  /** Exactly as it reads on the screen. */
+  item: string;
+  kind: 'btn' | 'btn2' | 'field' | 'column' | 'tab';
+  meaning: string;
+};
+
 type Help = {
   title: string;
   /** What this menu is for, before any of the steps. */
   paragraphs: string[];
+  /** Buttons and columns on this screen, for the reader who is looking at one. */
+  reference?: Reference[];
   /** The jobs this menu does. Listed at the top, each jumping to its part. */
   groups?: Group[];
   /** Terms someone new to the console will not know yet. Kept last on purpose. */
@@ -58,7 +115,12 @@ const TERMS: Help['terms'] = [
   {
     term: 'Source service',
     meaning:
-      'A group of the servers you are migrating from - on-premises machines or ones already running on a cloud. Each connection under it is one server.',
+      'A group of the servers you are migrating from, whether on-premises machines or ones already running on a cloud. It is what everything on the first screen is registered into.',
+  },
+  {
+    term: 'Connection',
+    meaning:
+      'One server, as it is registered here: the address and the login this system uses to reach it over SSH. A source service holds one connection per server, which is why the screen says Connections, Connection # and + Add Source Connection where you might expect it to say servers.',
   },
   {
     term: 'Model',
@@ -68,17 +130,17 @@ const TERMS: Help['terms'] = [
   {
     term: 'Source model / target model',
     meaning:
-      'Both are models - they differ in which side they describe. A source model describes the origin, the servers you are migrating from. A target model describes the same workload for the destination, usually a cloud. A workflow is built from a target model.',
+      'Both are models. They differ only in which side they describe. A source model describes the origin, the servers you are migrating from. A target model describes the same workload for the destination, usually a cloud. A workflow is built from a target model.',
   },
   {
     term: 'Custom model',
     meaning:
-      'Either kind, once you have changed its values and saved it under a new name. The original is left as it was.',
+      'A model you have changed from what it originally held. Change either kind, give it a name of your own, and it is saved as a custom model. The original is not touched.',
   },
   {
     term: 'Workflow',
     meaning:
-      'The steps that carry the migration out, generated from a target model. It is the last place values can be changed before anything is created, and it is what you run, watch and re-run.',
+      'A workflow is an ordered set of tasks a machine carries out for you. Here it is the migration itself: each task does one part of it, such as creating the infrastructure or installing the software, in the order they have to happen. One is normally generated from a target model and then opened in the workflow editor, which starts from a template for the kind of migration you are doing, so the tasks are already laid out and what is left is to fill in or adjust what they need. The same workflow can be written and edited as JSON instead, whichever suits the change. It is the last place values can be changed before anything is created, and it is what you run, watch and re-run.',
   },
   {
     term: 'Where to make changes',
@@ -95,7 +157,7 @@ const HELP: Array<{ path: string; help: Help }> = [
       title: 'Migration Guide',
       paragraphs: [
         'A migration goes from the servers you have, through a model of them, to a workflow that creates the result.',
-        'Infrastructure and software migration follow the same five steps. Where they differ - a cost estimate for infrastructure, an install target for software - the help on each screen says so.',
+        'Infrastructure and software migration follow the same five steps. Where they differ, such as a cost estimate for infrastructure or an install target for software, the help on each screen says so.',
         'The words below are the ones the steps use.',
       ],
       terms: TERMS,
@@ -121,7 +183,71 @@ const HELP: Array<{ path: string; help: Help }> = [
     help: {
       title: 'Source Services',
       paragraphs: [
-        'This menu does two things: you register and manage the servers you are migrating from, and you turn what is collected from them into a source model.',
+        'This menu does two things: you register the servers you are migrating from into a source service and manage them there, and you turn what is collected from them into a source model.',
+        'One server is registered as one source connection, and that is the word this screen uses from here on. The Connections tab, the Connection # column and + Add Source Connection all refer to those.',
+        'It is the first screen of a migration and the only one that reaches your servers directly, so everything later is built on what is registered and collected here.',
+      ],
+      reference: [
+        {
+          item: '+ Add',
+          kind: 'btn',
+          meaning:
+            'Above the upper list it creates a source service; above the lower list it adds a source connection to the source service you have selected.',
+        },
+        {
+          item: 'Refresh',
+          kind: 'btn2',
+          meaning:
+            'Tries every source connection in the selected source service over SSH and checks its agent, then rewrites the status from what came back.',
+        },
+        {
+          item: 'View Messages',
+          kind: 'btn2',
+          meaning:
+            'One line per source connection: which of the connection and the agent succeeded, and the reason when either did not.',
+        },
+        {
+          item: '+ Add / Edit',
+          kind: 'btn',
+          meaning:
+            'On the Connections tab of a selected source service, opens the same form used when creating one, so source connections can be added or changed there.',
+        },
+        {
+          item: '+ Add Source Connection',
+          kind: 'btn',
+          meaning:
+            'Top left of the source connection form. Adds one more blank entry, so several can be entered before saving.',
+        },
+        {
+          item: 'Save',
+          kind: 'btn2',
+          meaning:
+            'Bottom right of the source connection form. Stays off until the required fields, marked in red, are filled in.',
+        },
+        {
+          item: 'Name',
+          kind: 'column',
+          meaning:
+            'The name you gave the source service. Selecting it opens its source connections below.',
+        },
+        {
+          item: 'Connection #',
+          kind: 'column',
+          meaning:
+            'How many source connections are registered under it. Zero means this source service cannot be collected from yet, which is the usual reason step 1 is not finished.',
+        },
+        {
+          item: 'Status',
+          kind: 'column',
+          meaning:
+            'The result of the last Refresh, taken over all its source connections. success means every one answered. failed means none did. partialSuccess means some did and some did not; the source service can still be used, but only the source connections that answered are collected from.',
+        },
+        {
+          item: 'Description',
+          kind: 'column',
+          meaning:
+            'Whatever you wrote when creating it, as a note to yourself. Nothing depends on it.',
+        },
       ],
       groups: [
         {
@@ -132,52 +258,72 @@ const HELP: Array<{ path: string; help: Help }> = [
           },
           title: 'Managing the servers you migrate from',
           intro:
-            'A source service is a group of servers, and each connection under it is one server. There is no single order to build it in - create the group first and add servers when their details are ready, create both at once, add or change servers later, or bring them in from a file. Use whichever suits how you got the information.',
+            'Creating the source service and registering its source connections happen in the same window, but they do not have to happen at once. Create the source service on its own and add source connections when their details are ready. Source connections can be entered one at a time or brought in from an Excel or CSV file.',
           sections: [
             {
-              heading: 'Create the group first',
+              heading: 'Create a source service',
               steps: [
-                'Create a source service with a name and description.',
-                'It appears in the list with no connections. Add them whenever the server details are ready.',
+                'Press [[btn:+ Add]] above the source service list. The Add Source Service window opens.',
+                'Fill in [[field:Source Service Name]]. It is the only thing required. The button at the bottom right stays off until it has something in it.',
+                '[[field:Description]] is optional and is only a note to yourself.',
+                'To register the source connections later, press [[btn:Add]] at the bottom right now. Only the source service is created, and source connections can be added to it whenever their details are ready. See [[see:manage-sources#1|Add source connections to a source service that already exists]].',
+                'To register source connections now, switch [[btn:With Source Connection]] on. Two ways then open up: entering each one in the form, or bringing them in from an Excel or CSV file. Both are below.',
+              ],
+              sub: [
+                {
+                  heading: 'Enter each source connection in the form',
+                  steps: [
+                    'Press [[btn2:Go add Source Connection]]. The form for one source connection opens.',
+                    'Fill in the required fields, which are marked in red. They are the address and the login this system will use to reach that server over SSH.',
+                    'The login is either [[field:User]] with [[field:Password]], or [[field:User]] with [[field:Private Key]]. [[b:One of the two must be filled in]]. The private key is the whole key, including its BEGIN and END lines.',
+                    'For another one, press [[btn:+ Add Source Connection]] at the top left and fill in the next. Repeat for as many as you have.',
+                    'Press [[btn2:Save]] at the bottom right when they are all entered.',
+                  ],
+                },
+                {
+                  heading:
+                    'Bring source connections in from an Excel or CSV file',
+                  guide: {
+                    label: 'Preparing the connection file',
+                    url: DOC_LINKS.sourceConnectionBulkImport,
+                  },
+                  steps: [
+                    'If you do not have a file yet, press [[btn2:Download Source Connection Template]]. That is the layout the import expects.',
+                    'Fill it in, one row per source connection. Excel (.xlsx) and CSV both import, so use whichever is easier for you.',
+                    'Press [[btn2:Import Source Connection]] and choose the file. The name of the file you picked is shown, so a wrong pick can be told from a failed read.',
+                    'The rows that were read are listed with a count before anything is registered. Rows that cannot be registered as they stand are counted separately. Correct those in the file and import again.',
+                    'A source connection name has to be [[b:unique across every source service]], not just within this one. A name already in use is the usual reason a row is refused.',
+                  ],
+                },
               ],
             },
             {
-              heading: 'Create the group with its servers',
+              heading:
+                'Add source connections to a source service that already exists',
+              // Registered a service and stopped there: this is the one thing left.
+              openWhen: f => f.sourceServices > 0 && f.connections === 0,
               steps: [
-                'While creating the source service, add connections in the same form.',
-                'Each connection needs a name, IP address, SSH port, user, and a password or private key.',
+                'Select the source service in the list. Its source connections are shown underneath.',
+                'Open the [[tab:Connections]] tab and press [[btn:+ Add / Edit]].',
+                'From here it is the same form as when creating the source service: required fields in red, [[field:User]] with either [[field:Password]] or [[field:Private Key]], [[btn:+ Add Source Connection]] at the top left for another one, and [[btn2:Save]] at the bottom right.',
+                'To change or remove a source connection, open it from the same list and edit or delete it there.',
+                'A newly added source connection has no status until it is tried. Press [[btn2:Refresh]] on the source service to check it can be reached.',
               ],
             },
             {
-              heading: 'Add or change servers later',
-              steps: [
-                'Select the group and open its Connections tab to add a server by hand.',
-                'Connections can be edited or removed the same way as the group itself.',
-              ],
-            },
-            {
-              heading: 'Bring servers in from a file',
-              steps: [
-                'Download the connection template to see the layout.',
-                'Fill it in. The template opens in Excel and saves back as either CSV or .xlsx.',
-                'Import the file. The rows to be registered are listed on screen - review them, then confirm.',
-                'What is already registered can be exported in the same layout, so a group can be copied or kept as a starting point. Passwords and keys come out blank and have to be filled in again.',
-              ],
-            },
-            {
-              heading: 'Check that the servers can be reached',
+              heading: 'Check that the source connections can be reached',
               guide: {
                 label: 'Checking that source servers can be reached',
                 url: DOC_LINKS.sourceConnectionStatus,
               },
               steps: [
-                'Press Refresh on the source service. Each server is contacted over SSH and the agent is checked, and the result is shown as the status.',
-                'success means every server answered. failed means none did. partialSuccess means some did and some did not - the group can still be worked with, but only the servers that answered will be collected from.',
-                'Point at the status for a summary - with a couple of servers it shows each one, and beyond that it counts how many answered.',
-                'Select View Messages, next to Refresh, for every server on its own: whether the connection succeeded, whether the agent succeeded, and what the server said when either failed.',
-                'When a server failed, read that message first - it usually names the cause. Then check the connection details you registered: address, SSH port, user, and the password or private key.',
-                'Check that the server is reachable from here at all - that it is running, and that its network and firewall allow SSH from this system.',
-                'Once the cause is dealt with, press Refresh again. The status is re-read from the servers, so it changes as soon as they answer.',
+                'Press [[btn2:Refresh]] on the source service. Each source connection is tried over SSH and its agent is checked, and the result is shown as the status.',
+                'success means every source connection answered. failed means none did. partialSuccess means some did and some did not. The source service can still be worked with, but only the source connections that answered will be collected from.',
+                'Point at the status for a summary. With a couple of source connections it shows each one, and beyond that it counts how many answered.',
+                'Select [[btn2:View Messages]], next to [[btn2:Refresh]], for every source connection on its own: whether the connection succeeded, whether the agent succeeded, and what came back when either failed.',
+                'When one failed, read that message first, since it usually names the cause. Then check the details you registered: address, SSH port, user, and the password or private key.',
+                'Check that the server is reachable from here at all: that it is running, and that its network and firewall allow SSH from this system.',
+                'Once the cause is dealt with, press [[btn2:Refresh]] again. The status is read again, so it changes as soon as they answer.',
               ],
             },
           ],
@@ -187,13 +333,13 @@ const HELP: Array<{ path: string; help: Help }> = [
           guide: { label: 'Quick start', url: DOC_LINKS.quickStartMigration },
           title: 'Making a source model',
           intro:
-            'Collecting reads what is actually on the servers; saving turns that into a source model the migration can work from. Two choices shape it - infrastructure or software, and a whole group or a single server. Collection reaches each server over SSH, so it has to be reachable at the time.',
+            'Collecting reads what is actually on the servers; saving turns that into a source model the migration can work from. Two choices shape it: infrastructure or software, and a whole group or a single server. Collection reaches each server over SSH, so it has to be reachable at the time.',
           sections: [
             {
               heading: 'Choose what to collect',
               steps: [
-                'Decide whether you are migrating infrastructure or software - the collection differs.',
-                'Select a whole group to cover every server in it, or a single connection to cover one server.',
+                'Decide whether you are migrating infrastructure or software. The collection differs.',
+                'Select a whole source service to cover every source connection in it, or a single source connection to cover one server.',
               ],
             },
             {
@@ -204,7 +350,7 @@ const HELP: Array<{ path: string; help: Help }> = [
               },
               steps: [
                 'Press Refresh first. It re-checks that each server can still be reached and updates Agent Status and Connection Status on the Detail tab.',
-                'Run Collect Infra for machines, or Collect SW for the software on them.',
+                'Run Collect Infra for the servers themselves, or Collect SW for the software installed on them.',
                 'The result opens in the JSON editor. Check it, and for software press Convert.',
                 'Save it as a source model. It then appears under Models.',
               ],
@@ -240,13 +386,13 @@ const HELP: Array<{ path: string; help: Help }> = [
           },
           title: 'Managing source models',
           intro:
-            'A source model describes the servers you are migrating from. If collection got something wrong, or you want to try a variation, change it here - saving under a new name gives you a custom copy and leaves the original alone.',
+            'A source model describes the servers you are migrating from. If collection got something wrong, or you want to try a variation, change it here. Saving under a new name gives you a custom copy and leaves the original alone.',
           sections: [
             {
               heading: 'Review and adjust',
               steps: [
                 'Open Custom & View to see the model as JSON, and adjust anything the collection got wrong.',
-                'Saving under a new name gives you a custom copy.',
+                'Give it a name of your own and it is saved as a custom model, leaving the original as it was.',
                 'Models can be renamed and removed here.',
               ],
             },
@@ -308,7 +454,7 @@ const HELP: Array<{ path: string; help: Help }> = [
               steps: [
                 'Open Custom & View to see the model as JSON.',
                 'The table view edits values and adds or removes list entries; the tree and text views are the same document in another shape, where an array can be filtered or reshaped.',
-                'Saving asks for a name and creates a custom model - the original is left as it was.',
+                'Saving asks for a name and creates a custom model. The original is left as it was.',
               ],
             },
           ],
@@ -331,7 +477,7 @@ const HELP: Array<{ path: string; help: Help }> = [
               heading: 'Software',
               steps: [
                 'Choose Make Workflow on a software target model.',
-                'The run_software_migration task is filled in from the infrastructure you created - the install target namespace and infra are already set.',
+                'The run_software_migration task is filled in from the infrastructure you created: the install target namespace and infra are already set.',
                 'That means the infrastructure migration should have run first.',
               ],
             },
@@ -371,7 +517,7 @@ const HELP: Array<{ path: string; help: Help }> = [
               },
               steps: [
                 'Create one from a target model, build it in the editor, or copy an existing workflow and change its values.',
-                'Select the migration task on the canvas. Task Configuration opens on the right with the values carried over from the target model - path and query parameters and the request body.',
+                'Select the migration task on the canvas. Task Configuration opens on the right with the values carried over from the target model: path and query parameters and the request body.',
                 'Review them and edit anything that needs adjusting.',
                 'Drag components from the Toolbox on the left to extend what the workflow does.',
                 'Give the workflow a name and save it.',
@@ -401,7 +547,7 @@ const HELP: Array<{ path: string; help: Help }> = [
           },
           title: 'Running and checking results',
           intro:
-            'Running, watching and re-running all happen on one screen. A failed run does not have to be started over - you can pick up from where it broke.',
+            'Running, watching and re-running all happen on one screen. A failed run does not have to be started over. You can pick up from where it broke.',
           sections: [
             {
               heading: 'Run and watch',
@@ -484,7 +630,7 @@ const HELP: Array<{ path: string; help: Help }> = [
     help: {
       title: 'Task Components',
       paragraphs: [
-        'A task component is one step a workflow can take - collect something, create infrastructure, install software, wait.',
+        'A task component is one step a workflow can take: collect something, create infrastructure, install software, wait.',
       ],
       groups: [
         {
@@ -580,7 +726,7 @@ const HELP: Array<{ path: string; help: Help }> = [
               heading: 'Register and check',
               steps: [
                 'Add a credential for the provider you are migrating to.',
-                'A migration that fails to reach its destination is often a credential that is missing, expired, or short of permissions - check here first.',
+                'A migration that fails to reach its destination is often a credential that is missing, expired, or short of permissions. Check here first.',
               ],
             },
           ],
@@ -663,7 +809,7 @@ function fallbackFor(title: string): Help {
   return {
     title,
     paragraphs: [
-      'Help for this screen has not been written yet - it is on the way.',
+      'Help for this screen has not been written yet. It is on the way.',
       'In the meantime, the quick start guide walks through a migration from beginning to end.',
     ],
     terms: TERMS,
@@ -684,6 +830,17 @@ const WIDTH_KEY = 'cm.helpPanel.width';
 const MODE_KEY = 'cm.helpPanel.mode';
 const MIN_WIDTH = 280;
 const MAX_WIDTH = 720;
+/*
+  A detached panel is a window, and a window you cannot make taller is a window you
+  cannot read. Docked it fills the side, so height only has to be settable once it
+  comes away - which is exactly when it was fixed at 70vh with no way to change it.
+*/
+const HEIGHT_KEY = 'cm.helpPanel.height';
+const MIN_HEIGHT = 220;
+/** The header the panel has to stay clear of, so its own icon stays reachable. */
+const HEADER_HEIGHT = 40;
+/** The gap a detached panel keeps from the window edge and from the header. */
+const FLOAT_MARGIN = 12;
 
 const route = useRoute();
 const { $refs } = getCurrentInstance()!.proxy as unknown as {
@@ -720,7 +877,21 @@ function applyDock() {
 
 function setDocked(next: boolean) {
   docked.value = next;
-  if (next) offset.value = null;
+  /*
+    Undocking settles the panel where it stands, rather than leaving it "as opened".
+
+    While the offset is null the floating panel keeps no height of its own and fills the screen the
+    way the docked one does. Dragging it then cannot move it downwards at all: the move clamps
+    against the height it has at that moment, and a panel as tall as the window has nowhere to go.
+    The window slid sideways while the pointer went down and across, which read as the pointer
+    having let go of the title bar.
+  */
+  offset.value = next
+    ? null
+    : {
+        x: Math.max(0, window.innerWidth - width.value - FLOAT_MARGIN),
+        y: HEADER_HEIGHT + FLOAT_MARGIN,
+      };
   localStorage.setItem(MODE_KEY, next ? 'dock' : 'float');
   applyDock();
 }
@@ -730,14 +901,29 @@ function readWidth(): number {
   return saved >= MIN_WIDTH && saved <= MAX_WIDTH ? saved : 380;
 }
 
+/** The ceiling follows the browser window, so a saved height survives a smaller screen. */
+function maxHeight(): number {
+  return Math.max(MIN_HEIGHT, window.innerHeight - 40);
+}
+
+function readHeight(): number {
+  const saved = Number(localStorage.getItem(HEIGHT_KEY));
+  return saved >= MIN_HEIGHT
+    ? Math.min(saved, maxHeight())
+    : Math.round(window.innerHeight * 0.7);
+}
+
+const height = ref(readHeight());
+
 const panelStyle = computed(() => {
   const style: Record<string, string> = { width: `${width.value}px` };
   if (!docked.value && offset.value) {
     style.left = `${offset.value.x}px`;
-    style.top = `${offset.value.y}px`;
+    // Never above the header: dragged there, it would sit over the icons again.
+    style.top = `${Math.max(HEADER_HEIGHT, offset.value.y)}px`;
     style.right = 'auto';
     style.bottom = 'auto';
-    style.height = '70vh';
+    style.height = `${height.value}px`;
   }
   return style;
 });
@@ -764,7 +950,7 @@ const EDITOR_CONTEXT: Array<{ path: string; ctx: EditorContext }> = [
     ctx: {
       lead: 'This screen shows a source model in the JSON editor, where you can read it and change it.',
       detail:
-        'A source model is what was collected from the servers you are migrating from - each machine with its CPU, disks and network interfaces. Collection reads what it can reach, and it does not always come back complete, so this is where you correct what it got wrong and fill in what it could not see. What you leave here is what the recommendation works from.',
+        'A source model is what was collected from the servers you are migrating from: each machine with its CPU, disks and network interfaces. Collection reads what it can reach, and it does not always come back complete, so this is where you correct what it got wrong and fill in what it could not see. What you leave here is what the recommendation works from.',
       saving:
         'Saving asks for a name and creates a custom model; the model you opened stays as it was.',
     },
@@ -774,7 +960,7 @@ const EDITOR_CONTEXT: Array<{ path: string; ctx: EditorContext }> = [
     ctx: {
       lead: 'This screen shows a target model in the JSON editor, where you can read it and change it.',
       detail:
-        'A target model describes the same workload the way the destination expects it - the infrastructure to create, with its images, specs, security groups and network. It comes from a recommendation, and a recommendation is a best match rather than a certainty: a spec or an image can come back missing, and the machine it suggests may be larger or smaller than you want. This is where you settle those - fill in what is missing, change a spec up or down, add anything the destination needs. Whatever is left unsettled here has to be dealt with in the workflow instead, which is a harder place to find it.',
+        'A target model describes the same workload the way the destination expects it: the infrastructure to create, with its images, specs, security groups and network. It comes from a recommendation, and a recommendation is a best match rather than a certainty: a spec or an image can come back missing, and the machine it suggests may be larger or smaller than you want. This is where you settle those: fill in what is missing, change a spec up or down, add anything the destination needs. Whatever is left unsettled here has to be dealt with in the workflow instead, which is a harder place to find it.',
       saving:
         'Saving asks for a name and creates a custom model; the model you opened stays as it was.',
     },
@@ -793,7 +979,7 @@ const EDITOR_CONTEXT: Array<{ path: string; ctx: EditorContext }> = [
     ctx: {
       lead: 'This screen shows a workflow template in the JSON editor, where you can read it and change it.',
       detail:
-        'A template is the shape a workflow is built from - which tasks it has and in what order, without the values of any one migration.',
+        'A template is the shape a workflow is built from: which tasks it has and in what order, without the values of any one migration.',
       saving: 'Saving updates this template.',
     },
   },
@@ -836,13 +1022,13 @@ function jsonEditorGroup(): Group {
     title: 'Using the editor',
     guide: { label: 'Editing a model as JSON', url: DOC_LINKS.jsonEditor },
     intro:
-      'The same document is offered three ways - table, tree and text - and nothing is lost by moving between them. The table is the one to start from: it lists every value with its name beside it.',
+      'The same document is offered three ways (table, tree and text), and nothing is lost by moving between them. The table is the one to start from: it lists every value with its name beside it.',
     sections: [
       {
         heading: 'Change a value, add an entry',
         steps: [
           'In the table view, double-click a value to edit it and press Enter to keep it.',
-          'To add an entry to a list, copy one that already exists - the copy lands below it with every field filled in, so only the differences need changing.',
+          'To add an entry to a list, copy one that already exists. The copy lands below it with every field filled in, so only the differences need changing.',
           'Undo takes back anything, including edits made in the table.',
         ],
       },
@@ -851,13 +1037,13 @@ function jsonEditorGroup(): Group {
         steps: [
           'Press the magnifier, or Ctrl+F, and type.',
           'The arrows move between matches and open the branches on the way.',
-          'The Filter toggle leaves only the rows that match - useful when one name runs through the document and all of it has to change.',
+          'The Filter toggle leaves only the rows that match. It helps when one name runs through the document and all of it has to change.',
         ],
       },
       {
         heading: 'Filter or reshape an array',
         steps: [
-          'Switch to the tree view and click the array you want to work on - targetSpecList, nodeGroups, firewallRules - so the row is highlighted.',
+          'Switch to the tree view and click the array you want to work on, such as targetSpecList, nodeGroups or firewallRules, so the row is highlighted.',
           'Right-click it, or press Ctrl+Q, and choose Sort or Transform. Both work on one array at a time, so pick the array first and the wizard will offer its fields.',
           'Transform replaces the array with the result, so check the document before saving.',
         ],
@@ -912,6 +1098,182 @@ function close() {
   applyDock();
 }
 
+/* Opened from elsewhere - the guide screen offers "Show help" so the reader does not
+   have to find the icon. Already open stays open rather than toggling shut. */
+watch(helpPanelOpenRequests, () => {
+  open.value = true;
+  applyDock();
+});
+
+/*
+  Where you are in the migration, said at the top of the help wherever you open it.
+
+  The guide screen knows this, but only while you are on it - once you leave to do the
+  step, nothing follows you and the thread is dropped. The help is the one thing reachable
+  from every screen, so it is where the thread can be picked up again.
+
+  Worked out when the help is first opened, not on every screen change: it is the same
+  answer either way, and the reader has just asked for an explanation, so a moment's work
+  is what they came for.
+*/
+watch(open, async isOpen => {
+  // Read again every time, not only the first. Opening the help is the moment the
+  // reader most needs the answer to match what is on the screen behind it, and by
+  // then they may have registered, collected or saved something.
+  if (isOpen) await refreshProgress().catch(() => undefined);
+});
+
+const guidedLine = computed(() => {
+  if (guidanceOff.value || !progressKnown.value || isFinished.value)
+    return null;
+  const step = currentGuidedStep.value;
+  if (!step) return null;
+  return {
+    no: step.no,
+    total: GUIDED_STEPS.length,
+    title: stepTitle(step, progressFacts.value),
+    // The same sentence the guide screen puts on this step. Two wordings for one
+    // state made the panel and the guide look like they disagreed.
+    standing: step.standing(progressFacts.value),
+    completion: step.completion,
+    progress: step.progress(progressFacts.value),
+  };
+});
+
+/*
+  Each way of doing a job is folded away until it is asked for.
+
+  Written out in full, one screen's help ran to dozens of numbered lines and the reader
+  had to wade through the way they were not using to reach the one they were. The
+  headings stay visible so the choice is still in view; only the steps fold.
+*/
+const openSections = ref<Record<string, boolean>>({});
+
+function sectionKey(groupId: string, index: number): string {
+  return `${groupId}#${index}`;
+}
+
+function isSectionOpen(groupId: string, index: number): boolean {
+  const chosen = openSections.value[sectionKey(groupId, index)];
+  if (chosen !== undefined) return chosen;
+  return defaultOpen(groupId, index);
+}
+
+/** Only the outer procedures carry a rule; a nested one opens with its parent. */
+function defaultOpen(groupId: string, index: number): boolean {
+  const group = (help.value.groups || []).find(g => g.id === groupId);
+  const section = group?.sections?.[index];
+  return section?.openWhen ? section.openWhen(progressFacts.value) : false;
+}
+
+/**
+ * Open a procedure named in someone else's text, and take the reader to it.
+ *
+ * A cross-reference the reader has to go and find is a cross-reference that does not
+ * get followed - and folded away, "see X below" is asking them to hunt for a heading
+ * among the ones they closed.
+ */
+function openReferenced(target: string | undefined): void {
+  if (!target) return;
+  const [groupId, rawIndex] = target.split('#');
+  const index = Number(rawIndex);
+  if (!groupId || !Number.isFinite(index)) return;
+  openSections.value = {
+    ...openSections.value,
+    [sectionKey(groupId, index)]: true,
+  };
+  requestAnimationFrame(() => {
+    document
+      .querySelector(`[data-testid="help-section-toggle-${groupId}-${index}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+}
+
+function toggleSection(groupId: string, index: number): void {
+  const key = sectionKey(groupId, index);
+  openSections.value = {
+    ...openSections.value,
+    [key]: !openSections.value[key],
+  };
+}
+
+/*
+  A button named in the text, drawn the way it looks on the screen.
+
+  "Press Add" makes the reader hunt for something whose shape they do not know yet.
+  Written as [[btn:+ Add]] the words are drawn as the button itself, so the eye can
+  match it against the screen. Screenshots would do the same until the screen changes,
+  and then they say something that is no longer true - these cannot go stale that way.
+
+  Kinds: btn (something you press), field (something you fill in), tab, menu (where it is).
+*/
+type Token = {
+  t: 'text' | 'btn' | 'btn2' | 'field' | 'tab' | 'menu' | 'see' | 'b';
+  v: string;
+  /** For `see`: which procedure to open, as `groupId#index`. */
+  target?: string;
+};
+
+const CHIP = /\[\[(btn|btn2|field|tab|menu|see|b):([^\]]+)\]\]/g;
+
+function tokensOf(text: string): Token[] {
+  const tokens: Token[] = [];
+  let at = 0;
+  for (const match of text.matchAll(CHIP)) {
+    const start = match.index ?? 0;
+    if (start > at) tokens.push({ t: 'text', v: text.slice(at, start) });
+    if (match[1] === 'see') {
+      // `[[see:group#index|what to call it]]`
+      const [target, label] = match[2].split('|');
+      tokens.push({ t: 'see', v: label ?? target, target });
+    } else {
+      tokens.push({ t: match[1] as Token['t'], v: match[2] });
+    }
+    at = start + match[0].length;
+  }
+  if (at < text.length) tokens.push({ t: 'text', v: text.slice(at) });
+  return tokens;
+}
+
+/*
+  Taken here, in setup, because that is the only place it can be taken.
+
+  This used to reach for the router through getCurrentInstance() inside the click
+  handler. Outside setup that returns null, so the handler threw on its first line and
+  the button did nothing at all - no navigation, no error the reader could see.
+*/
+const router = useRouter();
+
+const onGuideScreen = computed(() =>
+  (route.path || '').startsWith('/main/migration-guide'),
+);
+
+function openGuide() {
+  // Already there: pushing the same route is a no-op, which reads as a dead button.
+  if (onGuideScreen.value) return;
+  router.push({ name: MENU_ID.MIGRATION_GUIDE }).catch(() => undefined);
+}
+
+/* Drag the bottom edge of a detached panel to make it taller or shorter. Same
+   document-level tracking as the width, for the same reason. */
+function startResizeHeight(event: MouseEvent) {
+  event.preventDefault();
+  const startY = event.clientY;
+  const startHeight = height.value;
+
+  const onMove = (e: MouseEvent) => {
+    const next = startHeight + (e.clientY - startY);
+    height.value = Math.min(maxHeight(), Math.max(MIN_HEIGHT, next));
+  };
+  const onUp = () => {
+    localStorage.setItem(HEIGHT_KEY, String(height.value));
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  };
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
 /* Drag the left edge to resize. The pointer is tracked on the document so the
    drag survives the cursor leaving the narrow handle. */
 function startResize(event: MouseEvent) {
@@ -919,9 +1281,24 @@ function startResize(event: MouseEvent) {
   const startX = event.clientX;
   const startWidth = width.value;
 
+  /*
+    A docked panel is held against the right of the window, so widening it takes the left edge
+    outwards on its own and the edge stays under the pointer. A detached one is held by its left,
+    so the same widening pushes the *right* edge out instead and the edge being dragged does not
+    move at all. Keeping the right edge where it was puts the left edge back under the pointer.
+  */
+  const fixedRight =
+    !docked.value && offset.value ? offset.value.x + startWidth : null;
+
   const onMove = (e: MouseEvent) => {
     const next = startWidth + (startX - e.clientX);
     width.value = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, next));
+    if (fixedRight !== null && offset.value) {
+      offset.value = {
+        x: Math.max(0, fixedRight - width.value),
+        y: offset.value.y,
+      };
+    }
     applyDock();
   };
   const onUp = () => {
@@ -946,15 +1323,21 @@ function startMove(event: MouseEvent) {
   const grabX = event.clientX - box.left;
   const grabY = event.clientY - box.top;
 
+  /*
+    Measured on every move, not once at the start. The panel takes its floating size as it is being
+    let go of, and a limit worked out from the size it had a moment earlier pins it in place.
+  */
   const onMove = (e: MouseEvent) => {
+    const w = panel.offsetWidth;
+    const h = panel.offsetHeight;
     offset.value = {
-      x: Math.max(
-        0,
-        Math.min(window.innerWidth - box.width, e.clientX - grabX),
-      ),
+      x: Math.max(0, Math.min(window.innerWidth - w, e.clientX - grabX)),
       y: Math.max(
-        0,
-        Math.min(window.innerHeight - box.height, e.clientY - grabY),
+        HEADER_HEIGHT,
+        Math.min(
+          Math.max(HEADER_HEIGHT, window.innerHeight - h),
+          e.clientY - grabY,
+        ),
       ),
     };
   };
@@ -979,18 +1362,28 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="help">
-    <button
-      class="help-button"
-      data-testid="help-toggle"
-      :title="`Help for this screen (${help.title})`"
-      @click="toggle"
+    <!--
+      The same layer the bell uses, not the browser's own tooltip. Sitting side by side,
+      one appearing at once and the other after a second's wait read as two different
+      kinds of control.
+    -->
+    <p-tooltip
+      :contents="`Help for this screen (${help.title})`"
+      position="absolute"
     >
-      <svg viewBox="0 0 16 16" class="help-icon" aria-hidden="true">
-        <path
-          d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm0 1a6 6 0 1 1 0 12A6 6 0 0 1 8 2Zm0 9.25a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5ZM8 4a2.4 2.4 0 0 1 2.4 2.4c0 .86-.42 1.32-1.15 1.85-.5.37-.65.56-.65.95v.3h-1.2v-.4c0-.83.35-1.24 1.02-1.73.55-.4.78-.63.78-1.02A1.2 1.2 0 0 0 8 5.2a1.25 1.25 0 0 0-1.25 1.2H5.6A2.4 2.4 0 0 1 8 4Z"
-        />
-      </svg>
-    </button>
+      <button
+        class="help-button"
+        data-testid="help-toggle"
+        :aria-label="`Help for this screen (${help.title})`"
+        @click="toggle"
+      >
+        <svg viewBox="0 0 16 16" class="help-icon" aria-hidden="true">
+          <path
+            d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm0 1a6 6 0 1 1 0 12A6 6 0 0 1 8 2Zm0 9.25a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5ZM8 4a2.4 2.4 0 0 1 2.4 2.4c0 .86-.42 1.32-1.15 1.85-.5.37-.65.56-.65.95v.3h-1.2v-.4c0-.83.35-1.24 1.02-1.73.55-.4.78-.63.78-1.02A1.2 1.2 0 0 0 8 5.2a1.25 1.25 0 0 0-1.25 1.2H5.6A2.4 2.4 0 0 1 8 4Z"
+          />
+        </svg>
+      </button>
+    </p-tooltip>
 
     <aside
       v-if="open"
@@ -1005,6 +1398,14 @@ onBeforeUnmount(() => {
         data-testid="help-resizer"
         title="Drag to resize"
         @mousedown="startResize"
+      />
+      <!-- Only when detached: docked, the panel already runs the full height. -->
+      <div
+        v-if="!docked"
+        class="help-resizer-bottom"
+        data-testid="help-resizer-bottom"
+        title="Drag to change the height"
+        @mousedown="startResizeHeight"
       />
       <header
         class="help-head"
@@ -1061,6 +1462,46 @@ onBeforeUnmount(() => {
         </span>
       </header>
       <div class="help-body" data-testid="help-body">
+        <!--
+          Kept above the screen's own help on purpose: it answers "why am I here at all",
+          which comes before "what does this screen do".
+        -->
+        <button
+          v-if="guidedLine"
+          class="help-guided"
+          :class="{ 'help-guided-static': onGuideScreen }"
+          data-testid="help-guided-step"
+          @click="openGuide"
+        >
+          <span class="help-guided-badge"
+            >Step {{ guidedLine.no }} of {{ guidedLine.total }}</span
+          >
+          <span class="help-guided-text">{{ guidedLine.title }}</span>
+          <span
+            class="help-guided-standing"
+            data-testid="help-guided-standing"
+            >{{ guidedLine.standing }}</span
+          >
+          <!--
+            What finishes this step, and how far it is met. Without it a step that stays
+            put after you have registered something reads as broken rather than as work
+            still to do.
+          -->
+          <span class="help-guided-done" data-testid="help-guided-completion">{{
+            guidedLine.completion
+          }}</span>
+          <span class="help-guided-now" data-testid="help-guided-progress"
+            >So far: {{ guidedLine.progress }}</span
+          >
+          <!-- Offered only where it goes somewhere. On the guide itself it would lie. -->
+          <span
+            v-if="!onGuideScreen"
+            class="help-guided-go"
+            data-testid="help-guided-open"
+            >Open the migration guide &rsaquo;</span
+          >
+        </button>
+
         <p v-for="(line, i) in help.paragraphs" :key="i">{{ line }}</p>
 
         <!-- What this menu does, as a list you can jump from. -->
@@ -1089,12 +1530,136 @@ onBeforeUnmount(() => {
             :key="`s${x}`"
             class="help-section"
           >
-            <h3 class="help-heading">{{ sec.heading }}</h3>
-            <ol class="help-steps">
-              <li v-for="(step, t) in sec.steps" :key="t">{{ step }}</li>
-            </ol>
             <button
-              v-if="sec.guide"
+              type="button"
+              class="help-heading help-heading-toggle"
+              :data-testid="`help-section-toggle-${group.id}-${x}`"
+              :aria-expanded="isSectionOpen(group.id, x) ? 'true' : 'false'"
+              @click="toggleSection(group.id, x)"
+            >
+              <span class="help-heading-mark" aria-hidden="true">{{
+                isSectionOpen(group.id, x) ? '\u25be' : '\u25b8'
+              }}</span>
+              <span class="help-heading-text">{{ sec.heading }}</span>
+            </button>
+            <ol
+              v-if="isSectionOpen(group.id, x)"
+              class="help-steps"
+              :data-testid="`help-section-steps-${group.id}-${x}`"
+            >
+              <li v-for="(step, t) in sec.steps" :key="t">
+                <template v-for="(tok, k) in tokensOf(step)">
+                  <span v-if="tok.t === 'text'" :key="`t${k}`">{{
+                    tok.v
+                  }}</span>
+                  <button
+                    v-else-if="tok.t === 'see'"
+                    :key="`s${k}`"
+                    type="button"
+                    class="help-see"
+                    :data-testid="`help-see-${tok.target}`"
+                    @click="openReferenced(tok.target)"
+                  >
+                    {{ tok.v }}
+                  </button>
+                  <strong
+                    v-else-if="tok.t === 'b'"
+                    :key="`b${k}`"
+                    class="help-strong"
+                    >{{ tok.v }}</strong
+                  >
+                  <span
+                    v-else
+                    :key="`c${k}`"
+                    :class="`help-chip help-chip-${tok.t}`"
+                    >{{ tok.v }}</span
+                  >
+                </template>
+              </li>
+            </ol>
+
+            <!-- Ways of doing one part of the procedure above, folded inside it. -->
+            <div
+              v-if="sec.sub && isSectionOpen(group.id, x)"
+              class="help-subsections"
+            >
+              <div
+                v-for="(sub, y) in sec.sub"
+                :key="`sub${y}`"
+                class="help-subsection"
+              >
+                <button
+                  type="button"
+                  class="help-subheading"
+                  :data-testid="`help-subsection-toggle-${group.id}-${x}-${y}`"
+                  :aria-expanded="
+                    isSectionOpen(`${group.id}#${x}`, y) ? 'true' : 'false'
+                  "
+                  @click="toggleSection(`${group.id}#${x}`, y)"
+                >
+                  <span class="help-heading-mark" aria-hidden="true">{{
+                    isSectionOpen(`${group.id}#${x}`, y) ? '\u25be' : '\u25b8'
+                  }}</span>
+                  <span class="help-subheading-text">{{ sub.heading }}</span>
+                </button>
+                <ol
+                  v-if="isSectionOpen(`${group.id}#${x}`, y)"
+                  class="help-steps"
+                  :data-testid="`help-subsection-steps-${group.id}-${x}-${y}`"
+                >
+                  <li v-for="(step, t) in sub.steps" :key="t">
+                    <template v-for="(tok, k) in tokensOf(step)">
+                      <span v-if="tok.t === 'text'" :key="`t${k}`">{{
+                        tok.v
+                      }}</span>
+                      <button
+                        v-else-if="tok.t === 'see'"
+                        :key="`s${k}`"
+                        type="button"
+                        class="help-see"
+                        @click="openReferenced(tok.target)"
+                      >
+                        {{ tok.v }}
+                      </button>
+                      <strong
+                        v-else-if="tok.t === 'b'"
+                        :key="`b${k}`"
+                        class="help-strong"
+                        >{{ tok.v }}</strong
+                      >
+                      <span
+                        v-else
+                        :key="`c${k}`"
+                        :class="`help-chip help-chip-${tok.t}`"
+                        >{{ tok.v }}</span
+                      >
+                    </template>
+                  </li>
+                </ol>
+                <button
+                  v-if="sub.guide && isSectionOpen(`${group.id}#${x}`, y)"
+                  class="help-guide help-guide-inline"
+                  :data-testid="`help-subsection-guide-${group.id}-${x}-${y}`"
+                  @click="openDocLink(sub.guide.url)"
+                >
+                  <svg
+                    class="help-doc-icon"
+                    viewBox="0 0 16 16"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M4 1.5h5.2L13 5.3V14a.5.5 0 0 1-.5.5h-8A.5.5 0 0 1 4 14V1.5Zm1 1V13.5h7V6H8.7V2.5H5Zm4.7.7V5H12L9.7 3.2ZM6 7.5h5v1H6v-1Zm0 2.5h5v1H6v-1Z"
+                    />
+                  </svg>
+                  <span class="help-guide-text"
+                    >Guide: {{ sub.guide.label }}</span
+                  >
+                  <span class="help-guide-out">&#8599;</span>
+                </button>
+              </div>
+            </div>
+            <button
+              v-if="sec.guide && isSectionOpen(group.id, x)"
               class="help-guide help-guide-inline"
               :data-testid="`help-section-guide-${group.id}-${x}`"
               @click="openDocLink(sec.guide.url)"
@@ -1161,10 +1726,66 @@ onBeforeUnmount(() => {
           </template>
         </div>
 
-        <!-- Set apart: the same words on every screen, for when one is unfamiliar. -->
-        <section v-if="help.terms" class="help-glossary">
-          <h2 class="help-group-title">Words used here</h2>
-          <dl class="help-terms">
+        <!--
+          What each button and column on this screen is for. Folded away: it answers a
+          question asked while looking at the screen, not while following the steps, so
+          leaving it open would push the procedures out of view.
+        -->
+        <section v-if="help.reference" class="help-group">
+          <button
+            type="button"
+            class="help-heading help-heading-toggle"
+            data-testid="help-reference-toggle"
+            :aria-expanded="isSectionOpen('__reference', 0) ? 'true' : 'false'"
+            @click="toggleSection('__reference', 0)"
+          >
+            <span class="help-heading-mark" aria-hidden="true">{{
+              isSectionOpen('__reference', 0) ? '\u25be' : '\u25b8'
+            }}</span>
+            <span class="help-heading-text"
+              >Buttons and columns on this screen</span
+            >
+          </button>
+          <dl
+            v-if="isSectionOpen('__reference', 0)"
+            class="help-reference"
+            data-testid="help-reference-list"
+          >
+            <template v-for="(r, k) in help.reference">
+              <dt :key="`rt${k}`">
+                <span
+                  :class="`help-chip help-chip-${r.kind === 'column' ? 'menu' : r.kind}`"
+                  >{{ r.item }}</span
+                >
+              </dt>
+              <dd :key="`rd${k}`">{{ r.meaning }}</dd>
+            </template>
+          </dl>
+        </section>
+
+        <!--
+          The same words on every screen, folded like everything else. They are the terms
+          the whole product is built on, so they are worth keeping to hand - but a reader
+          who already knows them should not have to scroll past them each time.
+        -->
+        <section v-if="help.terms" class="help-group">
+          <button
+            type="button"
+            class="help-heading help-heading-toggle"
+            data-testid="help-terms-toggle"
+            :aria-expanded="isSectionOpen('__terms', 0) ? 'true' : 'false'"
+            @click="toggleSection('__terms', 0)"
+          >
+            <span class="help-heading-mark" aria-hidden="true">{{
+              isSectionOpen('__terms', 0) ? '\u25be' : '\u25b8'
+            }}</span>
+            <span class="help-heading-text">Key terms</span>
+          </button>
+          <dl
+            v-if="isSectionOpen('__terms', 0)"
+            class="help-terms"
+            data-testid="help-terms-list"
+          >
             <template v-for="(t, k) in help.terms">
               <dt :key="`t${k}`">{{ t.term }}</dt>
               <dd :key="`d${k}`">{{ t.meaning }}</dd>
@@ -1196,6 +1817,81 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped lang="postcss">
+.help-guided {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background: #eff6ff;
+  text-align: left;
+  cursor: pointer;
+}
+.help-guided:hover {
+  background: #dbeafe;
+}
+.help-guided-badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+.help-guided-text {
+  color: #1e40af;
+  font-size: 12px;
+}
+
+/* On the guide itself the block still explains, but it is no longer a way to get there. */
+.help-guided-static {
+  cursor: default;
+}
+
+.help-guided-standing {
+  flex-basis: 100%;
+  font-size: 12px;
+  line-height: 17px;
+  color: #1e40af;
+}
+
+.help-guided-go {
+  flex-basis: 100%;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+/* The condition and the count sit on their own line, below the step and its title. */
+.help-guided-done,
+.help-guided-now {
+  flex-basis: 100%;
+  font-size: 11px;
+  line-height: 15px;
+  color: #1e3a8a;
+}
+
+.help-guided-now {
+  font-weight: 600;
+}
+
+/*
+  The tooltip is drawn absolutely, so it needs something positioned to hang from.
+  Without this it anchored to whatever ancestor happened to be positioned and landed
+  off-screen: the icon showed nothing at all, while the bell beside it - whose wrapper
+  is relative - worked. Same failure would come back if this rule were dropped.
+*/
+.help {
+  position: relative;
+}
+
 .help-button {
   display: flex;
   width: 32px;
@@ -1218,9 +1914,15 @@ onBeforeUnmount(() => {
 }
 
 /* Lies over the page - the screen underneath keeps its width. */
+/*
+  Starts below the header, not at the top of the window.
+
+  Anchored at 0 it covered the three icons in the corner - including the one that opens
+  and closes it - so the way out was underneath the thing it opened.
+*/
 .help-panel {
   position: fixed;
-  top: 0;
+  top: 40px;
   right: 0;
   bottom: 0;
   z-index: 60;
@@ -1274,6 +1976,20 @@ onBeforeUnmount(() => {
   width: 5px;
   height: 100%;
   cursor: col-resize;
+
+  &:hover {
+    background: #bfdbfe;
+  }
+}
+
+.help-resizer-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  width: 100%;
+  height: 6px;
+  cursor: row-resize;
 
   &:hover {
     background: #bfdbfe;
@@ -1424,7 +2140,164 @@ onBeforeUnmount(() => {
   color: #1f2937;
 }
 
-.help-heading::before {
+/* The heading is what opens the steps, so it has to look pressable and span the width. */
+.help-heading-toggle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 4px 6px 4px 0;
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+}
+
+.help-heading-toggle:hover {
+  background: #f3f4f6;
+}
+
+.help-heading-text {
+  flex: 1;
+}
+
+/*
+  A disclosure triangle rather than a plus.
+  On this screen + already means "make a new one" - it is on the button that creates a
+  source service - so the same sign at the end of a heading read as "there is more of
+  this" rather than "this opens". The triangle points at the text it opens, and turns
+  down once it is open, which is the shape people already know from file trees.
+*/
+.help-heading-mark {
+  flex: none;
+  width: 12px;
+  font-size: 10px;
+  line-height: 1;
+  color: #2563eb;
+  text-align: left;
+}
+
+.help-subheading .help-heading-mark {
+  color: #7c3aed;
+}
+
+/*
+  A button as it appears on the screen, small enough to sit inside a sentence.
+  Drawn rather than photographed, so it cannot fall out of date on its own.
+*/
+/*
+  Kept for the one or two constraints per screen that cost the reader a failed attempt
+  if they are skimmed - not for anything merely important, or nothing stands out.
+*/
+.help-strong {
+  font-weight: 700;
+  color: #111827;
+}
+
+/* A procedure named inside another one's text, and a way to get straight to it. */
+.help-see {
+  padding: 0;
+  font-size: inherit;
+  font-weight: 600;
+  color: #7c3aed;
+  text-decoration: underline;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.help-see:hover {
+  color: #5b21b6;
+}
+
+.help-subsections {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 10px;
+  margin-top: 4px;
+  border-left: 2px solid #ddd6fe;
+}
+
+.help-subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Violet against the outer blue: two depths, told apart at a glance. */
+.help-subheading {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 3px 6px 3px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #5b21b6;
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+}
+
+.help-subheading:hover {
+  background: #f5f3ff;
+}
+
+.help-subheading-text {
+  flex: 1;
+}
+
+.help-chip {
+  display: inline-block;
+  padding: 1px 6px;
+  margin: 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+  vertical-align: 1px;
+  border-radius: 3px;
+}
+
+/* The same violet the console paints a primary button, so the eye can match them. */
+.help-chip-btn {
+  color: #ffffff;
+  background: #341470;
+}
+
+/* The plain buttons beside it - white with a border, as they are drawn on screen. */
+.help-chip-btn2 {
+  color: #232533;
+  background: #ffffff;
+  border: 1px solid #c2c2c6;
+}
+
+.help-chip-field {
+  font-weight: 500;
+  color: #1f2937;
+  background: #ffffff;
+  border: 1px solid #9ca3af;
+}
+
+.help-chip-tab {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.help-chip-menu {
+  font-weight: 500;
+  color: #374151;
+  background: #f3f4f6;
+}
+
+.help-heading:not(.help-heading-toggle)::before {
   display: inline-block;
   width: 3px;
   height: 11px;
@@ -1442,6 +2315,25 @@ onBeforeUnmount(() => {
   padding-left: 18px;
   margin: 0;
   list-style: decimal;
+}
+
+.help-reference {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  align-items: baseline;
+  margin: 0;
+}
+
+.help-reference dt {
+  margin: 0;
+}
+
+.help-reference dd {
+  margin: 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: #4b5563;
 }
 
 .help-terms {

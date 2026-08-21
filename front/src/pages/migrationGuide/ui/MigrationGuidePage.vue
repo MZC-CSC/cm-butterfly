@@ -1,8 +1,4 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useRoute } from 'vue-router/composables';
-import { MENU_ID } from '@/entities';
-
 /**
  * Migration Guide — the in-console entry point for "how do I actually migrate?".
  *
@@ -17,122 +13,98 @@ import { MENU_ID } from '@/entities';
  * Built with plain markup on purpose — new screens should not widen the mirinae surface
  * (see DESIGN-MIRINAE "inventory": do not pull mirinae into new screens).
  *
- * ── Known limits of this first version, to be closed next ──────────────────────────
- * The guide link opens GitHub in a new tab, so the reader leaves the console. That
- * breaks the round trip this page is meant to provide:
+ * ## The map now says where you are
  *
- *   1. Reading the guide loses the "which step am I on?" context.
- *   2. `activeRouteName` below reads `?from=`, but nothing sets that query yet — no
- *      screen offers a way back here — so the highlight never actually lights up.
- *   3. Without a return path, the router-links only lead outward.
+ * The highlight used to be driven by a `?from=` query that nothing ever set, so it never
+ * lit up. It now comes from the data: which steps have actually been done decides which
+ * one is current, and the reader is told where they stand without having had to arrive
+ * from anywhere in particular. See `useMigrationProgress`.
  *
- * Closing it means embedding the step text here (so the reader stays in the console),
- * deriving the current step from the *actual* route instead of a hand-passed query,
- * and giving each step screen a way back. Kept out of this change on purpose: the
- * written guide had to be verified against the real screens first.
+ * Three states rather than two — done, current, not yet. "You are here" on its own
+ * leaves out how far along here is.
+ *
+ * The steps themselves are no longer written here; they come from one definition shared
+ * with everything else that names a step.
  */
+import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router/composables';
+import {
+  GUIDED_STEPS,
+  guideUrlFor,
+  stepTitle,
+  refreshProgress,
+  currentStep,
+  progressKnown,
+  progressFacts,
+  isFinished,
+  guidanceOff,
+  setGuidanceOff,
+  welcomeSeen,
+  markWelcomeSeen,
+  GuidedSetupWelcome,
+  type GuidedStep,
+} from '@/features/guidedSetup';
+import { requestHelpPanel } from '@/widgets/layout/helpPanel';
 
-type Step = {
-  no: number;
-  title: string;
-  /** One entry per sentence: each starts on its own line and still wraps on narrow screens. */
-  detail: string[];
-  routeName: string;
-  testId: string;
-  /**
-   * A written guide that goes deeper than this step's one line, when one exists.
-   *
-   * Rendered *outside* the step's link — a link inside a link is not valid markup and the
-   * inner one stops working.
-   */
-  guide?: { title: string; file: string };
-};
+const router = useRouter();
+const steps = GUIDED_STEPS;
 
-/** The guides live with the source, so they move with it and cannot drift into a stale copy */
-const GUIDE_BASE =
-  'https://github.com/cloud-barista/cm-butterfly/blob/main/docs/guide/';
+/** Nothing is said until the answer is known — a failed check says nothing at all. */
+const guidanceOn = computed(() => progressKnown.value && !guidanceOff.value);
 
-function guideUrlFor(file: string): string {
-  return GUIDE_BASE + file;
+type StepState = 'done' | 'current' | 'upcoming';
+
+function stateOf(step: GuidedStep): StepState {
+  if (!guidanceOn.value) return 'upcoming';
+  if (isFinished.value) return 'done';
+  const at = currentStep.value as number;
+  if (step.no < at) return 'done';
+  if (step.no === at) return 'current';
+  return 'upcoming';
 }
 
-const steps: Step[] = [
-  {
-    no: 1,
-    title: 'Register Source Service',
-    detail: [
-      'Register the servers you want to migrate.',
-      'Each connection is one source server, reached over SSH.',
-    ],
-    routeName: MENU_ID.SOURCE_SERVICES,
-    testId: 'migration-guide-step-source-service',
-    guide: {
-      title: 'Bulk import of source connections',
-      file: 'source-connection-bulk-import.md',
-    },
-  },
-  {
-    no: 2,
-    title: 'Create Source Model',
-    detail: [
-      'Collect from the servers you registered, on the same Source Services screen, and save the result as a source model.',
-      'Everything after this is built from that model.',
-    ],
-    routeName: MENU_ID.SOURCE_MODELS,
-    testId: 'migration-guide-step-source-model',
-  },
-  {
-    no: 3,
-    title: 'Create Target Model',
-    detail: [
-      'A target model is generated from the source model.',
-      'Adjust the values you want and save it as a custom model.',
-    ],
-    routeName: MENU_ID.TARGET_MODELS,
-    testId: 'migration-guide-step-target-model',
-  },
-  {
-    no: 4,
-    title: 'Create Workflow',
-    detail: [
-      'Create the migration workflow straight from a target model.',
-      'You can also build one yourself in the workflow editor.',
-    ],
-    routeName: MENU_ID.WORKFLOWS,
-    testId: 'migration-guide-step-create-workflow',
-    guide: {
-      title: 'Running workflow tasks in parallel',
-      file: 'workflow-parallel-steps.md',
-    },
-  },
-  {
-    no: 5,
-    title: 'Edit and Run Workflow',
-    detail: [
-      'Open the workflow you want and change any value it needs.',
-      'Run it when it is ready - the migration happens here.',
-    ],
-    routeName: MENU_ID.WORKFLOWS,
-    testId: 'migration-guide-step-run-workflow',
-    guide: {
-      title: 'Reading the run status screen',
-      file: 'workflow-run-status.md',
-    },
-  },
-];
+/*
+  Said in words as well as shown in colour. A border alone disappears in a monochrome
+  print-out and for a reader who cannot separate the two colours.
+*/
+const STATE_LABEL: Record<StepState, string> = {
+  done: 'Done',
+  current: 'You are here',
+  upcoming: 'Not yet',
+};
 
-const route = useRoute();
+const showWelcome = ref(false);
 
-/**
- * Highlight the step matching the screen the user came from, so the guide doubles as a
- * "where am I in the migration?" indicator rather than a static list.
- */
-const activeRouteName = computed(() => String(route.query.from ?? ''));
+/** The counts the step rules were applied to, shown beside the condition they answer. */
+const facts = computed(() => progressFacts.value);
 
-function isActive(step: Step): boolean {
-  return (
-    activeRouteName.value !== '' && activeRouteName.value === step.routeName
-  );
+onMounted(async () => {
+  await refreshProgress();
+  showWelcome.value =
+    guidanceOn.value && currentStep.value === 1 && !welcomeSeen.value;
+});
+
+/* Both answers spend the welcome - it is not asked twice. They differ in where they
+   leave you: Start at the first step's screen, Just looking here on the guide. */
+function dismissWelcome() {
+  showWelcome.value = false;
+  markWelcomeSeen();
+}
+
+function startFromWelcome() {
+  dismissWelcome();
+  const first = steps[0];
+  if (first) router.push({ name: first.routeName }).catch(() => undefined);
+}
+
+/** Open the help for the screen this step happens on, rather than for this one. */
+function showHelpFor(step: GuidedStep) {
+  router.push({ name: step.routeName }).catch(() => undefined);
+  requestHelpPanel();
+}
+
+function goToStep(step: GuidedStep) {
+  router.push({ name: step.routeName }).catch(() => undefined);
 }
 
 const guideUrl = guideUrlFor('quick-start-migration.md');
@@ -140,12 +112,66 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
 
 <template>
   <div class="max-w-3xl p-6" data-testid="migration-guide-page">
+    <guided-setup-welcome
+      v-if="showWelcome"
+      @start="startFromWelcome"
+      @dismiss="dismissWelcome"
+    />
+
     <header class="mb-6">
-      <h1 class="text-2xl font-semibold text-gray-900">Migration Guide</h1>
+      <div class="flex items-start justify-between gap-4">
+        <h1 class="text-2xl font-semibold text-gray-900">Migration Guide</h1>
+
+        <!--
+          Where you are and how to stop being told, in the same place. It lives on this
+          screen rather than floating over every screen: a permanent badge competes with
+          the notification toast for the same corner and keeps talking to someone who
+          finished months ago.
+        -->
+        <div
+          class="flex shrink-0 items-center gap-3 text-sm"
+          data-testid="guided-setup-status"
+        >
+          <span
+            v-if="guidanceOn && !isFinished"
+            class="rounded-full bg-blue-50 px-3 py-1 font-medium text-blue-700"
+            data-testid="guided-setup-step-indicator"
+          >
+            Step {{ currentStep }} of {{ steps.length }}
+          </span>
+          <span
+            v-else-if="guidanceOn && isFinished"
+            class="rounded-full bg-green-50 px-3 py-1 font-medium text-green-700"
+            data-testid="guided-setup-finished"
+          >
+            All steps done
+          </span>
+
+          <button
+            v-if="!guidanceOff"
+            type="button"
+            class="text-gray-500 underline hover:text-gray-700"
+            data-testid="guided-setup-turn-off"
+            @click="setGuidanceOff(true)"
+          >
+            Turn off guidance
+          </button>
+          <button
+            v-else
+            type="button"
+            class="text-blue-600 underline hover:text-blue-700"
+            data-testid="guided-setup-turn-on"
+            @click="setGuidanceOff(false)"
+          >
+            Turn on guidance
+          </button>
+        </div>
+      </div>
+
       <p class="mt-2 text-sm text-gray-600">
-        A migration runs through the five steps below, in order. Select a step
-        to open the screen where it happens. The help icon at the top right
-        shows help for whichever screen you are on.
+        A migration runs through the five steps below, in order. Select a step to
+        open the screen where it happens. The help icon at the top right shows
+        help for whichever screen you are on.
       </p>
     </header>
 
@@ -154,39 +180,131 @@ const guideUrl = guideUrlFor('quick-start-migration.md');
         <router-link
           :to="{ name: step.routeName }"
           :data-testid="step.testId"
+          :data-step-state="stateOf(step)"
+          :aria-current="stateOf(step) === 'current' ? 'step' : undefined"
           class="group flex items-start gap-4 rounded-lg border p-4 transition-colors hover:border-blue-400 hover:bg-blue-50"
-          :class="
-            isActive(step)
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-200 bg-white'
-          "
+          :class="{
+            'border-blue-500 border-l-4 bg-blue-50 ring-2 ring-blue-200':
+              stateOf(step) === 'current',
+            'border-gray-200 bg-white': stateOf(step) === 'done',
+            'border-gray-200 bg-white opacity-70': stateOf(step) === 'upcoming',
+          }"
         >
           <span
             class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
-            :class="
-              isActive(step)
-                ? 'bg-blue-500 text-white'
-                : 'bg-gray-100 text-gray-700'
-            "
+            :class="{
+              'bg-blue-500 text-white': stateOf(step) === 'current',
+              'bg-green-100 text-green-700': stateOf(step) === 'done',
+              'bg-gray-100 text-gray-500': stateOf(step) === 'upcoming',
+            }"
           >
-            {{ step.no }}
+            <!--
+              The badge carries the state as a shape, not only as a colour: a tick for
+              what is behind you, an arrow for where you are, the plain number for what
+              has not come yet. A pointing hand was considered and rejected - it reads
+              as clip art and its direction is not read the same way everywhere.
+            -->
+            <span v-if="stateOf(step) === 'done'" aria-hidden="true"
+              >&check;</span
+            >
+            <span
+              v-else-if="stateOf(step) === 'current'"
+              class="text-base leading-none"
+              aria-hidden="true"
+              >&#9654;</span
+            >
+            <span v-else>{{ step.no }}</span>
           </span>
+
           <span class="flex flex-1 flex-col">
-            <span class="text-base font-medium text-gray-900">{{
-              step.title
-            }}</span>
+            <span class="flex items-center gap-2">
+              <span class="text-base font-medium text-gray-900">{{
+                stepTitle(step, facts)
+              }}</span>
+              <!-- The state in words, so colour is never the only carrier. -->
+              <span
+                v-if="guidanceOn"
+                class="rounded px-1.5 py-0.5 text-xs"
+                :class="{
+                  'bg-blue-600 font-semibold uppercase tracking-wide text-white':
+                    stateOf(step) === 'current',
+                  'bg-green-50 text-green-700': stateOf(step) === 'done',
+                  'text-gray-500': stateOf(step) === 'upcoming',
+                }"
+                :data-testid="`${step.testId}-state`"
+                >{{ STATE_LABEL[stateOf(step)] }}</span
+              >
+            </span>
+
             <span class="mt-1 text-sm text-gray-600">
               <span v-for="(line, l) in step.detail" :key="l" class="block">{{
                 line
               }}</span>
             </span>
+
+            <!--
+              Only the step you are on says what to do. On every other step it would be
+              advice about a moment that has passed or has not arrived.
+            -->
+            <span
+              v-if="stateOf(step) === 'current'"
+              class="mt-3 block rounded bg-white/70 p-3 text-sm text-gray-800"
+              :data-testid="`${step.testId}-standing`"
+              >{{ step.standing(facts) }}</span
+            >
+
+            <!--
+              What finishes this step, and how far it is met. A step that stays put after
+              you have registered something reads as broken until it says what it is still
+              waiting for - a source group with no connection was exactly that case.
+            -->
+            <span
+              v-if="stateOf(step) === 'current'"
+              class="mt-2 block text-xs text-gray-600"
+              :data-testid="`${step.testId}-completion`"
+              >{{ step.completion }}</span
+            >
+            <span
+              v-if="stateOf(step) === 'current'"
+              class="mt-1 block text-xs font-semibold text-gray-700"
+              :data-testid="`${step.testId}-progress`"
+              >So far: {{ step.progress(facts) }}</span
+            >
           </span>
+
           <span
             class="self-center text-lg text-gray-300 transition-colors group-hover:text-blue-500"
             aria-hidden="true"
             >&rsaquo;</span
           >
         </router-link>
+
+        <!--
+          The two things to do next, kept outside the card. The card is a link, and a
+          button inside a link is not valid markup - the inner one stops working.
+        -->
+        <div
+          v-if="stateOf(step) === 'current'"
+          class="ml-8 mt-2 flex flex-wrap items-center gap-2"
+          :data-testid="`${step.testId}-actions`"
+        >
+          <button
+            type="button"
+            class="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+            :data-testid="`${step.testId}-show-help`"
+            @click="showHelpFor(step)"
+          >
+            Show help
+          </button>
+          <button
+            type="button"
+            class="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+            :data-testid="`${step.testId}-go`"
+            @click="goToStep(step)"
+          >
+            Go to step
+          </button>
+        </div>
 
         <!--
           The run between two steps. The line sits under the middle of the number
