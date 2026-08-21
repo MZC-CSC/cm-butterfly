@@ -1,5 +1,9 @@
 # env
 .env
+# Vite's per-developer overrides. To point the dev server at another backend, put
+# VITE_BACKEND_URL in .env.development.local -- it wins over .env.development, which
+# .env.local does not. These describe one machine, so they are never committed.
+*.local
 
 # Logs
 logs
