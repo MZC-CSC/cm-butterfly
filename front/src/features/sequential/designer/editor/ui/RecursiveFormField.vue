@@ -103,7 +103,11 @@
     <div v-else-if="fieldSchema.type === 'array'" class="array-field">
       <div class="array-header">
         <div class="header-left">
-          <button class="btn-collapse" @click="toggleArrayCollapse">
+          <button
+            :data-testid="arrayToggleTestId"
+            class="btn-collapse"
+            @click="toggleArrayCollapse"
+          >
             {{ isArrayCollapsed ? '▶' : '▼' }}
           </button>
           <label
@@ -170,6 +174,7 @@
             >
               <div class="item-header-left">
                 <button
+                  :data-testid="arrayItemToggleTestId(index)"
                   class="btn-item-collapse"
                   @click.stop="toggleItemCollapse(index)"
                 >
@@ -240,7 +245,11 @@
     <div v-else-if="fieldSchema.type === 'object'" class="object-field">
       <div class="object-header">
         <div class="header-left">
-          <button class="btn-collapse" @click="toggleObjectCollapse">
+          <button
+            :data-testid="objectToggleTestId"
+            class="btn-collapse"
+            @click="toggleObjectCollapse"
+          >
             {{ isObjectCollapsed ? '▶' : '▼' }}
           </button>
           <label
@@ -413,8 +422,29 @@ export default defineComponent({
 
     /** The button that adds an entry to this array, named after the array it acts on. */
     const arrayAddTestId = computed(
-      () => `wf-array-add-${props.indexPath || props.currentPath || props.fieldName}`,
+      () =>
+        `wf-array-add-${props.indexPath || props.currentPath || props.fieldName}`,
     );
+
+    /**
+     * The toggles that open and close a nested field.
+     *
+     * They all read the same from the outside — a triangle — so a test that reaches for one by
+     * position picks a different toggle as soon as the form gains a field. The path names which
+     * one it opens, the same way the leaf inputs are named.
+     */
+    const arrayToggleTestId = computed(
+      () =>
+        `wf-array-toggle-${props.indexPath || props.currentPath || props.fieldName}`,
+    );
+
+    const objectToggleTestId = computed(
+      () =>
+        `wf-object-toggle-${props.indexPath || props.currentPath || props.fieldName}`,
+    );
+
+    const arrayItemToggleTestId = (arrayIndex: number) =>
+      `wf-array-item-toggle-${props.indexPath || props.currentPath || props.fieldName}[${arrayIndex}]`;
 
     /** The button that removes one entry, which needs the entry's position as well. */
     const arrayRemoveTestId = (arrayIndex: number) =>
@@ -813,6 +843,9 @@ export default defineComponent({
       childIndexPath,
       arrayItemTestId,
       arrayAddTestId,
+      arrayToggleTestId,
+      objectToggleTestId,
+      arrayItemToggleTestId,
       arrayRemoveTestId,
       isSimpleType,
       isStringArray,
