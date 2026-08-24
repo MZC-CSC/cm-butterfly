@@ -1417,6 +1417,47 @@ Given(
   },
 );
 
+/**
+ * 두 건을 함께 골라 지운다 — 끝나기를 기다리지 않는다.
+ *
+ * ★ 기다리지 않는 것이 요점이다. 다음 단계가 *지워지는 중인 것을 포함해* 남은 것을 모두 고르므로,
+ *   여기서 끝까지 기다리면 그 화면이 만들어지지 않는다.
+ */
+When(
+  '{string} 번 트랙이 만든 인프라를 함께 삭제한다',
+  async ({ page }, tracks: string) => {
+    const names = tracks
+      .split(',')
+      .map(t => infraFor(t.trim().replace(/"/g, '')));
+    const wl = new WorkloadPage(page);
+    await wl.gotoMci();
+    await wl.selectMcis(names);
+    await wl.openDeleteModal();
+    await wl.confirmDelete(wl.deleteKeywordFor(names), 'normal', 2_500);
+    console.log(`[삭제] ${names.length} 건을 함께 요청 — ${names.join(', ')}`);
+  },
+);
+
+/**
+ * 남은 것을 전부 골라 지운다 — 지워지는 중인 것까지.
+ *
+ * ★ 이것이 마지막 화면이다. 진행 중인 대상을 포함해 요청하면 목록과 확인 창이 그것을 어떻게
+ *   다루는지가 드러난다.
+ */
+When('남은 인프라를 진행 중인 것까지 모두 골라 삭제한다', async ({ page }) => {
+  const wl = new WorkloadPage(page);
+  await wl.gotoMci();
+  await page.waitForTimeout(2_000); // 목록이 진행 중 상태를 그릴 틈을 준다
+  const picked = await wl.selectEveryMciLeft();
+  console.log(
+    `[삭제] 남은 ${picked.length} 건을 모두 골랐다 — ${picked.join(', ')}`,
+  );
+  if (picked.length === 0) return;
+
+  await wl.openDeleteModal();
+  await wl.confirmDelete(wl.deleteKeywordFor(picked), 'normal', 8_000);
+});
+
 // ── 구간7·8: software, judged by the install rather than the run ────────
 
 When(

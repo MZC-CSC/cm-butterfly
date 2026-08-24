@@ -470,6 +470,54 @@ export class WorkloadPage {
     }
   }
 
+  /**
+   * 목록에 남은 것을 전부 고른다 — 지워지는 중인 것까지.
+   *
+   * ★ 지우는 화면이 어떻게 달라지는지를 보이려면 이것이 필요하다. 한 건만 지울 때, 두 건을 고를 때,
+   *   그리고 *이미 지워지는 중인 것을 포함해* 남은 것을 다 고를 때 — 세 가지가 각각 다른 화면이고,
+   *   마지막이 목록이 진행 중 상태를 어떻게 그리는지 보여 준다 (2026-08-24 사용자 결정).
+   *
+   * @returns 고른 건수
+   */
+  /**
+   * 확인 창이 요구하는 말.
+   *
+   * ★ 고른 개수에 따라 달라진다(MciDeleteModal `checkKeyword`) — 한 건이면 그 이름, 두세 건이면
+   *   쉼표로 이어 쓴 이름들, 네 건 이상이면 `Delete N Workloads`. 한 건일 때의 규칙만 알고
+   *   이름을 넣으면 여러 건에서는 확인 버튼이 열리지 않는다.
+   */
+  deleteKeywordFor(names: string[]): string {
+    if (names.length === 0) return 'Delete';
+    if (names.length === 1) return names[0];
+    if (names.length <= 3) return names.join(', ');
+    return `Delete ${names.length} Workloads`;
+  }
+
+  async selectEveryMciLeft(): Promise<string[]> {
+    const rows = this.mciTable.locator('tbody tr');
+    const count = await rows.count();
+    const picked: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const row = rows.nth(i);
+      const box = row.locator('td.select-checkbox').first();
+      if (!(await box.isVisible().catch(() => false))) continue;
+      const name = (
+        await row
+          .locator('td')
+          .nth(1)
+          .innerText()
+          .catch(() => '')
+      )
+        .trim()
+        .split(/\s+/)[0];
+      await humanClick(
+        box.locator('.p-checkbox, input[type="checkbox"]').first(),
+      ).catch(() => {});
+      if (name) picked.push(name);
+    }
+    return picked;
+  }
+
   // ── Sending several at once ───────────────────────────────
 
   /** The notice shown before a large selection is sent. */
