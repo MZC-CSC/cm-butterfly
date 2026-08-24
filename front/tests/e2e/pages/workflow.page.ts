@@ -997,11 +997,25 @@ export class WorkflowPage {
         전이라 그 자리를 그냥 지나쳤고, 그래서 "N 번 항목의 칸이 나타나지 않았다" 로 죽었다
         (2026-08-24 구간5). 손잡이가 생긴 것을 보고 나서 연다.
     */
-    const newToggle = this.page.getByTestId(`wf-toggle-${rules}[${nextIndex}]`);
+    /*
+      새 항목은 **접힌 채로** 온다. 그 접기 손잡이를 눌러야 안의 칸이 생긴다.
+
+      ★ 손잡이의 식별자가 다른 것들과 다르다 — 배열 항목은 `wf-array-item-toggle-…[N]` 이고,
+        일반 필드에 쓰는 `wf-toggle-…` 가 아니다. 그 이름으로 기다리다 두 번 헛짚었고, 그동안
+        "N 번 항목이 나타나지 않는다" 로만 죽어 원인이 보이지 않았다. 실패할 때 화면에 있는
+        식별자를 찍게 해서야 드러났다. (2026-08-24)
+    */
+    const newItem = this.page
+      .getByTestId(`wf-array-item-toggle-${rules}[${nextIndex}]`)
+      .first();
     await expect(
-      newToggle.first(),
-      `방화벽 규칙을 더했는데 ${nextIndex} 번 항목이 화면에 나타나지 않는다`,
+      newItem,
+      `방화벽 규칙을 더했는데 ${nextIndex} 번 항목이 생기지 않았다`,
     ).toBeVisible({ timeout: 15_000 });
+
+    await newItem.scrollIntoViewIfNeeded().catch(() => {});
+    await humanClick(newItem);
+    await this.page.waitForTimeout(600);
 
     // 새로 생긴 항목만 연다 — 전부 펼치면 화면이 다시 클릭만 반복한다.
     await this.openPathTo(`${rules}[${nextIndex}]`);
