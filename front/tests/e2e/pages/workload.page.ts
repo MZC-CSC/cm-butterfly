@@ -514,17 +514,26 @@ export class WorkloadPage {
    * @returns 고른 건수
    */
   /**
-   * 확인 창이 요구하는 말.
+   * 확인 창이 요구하는 말을 **화면에서 읽는다.**
    *
-   * ★ 고른 개수에 따라 달라진다(MciDeleteModal `checkKeyword`) — 한 건이면 그 이름, 두세 건이면
-   *   쉼표로 이어 쓴 이름들, 네 건 이상이면 `Delete N Workloads`. 한 건일 때의 규칙만 알고
-   *   이름을 넣으면 여러 건에서는 확인 버튼이 열리지 않는다.
+   * ★ 계산하지 않는다. 개수로 규칙을 흉내 낼 수는 있지만(한 건이면 이름, 두세 건이면 이름 나열,
+   *   네 건 이상이면 `Delete N Workloads`), 그 개수는 *고른 것* 이 아니라 **요청될 것** 기준이다 —
+   *   이미 지워지는 중인 워크로드는 이번 삭제에 들어가지 않는다(MciDeleteModal 의 `checkKeyword`,
+   *   `requestTargets`).
+   *
+   *   그래서 "진행 중인 것까지 모두 고른다" 는 자리에서 계산과 화면이 어긋난다. 화면이 그 말을
+   *   입력칸 placeholder 로 알려 주므로 그것을 읽어 쓴다. (2026-08-24)
    */
-  deleteKeywordFor(names: string[]): string {
-    if (names.length === 0) return 'Delete';
-    if (names.length === 1) return names[0];
-    if (names.length <= 3) return names.join(', ');
-    return `Delete ${names.length} Workloads`;
+  async deleteKeywordFromScreen(): Promise<string> {
+    const input = this.deleteConfirmInput.first();
+    await expect(input).toBeVisible({ timeout: 15_000 });
+    const shown = (await input.getAttribute('placeholder')) ?? '';
+    if (!shown.trim()) {
+      throw new Error(
+        '확인 창이 요구하는 말을 읽지 못했다 — 입력칸 placeholder 가 비어 있다',
+      );
+    }
+    return shown.trim();
   }
 
   async selectEveryMciLeft(): Promise<string[]> {

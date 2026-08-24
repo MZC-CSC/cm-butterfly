@@ -1446,7 +1446,7 @@ async function deleteSomeInfra(
 
   await wl.openDeleteModal();
   await wl.confirmDelete(
-    wl.deleteKeywordFor(names),
+    await wl.deleteKeywordFromScreen(),
     'normal',
     waitGone ? 1_500 : 2_500,
   );
@@ -1480,7 +1480,7 @@ When('남은 인프라를 진행 중인 것까지 모두 골라 삭제한다', a
   if (picked.length === 0) return;
 
   await wl.openDeleteModal();
-  await wl.confirmDelete(wl.deleteKeywordFor(picked), 'normal', 8_000);
+  await wl.confirmDelete(await wl.deleteKeywordFromScreen(), 'normal', 8_000);
 });
 
 // ── 구간7·8: software, judged by the install rather than the run ────────
