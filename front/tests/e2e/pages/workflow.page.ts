@@ -1517,8 +1517,25 @@ export class WorkflowPage {
 
     // Read down the list. This is the answer to "did it actually install", and one screenful of it
     // is not the whole answer.
+    //
+    // ★ 표 안만 굴리는 것으로는 부족했다. 결과 창 자체가 화면보다 길어, 표를 끝까지 읽어도 창의
+    //   아래쪽은 한 번도 나오지 않았다 — 영상에는 결과의 윗부분만 남았다 (2026-08-24 사용자 지적).
+    //   그래서 표를 읽은 뒤 창을 끝까지 내려 보고 다시 올라온다.
     await this.page.waitForTimeout(1_200);
     await this.scrollThroughParams(table);
+
+    await overlay
+      .evaluate(async (el: Element) => {
+        const step = (el as HTMLElement).clientHeight * 0.8;
+        const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+        for (let y = 0; y <= el.scrollHeight; y += step) {
+          el.scrollTo({ top: y, behavior: 'smooth' });
+          await sleep(700);
+        }
+        el.scrollTo({ top: 0, behavior: 'smooth' });
+        await sleep(700);
+      })
+      .catch(() => {});
 
     const rows = await table
       .locator('tbody tr')

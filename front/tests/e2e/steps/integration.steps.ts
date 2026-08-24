@@ -1567,6 +1567,7 @@ Given(
     const deadline = Date.now() + 60 * 60_000;
     let last = '';
     let round = 0;
+    let halfwayShown = false;
     while (Date.now() < deadline) {
       const list = await readSoftwareStatuses(
         page,
@@ -1588,6 +1589,18 @@ Given(
         if (!pending.length) {
           scenarioState.swMigrationRows = list;
           return;
+        }
+
+        /*
+          절반쯤 왔을 때 한 번, 진행되는 작업을 열어 자세히 본다.
+
+          ★ 그동안은 그래프만 다시 들여다보고 있었다 — 화면은 몇 분간 거의 같아서, 무엇이
+            진행되는지가 보이지 않았다. 절반을 넘긴 시점은 볼 것이 생긴 시점이라(끝난 것과
+            남은 것이 함께 있다) 거기서 한 번 열어 본다 (2026-08-24 사용자 지적).
+        */
+        if (!halfwayShown && done * 2 >= list.length) {
+          halfwayShown = true;
+          if (swWorkflow) await wf.browseRunWhileWaiting(true).catch(() => {});
         }
       }
       // Spend the wait on the run rather than in front of it - same as the infra wait.

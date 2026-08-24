@@ -884,7 +884,10 @@ export class WorkloadPage {
 
   /** Run the load test (Runloadtest) — click PButtonModal's default confirm button */
   async submitLoadConfig(): Promise<void> {
-    await humanClick(this.loadConfigConfirmButton.last());
+    // 눌리는 것이 보이게 — 이 버튼은 설정 창 아래쪽이라 값을 채우고 나면 화면에 반쯤 걸린다.
+    const confirm = this.loadConfigConfirmButton.last();
+    await bringIntoFullView(confirm);
+    await humanClick(confirm);
   }
 
   /**

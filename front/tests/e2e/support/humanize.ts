@@ -299,6 +299,22 @@ async function travelToPoint(
  *   사람이 하는 일은 그 값에 손을 얹고 잠깐 두는 것이다. 커서는 `travelTo` 가 이미 *글자가
  *   시작되는 곳*을 겨누므로 넓은 칸에서도 값 위에 놓인다. (2026-08-24 사용자 결정)
  */
+/**
+ * 요소를 화면 *가운데*로 끌어온다.
+ *
+ * ★ `scrollIntoViewIfNeeded` 는 조금이라도 보이면 아무 것도 하지 않는다. 그래서 버튼이 아래쪽에
+ *   반쯤 걸린 채로 눌리고, 영상에서는 무엇을 눌렀는지 흐릿하게 남는다 (2026-08-24 사용자 지적 —
+ *   부하 설정 확인 버튼). 눌리는 것이 보여야 하는 자리에서는 가운데로 끌어온다.
+ */
+export async function bringIntoFullView(locator: Locator): Promise<void> {
+  await locator
+    .evaluate((el: Element) =>
+      el.scrollIntoView({ block: 'center', inline: 'nearest' }),
+    )
+    .catch(() => {});
+  await pause(400);
+}
+
 export async function pointAt(locator: Locator, holdMs = 1_000): Promise<void> {
   if (!isDemoPace()) {
     // 촬영이 아니면 커서를 그리지 않는다 — 그 자리가 화면에 있는지만 확인한다.
