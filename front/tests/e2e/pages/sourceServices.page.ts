@@ -3,7 +3,7 @@ import { TablePagination } from '../support/pagination';
 import { humanClick, humanFill } from '../support/humanize';
 import { openScreen } from '../support/navigate';
 import { spotlight } from '../support/spotlight';
-import { buildXlsx } from '../support/xlsx';
+import { buildXlsx } from '../support/xlsx.mjs';
 
 /** 연결정보 파일 형식. 화면은 둘 다 받고, 담기는 내용은 같다. */
 export type ImportFormat = 'csv' | 'xlsx';

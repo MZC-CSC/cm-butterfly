@@ -16,14 +16,14 @@
  */
 import { deflateRawSync, crc32 } from 'zlib';
 
-const xml = (s: string): string =>
+const xml = s =>
   s
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
-const COL = (n: number): string => {
+const COL = n => {
   let s = '';
   for (let i = n; i >= 0; i = Math.floor(i / 26) - 1) {
     s = String.fromCharCode(65 + (i % 26)) + s;
@@ -32,14 +32,7 @@ const COL = (n: number): string => {
 };
 
 /** One entry of the archive, ready to be written twice - locally and in the directory. */
-interface Entry {
-  name: string;
-  body: Buffer;
-  deflated: Buffer;
-  crc: number;
-}
-
-function entry(name: string, text: string): Entry {
+function entry(name, text) {
   const body = Buffer.from(text, 'utf-8');
   return { name, body, deflated: deflateRawSync(body), crc: crc32(body) };
 }
@@ -50,9 +43,9 @@ function entry(name: string, text: string): Entry {
  * Nothing here needs a library: the format is a run of files, each preceded by its own header, and
  * a table at the end saying where each one started.
  */
-function zip(entries: Entry[]): Buffer {
-  const chunks: Buffer[] = [];
-  const directory: Buffer[] = [];
+function zip(entries) {
+  const chunks = [];
+  const directory = [];
   let offset = 0;
 
   for (const e of entries) {
@@ -96,9 +89,9 @@ function zip(entries: Entry[]): Buffer {
 }
 
 /** Turns rows of text into a workbook of one sheet. The first row is the header. */
-export function buildXlsx(rows: string[][]): Buffer {
+export function buildXlsx(rows) {
   // The shared table holds every distinct value once; cells point at it by position.
-  const index = new Map<string, number>();
+  const index = new Map();
   for (const row of rows) {
     for (const cell of row) {
       if (cell !== '' && !index.has(cell)) index.set(cell, index.size);
