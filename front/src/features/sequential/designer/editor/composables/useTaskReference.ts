@@ -152,6 +152,14 @@ export function useTaskReference(
 ) {
   /** Field the picker was opened for. Empty means the whole body. */
   const targetField = ref<string>('');
+
+  /**
+   * 캔버스에서 고른 태스크. 값 목록을 그 태스크로 좁히는 데 쓴다.
+   *
+   * 좁히지 않으면 캔버스에서 고른 것이 화면에 아무 영향을 주지 않는다 — 목록이 그대로라
+   * 무엇이 골라졌는지 알 수 없고, 다시 목록에서 찾아야 한다.
+   */
+  const focusTask = ref<string>('');
   const targetType = ref<string | undefined>(undefined);
   const isOpen = ref(false);
   /** True while the crosshair is being dragged over the canvas */
@@ -213,9 +221,12 @@ export function useTaskReference(
    * keeps all of its rows, so typing a task name still shows what it offers.
    */
   const filteredSources = computed<IOutputSource[]>(() => {
+    const focused = focusTask.value
+      ? sources.value.filter(source => source.task === focusTask.value)
+      : sources.value;
     const term = search.value.trim().toLowerCase();
-    if (!term) return sources.value;
-    return sources.value
+    if (!term) return focused;
+    return focused
       .map(source => {
         if (source.task.toLowerCase().includes(term)) return source;
         return {
@@ -236,14 +247,28 @@ export function useTaskReference(
       ?.nodes.find(node => node.path === selectedPath.value),
   );
 
-  const preview = computed(() =>
-    selectedTask.value && selectedPath.value
-      ? buildFieldReference({
-          task: selectedTask.value,
-          path: selectedPath.value,
-        })
-      : '',
-  );
+  /**
+   * 저장될 값. **모드에 따라 형태가 다르다.**
+   *
+   * 본문 전체를 넘길 때는 `<task>` 또는 `<task>.<path>` 를 그대로 쓴다. 칸을 채울 때만
+   * `${...}` 로 감싼다 — 감싼 형태는 본문 안의 한 자리를 바꾸는 문법이라, 본문 자체를
+   * 대신할 때 쓰면 엔진이 그것을 리터럴 문자열로 읽는다.
+   *
+   * 미리보기가 실제 저장값과 다르면 사용자는 저장하고 나서야 다른 것이 들어간 것을 안다.
+   */
+  const preview = computed(() => {
+    if (!selectedTask.value || !selectedPath.value) return '';
+    const wholeBody = targetField.value === '';
+    if (wholeBody) {
+      return selectedPath.value === '$'
+        ? selectedTask.value
+        : `${selectedTask.value}.${selectedPath.value}`;
+    }
+    return buildFieldReference({
+      task: selectedTask.value,
+      path: selectedPath.value,
+    });
+  });
 
   const typeVerdict = computed<TypeVerdict>(() =>
     compareTypes(selectedNode.value?.type, targetType.value),
@@ -255,6 +280,7 @@ export function useTaskReference(
     selectedTask.value = '';
     selectedPath.value = '';
     search.value = '';
+    focusTask.value = '';
     isOpen.value = true;
     isPicking.value = false;
   };
@@ -262,6 +288,7 @@ export function useTaskReference(
   const close = (): void => {
     isOpen.value = false;
     isPicking.value = false;
+    focusTask.value = '';
   };
 
   /** Start the drag: the canvas lights up the tasks that may be picked. */
@@ -276,10 +303,30 @@ export function useTaskReference(
   const pickTask = (task: string): boolean => {
     if (!ancestors.value.includes(task)) return false;
     selectedTask.value = task;
-    selectedPath.value = '';
+    // 고른 그 순간 *그 태스크의 결과 전체*가 정해진다. 그래야 캔버스에서 태스크를 고르는
+    // 행위가 그 자체로 뜻을 갖는다 — 더 좁히고 싶으면 열린 목록에서 항목을 고르면 된다.
+    selectedPath.value = '$';
+    focusTask.value = task;
     isPicking.value = false;
     isOpen.value = true;
     return true;
+  };
+
+  /** 좁혀 둔 것을 풀고 앞선 태스크 전부를 다시 보여 준다. */
+  const showAllTasks = (): void => {
+    focusTask.value = '';
+  };
+
+  /**
+   * 열린 목록에서 값을 고른다.
+   *
+   * 캔버스에서 고르는 pickTask 와 다르다 — 이쪽은 목록을 좁히지 않는다. 이미 목록을 보고
+   * 있는데 고르는 순간 다른 태스크가 사라지면, 옆 태스크와 견주어 보던 흐름이 끊긴다.
+   */
+  const selectValue = (task: string, path: string): void => {
+    if (!ancestors.value.includes(task)) return;
+    selectedTask.value = task;
+    selectedPath.value = path;
   };
 
   const pickPath = (path: string): void => {
@@ -295,6 +342,9 @@ export function useTaskReference(
     // state
     isOpen,
     isPicking,
+    focusTask,
+    showAllTasks,
+    selectValue,
     targetField,
     targetType,
     selectedTask,

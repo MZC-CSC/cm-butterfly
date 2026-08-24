@@ -91,12 +91,11 @@
         <div class="ref-source-bar">
           <label class="ref-source-option">
             <input
+              v-model="bodySource"
               type="radio"
               name="wf-body-source"
               value="fields"
               data-testid="wf-body-source-fields"
-              :checked="!wholeBodyReference"
-              @change="setBodySourceFields()"
             />
             <span>Fill in fields</span>
           </label>
@@ -105,13 +104,12 @@
             :class="{ 'is-disabled': !taskReference.canBind.value }"
           >
             <input
+              v-model="bodySource"
               type="radio"
               name="wf-body-source"
               value="whole"
               data-testid="wf-body-source-whole"
               :disabled="!taskReference.canBind.value"
-              :checked="wholeBodyReference"
-              @change="setBodySourceWhole()"
             />
             <span>An earlier task's whole result</span>
           </label>
@@ -174,13 +172,10 @@
           :target-type="taskReference.targetType.value"
           :selected-type="taskReference.selectedNode.value?.type"
           :selected-multiple="taskReference.selectedNode.value?.multiple"
+          :focus-task="taskReference.focusTask.value"
           @update:search="taskReference.search.value = $event"
-          @pick="
-            (t, pth) => {
-              taskReference.pickTask(t);
-              taskReference.pickPath(pth);
-            }
-          "
+          @show-all="taskReference.showAllTasks()"
+          @pick="(t, pth) => taskReference.selectValue(t, pth)"
           @manual="
             (t, pth) => {
               taskReference.selectedTask.value = t;
@@ -672,6 +667,9 @@ export default defineComponent({
       );
     };
 
+    /** "결과 전체" 를 골라 두고 아직 무엇을 넘길지 정하지 않은 상태. */
+    const pendingWholeBody = ref(false);
+
     const stopPickingOnCanvas = (): void => referencePickingStore.stop();
 
     /**
@@ -683,6 +681,11 @@ export default defineComponent({
     const cancelReference = (): void => {
       taskReference.close();
       stopPickingOnCanvas();
+      // 정하지 않고 그만뒀으면 고르기 전 상태로 되돌린다.
+      if (pendingWholeBody.value) {
+        pendingWholeBody.value = false;
+        if (!wholeBodyRef.value) setBodySourceFields();
+      }
     };
 
     /** 고르는 중에 Esc 를 누르면 그만둔다 — 창이 열려 있든 캔버스만 밝든. */
@@ -711,6 +714,7 @@ export default defineComponent({
             : chosen.task;
         vueSet(step.value.properties as any, 'referenceRequestBody', reference);
         wholeBodyRef.value = reference;
+        pendingWholeBody.value = false;
         emit('saveContext', bodyParamsModel.value);
         taskReference.close();
         return;
@@ -765,6 +769,9 @@ export default defineComponent({
       // the picker fill that slot and leave the body in field mode — a different screen from the
       // one this option is supposed to show.
       taskReference.open('', undefined);
+      // 고르다 그만두면 이 선택도 없던 일이 되어야 한다. 무엇을 넘길지 정하지 않은 채
+      // "결과 전체" 에 표시만 남으면, 화면은 그 모드인데 넘길 것이 없는 상태가 된다.
+      pendingWholeBody.value = true;
     };
 
     /** Back to filling the fields; the reference is dropped. */
@@ -777,6 +784,23 @@ export default defineComponent({
       wholeBodyRef.value = '';
       emit('saveContext', bodyParamsModel.value);
     };
+
+    /**
+     * 지금 어느 쪽인가 — 칸마다 채우기인가, 결과 전체인가.
+     *
+     * ★ `:checked` 로 묶으면 안 된다. 사용자가 라디오를 누르면 DOM 은 이미 바뀌어 있는데,
+     *   되돌리려 할 때 묶인 값이 그대로면 Vue 는 다시 그릴 것이 없다고 보고 넘어간다.
+     *   그러면 취소했는데 표시만 "결과 전체" 로 남는다. v-model 은 상태를 단일 출처로
+     *   두어 그런 어긋남이 생기지 않는다.
+     */
+    const bodySource = computed<string>({
+      get: () =>
+        wholeBodyRef.value || pendingWholeBody.value ? 'whole' : 'fields',
+      set: value => {
+        if (value === 'whole') setBodySourceWhole();
+        else setBodySourceFields();
+      },
+    });
 
     /** What a whole-body reference actually passes on, for the read-only table. */
     const wholeBodyOutputRows = computed(() => {
@@ -2100,6 +2124,7 @@ export default defineComponent({
       stopPickingOnCanvas,
       applyReference,
       clearReference,
+      bodySource,
       cancelReference,
       wholeBodyReference,
       wholeBodyOutputRows,

@@ -24,6 +24,8 @@ interface IProps {
   targetType?: string;
   selectedType?: string;
   selectedMultiple?: boolean;
+  /** 캔버스에서 고른 태스크. 비어 있지 않으면 목록이 그 태스크로 좁혀져 있다. */
+  focusTask?: string;
 }
 
 const props = defineProps<IProps>();
@@ -34,6 +36,7 @@ const emit = defineEmits([
   'manual',
   'apply',
   'cancel',
+  'show-all',
 ]);
 
 // Vue 2 parses template expressions as plain JavaScript, so a TypeScript cast
@@ -85,6 +88,19 @@ const title = (): string =>
       />
     </label>
 
+    <!-- 캔버스에서 고른 것이 화면에 드러나야 한다. 목록이 그대로면 무엇이 골라졌는지
+         알 수 없고, 다른 태스크를 보려면 푸는 길도 있어야 한다. -->
+    <p v-if="focusTask" class="rp-focus" data-testid="wf-ref-focus">
+      Showing <strong>{{ focusTask }}</strong> — picked on the canvas.
+      <button
+        type="button"
+        data-testid="wf-ref-show-all"
+        @click="emit('show-all')"
+      >
+        Show all earlier tasks
+      </button>
+    </p>
+
     <div class="rp-tree">
       <div
         v-for="(source, index) in sources"
@@ -94,7 +110,22 @@ const title = (): string =>
       >
         <div class="rp-group">
           <span class="rp-ord">{{ index + 1 }}</span>
-          <span class="rp-task">{{ source.task }}</span>
+          <!-- 태스크 이름을 누르면 그 태스크의 결과 전체를 고른 것으로 본다.
+               아래 항목들이 하나씩 고르는 자리이므로, 그 머리인 이름을 누르는 것은
+               "이 태스크 전체"로 읽히는 것이 자연스럽다. -->
+          <button
+            v-if="source.hasSchema"
+            type="button"
+            class="rp-task rp-task-pick"
+            :class="{
+              on: selectedTask === source.task && selectedPath === '$',
+            }"
+            :data-testid="`wf-ref-task-${source.task}`"
+            @click="emit('pick', source.task, '$')"
+          >
+            {{ source.task }}
+          </button>
+          <span v-else class="rp-task">{{ source.task }}</span>
           <span class="rp-anc">runs earlier</span>
         </div>
 
@@ -115,15 +146,21 @@ const title = (): string =>
           class="rp-node"
           :class="{
             on: selectedTask === source.task && selectedPath === node.path,
+            whole: node.path === '$',
           }"
           :style="{ paddingLeft: `${10 + node.depth * 13}px` }"
           :data-testid="`wf-ref-node-${source.task}-${node.path}`"
-          :title="node.description || node.path"
           @click="emit('pick', source.task, node.path)"
         >
           <span class="rp-name">{{ node.label }}</span>
           <span class="rp-type">{{ node.type }}</span>
           <span class="rp-ex">{{ node.example ?? '' }}</span>
+          <!-- 설명은 커서를 대면 바로 뜬다. 여기서 클릭은 *값을 고르는* 동작이라
+               설명 토글에 쓸 수 없고, 브라우저 기본 툴팁은 뜨기까지 한참 걸리는 데다
+               긴 설명이 한 줄로 늘어져 읽기 어렵다. -->
+          <span v-if="node.description" class="rp-desc">
+            {{ node.description }}
+          </span>
         </button>
       </div>
 
@@ -207,6 +244,89 @@ const title = (): string =>
 </template>
 
 <style scoped>
+/* 결과 전체는 성격이 다르다 — 한 항목이 아니라 그 태스크 전부다.
+   같은 모양으로 두면 아래 항목들과 구분되지 않아 그냥 지나친다. */
+.rp-node.whole {
+  background: #f5f3ff;
+  border-left: 3px solid #7c6cf0;
+  font-weight: 600;
+}
+.rp-node.whole .rp-name {
+  color: #4c3fd0;
+}
+.rp-node.whole:hover {
+  background: #ede9fe;
+}
+
+/* 태스크 이름도 고를 수 있다는 표시. */
+.rp-task-pick {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-bottom: 1px dashed transparent;
+}
+.rp-task-pick:hover {
+  border-bottom-color: #7c6cf0;
+}
+.rp-task-pick.on {
+  color: #4c3fd0;
+}
+
+/* 값 설명 — 커서를 대면 바로 뜨는 레이어. */
+.rp-node {
+  position: relative;
+}
+.rp-desc {
+  position: absolute;
+  z-index: 50;
+  left: 10px;
+  right: 10px;
+  top: calc(100% - 2px);
+  padding: 7px 9px;
+  background: #1f2937;
+  color: #f3f4f6;
+  border-radius: 5px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.08s ease;
+  pointer-events: none;
+}
+.rp-node:hover .rp-desc,
+.rp-node:focus-visible .rp-desc {
+  opacity: 1;
+  visibility: visible;
+}
+
+.rp-focus {
+  margin: 0 0 6px;
+  padding: 6px 8px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 5px;
+  color: #3730a3;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.rp-focus button {
+  margin-left: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: #4f46e5;
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .rp-pop {
   width: 340px;
   max-width: 100%;

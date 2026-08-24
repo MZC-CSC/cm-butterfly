@@ -35,7 +35,7 @@
       <label
         class="field-label"
         :class="{ 'has-tooltip': fieldSchema.description }"
-        @click="fieldSchema.description && toggleHelp()"
+        @click.stop="fieldSchema.description && toggleHelp()"
       >
         {{ fieldName }}<span v-if="isRequired" class="required-mark">*</span>
         <span v-if="fieldSchema.description" class="field-help-mark">?</span>
@@ -327,7 +327,10 @@ import TaskReferenceValue from './TaskReferenceValue.vue';
 const openHelpKey = ref<string>('');
 
 if (typeof window !== 'undefined') {
-  // 바깥을 누르면 닫는다. 레이어 자체를 누른 것은 위에서 @click.stop 으로 걸러진다.
+  // 바깥을 누르면 닫는다.
+  //
+  // ★ 레이블 클릭에 .stop 이 필요하다. 없으면 여는 그 클릭이 여기까지 올라와 곧바로 닫아,
+  //   눌러도 아무 일이 없는 것처럼 보인다.
   window.addEventListener('click', () => {
     openHelpKey.value = '';
   });
