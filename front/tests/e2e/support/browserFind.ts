@@ -36,6 +36,16 @@ export async function findInBrowser(
 ): Promise<boolean> {
   if (!canDrive()) return false;
   try {
+    /*
+      앞선 찾기를 먼저 닫는다.
+
+      ★ 찾기 창은 지난 낱말을 그대로 들고 있고 물든 자리도 남는다. 그대로 다음 것을 찾으면 화면에
+        **앞의 결과가 함께 보인다** — 스펙을 찾은 자리가 포트를 찾을 때까지 남아 있었다
+        (2026-08-24 사용자 지적).
+    */
+    key('key', 'Escape');
+    await page.waitForTimeout(300);
+
     key('key', '--clearmodifiers', 'ctrl+f');
     await page.waitForTimeout(700);
     key('type', '--delay', '60', text);

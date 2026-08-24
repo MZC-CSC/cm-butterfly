@@ -1,5 +1,5 @@
 import { Page, Locator, expect } from '@playwright/test';
-import { humanClick, humanFill } from '../support/humanize';
+import { humanClick, pointAt, humanFill } from '../support/humanize';
 import { spotlight } from '../support/spotlight';
 import { describe as writeDescription } from '../support/describe';
 
@@ -347,18 +347,31 @@ export class JsonEditorPage {
    *
    *   그래서 그 줄을 먼저 짚어 두고 버튼으로 옮겨 간다. 무엇을 복제하는지가 눈으로 이어진다.
    */
-  private async pointAtRowBeforeDuplicating(locator: Locator): Promise<void> {
-    const value = locator.locator('.pg-value').first();
-    if (await value.count()) {
-      await spotlight(this.page, value);
-      await this.page.waitForTimeout(600);
+  /**
+   * 복제하기 전에 **복제 아이콘 위에** 커서를 얹는다.
+   *
+   * ★ 전에는 그 줄의 *값* 을 강조했다. 그런데 복제 단추는 줄 오른쪽 끝(ROW 칸)에 있어서, 값을
+   *   짚은 다음 아무 예고 없이 사본이 나타났다 — 무엇을 눌러서 생긴 것인지가 영상에 없다
+   *   (2026-08-24 사용자 지적).
+   *
+   *   단추는 그 줄에 커서가 얹혀야 나타나므로, 줄에 먼저 얹어 단추를 띄우고 그 위로 옮겨 잠깐
+   *   머문다. 그러면 무엇을 누르는지가 보이고, 눌린 뒤 사본이 생기는 것이 이어진다.
+   */
+  private async pointAtDuplicateButton(locator: Locator): Promise<Locator> {
+    await locator.hover().catch(() => {});
+    await this.page.waitForTimeout(400);
+
+    const icon = locator.getByTestId('json-grid-row-duplicate').first();
+    if (await icon.count()) {
+      await pointAt(icon, 900);
+      return icon;
     }
+    return icon;
   }
 
   async duplicateRow(locator: Locator): Promise<void> {
     await expect(locator).toBeVisible({ timeout: 15_000 });
-    await this.pointAtRowBeforeDuplicating(locator);
-    const inline = locator.getByTestId('json-grid-row-duplicate');
+    const inline = await this.pointAtDuplicateButton(locator);
     if (await inline.count()) {
       await humanClick(inline.first());
       return;

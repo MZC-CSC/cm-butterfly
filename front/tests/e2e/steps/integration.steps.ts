@@ -375,7 +375,11 @@ Then('소스그룹 목록에 {string} 이 보인다', async ({ page }, name: str
 function specLabel(spec?: string): string {
   if (!spec) return '';
   const size = spec.split('+').pop() ?? spec;
-  return `\n선택한 스펙 : ${size.toUpperCase()}`;
+  /*
+    ★ 대문자로 바꾸지 않는다. 화면에서 고르고 입력하는 값이 전부 소문자(`t3a.large`)인데 설명에만
+      대문자로 적히면, 나란히 놓았을 때 다른 값처럼 보인다 (2026-08-24 사용자 지적).
+  */
+  return `\n선택한 스펙 : ${size}`;
 }
 
 // ── 구간3·4: recommending against a named CSP and region ────────────────
@@ -495,20 +499,21 @@ async function openPortByDuplicating(page: Page): Promise<void> {
       form, and where any rule sits depends on how the document was collected.
   */
   /*
-    복제하기 전에 *다음 규칙의 포트 줄까지* 화면에 들어오게 한다.
+    복제하기 전에 **22 줄을 화면 한가운데로** 옮긴다.
 
-    ★ 복제하면 바로 아래에 사본이 생기는데, 그 자리가 화면 밖이면 **22 가 두 개가 됐다는 것이
-      영상에 남지 않는다.** 실제로 [3]·[4] 의 Ports 만 보이고 새로 생긴 [5] 는 아래로 밀려 나가
-      무엇이 일어났는지 알 수 없었다(2026-08-19 사용자 지적).
+    ★ 사본은 바로 아래에 생긴다. 22 줄이 화면 위쪽에 붙어 있으면 사본이 아래로 밀려 나가 *두 개가
+      됐다는 것* 이 영상에 남지 않고, 반대로 아래쪽에 있으면 복제 단추를 누르는 자리가 화면 끝에
+      걸린다. 가운데에 두면 위아래가 다 보인다.
 
-      복제한 뒤에 옮기면 화면이 한 번 튀므로, *누르기 전에* 자리를 잡아 둔다.
+    ★ 다음 규칙을 화면에 들이는 방식이었는데, 그러면 22 줄이 위로 밀려 올라가 눌리는 자리가 표
+      머리글 근처가 됐다 — 영상에서는 *ROW 머리글을 누르는* 것처럼 보였다(2026-08-24 사용자 지적).
   */
-  const nextRule = rulePath.replace(/\.(\d+)$/, (_, n) => `.${Number(n) + 1}`);
-  const below = editor.portRowOf(nextRule);
-  if (await below.count()) {
-    await below.scrollIntoViewIfNeeded().catch(() => {});
-    await page.waitForTimeout(600);
-  }
+  await portRow
+    .evaluate((el: Element) =>
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' }),
+    )
+    .catch(() => {});
+  await page.waitForTimeout(900);
 
   await editor.duplicateRow(editor.rowAt(rulePath));
   /*
@@ -677,7 +682,14 @@ When('타깃 모델의 스펙을 4GB 급으로 변경하면', async ({ page }) =
   await expect(specRow, `스펙이 ${next} 로 바뀌지 않았다`).toContainText(size, {
     timeout: 10_000,
   });
-  await pointAt(specRow);
+
+  /*
+    바꾼 값은 짚지 않는다 — 방금 그 자리에서 직접 고쳤으므로 어디를 봐야 하는지가 이미 분명하다.
+
+    ★ 커서를 그 줄로 다시 보내면 *고친 뒤에 그 줄을 누르고 떠나는* 것처럼 보인다(2026-08-24
+      사용자 지적). 값이 읽힐 만큼만 멈추고 다음으로 간다.
+  */
+  await page.waitForTimeout(500);
 
   await editor.closeSearch();
 });
@@ -1225,10 +1237,18 @@ Then(
     ).toContainText(spec, { timeout: 15_000 });
 
     /*
-      값을 짚는다. 행 전체를 짚으면 커서가 넓은 영역을 도느라 *무엇을 가리키는지* 읽히지 않는다 —
-      보안 포트는 값에 붙는데 스펙만 겉돌아, 두 가지를 고쳤는데 하나만 확인한 것처럼 보였다
-      (2026-08-19 사용자 지적).
+      상세 정보를 화면 위로 올려 **내용이 다 나온 뒤에** 찾는다.
+
+      ★ 상세가 아직 화면 아래에 걸려 있는 채로 찾기를 걸면 물들 자리가 화면 밖이라 아무 것도
+        보이지 않는다 — 찾기 창만 뜨고 끝난다 (2026-08-24 사용자 지적).
     */
+    await row
+      .evaluate((el: Element) =>
+        el.scrollIntoView({ block: 'start', behavior: 'smooth' }),
+      )
+      .catch(() => {});
+    await page.waitForTimeout(1_200);
+
     /*
       값을 브라우저 찾기로 짚는다.
 
@@ -1240,6 +1260,7 @@ Then(
     */
     const found = await findInBrowser(page, spec);
     if (!found) await pointAt(row);
+    await page.waitForTimeout(1_000);
     await closeFind(page);
     console.log(
       `[스펙·화면] ${(await row.innerText()).replace(/\s+/g, ' ').trim()}`,
@@ -1284,22 +1305,30 @@ Then(
       `화면의 보안그룹에 ${port} 이 없다 — 화면에 보이는 포트: ${shown.join(', ')}`,
     ).toBeVisible({ timeout: 15_000 });
 
-    /* 값을 브라우저 찾기로 짚는다 — 위 스펙 확인과 같은 이유. */
+    /*
+      순서가 중요하다 — **보이게 해 놓고 찾는다.**
+
+      ★ 전에는 찾고 나서 화면에 올렸다. 그러면 물들 자리가 화면 밖이라 찾기 창만 뜨고 아무 것도
+        보이지 않고, 게다가 찾자마자 닫아 버려 강조가 남지도 않았다 (2026-08-24 사용자 지적).
+
+        사람이 하는 순서대로 한다 — 규칙을 화면에 들이고, 찾고, 물든 것을 잠깐 보고, 닫는다.
+    */
+    await hit
+      .evaluate((el: Element) =>
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' }),
+      )
+      .catch(() => {});
+    await page.waitForTimeout(900);
+    await expect(hit).toBeInViewport({ timeout: 5_000 });
+
     const foundPort = await findInBrowser(page, port);
     if (!foundPort) await pointAt(hit);
+    await page.waitForTimeout(1_200);
     await closeFind(page);
 
-    /*
-      짚은 뒤 그 행을 다시 화면에 올려 두고 잠깐 머무른다.
-
-      ★ 강조만으로는 부족했다. 고리는 잠깐 돌고 사라지는데, 그 뒤 표가 다시 그려지며 스크롤이
-        처음으로 돌아가 **찾던 포트가 화면 밖으로 밀린다.** 그러면 이 구간을 담은 영상의 마지막
-        화면에는 22·80 만 남고, 정작 이 시나리오가 보여주려는 포트는 한 번도 보이지 않는다
-        (2026-08-24, 구간4 촬영본에서 드러났다 — 단언은 통과했으므로 로그로는 알 수 없었다).
-    */
-    await hit.scrollIntoViewIfNeeded().catch(() => {});
+    // 닫은 뒤에도 그 줄이 화면에 남아 있어야 한다 — 이 구간의 마지막 화면이다.
     await expect(hit).toBeInViewport({ timeout: 5_000 });
-    await page.waitForTimeout(1_500);
+    await page.waitForTimeout(1_000);
 
     console.log(`[보안그룹·화면] 열린 포트 ${shown.join(', ')}`);
   },
