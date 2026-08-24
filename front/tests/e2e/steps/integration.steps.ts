@@ -1275,6 +1275,19 @@ Then(
     ).toBeVisible({ timeout: 15_000 });
 
     await spotlight(page, hit);
+
+    /*
+      강조가 끝난 뒤 그 행을 다시 화면에 올려 두고 잠깐 머무른다.
+
+      ★ 강조만으로는 부족했다. 고리는 잠깐 돌고 사라지는데, 그 뒤 표가 다시 그려지며 스크롤이
+        처음으로 돌아가 **찾던 포트가 화면 밖으로 밀린다.** 그러면 이 구간을 담은 영상의 마지막
+        화면에는 22·80 만 남고, 정작 이 시나리오가 보여주려는 포트는 한 번도 보이지 않는다
+        (2026-08-24, 구간4 촬영본에서 드러났다 — 단언은 통과했으므로 로그로는 알 수 없었다).
+    */
+    await hit.scrollIntoViewIfNeeded().catch(() => {});
+    await expect(hit).toBeInViewport({ timeout: 5_000 });
+    await page.waitForTimeout(1_500);
+
     console.log(`[보안그룹·화면] 열린 포트 ${shown.join(', ')}`);
   },
 );
