@@ -2,12 +2,49 @@
   <div class="form-field" :class="`depth-${depth}`">
     <!-- String, Number, Boolean - Simple Input -->
     <div v-if="isSimpleType" class="simple-field">
+      <!-- Pull a value out of a previous task. Dragging it onto the canvas lights up
+           the tasks that may be picked; clicking opens the same picker. -->
+      <button
+        v-if="!reference && canBind"
+        type="button"
+        class="btn-ref-add"
+        draggable="true"
+        :data-testid="`wf-field-ref-add-${referenceKey}`"
+        title="Take a value from an earlier task"
+        @click="$emit('reference', referenceKey, fieldSchema.type)"
+        @dragstart="$emit('ref-drag-start', referenceKey, fieldSchema.type)"
+        @dragend="$emit('ref-drag-end')"
+      >
+        <svg viewBox="0 0 16 16" class="ref-add-icon" aria-hidden="true">
+          <circle
+            cx="8"
+            cy="8"
+            r="3.2"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          />
+          <path
+            d="M8 1v2.4M8 12.6V15M1 8h2.4M12.6 8H15"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
       <label
         class="field-label"
         :class="{ 'has-tooltip': fieldSchema.description }"
-        :title="fieldSchema.description || ''"
+        @click="fieldSchema.description && toggleHelp()"
       >
         {{ fieldName }}<span v-if="isRequired" class="required-mark">*</span>
+        <span v-if="fieldSchema.description" class="field-help-mark">?</span>
+        <!-- 설명은 레이어로 띄운다. 브라우저 기본 title 은 뜨기까지 한참 걸리고, 줄바꿈도
+             길이 제한도 우리가 손댈 수 없다. 커서가 물음표로 바뀌고 밑줄까지 생기는데
+             눌러도 아무 일이 없으면, 사람은 안 되는 것으로 읽는다. -->
+        <span v-if="showHelp" class="field-help-layer" @click.stop>
+          {{ fieldSchema.description }}
+        </span>
       </label>
       <!-- Filled from a previous task: rendered as a reference, not editable text. A
            `${task.path}` reference is ordinary JSON text, so left in an input a user
@@ -59,36 +96,6 @@
         class="field-checkbox"
         @change="handleInput($event)"
       />
-      <!-- Pull a value out of a previous task. Dragging it onto the canvas lights up
-           the tasks that may be picked; clicking opens the same picker. -->
-      <button
-        v-if="!reference && canBind"
-        type="button"
-        class="btn-ref-add"
-        draggable="true"
-        :data-testid="`wf-field-ref-add-${referenceKey}`"
-        title="Take a value from an earlier task"
-        @click="$emit('reference', referenceKey, fieldSchema.type)"
-        @dragstart="$emit('ref-drag-start', referenceKey, fieldSchema.type)"
-        @dragend="$emit('ref-drag-end')"
-      >
-        <svg viewBox="0 0 16 16" class="ref-add-icon" aria-hidden="true">
-          <circle
-            cx="8"
-            cy="8"
-            r="3.2"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.6"
-          />
-          <path
-            d="M8 1v2.4M8 12.6V15M1 8h2.4M12.6 8H15"
-            stroke="currentColor"
-            stroke-width="1.6"
-            stroke-linecap="round"
-          />
-        </svg>
-      </button>
       <p
         v-if="isInvalid"
         class="field-invalid-note"
@@ -314,6 +321,21 @@ import {
 } from '../config/taskPropertyOrderConfig';
 import TaskReferenceValue from './TaskReferenceValue.vue';
 
+/**
+ * 지금 열려 있는 설명 하나. 컴포넌트 밖에 두는 이유는 위 toggleHelp 주석에 있다.
+ */
+const openHelpKey = ref<string>('');
+
+if (typeof window !== 'undefined') {
+  // 바깥을 누르면 닫는다. 레이어 자체를 누른 것은 위에서 @click.stop 으로 걸러진다.
+  window.addEventListener('click', () => {
+    openHelpKey.value = '';
+  });
+  window.addEventListener('keydown', event => {
+    if (event.key === 'Escape') openHelpKey.value = '';
+  });
+}
+
 export default defineComponent({
   name: 'RecursiveFormField',
   components: { TaskReferenceValue },
@@ -393,6 +415,21 @@ export default defineComponent({
       () =>
         `wf-field-${props.indexPath || props.currentPath || props.fieldName}`,
     );
+
+    /**
+     * 설명 레이어를 여닫는다. **한 번에 하나만** 열린다.
+     *
+     * 여러 개가 동시에 열려 있으면 어느 것이 무엇의 설명인지 알 수 없다. 다른 칸을 누르면
+     * 앞엣것이 닫히도록 열린 칸을 모듈 하나에 기억해 둔다 — 각 컴포넌트가 자기 것만 알면
+     * 서로를 닫을 수가 없다.
+     */
+    const showHelp = computed(() => openHelpKey.value === helpKey.value);
+    const helpKey = computed(
+      () => `${props.indexPath || props.currentPath || props.fieldName}`,
+    );
+    const toggleHelp = (): void => {
+      openHelpKey.value = showHelp.value ? '' : helpKey.value;
+    };
 
     /** Key this field is known by in the reference map — the same path the test ids use. */
     const referenceKey = computed(
@@ -837,6 +874,8 @@ export default defineComponent({
 
     return {
       fieldTestId,
+      showHelp,
+      toggleHelp,
       referenceKey,
       reference,
       isInvalid,
@@ -947,10 +986,30 @@ export default defineComponent({
 }
 
 .simple-field {
+  /* 참조 버튼 · 레이블 · 값. 버튼이 늘 첫 칸을 차지해야 값 칸의 왼쪽 선이 흔들리지 않는다 —
+     버튼이 없는 칸(참조가 이미 걸렸거나 가져올 곳이 없는 경우)에서도 폭을 비워 둔다. */
   display: grid;
-  grid-template-columns: minmax(100px, 20%) 1fr;
+  grid-template-columns: 22px minmax(100px, 20%) 1fr;
   gap: 0.5rem;
   align-items: center;
+}
+
+.simple-field > .btn-ref-add {
+  grid-column: 1;
+}
+
+/* 버튼이 없을 때 레이블이 첫 칸으로 당겨지지 않게 자리를 지킨다. */
+.simple-field > .field-label {
+  grid-column: 2;
+}
+
+/* 값 자리는 늘 셋째 칸이다 — 입력 상자든, 참조 표시든. */
+.simple-field > .field-input,
+.simple-field > .field-textarea,
+.simple-field > .field-checkbox,
+.simple-field > .field-select,
+.simple-field > .task-ref-row {
+  grid-column: 3;
 }
 
 .field-label {
@@ -965,12 +1024,56 @@ export default defineComponent({
 }
 
 .field-label.has-tooltip {
-  cursor: help;
+  cursor: pointer;
+  position: relative;
 }
 
 .field-label.has-tooltip:hover {
   color: #1f2937;
   text-decoration: underline dotted;
+}
+
+/* 눌러 볼 것이 있다는 표시. 커서만 바꾸면 무엇을 누르라는 것인지 알 수 없다. */
+.field-help-mark {
+  display: inline-block;
+  margin-left: 0.25rem;
+  width: 13px;
+  height: 13px;
+  line-height: 13px;
+  text-align: center;
+  border-radius: 50%;
+  background: #e5e9f0;
+  color: #5b6474;
+  font-size: 9px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.field-label.has-tooltip:hover .field-help-mark {
+  background: #4f46e5;
+  color: #fff;
+}
+
+/* 레이어라 줄바꿈도 길이도 우리가 정한다. */
+.field-help-layer {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 200px;
+  max-width: 320px;
+  padding: 8px 10px;
+  background: #ffffff;
+  border: 1px solid #dfe3ea;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
+  color: #374151;
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  text-decoration: none;
+  cursor: default;
 }
 
 .required-mark {

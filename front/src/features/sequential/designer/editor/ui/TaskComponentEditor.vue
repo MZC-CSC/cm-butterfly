@@ -188,7 +188,7 @@
             }
           "
           @apply="applyReference()"
-          @cancel="taskReference.close()"
+          @cancel="cancelReference()"
         />
 
         <!-- The whole body is a previous task's result. There are no fields to edit,
@@ -276,6 +276,7 @@ import {
   computed,
   watch,
   nextTick,
+  onBeforeUnmount,
   set as vueSet,
 } from 'vue';
 import { serializeDesignerSequence } from '@/entities/workflow/lib/designerSerialize';
@@ -673,6 +674,27 @@ export default defineComponent({
 
     const stopPickingOnCanvas = (): void => referencePickingStore.stop();
 
+    /**
+     * 값 고르기를 그만둔다 — 창도 닫고 캔버스 강조도 끈다.
+     *
+     * 창만 닫으면 캔버스가 계속 고르기 상태로 남아, 태스크를 하나 고르기 전에는
+     * 빠져나갈 길이 없어진다.
+     */
+    const cancelReference = (): void => {
+      taskReference.close();
+      stopPickingOnCanvas();
+    };
+
+    /** 고르는 중에 Esc 를 누르면 그만둔다 — 창이 열려 있든 캔버스만 밝든. */
+    const onEscape = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      if (!taskReference.isOpen.value && !referencePickingStore.isPicking.value)
+        return;
+      cancelReference();
+    };
+    onMounted(() => window.addEventListener('keydown', onEscape));
+    onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
+
     /** Write the chosen reference into that field. */
     const applyReference = (): void => {
       const chosen = taskReference.result();
@@ -739,11 +761,18 @@ export default defineComponent({
 
     /** The whole body comes from a previous task: pick which one, and how much. */
     const setBodySourceWhole = (): void => {
+      // Empty target field = the body itself, not one slot in it. Passing a field here would make
+      // the picker fill that slot and leave the body in field mode — a different screen from the
+      // one this option is supposed to show.
       taskReference.open('', undefined);
     };
 
     /** Back to filling the fields; the reference is dropped. */
     const setBodySourceFields = (): void => {
+      // Choosing the other option is also a way out of picking. Without this the canvas stays lit
+      // and the only way forward is to pick a task — the user asked to stop and nothing happened.
+      taskReference.close();
+      stopPickingOnCanvas();
       vueSet(step.value.properties as any, 'referenceRequestBody', '');
       wholeBodyRef.value = '';
       emit('saveContext', bodyParamsModel.value);
@@ -2071,6 +2100,7 @@ export default defineComponent({
       stopPickingOnCanvas,
       applyReference,
       clearReference,
+      cancelReference,
       wholeBodyReference,
       wholeBodyOutputRows,
       setBodySourceWhole,
@@ -2559,10 +2589,40 @@ export default defineComponent({
   color: #3d4655;
   cursor: pointer;
 }
+/* 넘어가는 값 표.
+ *
+ * 값 이름과 예시는 얼마든지 길어질 수 있다. 그대로 두면 표가 칸을 밀어내 패널 밖으로
+ * 나가고, 가로 스크롤이 패널 전체에 걸려 오른쪽 열이 잘린 채 보인다. 폭을 고정하고
+ * 넘치는 것은 칸 안에서 자르거나 접는다. */
+.ref-whole {
+  max-width: 100%;
+  overflow-x: auto;
+}
 .ref-whole-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 11.5px;
+}
+.ref-whole-table th:nth-child(1),
+.ref-whole-table td:nth-child(1) {
+  width: 52%;
+}
+.ref-whole-table th:nth-child(2),
+.ref-whole-table td:nth-child(2) {
+  width: 18%;
+}
+.ref-whole-table th:nth-child(3),
+.ref-whole-table td:nth-child(3) {
+  width: 30%;
+}
+.ref-whole-table td {
+  overflow-wrap: anywhere;
+}
+.ref-whole-table .ref-whole-example {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ref-whole-table th {
   text-align: left;

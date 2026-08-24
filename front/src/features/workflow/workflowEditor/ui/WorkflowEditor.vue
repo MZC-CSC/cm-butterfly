@@ -943,6 +943,11 @@ function injectTargetModelIntoSequence() {
       } else if (component === migrationComponent && literalBody) {
         // Put in the target model's literal value instead of a reference body (the right-hand table is filled with this value too).
         step.properties.model = { ...literalBody };
+        // The template this workflow came from fills this task from the lookup before it, so the
+        // step arrives carrying that reference. Injecting the literal value has to drop it too —
+        // otherwise the panel opens in whole-result mode and the values just injected are hidden
+        // behind it, and saving writes the reference back over them.
+        step.properties.referenceRequestBody = '';
       }
       if (step?.sequence) visit(step.sequence);
     }
