@@ -1,6 +1,6 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
-import { humanClick, humanFill } from '../support/humanize';
+import { humanClick, humanFill, bringIntoFullView } from '../support/humanize';
 import { openSubScreen } from '../support/navigate';
 
 /**
