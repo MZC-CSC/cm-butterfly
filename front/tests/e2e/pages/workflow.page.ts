@@ -623,9 +623,37 @@ export class WorkflowPage {
   }
 
   async saveWorkflow(): Promise<void> {
-    await humanClick(this.designerSaveButton);
+    /*
+      누르는 것이 보이게 한다.
+
+      ★ Save 는 모달 *아래쪽 푸터*에 있다. 편집기가 화면보다 길면 그 푸터가 화면 밖으로 밀리는데,
+        클릭 자체는 그래도 성립한다 — 그래서 영상에는 **보이지도 않는 버튼이 눌리고 다음 화면으로
+        넘어가는** 장면만 남았다. 사람이라면 할 수 없는 일이다 (2026-08-24 사용자 지적).
+
+        그래서 화면에 들이고, 정말 들어왔는지 확인한 뒤 누른다. 들일 수 없으면 조용히 누르지 않고
+        여기서 멈춘다 — 그 경우는 화면 쪽을 봐야 하는 일이다.
+    */
+    const save = this.designerSaveButton;
+    await save.scrollIntoViewIfNeeded().catch(() => {});
+    await expect(
+      save,
+      'Save 가 화면에 들어오지 않는다 — 사람이 누를 수 없는 자리에 있다',
+    ).toBeInViewport({ timeout: 10_000 });
+
+    await humanClick(save);
+
     // Confirm via the save-success toast (Success) or the modal closing
     await expect(this.designer).toBeHidden({ timeout: 15_000 });
+
+    /*
+      저장됐다는 알림을 잠깐 둔다.
+
+      ★ 전에는 알림이 뜬 채로 이미 다음 화면으로 넘어가 있어, 저장이 됐는지가 영상에 남지 않았다.
+    */
+    const toast = this.page.locator('text=/Success/i').first();
+    if (await toast.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await this.page.waitForTimeout(1_500);
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────

@@ -22,6 +22,7 @@ import { getSessionToken } from '../support/apiWait';
 import { scenarioState } from '../support/world';
 import { recall, remember } from '../support/handoff';
 import { humanClick, humanDrag, pointAt } from '../support/humanize';
+import { findInBrowser, closeFind } from '../support/browserFind';
 import { openScreen } from '../support/navigate';
 
 const { Given, When, Then } = createBdd(test);
@@ -537,26 +538,25 @@ async function openPortByDuplicating(page: Page): Promise<void> {
       '이 포트는 소스 모델에만 남고 타깃 모델·인스턴스에는 나타나지 않는다',
   ).toBe('ipv4');
 
-  // Now show that it is there.
-  //
-  // ★ Searching brings the new value into view - the grid was showing rows that say 22, and the
-  //   copy stopped saying that the moment it became 5555. On screen the rule would otherwise appear
-  //   to have been typed and then lost.
-  //
-  //   The row is taken by its path rather than by its value. A search narrows what is *drawn*, and
-  //   a row that is not drawn cannot be found by any means; asking for the exact path says which
-  //   row is meant and fails plainly when it is not there.
-  await editor.search('5555');
+  /*
+    검색을 다시 하지 않는다.
+
+    ★ 전에는 5555 로 다시 검색해 그 줄을 화면에 들였다. 그런데 복제 직후 화면에는 **원본 22 와
+      사본이 나란히 보이고**, 사본의 포트를 5555 로 고치는 것까지 한 화면에서 일어난다 — 22 와
+      5555 가 함께 보이므로 무엇이 달라졌는지 그대로 읽힌다. 거기서 다시 검색을 걸면 표가 좁혀지며
+      화면이 크게 튀고, 방금 본 것을 다시 찾는 군더더기가 된다 (2026-08-24 사용자 지적).
+
+      줄은 값이 아니라 경로로 잡는다 — 값으로 찾으면 22 가 여럿일 때 어느 것인지 알 수 없다.
+  */
   const added = editor.portRowOf(rulePath);
   await expect(
     added,
     '5555 규칙이 추가되지 않았다 — 복제한 행의 포트가 바뀌지 않았을 수 있다',
   ).toBeVisible({ timeout: 10_000 });
+  await expect(added).toBeInViewport({ timeout: 5_000 });
+  await page.waitForTimeout(1_000);
 
-  // Point at it. Someone who has never used the console will not spot one changed number in a table
-  // of ports on their own.
-  await pointAt(added);
-
+  // 22 로 걸어 둔 검색만 정리한다.
   await editor.closeSearch();
 }
 
@@ -1229,8 +1229,18 @@ Then(
       보안 포트는 값에 붙는데 스펙만 겉돌아, 두 가지를 고쳤는데 하나만 확인한 것처럼 보였다
       (2026-08-19 사용자 지적).
     */
-    const pointed = await spotlightText(page, row, spec);
-    if (!pointed) await pointAt(row);
+    /*
+      값을 브라우저 찾기로 짚는다.
+
+      ★ 강조 고리로 짚던 자리다. 고리는 요소의 사각형을 감싸는데 넓은 칸에서는 값이 없는 오른쪽까지
+        둘러싸고, 화면이 다시 그려지면 혼자 남아 끊긴다. 찾기는 *글자 자체*를 물들이고 몇 군데
+        있는지도 보여 준다 (2026-08-24 사용자 결정).
+
+        열 수 없는 실행(녹화가 아닌 경우)에서는 커서를 얹는 것으로 대신한다.
+    */
+    const found = await findInBrowser(page, spec);
+    if (!found) await pointAt(row);
+    await closeFind(page);
     console.log(
       `[스펙·화면] ${(await row.innerText()).replace(/\s+/g, ' ').trim()}`,
     );
@@ -1274,10 +1284,13 @@ Then(
       `화면의 보안그룹에 ${port} 이 없다 — 화면에 보이는 포트: ${shown.join(', ')}`,
     ).toBeVisible({ timeout: 15_000 });
 
-    await pointAt(hit);
+    /* 값을 브라우저 찾기로 짚는다 — 위 스펙 확인과 같은 이유. */
+    const foundPort = await findInBrowser(page, port);
+    if (!foundPort) await pointAt(hit);
+    await closeFind(page);
 
     /*
-      강조가 끝난 뒤 그 행을 다시 화면에 올려 두고 잠깐 머무른다.
+      짚은 뒤 그 행을 다시 화면에 올려 두고 잠깐 머무른다.
 
       ★ 강조만으로는 부족했다. 고리는 잠깐 돌고 사라지는데, 그 뒤 표가 다시 그려지며 스크롤이
         처음으로 돌아가 **찾던 포트가 화면 밖으로 밀린다.** 그러면 이 구간을 담은 영상의 마지막
@@ -2040,11 +2053,16 @@ Then('알림이 몇 건 남았는지 확인한다', async ({ page }) => {
   ).toBeGreaterThan(0);
 });
 
-Then('알림을 하나씩 열어 확인하고 지운다', async ({ page }) => {
-  const cleared = await new NotificationPage(page).readAndClearEachOne();
-  console.log(`[알림] ${cleared} 건을 하나씩 확인하고 지웠다`);
-  expect(cleared, '지울 알림이 하나도 없다').toBeGreaterThan(0);
-});
+Then(
+  '앞 두 건을 하나씩 열어 확인하고 나머지는 한 번에 비운다',
+  async ({ page }) => {
+    const cleared = await new NotificationPage(page).readAndClearEachOne();
+    console.log(
+      `[알림] ${cleared} 건을 하나씩 확인하고, 나머지는 한 번에 비웠다`,
+    );
+    expect(cleared, '지울 알림이 하나도 없다').toBeGreaterThan(0);
+  },
+);
 
 Then('알림함이 비었다', async ({ page }) => {
   await new NotificationPage(page).expectEmpty();

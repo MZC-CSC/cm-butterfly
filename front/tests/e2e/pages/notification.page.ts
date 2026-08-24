@@ -258,6 +258,35 @@ export class NotificationPage {
       await this.page.waitForTimeout(500);
     }
 
+    /*
+      남은 것은 "Mark all read" 로 한 번에 비운다.
+
+      ★ 여기까지가 빠져 있었다. 위 주석은 "나머지는 한 번의 누름으로 간다"고 적어 두었는데 정작
+        그 누름이 없어, 남은 알림이 그대로 있는 채로 끝났다 — 영상에서는 계속 하나씩 지우는
+        모습으로만 보인다 (2026-08-24 사용자 지적).
+
+        한 건씩 여는 것은 *메시지를 읽을 수 있다*를 보이려는 것이고, 두 번이면 충분하다. 그 뒤에
+        사람이 하는 일은 나머지를 한 번에 비우는 것이다.
+    */
+    if (
+      await this.items
+        .first()
+        .isVisible({ timeout: 3_000 })
+        .catch(() => false)
+    ) {
+      const markAll = this.page.getByTestId('notification-mark-all');
+      await markAll.scrollIntoViewIfNeeded().catch(() => {});
+      await expect(
+        markAll,
+        '남은 알림이 있는데 "Mark all read" 를 찾을 수 없다',
+      ).toBeVisible({ timeout: 10_000 });
+      await humanClick(markAll);
+      await expect(this.page.getByTestId('notification-empty')).toBeVisible({
+        timeout: 15_000,
+      });
+      await this.page.waitForTimeout(1_200);
+    }
+
     await this.page.keyboard.press('Escape').catch(() => {});
     return cleared;
   }
