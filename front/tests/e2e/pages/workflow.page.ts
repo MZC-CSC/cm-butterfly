@@ -236,21 +236,6 @@ export class WorkflowPage {
     ).toBeVisible();
   }
 
-  /** Open the selected task's log (an attempt number can be specified) */
-  async openTaskLog(tryNumber?: number): Promise<Locator> {
-    const button = tryNumber
-      ? this.page.locator(
-          `[data-testid="workflow-run-log-try"][data-try="${tryNumber}"]`,
-        )
-      : this.page.getByTestId('workflow-run-log-try').first();
-    await humanClick(button);
-    // The full log is collapsed. It must be expanded to see the content.
-    await humanClick(this.page.getByText('Full log'));
-    const log = this.page.getByTestId('workflow-run-log');
-    await expect(log).toBeVisible({ timeout: 20_000 });
-    return log;
-  }
-
   /** Progress indicator — whether it is running, and how many of how many have finished */
   get runProgress() {
     return this.page.getByTestId('workflow-run-progress');
@@ -365,60 +350,6 @@ export class WorkflowPage {
   }
 
   /**
-   * Copy the workflow on screen and open the copy for editing.
-   *
-   * The console has no "save as", and a workflow that has already run cannot be edited in place -
-   * so this is the only way to keep the original and vary it. The button appears once there is
-   * run history. The backend names the copy `{original}_copy`; the caller renames it.
-   */
-  async cloneAndEdit(): Promise<void> {
-    const button = this.page.getByTestId('workflow-clone-edit-btn');
-    await expect(
-      button,
-      'Clone & Edit 버튼이 없다 — 실행 이력이 있는 워크플로우에서만 나타난다',
-    ).toBeVisible({ timeout: 30_000 });
-    await humanClick(button);
-
-    const confirm = this.page.getByTestId('workflow-clone-confirm');
-    await expect(confirm).toBeVisible({ timeout: 15_000 });
-    await humanClick(this.page.getByTestId('workflow-clone-confirm-ok'));
-
-    await this.expectDesignerOpen();
-  }
-
-  /**
-   * Open everything the panel folded away.
-   *
-   * The editor collapses arrays and objects deeper than two levels so the form stays readable, so a
-   * test that reads the rendered fields cannot see the values that decide the outcome. A person
-   * clicks to open them; so do we.
-   *
-   * The toggles carry no test identifier, so they are found by the component's own class names.
-   */
-  async expandAllParams(maxRounds = 6): Promise<number> {
-    let opened = 0;
-    for (let round = 0; round < maxRounds; round++) {
-      const closed = this.page.locator(
-        '[data-testid="wf-task-editor"] button.btn-collapse, [data-testid="wf-task-editor"] button.btn-item-collapse',
-      );
-      const count = await closed.count().catch(() => 0);
-      let clickedThisRound = 0;
-      for (let i = 0; i < count; i++) {
-        const button = closed.nth(i);
-        const label = (await button.innerText().catch(() => '')).trim();
-        if (!label.includes('\u25b6')) continue;
-        await button.click({ timeout: 5_000 }).catch(() => {});
-        clickedThisRound++;
-        opened++;
-        await this.page.waitForTimeout(12);
-      }
-      if (clickedThisRound === 0) break;
-    }
-    await this.page.waitForTimeout(400);
-    return opened;
-  }
-
-  /**
    * 고칠 칸이 있는 자리까지 **경로를 따라** 연다.
    *
    * ★ 전부 펼치지 않는다. 접힌 것이 이백 개 가까워, 화면에는 *줄을 하나씩 눌러 내려가는* 장면만
@@ -474,26 +405,6 @@ export class WorkflowPage {
     await expect(field).toBeVisible({ timeout: 15_000 });
     await humanFill(field, value);
     await this.page.waitForTimeout(400);
-  }
-
-  /** A task node in the run graph, by its name. */
-  taskNode(name: string): Locator {
-    return this.page
-      .getByTestId('workflow-run-node')
-      .filter({ hasText: name })
-      .first();
-  }
-
-  /** Select a task in the run graph so its detail and parameters open. */
-  async pickTask(name: string): Promise<void> {
-    const node = this.taskNode(name);
-    await node.scrollIntoViewIfNeeded().catch(() => {});
-    await humanClick(node);
-    await expect(this.page.getByTestId('workflow-run-task-detail')).toBeVisible(
-      {
-        timeout: 15_000,
-      },
-    );
   }
 
   async cancelClone(): Promise<void> {
@@ -718,14 +629,6 @@ export class WorkflowPage {
   /** query parameter input (e.g. nameSeed) */
   private queryParam(key: string): Locator {
     return this.page.getByTestId(`wf-query-param-${key}`);
-  }
-
-  /**
-   * body parameter input. Targeted by schema path — e.g. `targetInfra.name`, `targetCloud.csp`.
-   * (The testid is assigned in the form `wf-field-body_params.{path}`.)
-   */
-  private bodyField(path: string): Locator {
-    return this.page.getByTestId(`wf-field-body_params.${path}`);
   }
 
   /** Read the current value in the edit panel — used to confirm "what the default is" in the default-value scenario */

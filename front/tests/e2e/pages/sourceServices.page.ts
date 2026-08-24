@@ -803,12 +803,6 @@ export class SourceServicesPage {
     await expect(this.connectionDetailInformation).toContainText(ip);
   }
 
-  /** 커넥션 목록에 그 이름이 보이는지 */
-  async expectConnectionListed(connName: string): Promise<void> {
-    await this.openConnectionsTab();
-    await expect(this.connectionRow(connName)).toBeVisible({ timeout: 20_000 });
-  }
-
   /** 커넥션 목록에서 사라졌는지 */
   async expectConnectionAbsent(connName: string): Promise<void> {
     await this.openConnectionsTab();
