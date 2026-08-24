@@ -21,7 +21,7 @@ import { spotlight, spotlightText } from '../support/spotlight';
 import { getSessionToken } from '../support/apiWait';
 import { scenarioState } from '../support/world';
 import { recall, remember } from '../support/handoff';
-import { humanClick, humanDrag } from '../support/humanize';
+import { humanClick, humanDrag, pointAt } from '../support/humanize';
 import { openScreen } from '../support/navigate';
 
 const { Given, When, Then } = createBdd(test);
@@ -555,7 +555,7 @@ async function openPortByDuplicating(page: Page): Promise<void> {
 
   // Point at it. Someone who has never used the console will not spot one changed number in a table
   // of ports on their own.
-  await spotlight(page, added);
+  await pointAt(added);
 
   await editor.closeSearch();
 }
@@ -677,7 +677,7 @@ When('타깃 모델의 스펙을 4GB 급으로 변경하면', async ({ page }) =
   await expect(specRow, `스펙이 ${next} 로 바뀌지 않았다`).toContainText(size, {
     timeout: 10_000,
   });
-  await spotlight(page, specRow);
+  await pointAt(specRow);
 
   await editor.closeSearch();
 });
@@ -1230,7 +1230,7 @@ Then(
       (2026-08-19 사용자 지적).
     */
     const pointed = await spotlightText(page, row, spec);
-    if (!pointed) await spotlight(page, row);
+    if (!pointed) await pointAt(row);
     console.log(
       `[스펙·화면] ${(await row.innerText()).replace(/\s+/g, ' ').trim()}`,
     );
@@ -1274,7 +1274,7 @@ Then(
       `화면의 보안그룹에 ${port} 이 없다 — 화면에 보이는 포트: ${shown.join(', ')}`,
     ).toBeVisible({ timeout: 15_000 });
 
-    await spotlight(page, hit);
+    await pointAt(hit);
 
     /*
       강조가 끝난 뒤 그 행을 다시 화면에 올려 두고 잠깐 머무른다.

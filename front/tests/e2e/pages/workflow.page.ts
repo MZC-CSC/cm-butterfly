@@ -1,7 +1,7 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 import { workflowData } from '../fixtures/test-data';
-import { humanClick, humanFill } from '../support/humanize';
+import { humanClick, humanFill, pointAt } from '../support/humanize';
 import { spotlight, spotlightText } from '../support/spotlight';
 import { describe as writeDescription } from '../support/describe';
 import { openScreen } from '../support/navigate';
@@ -863,7 +863,7 @@ export class WorkflowPage {
         await this.page.waitForTimeout(500);
 
         const next = [...parts.slice(0, -1), size].join('+');
-        await spotlight(this.page, field);
+        await pointAt(field);
         return next;
       }
     }
@@ -959,7 +959,7 @@ export class WorkflowPage {
       await this.page.waitForTimeout(200);
     }
 
-    await spotlight(this.page, field('Ports'));
+    await pointAt(field('Ports'));
     return nextIndex;
   }
 
@@ -988,7 +988,7 @@ export class WorkflowPage {
       await field.pressSequentially(to, { delay: 60 });
       await this.page.waitForTimeout(500);
 
-      await spotlight(this.page, field);
+      await pointAt(field);
       return value;
     }
 
@@ -1028,7 +1028,7 @@ export class WorkflowPage {
       await field.click();
       await field.pressSequentially(zone, { delay: 55 });
       await this.page.waitForTimeout(400);
-      await spotlight(this.page, field);
+      await pointAt(field);
     }
     return count;
   }

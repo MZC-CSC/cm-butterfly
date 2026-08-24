@@ -288,6 +288,27 @@ async function travelToPoint(
  *     같은 프레임이라, 보는 사람은 *무엇을 눌러서* 그 창이 떴는지 알 수 없다. 그런 자리에만 한
  *     박자를 더 준다. (2026-07-31)
  */
+/**
+ * 값이 있는 자리에 커서를 두고 잠깐 머무른다 — 원을 그리지 않는다.
+ *
+ * ★ 강조 고리(spotlight)를 쓰던 자리를 이것으로 바꾼다. 고리는 요소의 사각형을 감싸는데,
+ *   **입력칸에는 글자 노드가 없어 칸 전체가 잡힌다.** 값은 왼쪽에 있고 칸은 넓으니, 정작 값이
+ *   없는 오른쪽 빈 자리를 감싼 채 돌았다. 게다가 도는 동안 화면이 다시 그려지면 고리만 남아
+ *   뚝뚝 끊긴다(원본 촬영본에서도 그랬다).
+ *
+ *   사람이 하는 일은 그 값에 손을 얹고 잠깐 두는 것이다. 커서는 `travelTo` 가 이미 *글자가
+ *   시작되는 곳*을 겨누므로 넓은 칸에서도 값 위에 놓인다. (2026-08-24 사용자 결정)
+ */
+export async function pointAt(locator: Locator, holdMs = 1_000): Promise<void> {
+  if (!isDemoPace()) {
+    // 촬영이 아니면 커서를 그리지 않는다 — 그 자리가 화면에 있는지만 확인한다.
+    await locator.scrollIntoViewIfNeeded().catch(() => {});
+    return;
+  }
+  await travelTo(locator);
+  await pause(holdMs);
+}
+
 export async function humanClick(
   locator: Locator,
   opts?: Parameters<Locator['click']>[0] & { pauseBeforeMs?: number },
