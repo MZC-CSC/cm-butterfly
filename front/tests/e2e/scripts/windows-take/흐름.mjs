@@ -206,12 +206,12 @@ export async function pickFileByMouse(mouse, fileName) {
 
   // 파일을 고르고, 한 박자 쉰 뒤 "열기" 를 누른다. 무엇을 골라서 창이 닫혔는지 보이도록.
   await mouse.moveToScreen(found.item.x, found.item.y, 30);
-  await wait(500);
+  await wait(350);
   await mouse.press();
-  await wait(900);
+  await wait(600);
 
   await mouse.moveToScreen(found.open.x, found.open.y, 22);
-  await wait(400);
+  await wait(300);
   await mouse.press();
 }
 
@@ -337,16 +337,22 @@ export async function createGroupFromFile(
   if (description) {
     await mouse.click(descriptionField(page));
     await descriptionField(page).fill(description);
-    await wait(1_200);
+    await wait(800);
   }
 
   await mouse.click(page.getByTestId('source-service-with-connection'));
-  await wait(1_200);
+  await wait(800);
 
   await mouse.click(page.getByTestId('source-import-file'));
 
-  // 창이 뜨는 것을 보여주고 나서 답한다. 이 몇 초가 이 촬영의 이유다.
-  await wait(2_500);
+  /*
+    창이 뜨면 곧바로 답하러 간다.
+
+    ★ 여기서 오래 기다리지 않는다. 답하는 쪽이 창 안에서 누를 자리를 찾는 데 이미 한 박자가
+      걸리므로(운영체제에 물어본다), 그 위에 기다림을 더하면 아무도 아무 것도 하지 않는 화면이
+      3초 넘게 이어진다 — 다른 편들의 가장 긴 멈춤이 1.3초쯤이라 그 편만 늘어져 보였다.
+  */
+  await wait(500);
   await answerDialog();
 
   await page.getByTestId('source-import-count').waitFor({ timeout: 60_000 });
@@ -412,7 +418,8 @@ export async function showConnections(
   mouse,
   name,
   expected,
-  holdMs = 6_000,
+  // 마지막 화면 - 읽을 만큼만 머무른다. 여섯 초는 다른 편들에 비해 길었다.
+  holdMs = 2_000,
 ) {
   await revealGroup(page, name);
   await mouse.click(groupRow(page, name));
