@@ -933,10 +933,17 @@ export class WorkflowPage {
    * @returns the index the new rule was given
    */
   async addPortRuleInWorkflow(port: string): Promise<number> {
-    // 규칙 배열이 있는 자리까지 경로를 따라 연다 — 전부 펼치면 화면이 클릭만 반복한다.
-    await this.openPathTo(
-      'body_params.targetSecurityGroupList[0].firewallRules',
-    );
+    /*
+      들어와서 한 번, 전부 펼친다.
+
+      ★ 이 줄이 2026-08-19 에 지워졌었다. "편집하는 자리까지만 펼친다"는 취지였는데 지워야 했던
+        것은 *복제한 뒤 다시 펼치는* 쪽이었다 — 이미 펼쳐진 것을 복제하면 사본도 펼쳐진 채로
+        생기므로 그 두 번째 클릭이 군더더기였던 것이고, 처음 한 번은 필요하다.
+
+        지워진 뒤로 항목들이 접힌 채 남았고, 접히면 그 안의 칸이 아예 그려지지 않아 새 규칙이
+        받을 번호를 0 으로 잘못 세어 구간5 가 실패했다(2026-08-24).
+    */
+    await this.expandAllParams();
 
     /*
       The array cb-tumblebug actually builds the security group from.
@@ -952,6 +959,20 @@ export class WorkflowPage {
         created resource says `Port`, so a check that reads the built group has to ask for both.
     */
     const rules = 'body_params.targetSecurityGroupList[0].firewallRules';
+
+    /*
+      새 규칙이 받을 번호 — 이미 그려진 칸의 번호에서 가장 큰 것 다음이다.
+
+      ★ 새 항목은 배열 *끝* 에 붙는다(RecursiveFormField 의 `push`). 그래서 있는 번호 중 가장 큰
+        것 다음이 새 번호다.
+
+      ★ 규칙이 하나도 없어 0 이 나오는 것은 정상이다. 복제해 온 워크플로우의 이 배열은 비어 있고,
+        추천이 정한 포트(22·80 등)는 실행 시점에 합쳐진다 — 만들어진 보안그룹에 22 와 5555 가
+        함께 있는 것으로 확인했다(2026-08-24). 그러니 여기서 0 을 "펼치기 실패"로 단정하면 안 된다.
+
+      ★ 다만 *새로 붙은 항목은 접힌 채로 온다.* 그래서 바로 아래에서 그 항목까지 경로를 열어야
+        한다 — 그것이 빠져 실패했던 것이고, 들어올 때 한 번 펼치는 것만으로는 해결되지 않는다.
+    */
     const before = await this.page
       .locator(`[data-testid^="wf-field-${rules}["]`)
       .evaluateAll(els =>

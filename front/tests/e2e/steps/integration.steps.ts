@@ -1418,25 +1418,50 @@ Given(
 );
 
 /**
- * 두 건을 함께 골라 지운다 — 끝나기를 기다리지 않는다.
+ * 목록에서 몇 건을 골라 지운다.
  *
- * ★ 기다리지 않는 것이 요점이다. 다음 단계가 *지워지는 중인 것을 포함해* 남은 것을 모두 고르므로,
- *   여기서 끝까지 기다리면 그 화면이 만들어지지 않는다.
+ * ★ 트랙 이름으로 찾지 않는다. 앞 구간이 하나 실패하면 그 인프라가 없고, 이름으로 찾으면 지우는
+ *   일까지 함께 실패한다 — 지우는 것은 무엇이 남아 있든 되어야 한다. 지난 회차가 남긴 것이 섞여
+ *   있어도 그대로 지운다 (2026-08-24 사용자 결정).
+ *
+ * @param wanted 고를 건수
+ * @param waitGone 지워질 때까지 기다릴지 — 두 건짜리는 기다리지 않는다. 다음 단계가 *지워지는
+ *                 중인 것을 포함해* 남은 것을 모두 고르므로, 여기서 기다리면 그 화면이 없어진다.
  */
-When(
-  '{string} 번 트랙이 만든 인프라를 함께 삭제한다',
-  async ({ page }, tracks: string) => {
-    const names = tracks
-      .split(',')
-      .map(t => infraFor(t.trim().replace(/"/g, '')));
-    const wl = new WorkloadPage(page);
-    await wl.gotoMci();
-    await wl.selectMcis(names);
-    await wl.openDeleteModal();
-    await wl.confirmDelete(wl.deleteKeywordFor(names), 'normal', 2_500);
-    console.log(`[삭제] ${names.length} 건을 함께 요청 — ${names.join(', ')}`);
-  },
-);
+async function deleteSomeInfra(
+  page: Page,
+  wanted: number,
+  waitGone: boolean,
+): Promise<void> {
+  const wl = new WorkloadPage(page);
+  await wl.gotoMci();
+  await page.waitForTimeout(1_500);
+
+  const names = await wl.selectFirstMcis(wanted);
+  expect(
+    names.length,
+    `지울 인프라가 ${wanted} 건 필요한데 목록에 ${names.length} 건뿐이다`,
+  ).toBeGreaterThan(0);
+  console.log(`[삭제] ${names.length} 건 요청 — ${names.join(', ')}`);
+
+  await wl.openDeleteModal();
+  await wl.confirmDelete(
+    wl.deleteKeywordFor(names),
+    'normal',
+    waitGone ? 1_500 : 2_500,
+  );
+  if (waitGone) {
+    for (const name of names) await wl.waitUntilMciGone(name);
+  }
+}
+
+When('인프라 한 건을 골라 삭제한다', async ({ page }) => {
+  await deleteSomeInfra(page, 1, true);
+});
+
+When('인프라 두 건을 함께 골라 삭제한다', async ({ page }) => {
+  await deleteSomeInfra(page, 2, false);
+});
 
 /**
  * 남은 것을 전부 골라 지운다 — 지워지는 중인 것까지.

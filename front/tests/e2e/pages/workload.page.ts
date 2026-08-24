@@ -471,6 +471,40 @@ export class WorkloadPage {
   }
 
   /**
+   * 목록 위에서부터 몇 건을 고른다.
+   *
+   * ★ 이름으로 찾지 않는다 — 앞 구간이 실패해 그 인프라가 없으면 이름으로는 아무 것도 못 고르고
+   *   지우는 일까지 함께 실패한다. 지난 회차가 남긴 것이 섞여 있어도 그대로 지운다.
+   *
+   * @returns 고른 것들의 이름
+   */
+  async selectFirstMcis(wanted: number): Promise<string[]> {
+    const rows = this.mciTable.locator('tbody tr');
+    const count = await rows.count();
+    const picked: string[] = [];
+    for (let i = 0; i < count && picked.length < wanted; i++) {
+      const row = rows.nth(i);
+      const box = row.locator('td.select-checkbox').first();
+      if (!(await box.isVisible().catch(() => false))) continue;
+      const name = (
+        await row
+          .locator('td')
+          .nth(1)
+          .innerText()
+          .catch(() => '')
+      )
+        .trim()
+        .split(/\s+/)[0];
+      if (!name) continue;
+      await humanClick(
+        box.locator('.p-checkbox, input[type="checkbox"]').first(),
+      ).catch(() => {});
+      picked.push(name);
+    }
+    return picked;
+  }
+
+  /**
    * 목록에 남은 것을 전부 고른다 — 지워지는 중인 것까지.
    *
    * ★ 지우는 화면이 어떻게 달라지는지를 보이려면 이것이 필요하다. 한 건만 지울 때, 두 건을 고를 때,
