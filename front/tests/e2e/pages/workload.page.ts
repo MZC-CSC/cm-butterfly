@@ -377,6 +377,22 @@ export class WorkloadPage {
   ): Promise<void> {
     await this.sendDelete(infraName, method);
 
+    /*
+      고른 것 가운데 이번 요청에 들어가지 않는 것이 있으면, 화면이 먼저 그것을 알린다.
+
+      ★ *이미 지워지는 중인* 워크로드는 이번 삭제에 포함되지 않는다. 그래서 진행 중인 것까지
+        모두 고르면 안내 창이 뜨는데, 그것을 넘기지 않아 요청이 나가지 않았고 진행 창을 30초
+        기다리다 죽었다 (2026-08-24 구간9).
+
+        이 안내는 그 단계가 보여주려는 화면이기도 하다 — 잠깐 두었다가 넘긴다.
+    */
+    const notice = this.page.getByTestId('mci-delete-notice');
+    if (await notice.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await this.page.waitForTimeout(1_500);
+      await this.continueFromNotice();
+      await expect(notice).toBeHidden({ timeout: 10_000 });
+    }
+
     // Close the progress dialog once it appears.
     //
     // Deleting cloud resources takes minutes and the dialog stays up for the whole of it, over the
