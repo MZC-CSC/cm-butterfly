@@ -358,14 +358,24 @@ export class JsonEditorPage {
    *   머문다. 그러면 무엇을 누르는지가 보이고, 눌린 뒤 사본이 생기는 것이 이어진다.
    */
   private async pointAtDuplicateButton(locator: Locator): Promise<Locator> {
-    await locator.hover().catch(() => {});
-    await this.page.waitForTimeout(400);
-
     const icon = locator.getByTestId('json-grid-row-duplicate').first();
-    if (await icon.count()) {
-      await pointAt(icon, 900);
-      return icon;
-    }
+    if (!(await icon.count())) return icon;
+
+    /*
+      누르는 것이 화면에 보여야 한다.
+
+      ★ 단추는 줄 오른쪽 끝(ROW 칸)에 있다. 그 자리가 화면 밖이면 눌리기는 해도 영상에는 사본이
+        저절로 나타난 것으로 남는다 — 실제로 그랬다(2026-08-24 촬영본에서 ROW 칸이 내내 비어
+        있었다). 화면에 들이고, 정말 들어왔는지 확인한 뒤 커서를 얹는다.
+    */
+    await icon.scrollIntoViewIfNeeded().catch(() => {});
+    await this.page.waitForTimeout(300);
+    await expect(
+      icon,
+      '복제 단추가 화면에 들어오지 않는다 — 이대로 누르면 무엇을 눌렀는지 영상에 남지 않는다',
+    ).toBeInViewport({ timeout: 5_000 });
+
+    await pointAt(icon, 900);
     return icon;
   }
 

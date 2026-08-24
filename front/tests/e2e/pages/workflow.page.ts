@@ -989,6 +989,20 @@ export class WorkflowPage {
     const nextIndex = before.length ? Math.max(...before) + 1 : 0;
 
     await humanClick(this.page.getByTestId(`wf-array-add-${rules}`));
+
+    /*
+      새 항목이 *그려질 때까지 기다렸다가* 연다.
+
+      ★ `openPathTo` 는 접기 손잡이가 아직 없으면 조용히 건너뛴다. 방금 더한 항목은 화면에 그려지기
+        전이라 그 자리를 그냥 지나쳤고, 그래서 "N 번 항목의 칸이 나타나지 않았다" 로 죽었다
+        (2026-08-24 구간5). 손잡이가 생긴 것을 보고 나서 연다.
+    */
+    const newToggle = this.page.getByTestId(`wf-toggle-${rules}[${nextIndex}]`);
+    await expect(
+      newToggle.first(),
+      `방화벽 규칙을 더했는데 ${nextIndex} 번 항목이 화면에 나타나지 않는다`,
+    ).toBeVisible({ timeout: 15_000 });
+
     // 새로 생긴 항목만 연다 — 전부 펼치면 화면이 다시 클릭만 반복한다.
     await this.openPathTo(`${rules}[${nextIndex}]`);
 
