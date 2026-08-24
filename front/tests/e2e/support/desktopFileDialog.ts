@@ -14,13 +14,15 @@ import path from 'path';
 import os from 'os';
 
 /**
- * Is the desktop itself being recorded?
+ * Should the real dialog be opened?
  *
- * Set by the x11 recording script. Everything else - CI, a local run, the browser's own recorder -
- * leaves it unset and takes the route that needs no desktop.
+ * Off unless asked for. The finished take of this segment is made on Windows, where the dialog is
+ * the platform's own and opens where it is told; here the route exists for trying things out.
+ *
+ *   E2E_REAL_FILE_DIALOG=1 scripts/record-x11.sh seg2a
  */
 export function screenCapturesTheDesktop(): boolean {
-  return process.env.E2E_DESKTOP_CAPTURE === '1' && !!process.env.DISPLAY;
+  return process.env.E2E_REAL_FILE_DIALOG === '1' && !!process.env.DISPLAY;
 }
 
 /**
@@ -65,12 +67,17 @@ function press(...args: string[]): void {
 /**
  * Answer the open file dialog the way a person does.
  *
- * ★ The dialog opens on the account's home directory, and there is no way in from here to move it.
- *   Three levers were tried and each ruled out: typing a path changes the location entry but not
- *   the listing behind it; setting HOME reaches the browser process but not the dialog, because
- *   GTK asks the account rather than reading the variable; and seeding the browser profile's
- *   last-used folder is ignored. So whatever the home directory holds is on screen for as long as
- *   the dialog is up - record this on a machine whose home is empty.
+ * ★ The dialog opens on the account's home directory, so whatever that holds is on screen for as
+ *   long as the dialog is up. Two levers do not move it: typing a path changes the location entry
+ *   but not the listing behind it, and setting HOME reaches the browser process but not the
+ *   dialog, because GTK asks the account rather than reading the variable.
+ *
+ *   A third does work, but not from here. The dialog opens on the folder the browser used last,
+ *   which lives in the profile - and the profile has to exist before the browser starts, which
+ *   means `launchPersistentContext` rather than the runner's own throwaway one. Writing into the
+ *   profile the runner made is too late; that was tried and ignored, and reading it as "the
+ *   setting does not work" would be the wrong lesson. The Windows take does exactly this and the
+ *   dialog opens where it is told.
  *
  * ★ Escape is never sent. It looks like it would only dismiss the autocomplete list, but it closes
  *   the whole dialog. The list goes away on its own once Return opens the file.
