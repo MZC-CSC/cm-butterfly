@@ -1,7 +1,12 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 import { workflowData } from '../fixtures/test-data';
-import { humanClick, humanFill, pointAt } from '../support/humanize';
+import {
+  humanClick,
+  humanFill,
+  pointAt,
+  bringIntoFullView,
+} from '../support/humanize';
 import { spotlight, spotlightText } from '../support/spotlight';
 import { describe as writeDescription } from '../support/describe';
 import { openScreen } from '../support/navigate';
@@ -314,9 +319,10 @@ export class WorkflowPage {
         `[data-testid="workflow-rerun-scope"][data-scope="${scope}"]`,
       ),
     );
-    await expect(this.page.getByTestId('workflow-rerun-confirm')).toBeVisible({
-      timeout: 20_000,
-    });
+    const confirm = this.page.getByTestId('workflow-rerun-confirm');
+    await expect(confirm).toBeVisible({ timeout: 20_000 });
+    // 확인 창이 화면에 온전히 들어오게 — 아래쪽이 잘리면 무엇을 다시 돌리는지 읽을 수 없다.
+    await bringIntoFullView(confirm);
     return this.page.getByTestId('workflow-rerun-target');
   }
 
@@ -326,9 +332,9 @@ export class WorkflowPage {
    */
   async previewRerunFailed(): Promise<Locator> {
     await humanClick(this.page.getByTestId('workflow-rerun-failed-btn'));
-    await expect(this.page.getByTestId('workflow-rerun-confirm')).toBeVisible({
-      timeout: 20_000,
-    });
+    const confirm = this.page.getByTestId('workflow-rerun-confirm');
+    await expect(confirm).toBeVisible({ timeout: 20_000 });
+    await bringIntoFullView(confirm);
     return this.page.getByTestId('workflow-rerun-target');
   }
 
@@ -1632,6 +1638,19 @@ export class WorkflowPage {
     const graph = this.page.getByTestId('workflow-run-graph');
     if (!(await graph.isVisible({ timeout: 30_000 }).catch(() => false)))
       return;
+
+    /*
+      그래프를 화면 위쪽으로 끌어온다.
+
+      ★ 위에 있는 워크플로우 목록은 여기서 볼 것이 아니다. 그것이 화면 절반을 차지하면 그래프는
+        아래에 반쯤 걸리고, 재실행 단추나 안내 문구도 잘려 읽히지 않는다 (2026-08-24 사용자 지적).
+    */
+    await graph
+      .evaluate((el: Element) =>
+        el.scrollIntoView({ block: 'start', inline: 'nearest' }),
+      )
+      .catch(() => {});
+    await this.page.waitForTimeout(400);
 
     // The wheel turns whatever is under the pointer, and the pointer was last on the confirmation
     // button. Put it on the graph first, or the notches go to something that does not scroll.
