@@ -3,6 +3,10 @@ import { TablePagination } from '../support/pagination';
 import { humanClick, humanFill } from '../support/humanize';
 import { openScreen } from '../support/navigate';
 import { spotlight } from '../support/spotlight';
+import { buildXlsx } from '../support/xlsx';
+
+/** 연결정보 파일 형식. 화면은 둘 다 받고, 담기는 내용은 같다. */
+export type ImportFormat = 'csv' | 'xlsx';
 import {
   screenCapturesTheDesktop,
   writeTempFile,
@@ -343,28 +347,90 @@ export class SourceServicesPage {
     await this.expectGroupListed(name);
   }
 
+  /**
+   * 연결정보 파일에 들어갈 행. 첫 줄은 머리글이고 열 순서는 화면이 요구하는 그대로다.
+   *
+   * CSV 든 엑셀이든 담기는 내용은 같다 — 형식만 다르다. 그래서 여기서 한 번 만들고, 내보낼 때
+   * 형식을 고른다. 두 벌로 두면 한쪽만 고쳐져 "엑셀에서만 되는" 차이가 생긴다.
+   */
+  private importRows(conns: Connection[]): string[][] {
+    return [
+      [
+        'name',
+        'description',
+        'ip_address',
+        'ssh_port',
+        'user',
+        'password',
+        'private_key',
+      ],
+      ...conns.map(c => [
+        c.name ?? '',
+        '',
+        c.ip ?? '',
+        String(c.sshPort ?? '22'),
+        c.user ?? '',
+        // 개인키가 있으면 그것만 쓴다 - 화면은 인증 수단 하나를 요구한다.
+        c.privateKey ? '' : (c.password ?? ''),
+        c.privateKey ?? '',
+      ]),
+    ];
+  }
+
+  /** 같은 행을 화면이 받는 파일 하나로 만든다. */
+  private importFile(
+    rows: string[][],
+    format: ImportFormat,
+  ): { name: string; mimeType: string; buffer: Buffer } {
+    if (format === 'xlsx') {
+      return {
+        name: 'sources.xlsx',
+        mimeType:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        buffer: buildXlsx(rows),
+      };
+    }
+    const cell = (v: string): string =>
+      /["\n,]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+    // ★ BOM 을 붙인다 - 엑셀이 없으면 한글이 깨진 채로 열린다.
+    const csv =
+      '\uFEFF' + rows.map(r => r.map(cell).join(',')).join('\n') + '\n';
+    return {
+      name: 'sources.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(csv, 'utf-8'),
+    };
+  }
+
   /** 소스그룹을 만들되 연결정보 여러 건을 CSV 대량 임포트로 한 번에 넣는다.
    *  익스포트가 *여러 건 선택*을 제대로 담는지 확인하려면 한 그룹에 연결이 둘 이상 있어야 한다. */
   async createSourceGroupWithBulkImport(
     name: string,
     connNames: string[],
+    format: ImportFormat = 'csv',
+    description?: string,
   ): Promise<void> {
-    const header =
-      'name,description,ip_address,ssh_port,user,password,private_key';
     // A password is needed so honeybee accepts the connection (user + one auth
     // method). The export blanks it back out regardless, which is what we check.
-    const rows = connNames.map(n => `${n},,10.0.0.1,22,ubuntu,e2e-dummy-pass,`);
-    const csv = '\uFEFF' + [header, ...rows].join('\n') + '\n';
+    const rows = this.importRows(
+      connNames.map(n => ({
+        name: n,
+        ip: '10.0.0.1',
+        user: 'ubuntu',
+        password: 'e2e-dummy-pass',
+      })),
+    );
 
     await humanClick(this.addGroupButton);
     await humanFill(this.serviceNameInput, name);
+    // 무엇을 어떻게 만든 그룹인지 목록에서 바로 읽히도록 - 파일로 넣은 것과 하나씩 넣은 것이
+    // 목록에 나란히 쌓이면 이름만으로는 구분이 안 된다.
+    if (description) await humanFill(this.serviceDescriptionInput, description);
     await humanClick(this.withConnectionToggle);
 
-    await this.page.getByTestId('source-import-input').setInputFiles({
-      name: 'bulk.csv',
-      mimeType: 'text/csv',
-      buffer: Buffer.from(csv, 'utf-8'),
-    });
+    await this.page
+      .getByTestId('source-import-input')
+      .setInputFiles(this.importFile(rows, format));
 
     // 서버 파싱 후 미리보기에 건수가 뜬 뒤 등록한다.
     await expect(this.page.getByTestId('source-import-count')).toContainText(
@@ -392,25 +458,9 @@ export class SourceServicesPage {
   async createSourceGroupImportingConnections(
     name: string,
     conns: Connection[],
+    format: ImportFormat = 'xlsx',
   ): Promise<void> {
-    const cell = (v: string | undefined): string => {
-      const s = v ?? '';
-      return /["\n,]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const header =
-      'name,description,ip_address,ssh_port,user,password,private_key';
-    const rows = conns.map(c =>
-      [
-        cell(c.name),
-        '',
-        cell(c.ip),
-        cell(String(c.sshPort ?? '22')),
-        cell(c.user),
-        cell(c.privateKey ? '' : c.password),
-        cell(c.privateKey),
-      ].join(','),
-    );
-    const csv = '﻿' + [header, ...rows].join('\n') + '\n';
+    const file = this.importFile(this.importRows(conns), format);
 
     await humanClick(this.addGroupButton);
     await humanFill(this.serviceNameInput, name);
@@ -424,16 +474,14 @@ export class SourceServicesPage {
     //
     // Waiting for the chooser is what keeps the operating system's own window from opening -
     // the browser asks for a file, this catches the request first and answers it.
-    const chosenName = 'sources.csv';
-
     if (screenCapturesTheDesktop()) {
       // The desktop itself is being recorded, so let the real window open and answer it the way a
       // person does. This is the only route that puts the act of choosing a file on screen; the
       // one below skips it, and the recording then shows a filename arriving on its own.
-      const csvPath = writeTempFile(chosenName, csv);
+      const onDisk = writeTempFile(file.name, file.buffer);
       await humanClick(this.page.getByTestId('source-import-file'));
       await this.page.waitForTimeout(2_500);
-      await pickFileInDesktopDialog(csvPath);
+      await pickFileInDesktopDialog(onDisk);
       await this.page.waitForTimeout(2_500);
     } else {
       // Nothing outside the browser is being recorded, so answering the request before the window
@@ -446,20 +494,14 @@ export class SourceServicesPage {
       // viewer puts the choosing they cannot see.
       await this.page.waitForTimeout(1_500);
 
-      await (
-        await chooser
-      ).setFiles({
-        name: chosenName,
-        mimeType: 'text/csv',
-        buffer: Buffer.from(csv, 'utf-8'),
-      });
+      await (await chooser).setFiles(file);
     }
 
     // The chosen file is named on screen before anything is read. This is the step that used to be
     // missing: rows appeared in the preview with nothing to say where they came from, and there was
     // no way to tell a file had been attached at all.
     const filename = this.page.getByTestId('source-import-filename');
-    await expect(filename).toContainText(chosenName, { timeout: 10_000 });
+    await expect(filename).toContainText(file.name, { timeout: 10_000 });
 
     // Point at the name itself.
     //

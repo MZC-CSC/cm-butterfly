@@ -150,7 +150,7 @@ Given('{string} 연결정보를 선택한다', async ({ page }, connName: string
 
 // ───────────────────────── 연결정보 익스포트 ─────────────────────────
 
-/** "만약 \"e2e-group\" 소스그룹에 \"a\",\"b\" 연결정보를 대량 등록하면" (CSV 대량 임포트로 여러 건) */
+/** "만약 \"e2e-group\" 소스그룹에 \"a\",\"b\" 연결정보를 대량 등록하면" (파일로 여러 건) */
 When(
   '{string} 소스그룹에 {string} 연결정보를 대량 등록하면',
   async ({ page }, groupName: string, connCsv: string) => {
@@ -158,6 +158,39 @@ When(
     await new SourceServicesPage(page).createSourceGroupWithBulkImport(
       uniqueName(groupName),
       names,
+    );
+  },
+);
+
+/**
+ * "만약 \"csv-import\" 소스그룹에 \"a\",\"b\" 연결정보를 \"CSV\" 파일로 등록하면"
+ *
+ * ★ 그룹과 연결 이름은 형식마다 다르게 준다. 같은 이름을 두 번 넣으면 두 번째가 거절되는데,
+ *   그 실패는 등록 창이 닫히는 모습으로는 드러나지 않는다.
+ */
+When(
+  '{string} 소스그룹에 {string} 연결정보를 {string} 파일로 등록하면',
+  async ({ page }, groupName: string, connCsv: string, label: string) => {
+    const excel = /엑셀|excel|xlsx/i.test(label);
+    const names = connCsv.split(',').map(n => uniqueName(n.trim()));
+    await new SourceServicesPage(page).createSourceGroupWithBulkImport(
+      uniqueName(groupName),
+      names,
+      excel ? 'xlsx' : 'csv',
+      `${excel ? '엑셀' : 'csv'} 파일을 이용한 다중 커넥션 등록`,
+    );
+  },
+);
+
+/** "그러면 \"csv-import\" 그룹의 연결 목록에 \"a\",\"b\" 가 모두 보인다" */
+Then(
+  '{string} 그룹의 연결 목록에 {string} 가 모두 보인다',
+  async ({ page }, groupName: string, connCsv: string) => {
+    const source = new SourceServicesPage(page);
+    await source.goto();
+    await source.showImportedConnections(
+      uniqueName(groupName),
+      connCsv.split(',').map(n => uniqueName(n.trim())),
     );
   },
 );

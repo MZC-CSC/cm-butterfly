@@ -46,7 +46,7 @@ export function desktopDialogHome(): string {
  * rather than a pile of them. The browser's own dotfiles live here too and are left alone - the
  * dialog does not list hidden entries.
  */
-export function writeTempFile(name: string, contents: string): string {
+export function writeTempFile(name: string, contents: string | Buffer): string {
   const dir = desktopDialogHome();
   for (const entry of readdirSync(dir)) {
     if (!entry.startsWith('.')) rmSync(path.join(dir, entry), { force: true });

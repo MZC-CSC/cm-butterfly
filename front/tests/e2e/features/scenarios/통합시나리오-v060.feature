@@ -115,9 +115,12 @@
     #
     #   기능 확인으로 여기를 돌릴 때는 파일 창을 열지 않고 곧바로 답한다.
     #
-    # CSV 헤더는 고정 7개 — name,description,ip_address,ssh_port,user,password,private_key
+    # 통합 시나리오는 **엑셀**로 넣는다 — 사람이 실제로 주고받는 형식이고, 완성본이 보여주는
+    # 것도 그쪽이다. CSV 는 기능 테스트에서 따로 확인한다(소스서비스.feature 임포트 매트릭스).
+    #
+    # 열은 고정 7개 — name,description,ip_address,ssh_port,user,password,private_key
     # IP는 사설 IP를 쓰고(수집 주체가 같은 망에 있다) 인증은 개인키만 쓴다.
-    만약 소스 연결정보 CSV로 "onprem-group" 그룹을 등록하면
+    만약 소스 연결정보 파일로 "onprem-group" 그룹을 등록하면
     그러면 소스그룹 목록에 "onprem-group" 이 보인다
 
     # 파일 하나에 여러 대가 들어 있었다 — 그룹이 생겼다는 것만으로는 그게 보이지 않는다.

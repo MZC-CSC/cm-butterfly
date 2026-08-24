@@ -272,7 +272,7 @@ function connectionFor(
  * ways of getting connections in.
  */
 When(
-  '소스 연결정보 CSV로 {string} 그룹을 등록하면',
+  '소스 연결정보 파일로 {string} 그룹을 등록하면',
   async ({ page }, groupName: string) => {
     const name = uniqueName(groupName);
     const source = new SourceServicesPage(page);
