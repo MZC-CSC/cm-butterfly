@@ -23,6 +23,25 @@ const testDir = defineBddConfig({
  */
 const includeCostly = process.env.E2E_INCLUDE_COSTLY === '1';
 
+// ★ 창이 화면보다 크면 페이지 아래가 잘려 나간다 — 스크롤이 아니라 화면 밖이다.
+//
+//   가상 화면 높이가 1080 인데 페이지 높이도 1080 으로 잡으면, 창 전체는 거기에 브라우저
+//   껍데기(탭 줄·주소창, 이 조합에서 87px)를 더한 만큼이 된다. 넘치는 87px 은 화면 밖으로
+//   나가 녹화에 담기지 않는다. 그런데 브라우저 안에서는 그 자리도 보이는 것으로 치기 때문에
+//   페이지는 스크롤하지 않고, "화면에 온전히 들어왔다"는 단언까지 그대로 통과한다.
+//
+//   그래서 워크플로우 도구의 Save 가 그 띠에 앉은 채 여러 벌이 저장 장면 없이 찍혔다.
+//   화면보다 세로가 짧은 노트북에서는 멀쩡히 보이던 것이라 원인을 찾는 데 오래 걸렸다
+//   (2026-08-25). 녹화로 돌 때는 껍데기만큼 빼서 창이 화면 안에 들어오게 한다.
+const x11Height = Number(process.env.E2E_X11_H || 0);
+const chromeHeight = Number(process.env.E2E_CHROME_H || 87);
+const recordingViewport = x11Height
+  ? {
+      width: Number(process.env.E2E_X11_W || 1920),
+      height: x11Height - chromeHeight,
+    }
+  : { width: 1920, height: 1080 };
+
 /**
  * ★ Evidence retention (on by default, disable with `E2E_EVIDENCE=0`)
  *
@@ -153,7 +172,7 @@ export default defineConfig({
 
       use: {
         ...devices['Desktop Chrome'],
-        viewport: { width: 1920, height: 1080 },
+        viewport: recordingViewport,
         // Render at twice the pixels and record at 1080p.
         //
         // The recorder's bitrate is not ours to set - it comes out around 700 kbps at 1080p, which
