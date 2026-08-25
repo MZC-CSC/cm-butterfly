@@ -1070,6 +1070,48 @@ Then('워크플로우의 작업별 상태가 모두 정상이다', async ({ page
   if (!(await graph.isVisible({ timeout: 2_000 }).catch(() => false))) {
     await wf.openRunViewer(name as string);
   }
+  /*
+    ★ 인프라를 만드는 작업이 끝나는 것을 *이 화면에서* 지켜본다.
+
+      예전에는 여기서 상태만 훑고 곧장 다음 화면으로 넘어갔다. 그런데 정작 볼 것은 그 작업이
+      끝나는 순간이라, 보는 쪽에서는 무엇을 기다렸는지 알 수 없었다. 다른 데 갔다 오지 말고
+      실행 화면에 머무는 편이 낫다는 것이 사용자 판단이다 (2026-08-25).
+
+      뒤따르는 대기 작업(sleep_for_1m_30s)까지 기다리지는 않는다 — 보여 줄 것이 없다.
+  */
+  //   ★ 실행 그래프의 노드는 *작업 이름* 으로 그려진다 — 컴포넌트 이름이 아니다.
+  //     `workflowData.infraMigrationTask`(=beetle_task_infra_migration)는 디자이너 캔버스에서
+  //     쓰는 컴포넌트 이름이라 여기서는 아무것도 잡지 못한다. 그런데 못 잡으면 조용히 건너뛰므로
+  //     기다리는 코드가 있는데도 Running 인 채로 다음 화면으로 넘어갔다 (2026-08-25).
+  const migrationTask = 'infra_migration';
+  const migration = wf.runNode(migrationTask);
+  if (await migration.count()) {
+    await wf.pickTask(migrationTask, false);
+    await expect(
+      migration,
+      `${migrationTask} 작업이 성공으로 끝나지 않았다`,
+    ).toHaveAttribute('data-state', 'success', { timeout: 300_000 });
+
+    /*
+      ★ 끝나는 순간을 남기려면 그 뒤에 *움직임*이 있어야 한다.
+
+        기다리는 동안 화면은 가만히 있으므로 정지 제거가 그 구간을 통째로 잘라 낸다. 그러면
+        Running 바로 다음이 다음 화면이 되어, 정작 보여 주려던 "Success 로 끝났다"가 사라진다
+        (2026-08-25 첫 촬영본에서 실제로 그렇게 잘렸다). 끝난 작업에 커서를 얹어 그 자리를
+        가리키고 잠깐 머문다 — 커서가 움직이므로 잘리지 않고, 어디를 보라는 뜻도 된다.
+    */
+    //   커서가 이미 그 노드에 얹혀 있으면 다시 얹어도 움직이지 않아 그대로 잘린다(첫 시도가
+    //   그랬다). 화면 반대쪽인 상세 패널의 **State** 로 옮겨 갔다가 돌아온다 — 커서가 화면을
+    //   가로지르므로 확실히 남고, 가리키는 것도 "이 작업이 Success 로 끝났다" 그 자체다.
+    const stateChip = page
+      .getByTestId('workflow-run-task-detail')
+      .getByText('Success', { exact: true })
+      .first();
+    if (await stateChip.count()) await pointAt(stateChip, 1_500);
+    await pointAt(migration, 1_000);
+    await page.waitForTimeout(1_000);
+  }
+
   const failed = graph.locator(
     '[data-state="failed"], [data-state="upstream_failed"]',
   );
@@ -1220,8 +1262,19 @@ Then(
       카드를 눌러야 나온다(2026-08-19 실측). 구간을 따로 돌릴 때도 앞 단계에 기대지 않는다.
     */
     const wl = new WorkloadPage(page);
-    await wl.openServerTab().catch(() => {});
-    await page.waitForTimeout(1_500);
+
+    /*
+      ★ 이미 열려 있으면 다시 열지 않는다.
+
+        앞 단계("노드 목록이 보인다")가 방금 Server 탭을 열어 두었는데 여기서 조건 없이 또
+        눌러, 영상에서는 같은 탭을 연달아 두 번 누르는 장면이 됐다 (2026-08-25 사용자 지적).
+        구간을 따로 돌릴 때는 앞 단계가 없으므로 *없을 때만* 연다.
+    */
+    const nodeList = page.locator('.vmList-card').first();
+    if (!(await nodeList.isVisible({ timeout: 2_000 }).catch(() => false))) {
+      await wl.openServerTab().catch(() => {});
+      await page.waitForTimeout(1_500);
+    }
     await wl.selectNode('');
     await page.waitForTimeout(2_000);
 
@@ -1920,20 +1973,35 @@ Then(
     //   때문에 정상을 결함으로 부르는 자리라, 읽기 전에 그 워크플로우를 이름으로 열어 둔다.
     //   (2026-08-01)
     const opened = recall('workflow:last');
-    if (opened) {
-      // 화면을 한 번 새로 받는다 — **제품 결함을 피해 가는 것**이다.
-      //
-      //   복제본을 편집해 저장하면, 그 화면의 파라미터 칸은 "현재 정의의 값"이라고 적어 두고도
-      //   *복제의 바탕이 된 원본* 값을 계속 보여준다(5555·t3a.large). 저장된 정의도 만들어진
-      //   인스턴스도 바뀐 값(6666·t3a.small)을 쓰는데 화면만 옛 값을 말한다. 사람이 화면에 처음
-      //   들어오는 것과 같은 상태로 만들어 읽는다.
-      //
-      //   임시 회피이므로 결함이 고쳐지면 이 줄을 지운다. 재현 절차와 원인은 그 이슈에 있다.
-      //   (2026-08-01)
-      await page.reload({ waitUntil: 'domcontentloaded' });
-      await wf.openRunViewer(opened, true);
+
+    /*
+      ★ 화면에 이미 그 값이 보이면 아무 데도 가지 않는다.
+
+        원래는 조건 없이 화면을 새로 받고(흰 화면) 목록으로 나가 이름으로 검색해 돌아왔다.
+        복제본을 편집했을 때 화면이 *복제의 바탕이 된 원본* 값을 계속 보여 주는 제품 결함을
+        피하려던 것인데, 결함이 없는 길에서도 그 왕복이 그대로 나왔다. 이 스텝은 한 구간에서
+        두 번 불리므로 왕복도 두 번이다. 목록이 길면 검색이 맞지만, 방금 만들어 넘어온 화면에서는
+        찾을 것이 없다 (2026-08-25 사용자 지적).
+
+        그래서 *먼저 그냥 읽어 본다*. 값이 있으면 그것으로 끝이고, 없을 때만 — 즉 그 결함에
+        걸렸을 때만 — 새로 받아 다시 연다. 값이 틀린 채로 지나가는 일은 없다: 없으면 판정이
+        그대로 실패한다.
+    */
+    try {
+      await wf.showParamValue(taskName, value);
+      return;
+    } catch (first) {
+      if (!opened) throw first;
     }
 
+    //   여기까지 왔다는 것은 화면이 옛 값을 그리고 있다는 뜻이다. 사람이 처음 들어오는 것과
+    //   같은 상태로 만들어 다시 읽는다. 결함이 고쳐지면 이 대비는 지운다.
+    //   (재현 절차와 원인은 그 이슈에)
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const graph = page.getByTestId('workflow-run-graph');
+    if (!(await graph.isVisible({ timeout: 8_000 }).catch(() => false))) {
+      await wf.openRunViewer(opened, true);
+    }
     await wf.showParamValue(taskName, value);
   },
 );
