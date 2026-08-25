@@ -1,5 +1,10 @@
 import { Page, Locator, expect } from '@playwright/test';
-import { humanClick, pointAt, humanFill } from '../support/humanize';
+import {
+  humanClick,
+  pointAt,
+  humanFill,
+  bringIntoFullView,
+} from '../support/humanize';
 import { spotlight } from '../support/spotlight';
 import { describe as writeDescription } from '../support/describe';
 
@@ -512,11 +517,11 @@ export class JsonEditorPage {
       .getByTestId('target-custom-save')
       .or(this.page.getByTestId('create-form-save'))
       .first();
-    await save.scrollIntoViewIfNeeded().catch(() => {});
+    await bringIntoFullView(save);
     await expect(
       save,
-      '저장 단추가 화면에 들어오지 않는다 — 이대로 누르면 무엇을 눌렀는지 영상에 남지 않는다',
-    ).toBeInViewport({ timeout: 10_000 });
+      '저장 단추가 화면에 온전히 들어오지 않는다 — 이대로 누르면 무엇을 눌렀는지 영상에 남지 않는다',
+    ).toBeInViewport({ ratio: 1, timeout: 10_000 });
     await humanClick(save);
     await humanFill(
       this.page

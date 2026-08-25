@@ -551,11 +551,18 @@ export class WorkflowPage {
         여기서 멈춘다 — 그 경우는 화면 쪽을 봐야 하는 일이다.
     */
     const save = this.designerSaveButton;
-    await save.scrollIntoViewIfNeeded().catch(() => {});
+    /*
+      ★ `scrollIntoViewIfNeeded` 는 조금이라도 보이면 아무 것도 하지 않고, `toBeInViewport()` 는
+        한 픽셀만 걸쳐도 통과한다. 그래서 단추가 화면 가장자리에 반쯤 걸린 채 눌렸고, 영상에는
+        여전히 저장하는 장면이 없었다 (2026-08-24, 두 번째 지적).
+
+        가운데로 끌어오고 *전부* 보이는지로 확인한다.
+    */
+    await bringIntoFullView(save);
     await expect(
       save,
-      'Save 가 화면에 들어오지 않는다 — 사람이 누를 수 없는 자리에 있다',
-    ).toBeInViewport({ timeout: 10_000 });
+      'Save 가 화면에 온전히 들어오지 않는다 — 사람이 누를 수 없는 자리에 있다',
+    ).toBeInViewport({ ratio: 1, timeout: 10_000 });
 
     await humanClick(save);
 
