@@ -913,8 +913,14 @@ When(
     console.log(`[트랙${track}] 워크플로우에서 스펙 → ${spec}`);
 
     await wf.saveWorkflow();
-    await waitForDagRegistered(page, name);
 
+    /*
+      기다리기 *전에* 그 워크플로우를 연다.
+
+      ★ 순서가 뒤였다 — 목록에서 몇 초를 기다린 뒤에야 실행 화면으로 옮겼다. 영상에서는 아무 일도
+        일어나지 않는 목록이 길게 이어지고, 정작 봐야 할 실행 상태는 Run 을 누른 뒤에야 나온다
+        (2026-08-24 사용자 지적). 먼저 열어 두면 기다리는 동안에도 볼 것이 있다.
+    */
     // ★ 저장한 뒤에도 화면이 *원본* 에 남아 있을 수 있다.
     //
     //   새 워크플로우를 만들 때는 저장이 끝나면 앱이 그것을 골라 Run Status 로 옮겨 준다. 복제본을
@@ -925,6 +931,9 @@ When(
     await wf.gotoWorkflows();
     // 목록에서 복제본 행을 실제로 눌러 연다 — 선택 상태만 보고 건너뛰면 뷰어가 원본을 그린 채로 남는다.
     await wf.openRunViewer(name, true);
+
+    // 실행 화면에 와서 기다린다. 준비되면 그 자리에서 Run 을 누른다.
+    await waitForDagRegistered(page, name);
     await wf.runHere();
 
     remember(`workflow:${track}`, name);
@@ -1279,12 +1288,21 @@ Then(
         스텝이 거기서만 "노드를 찾을 수 없다"로 죽었다(2026-08-19). 앞 단계에 기대지 않는다.
     */
     const wl = new WorkloadPage(page);
-    await wl.openServerTab().catch(() => {});
-    await page.waitForTimeout(1_500);
-    await wl.selectNode('');
-    await page.waitForTimeout(2_000);
 
+    /*
+      이미 노드 상세를 보고 있으면 그대로 쓴다.
+
+      ★ 앞 단계(스펙 확인)가 방금 이 화면을 열어 놓았는데, 이 스텝이 탭을 다시 열고 노드를 다시
+        고르면 **목록으로 나갔다 같은 자리로 돌아오는** 장면이 된다. 보는 쪽에서는 왜 그러는지
+        알 수 없다 (2026-08-24 사용자 지적). 없을 때만 연다.
+    */
     const toggle = page.locator('[data-testid^="node-sg-toggle-"]').first();
+    if (!(await toggle.isVisible({ timeout: 2_000 }).catch(() => false))) {
+      await wl.openServerTab().catch(() => {});
+      await page.waitForTimeout(1_500);
+      await wl.selectNode('');
+      await page.waitForTimeout(2_000);
+    }
     await expect(
       toggle,
       '노드 상세에 보안그룹이 없다 — 노드를 고르지 않았거나 아직 만들어지지 않았다',

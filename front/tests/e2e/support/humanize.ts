@@ -61,7 +61,16 @@ const DEMO_BEAT_MS = Number(process.env.E2E_DEMO_BEAT_MS ?? 75);
 */
 const DEMO_TRAVEL_MS = 170; // time for a journey across the whole screen
 const DEMO_TRAVEL_MIN_MS = 45; // time for a hop to the neighbouring control
-const DEMO_TRAVEL_STEPS = 30; // points along the longest journey
+/*
+  가장 긴 이동에 찍는 지점 수.
+
+  ★ 서른 개였는데, 그만큼이 *한 번에 하나씩* 브라우저로 나간다. 계산상 170ms 짜리 이동이 실제로는
+    왕복 시간에 눌려 0.5초 가까이 걸렸고, 화면은 빠르게 넘어가는데 커서만 끌리듯 움직였다 —
+    사람이 손을 옮기는 모습이 아니라 렉이 걸린 모습이다 (2026-08-24 사용자 지적).
+
+    열 개면 24fps 에서 지점 사이가 두어 프레임이라 충분히 매끄럽고, 왕복이 3분의 1로 준다.
+*/
+const DEMO_TRAVEL_STEPS = 10; // points along the longest journey
 const DEMO_TRAVEL_REFERENCE_REACH = 2200; // screen diagonal to fall back on, in pixels
 /*
   A field should never hold the camera for long. Short values are typed, which reads as
@@ -189,8 +198,9 @@ async function travelTo(locator: Locator): Promise<void> {
     DEMO_TRAVEL_MIN_MS + (DEMO_TRAVEL_MS - DEMO_TRAVEL_MIN_MS) * share;
   // Fewer points for a short hop - thirty of them across forty pixels is finer than the screen can
   // show, and each one still costs a round trip to the browser.
-  const steps = Math.max(6, Math.round(DEMO_TRAVEL_STEPS * share));
-  const perStep = Math.max(6, Math.round(duration / steps));
+  const steps = Math.max(4, Math.round(DEMO_TRAVEL_STEPS * share));
+  // 왕복 자체가 이미 시간을 먹으므로 그만큼 빼고 쉰다 — 빼지 않으면 계산보다 훨씬 느려진다.
+  const perStep = Math.max(0, Math.round(duration / steps) - 8);
 
   for (let i = 1; i <= steps; i++) {
     const t = ease(i / steps);
@@ -260,8 +270,9 @@ async function travelToPoint(
   const share = Math.min(1, distance / reach);
   const duration =
     DEMO_TRAVEL_MIN_MS + (DEMO_TRAVEL_MS - DEMO_TRAVEL_MIN_MS) * share;
-  const steps = Math.max(6, Math.round(DEMO_TRAVEL_STEPS * share));
-  const perStep = Math.max(6, Math.round(duration / steps));
+  const steps = Math.max(4, Math.round(DEMO_TRAVEL_STEPS * share));
+  // 왕복 자체가 이미 시간을 먹으므로 그만큼 빼고 쉰다 — 빼지 않으면 계산보다 훨씬 느려진다.
+  const perStep = Math.max(0, Math.round(duration / steps) - 8);
 
   for (let i = 1; i <= steps; i++) {
     const t = ease(i / steps);

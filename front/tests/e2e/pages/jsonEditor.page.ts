@@ -502,12 +502,22 @@ export class JsonEditorPage {
   async saveAsCustom(name: string, description?: string): Promise<string> {
     // The two custom-view screens name their save button differently - the source one has carried
     // `create-form-save` for a while, the target one had no identifier at all until now.
-    await humanClick(
-      this.page
-        .getByTestId('target-custom-save')
-        .or(this.page.getByTestId('create-form-save'))
-        .first(),
-    );
+    /*
+      누르는 것이 보이게 한다 — 이 단추는 편집기 아래쪽 가장자리에 있다.
+
+      ★ 워크플로우 저장은 이미 이렇게 고쳤는데 이쪽은 빠져 있었다. 화면에 들어와 있는지 확인하고
+        누르므로, 못 들이면 조용히 넘어가지 않고 여기서 멈춘다 (2026-08-24).
+    */
+    const save = this.page
+      .getByTestId('target-custom-save')
+      .or(this.page.getByTestId('create-form-save'))
+      .first();
+    await save.scrollIntoViewIfNeeded().catch(() => {});
+    await expect(
+      save,
+      '저장 단추가 화면에 들어오지 않는다 — 이대로 누르면 무엇을 눌렀는지 영상에 남지 않는다',
+    ).toBeInViewport({ timeout: 10_000 });
+    await humanClick(save);
     await humanFill(
       this.page
         .locator(

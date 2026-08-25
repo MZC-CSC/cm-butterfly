@@ -1584,7 +1584,37 @@ export class WorkflowPage {
     await this.page.waitForTimeout(400);
 
     // The wheel turns whatever is under the pointer, and the pointer was last on the confirmation
-    // button. Put it on the graph first, or the notches go to something that does not scroll.
+    const lastNode = this.page.getByTestId('workflow-run-node').last();
+
+    /*
+      이미 다 보이면 아무 것도 하지 않는다.
+
+      ★ 이 함수는 기다리는 동안 몇 초마다 불린다. 그때마다 커서를 옮기고 휠을 돌려서, 영상에는
+        같은 화면을 계속 만지작거리는 모습으로 남았다 (2026-08-24 사용자 지적).
+    */
+    const allVisible = async () =>
+      lastNode
+        .evaluate((el: Element) => {
+          const r = el.getBoundingClientRect();
+          return r.bottom > 0 && r.bottom <= window.innerHeight;
+        })
+        .catch(() => false);
+    if (await allVisible()) return;
+
+    /*
+      그래프를 화면 위로 올린다.
+
+      ★ 전에는 마지막 노드가 화면 *끝에 걸리는* 순간 멈췄다. 그러면 위쪽에 아무 상관 없는 워크플로우
+        목록이 그대로 남고 마지막 작업은 아슬아슬하게 걸린다 — 무엇이 진행되는지 보라고 만든 화면인데
+        정작 그것이 가장 안 보인다.
+    */
+    await graph
+      .evaluate((el: Element) => el.scrollIntoView({ block: 'start' }))
+      .catch(() => {});
+    await this.page.waitForTimeout(400);
+    if (await allVisible()) return;
+
+    // 휠은 커서 아래 있는 것을 굴린다 — 그래프 위에 올려 두지 않으면 엉뚱한 것이 움직인다.
     const box = await graph.boundingBox();
     if (box) {
       await this.page.mouse.move(
@@ -1593,7 +1623,6 @@ export class WorkflowPage {
       );
     }
 
-    const lastNode = this.page.getByTestId('workflow-run-node').last();
     const bottomOf = () =>
       lastNode
         .evaluate((el: Element) => el.getBoundingClientRect().bottom)
@@ -1601,13 +1630,7 @@ export class WorkflowPage {
 
     let previous = await bottomOf();
     for (let i = 0; i < 12; i++) {
-      const visible = await lastNode
-        .evaluate((el: Element) => {
-          const r = el.getBoundingClientRect();
-          return r.bottom > 0 && r.bottom <= window.innerHeight;
-        })
-        .catch(() => false);
-      if (visible) return;
+      if (await allVisible()) return;
 
       await this.page.mouse.wheel(0, 260);
       await this.page.waitForTimeout(200);
