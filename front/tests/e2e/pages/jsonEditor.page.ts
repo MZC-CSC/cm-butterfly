@@ -78,6 +78,16 @@ export class JsonEditorPage {
    * opening in table mode and in text mode.
    */
   async switchToTable(): Promise<void> {
+    /*
+      ★ 이미 표로 보고 있으면 누르지 않는다.
+
+        모드는 열릴 때마다 다를 수 있어 이 호출은 형식이 아니다. 그런데 조건 없이 누르다 보니
+        *이미 표인 화면에서 `table` 을 한 번 더 누르는* 장면이 남았다 — 보는 쪽에서는 무엇이
+        달라지는지 알 수 없다 (2026-08-25 사용자 지적).
+    */
+    const grid = this.page.locator('.pg-table').first();
+    if (await grid.isVisible({ timeout: 2_000 }).catch(() => false)) return;
+
     await this.switchMode('table');
     // Confirm by the grid itself rather than by a control that exists in more than one mode.
     await expect(this.page.locator('.pg-table').first()).toBeVisible({
@@ -159,7 +169,18 @@ export class JsonEditorPage {
   }
 
   async closeSearch(): Promise<void> {
-    await humanClick(this.page.getByTestId('json-grid-search-close'));
+    /*
+      ★ 닫는 동작이 보여야 한다.
+
+        검색을 닫으면 걸어 둔 필터가 풀리며 문서 전체가 다시 그려진다 — 화면이 통째로 바뀌는
+        일이다. 그런데 커서가 순식간에 가서 눌러 버려, 보는 쪽에는 *아무 것도 안 했는데 화면이
+        바뀐 것* 으로 남았다 (2026-08-25 사용자 지적). 닫기 표시로 커서를 옮겨 잠깐 머문 뒤
+        누르고, 바뀐 화면을 읽을 틈을 준다.
+    */
+    const close = this.page.getByTestId('json-grid-search-close');
+    await pointAt(close, 700);
+    await humanClick(close);
+    await this.page.waitForTimeout(900);
   }
 
   /** Rows currently drawn in the grid. */

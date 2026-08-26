@@ -1,6 +1,11 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
-import { humanClick, humanFill } from '../support/humanize';
+import {
+  bringIntoFullView,
+  humanClick,
+  humanFill,
+  pointAt,
+} from '../support/humanize';
 import { describe as writeDescription } from '../support/describe';
 import { openScreen } from '../support/navigate';
 
@@ -766,7 +771,22 @@ export class ModelsPage {
   async openWorkflowEditorFromTarget(targetName: string): Promise<void> {
     await this.gotoTargetModels();
     await this.selectModel(targetName);
-    await humanClick(this.page.getByTestId('target-make-workflow'));
+
+    /*
+      ★ 누르는 것이 화면에 보여야 한다.
+
+        이 단추는 목록 아래 상세 영역에 있어 화면 밖에 걸리기 쉽다. 그대로 누르면 커서가 순식간에
+        사라졌다가 워크플로우 편집기가 떠서, 보는 쪽에서는 *어디를 눌러 이 화면이 열렸는지* 알 수
+        없다 (2026-08-25 사용자 지적). 화면에 온전히 들인 뒤 커서를 얹어 잠깐 머물고 누른다.
+    */
+    const make = this.page.getByTestId('target-make-workflow');
+    await bringIntoFullView(make);
+    await expect(
+      make,
+      '워크플로우 만들기 단추가 화면에 온전히 들어오지 않는다 — 눌러도 영상에 남지 않는다',
+    ).toBeInViewport({ ratio: 1, timeout: 10_000 });
+    await pointAt(make, 800);
+    await humanClick(make);
   }
 
   // ── SW (software) model recommendation (same process as infra: source SW model → recommend → save target SW model) ──

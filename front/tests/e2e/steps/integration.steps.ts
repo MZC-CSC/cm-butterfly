@@ -21,7 +21,12 @@ import { spotlight, spotlightText } from '../support/spotlight';
 import { getSessionToken } from '../support/apiWait';
 import { scenarioState } from '../support/world';
 import { recall, remember } from '../support/handoff';
-import { humanClick, humanDrag, pointAt } from '../support/humanize';
+import {
+  bringIntoFullView,
+  humanClick,
+  humanDrag,
+  pointAt,
+} from '../support/humanize';
 import { findInBrowser, closeFind } from '../support/browserFind';
 import { openScreen } from '../support/navigate';
 
@@ -1086,6 +1091,15 @@ Then('워크플로우의 작업별 상태가 모두 정상이다', async ({ page
   const migrationTask = 'infra_migration';
   const migration = wf.runNode(migrationTask);
   if (await migration.count()) {
+    /*
+      ★ 그래프를 화면에 들이는 것을 *스크롤로* 보여 준다.
+
+        앞 단계(값 확인)가 파라미터를 읽느라 화면을 아래로 내려 둔 채 끝난다. 그 상태에서 곧장
+        작업을 고르면 화면이 위로 튀어, 보는 쪽에는 *아무 것도 안 했는데 화면이 바뀌고 무언가
+        눌리는* 것으로 남았다 (2026-08-25 사용자 지적). 먼저 스크롤해 올라온 뒤 고른다.
+    */
+    await bringIntoFullView(graph);
+    await page.waitForTimeout(600);
     await wf.pickTask(migrationTask, false);
     await expect(
       migration,

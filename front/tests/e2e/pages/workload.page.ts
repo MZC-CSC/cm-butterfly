@@ -84,14 +84,17 @@ export class WorkloadPage {
    *  an MCI created after the list loads will not show up just by waiting. Periodically
    *  refresh the page and keep checking until the row appears (up to ~10 min for provisioning delay). */
   async expectMciVisible(infraName: string): Promise<void> {
+    /*
+      ★ 지금 쪽만 보지 않는다.
+
+        예전에는 현재 쪽에 그 행이 있는지만 봤다. 목록이 한 쪽을 넘어가면 방금 만든 인프라가
+        둘째 쪽에 앉는데, 그것을 *목록에 없다* 로 읽어 만들어진 인프라를 못 찾았다고 죽었다
+        (2026-08-26). 촬영을 여러 회차 돌려 인프라가 쌓이면 반드시 그렇게 된다.
+    */
     const deadline = Date.now() + 600_000;
+    const pager = new TablePagination(this.page, this.mciTable);
     for (;;) {
-      if (
-        await this.mciRow(infraName)
-          .isVisible()
-          .catch(() => false)
-      )
-        return;
+      if ((await pager.findRow(this.mciRow(infraName))) !== null) return;
       if (Date.now() > deadline) break;
       await this.page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
       await this.expectMciListLoaded().catch(() => {});
