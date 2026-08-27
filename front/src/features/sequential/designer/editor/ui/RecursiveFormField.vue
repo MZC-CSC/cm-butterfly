@@ -44,8 +44,8 @@
           v-if="wasCoerced"
           class="field-coerced-mark"
           :data-testid="`wf-field-coerced-${referenceKey}`"
-          title="This value was converted to the type this task asks for. Check it before saving."
-          >converted</span
+          title="This was put right when the workflow was opened. Look it over before saving — press the reference button to change what it points at."
+          >check this</span
         >
         <span v-if="fieldSchema.description" class="field-help-mark">?</span>
         <!-- 설명은 레이어로 띄운다. 브라우저 기본 title 은 뜨기까지 한참 걸리고, 줄바꿈도
@@ -1138,11 +1138,13 @@ export default defineComponent({
 }
 
 .field-coerced-mark {
+  /* 사용자가 적은 것이 아니라 우리가 맞춘 것이다. 저장하기 전에 한 번 보라는 뜻이라
+     눈에 띄는 색으로 둔다 — 참조를 다시 고르면 사라진다. */
   margin-left: 6px;
   padding: 1px 6px;
   border-radius: 999px;
-  background: #fef3c7;
-  color: #92400e;
+  background: #fee2e2;
+  color: #b91c1c;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.02em;

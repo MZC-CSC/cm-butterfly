@@ -778,6 +778,8 @@ export default defineComponent({
      * schema decides, because the schema is what the receiving API asks for.
      */
     const rememberQuoting = (path: string, fieldType?: string): void => {
+      // 사용자가 이 칸을 직접 정했으니 "확인해 달라" 는 표시는 거둔다.
+      coercedFieldsStore.release(step.value?.name || '', path);
       const properties = step.value.properties as any;
       const kept: string[] = Array.isArray(properties.rawBodyRefs)
         ? properties.rawBodyRefs.filter((one: string) => one !== path)

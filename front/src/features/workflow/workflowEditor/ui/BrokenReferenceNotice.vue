@@ -42,11 +42,22 @@ const props = withDefaults(defineProps<IProps>(), {
 //   nothing to edit: the panel cannot draw fields it could not read, and saving from
 //   that state writes the misreading over the file. So that case offers a way out
 //   rather than only an acknowledgement.
+const allProblems = computed<IBodyProblem[]>(() => props.problems ?? []);
+const brokenList = computed<IBrokenReference[]>(() => props.broken ?? []);
 const unreadable = computed(() =>
-  props.problems.filter(one => one.kind === 'unreadable'),
+  allProblems.value.filter(one => one.kind === 'unreadable'),
 );
 const mistyped = computed(() =>
-  props.problems.filter(one => one.kind === 'type'),
+  allProblems.value.filter(one => one.kind === 'type'),
+);
+/**
+ * 참조가 그 칸이 요구하는 타입에 맞지 않는 모양으로 적혀 있는 것들.
+ *
+ * 값이 무엇으로 올지는 여기서 알 수 없지만, *어떻게 적혔는지*는 알 수 있다. 엔진은 본문에
+ * 글자로 끼워 넣으므로, 문자열이 아닌 칸의 참조는 따옴표 없이 있어야 한다.
+ */
+const misquoted = computed(() =>
+  allProblems.value.filter(one => one.kind === 'reference-quoting'),
 );
 
 const emit = defineEmits(['close', 'leave', 'open-json', 'coerce']);
@@ -99,10 +110,11 @@ const emit = defineEmits(['close', 'leave', 'open-json', 'coerce']);
         </div>
       </div>
 
-      <div v-if="mistyped.length" class="broken-ref-block">
+      <div v-if="misquoted.length" class="broken-ref-block">
         <p class="broken-ref-lead">
-          The values below are not the kind the task asks for. Sent as they
-          stand, the task will be refused when it runs.
+          The references below are stored in a form their field cannot take.
+          What they point at is right; only the quoting is wrong, and that is
+          what decides whether the value arrives as a number, a list, or text.
         </p>
         <div class="broken-ref-scroll">
           <table class="broken-ref-table">
@@ -110,7 +122,41 @@ const emit = defineEmits(['close', 'leave', 'open-json', 'coerce']);
               <tr>
                 <th>Task</th>
                 <th>Field</th>
-                <th>Type</th>
+                <th>Needs</th>
+                <th>Stored as</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(entry, index) in misquoted"
+                :key="`quote-${entry.task}-${entry.field}-${index}`"
+                :data-testid="`wf-body-misquoted-${entry.task}-${entry.field}`"
+              >
+                <td class="broken-ref-task">{{ entry.task }}</td>
+                <td class="broken-ref-field">{{ entry.field }}</td>
+                <td class="broken-ref-type">{{ entry.expected }}</td>
+                <td class="broken-ref-target">
+                  a reference, {{ entry.found }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div v-if="mistyped.length" class="broken-ref-block">
+        <p class="broken-ref-lead">
+          The values below are not the type their field takes. Sent as they
+          stand, the task is refused when it runs.
+        </p>
+        <div class="broken-ref-scroll">
+          <table class="broken-ref-table">
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th>Field</th>
+                <th>Needs</th>
+                <th>Stored as</th>
               </tr>
             </thead>
             <tbody>
@@ -121,25 +167,21 @@ const emit = defineEmits(['close', 'leave', 'open-json', 'coerce']);
               >
                 <td class="broken-ref-task">{{ entry.task }}</td>
                 <td class="broken-ref-field">{{ entry.field }}</td>
-                <td class="broken-ref-target">
-                  {{ entry.found }}
-                  <span class="broken-ref-tag"
-                    >asks for {{ entry.expected }}</span
-                  >
-                </td>
+                <td class="broken-ref-type">{{ entry.expected }}</td>
+                <td class="broken-ref-target">{{ entry.found }}</td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      <p v-if="broken.length" class="broken-ref-lead">
+      <p v-if="brokenList.length" class="broken-ref-lead">
         The values below read <strong>a task that does not run first</strong>.
         Run as it stands, the workflow will fail: there is nothing to take. Open
         each task and fix the fields marked in red.
       </p>
 
-      <div v-if="broken.length" class="broken-ref-scroll">
+      <div v-if="brokenList.length" class="broken-ref-scroll">
         <table class="broken-ref-table">
           <thead>
             <tr>
@@ -150,7 +192,7 @@ const emit = defineEmits(['close', 'leave', 'open-json', 'coerce']);
           </thead>
           <tbody>
             <tr
-              v-for="(entry, index) in broken"
+              v-for="(entry, index) in brokenList"
               :key="`${entry.task}-${entry.field}-${index}`"
               :data-testid="`wf-broken-ref-row-${entry.task}-${entry.field}`"
             >
@@ -191,23 +233,38 @@ const emit = defineEmits(['close', 'leave', 'open-json', 'coerce']);
             Fix it as JSON
           </button>
         </template>
+        <!-- ★ 여기에 "OK" 를 두면 안 된다. 무엇을 승낙한다는 뜻인지 알 수 없고, 실은
+             그대로 두면 실행할 때 거절당한다. 할 수 있는 일만 적는다 — 여기서 바로잡거나,
+             글자로 고치러 가거나, 나가거나. -->
         <template v-else>
+          <p v-if="canCoerce" class="broken-ref-hint">
+            These can be put right here. The fields are marked afterwards so you
+            can look them over before saving.
+          </p>
           <button
-            v-if="canCoerce"
             type="button"
             class="broken-ref-secondary"
-            data-testid="wf-broken-ref-coerce"
-            @click="emit('coerce')"
+            data-testid="wf-broken-ref-leave"
+            @click="emit('leave')"
           >
-            Convert them for me
+            Close the editor
           </button>
           <button
             type="button"
-            class="broken-ref-close"
-            data-testid="wf-broken-ref-close"
-            @click="emit('close')"
+            class="broken-ref-secondary"
+            data-testid="wf-broken-ref-open-json"
+            @click="emit('open-json')"
           >
-            OK
+            Fix it as JSON
+          </button>
+          <button
+            v-if="canCoerce"
+            type="button"
+            class="broken-ref-close"
+            data-testid="wf-broken-ref-coerce"
+            @click="emit('coerce')"
+          >
+            Put them right
           </button>
         </template>
       </div>
@@ -216,6 +273,17 @@ const emit = defineEmits(['close', 'leave', 'open-json', 'coerce']);
 </template>
 
 <style scoped>
+.broken-ref-type {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #4b5563;
+}
+.broken-ref-hint {
+  flex: 1;
+  margin: 0;
+  font-size: 11.5px;
+  color: #6b7280;
+  text-align: left;
+}
 .broken-ref-block {
   display: flex;
   flex-direction: column;

@@ -35,6 +35,17 @@ class CoercedFieldsStore {
       .map(one => one.slice(prefix.length));
   }
 
+  /**
+   * 사용자가 그 칸을 직접 손댔으면 표시를 거둔다.
+   *
+   * 표시의 뜻이 "우리가 맞춰 놨으니 확인해 달라" 이므로, 확인하고 고친 뒤에도 남아 있으면
+   * 무엇이 남은 일인지 알 수 없게 된다.
+   */
+  release(task: string, field: string): void {
+    const key = this.key(task, field);
+    this.marked.value = this.marked.value.filter(one => one !== key);
+  }
+
   /** 다른 워크플로우를 열 때 남아 있으면 엉뚱한 칸이 표시된다. */
   clear(): void {
     this.marked.value = [];

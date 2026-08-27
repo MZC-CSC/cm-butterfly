@@ -1230,25 +1230,51 @@ function valueInSequence(taskName: string, field: string): unknown {
  */
 function coerceBodyValues() {
   const marked: Array<{ task: string; field: string }> = [];
-  bodyProblems.value
-    .filter(problem => problem.kind === 'type')
-    .forEach(problem => {
-      const step = stepByTaskName(problem.task);
-      if (!step?.properties?.model) return;
-      const parts = pathParts(problem.field);
-      let cursor: any = step.properties.model;
-      for (let i = 0; i < parts.length - 1; i += 1) {
-        cursor = cursor?.[parts[i]];
-        if (cursor === undefined || cursor === null) return;
-      }
-      const key = parts[parts.length - 1];
-      const converted = coerceValue(cursor?.[key], problem.expected);
-      if (converted === undefined) return;
-      cursor[key] = converted;
+
+  bodyProblems.value.forEach(problem => {
+    const step = stepByTaskName(problem.task);
+    if (!step?.properties) return;
+
+    if (problem.kind === 'reference-quoting') {
+      // 값은 그대로 두고 인용부호만 옮긴다. 참조가 어느 태스크의 무엇을 가리키는지는
+      // 바뀌지 않고, 저장될 때 따옴표가 붙느냐 마느냐만 달라진다.
+      const kept: string[] = Array.isArray(step.properties.rawBodyRefs)
+        ? step.properties.rawBodyRefs.filter(
+            (one: string) => one !== problem.field,
+          )
+        : [];
+      step.properties.rawBodyRefs =
+        problem.expected === 'string' ? kept : [...kept, problem.field];
       marked.push({ task: problem.task, field: problem.field });
-    });
+      return;
+    }
+
+    if (problem.kind !== 'type' || !step.properties.model) return;
+    const parts = pathParts(problem.field);
+    let cursor: any = step.properties.model;
+    for (let i = 0; i < parts.length - 1; i += 1) {
+      cursor = cursor?.[parts[i]];
+      if (cursor === undefined || cursor === null) return;
+    }
+    const key = parts[parts.length - 1];
+    const converted = coerceValue(cursor?.[key], problem.expected);
+    if (converted === undefined) return;
+    cursor[key] = converted;
+    marked.push({ task: problem.task, field: problem.field });
+  });
+
+  // ★ 고친 것을 디자이너에게 건네야 저장에 반영된다.
+  //
+  //   저장은 `designer.getDefinition()` 을 읽는데, 디자이너는 자기 정의를 따로 들고 있다.
+  //   여기서 손댄 것은 우리 쪽 sequence 라 그대로 두면 화면만 바뀌고 파일은 그대로다.
+  //   배열 참조를 바꾸면 SequentialDesigner 의 watch 가 replaceDefinition 으로 넘겨 준다
+  //   (스텝 안쪽을 고친 것만으로는 watch 가 얕아서 걸리지 않는다).
+  sequentialSequence.value = [...sequentialSequence.value];
+
   coercedFieldsStore.replace(marked);
-  bodyProblems.value = bodyProblems.value.filter(one => one.kind !== 'type');
+  bodyProblems.value = bodyProblems.value.filter(
+    one => one.kind === 'unreadable',
+  );
   showBrokenReferences.value =
     brokenReferences.value.length > 0 || bodyProblems.value.length > 0;
 }

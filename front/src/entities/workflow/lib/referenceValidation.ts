@@ -155,7 +155,7 @@ export interface IBodyProblem {
   task: string;
   /** Field, as a dotted path. Empty when the whole body is unreadable. */
   field: string;
-  kind: 'unreadable' | 'type';
+  kind: 'unreadable' | 'type' | 'reference-quoting';
   /** What is there now — the offending text, or the value's type */
   found: string;
   /** What the task asks for. Empty for an unreadable body. */
@@ -246,11 +246,27 @@ export function findBodyProblems(
         return;
       }
       if (!path) return;
-      // A reference is text until it runs, and what it will hand back is not known
-      // here — the schema says one thing, the earlier task may return another. Only
-      // values written down can be judged.
-      if (parseFieldReference(node)) return;
       const expected = schemaTypeAt(schema, path);
+      // A reference is text until it runs, and what it hands back is not known here.
+      // What *can* be judged is how it was written down: the engine substitutes into
+      // the body as text, so a reference feeding anything but a string field has to
+      // sit there without quotes. A file written elsewhere often has them all quoted,
+      // and then a number field is handed "5".
+      if (parseFieldReference(node)) {
+        if (!expected) return;
+        const bare = body.rawPaths.includes(path);
+        const shouldBeBare = expected !== 'string';
+        if (bare !== shouldBeBare) {
+          problems.push({
+            task: task.name,
+            field: path,
+            kind: 'reference-quoting',
+            found: bare ? 'unquoted' : 'quoted',
+            expected,
+          });
+        }
+        return;
+      }
       if (!expected) return;
       const found = valueType(node);
       if (!fits(found, expected)) {
@@ -316,10 +332,15 @@ export function canCoerceAll(
   problems: IBodyProblem[],
   valueAt: (task: string, field: string) => unknown,
 ): boolean {
-  const mistyped = problems.filter(one => one.kind === 'type');
-  if (!mistyped.length) return false;
-  return mistyped.every(
-    one => coerce(valueAt(one.task, one.field), one.expected).ok,
+  const fixable = problems.filter(
+    one => one.kind === 'type' || one.kind === 'reference-quoting',
+  );
+  if (!fixable.length) return false;
+  // 참조는 인용부호만 옮기면 된다 — 값은 건드리지 않으니 잃을 것이 없다.
+  return fixable.every(
+    one =>
+      one.kind === 'reference-quoting' ||
+      coerce(valueAt(one.task, one.field), one.expected).ok,
   );
 }
 
