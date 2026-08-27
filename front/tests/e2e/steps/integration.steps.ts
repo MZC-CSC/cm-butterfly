@@ -1517,6 +1517,15 @@ Given(
 );
 
 Given(
+  '{string} 번 트랙이 만든 인프라를 다시 켠다',
+  async ({ page }, track: string) => {
+    const infraId = infraFor(track);
+    const wl = new WorkloadPage(page);
+    await wl.resumeInstance(infraId);
+  },
+);
+
+Given(
   '{string} 번 트랙이 만든 인프라를 삭제한다',
   async ({ page }, track: string) => {
     const infraId = infraFor(track);

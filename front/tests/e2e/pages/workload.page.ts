@@ -1179,6 +1179,21 @@ export class WorkloadPage {
     await this.confirmLifecycle();
   }
 
+  /**
+   * Bring a stopped infra back up.
+   *
+   * ★ 만든 인프라는 *만든 그 구간에서* 멈춘다 — 켜 둘 이유가 없고, 구간을 중간까지만 돌리면
+   *   그대로 남아 계속 과금된다(2026-08-26 실제로 t3a.large 다섯 대가 이틀 가까이 돌았다).
+   *   그래서 뒤 구간이 그 인프라를 실제로 쓸 때 여기서 되살린다.
+   */
+  async resumeInstance(infraName: string): Promise<void> {
+    await this.gotoMci();
+    await this.expectMciListLoaded();
+    await this.selectMci(infraName);
+    await this.chooseInfraAction('resume');
+    await this.confirmLifecycle();
+  }
+
   // ─────────────────────────────────────────────────────────────
   // Lifecycle control — GetControlInfra / GetControlInfraNode (cb-tumblebug)
   // ─────────────────────────────────────────────────────────────
