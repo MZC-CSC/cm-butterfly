@@ -8,6 +8,7 @@ import {
   bringIntoFullView,
 } from '../support/humanize';
 import { spotlight, spotlightText } from '../support/spotlight';
+import { findInBrowser, closeFind } from '../support/browserFind';
 import { describe as writeDescription } from '../support/describe';
 import { openScreen } from '../support/navigate';
 
@@ -850,16 +851,16 @@ export class WorkflowPage {
    */
   async addPortRuleInWorkflow(port: string): Promise<number> {
     /*
-      들어와서 한 번, 전부 펼친다.
+      고칠 자리까지만 연다 — 전부 펼치지 않는다.
 
-      ★ 이 줄이 2026-08-19 에 지워졌었다. "편집하는 자리까지만 펼친다"는 취지였는데 지워야 했던
-        것은 *복제한 뒤 다시 펼치는* 쪽이었다 — 이미 펼쳐진 것을 복제하면 사본도 펼쳐진 채로
-        생기므로 그 두 번째 클릭이 군더더기였던 것이고, 처음 한 번은 필요하다.
+      ★ 예전에는 `expandAllParams()` 로 들어오자마자 전부 펼쳤다. 접힌 것이 이백 개 가까워
+        **화면에는 항목을 하나씩 눌러 여는 장면이 28초 동안 이어졌다**(2026-08-26 사용자 지적).
+        사람이 하는 일이 아니고, 무엇을 하려는 것인지도 알 수 없다.
 
-        지워진 뒤로 항목들이 접힌 채 남았고, 접히면 그 안의 칸이 아예 그려지지 않아 새 규칙이
-        받을 번호를 0 으로 잘못 세어 구간5 가 실패했다(2026-08-24).
+        접힌 채로 두면 안 되는 이유는 하나뿐이다 — 접힌 항목은 안의 칸이 아예 그려지지 않아
+        새 규칙이 받을 번호를 0 으로 잘못 센다(2026-08-24 구간5 실패). 그 문제는 *그 배열까지의
+        경로만* 열면 똑같이 해결된다. 나머지 이백 개는 열 이유가 없다.
     */
-    await this.expandAllParams();
 
     /*
       The array cb-tumblebug actually builds the security group from.
@@ -876,6 +877,20 @@ export class WorkflowPage {
     */
     const rules = 'body_params.targetSecurityGroupList[0].firewallRules';
 
+    await this.openPathTo(rules);
+
+    /*
+      고칠 자리로는 **브라우저 찾기로** 간다.
+
+      ★ 사람이라면 고칠 그룹까지 눈으로 훑어 내려가지, 항목을 하나씩 눌러 열지 않는다. 그런데
+        파라미터가 길어 휠로 굴리면 그것대로 한참이다. `firewallRules` 는 이 본문에 한 번만
+        나오므로 찾기로 한 번에 닿는다 (2026-08-26 사용자 제안).
+
+      찾기를 쓸 수 없는 환경(녹화가 아닐 때)이면 아래에서 단추를 화면에 들이는 것으로 갈음한다.
+    */
+    const jumped = await findInBrowser(this.page, 'firewallRules', 900);
+    if (jumped) await closeFind(this.page);
+
     /*
       새 규칙이 받을 번호 — 이미 그려진 칸의 번호에서 가장 큰 것 다음이다.
 
@@ -889,8 +904,15 @@ export class WorkflowPage {
       ★ 다만 *새로 붙은 항목은 접힌 채로 온다.* 그래서 바로 아래에서 그 항목까지 경로를 열어야
         한다 — 그것이 빠져 실패했던 것이고, 들어올 때 한 번 펼치는 것만으로는 해결되지 않는다.
     */
+    /*
+      ★ 항목의 *접기 손잡이* 로 센다 — 안의 칸으로 세지 않는다.
+
+        칸(`wf-field-…[N].Ports`)은 그 항목이 펼쳐져 있을 때만 그려진다. 그래서 칸으로 세면
+        접힌 항목을 놓치고, 그것을 피하려고 이백 개를 전부 펼치고 있었다. 손잡이는 접혀 있어도
+        있으므로 펼치지 않고도 정확히 센다.
+    */
     const before = await this.page
-      .locator(`[data-testid^="wf-field-${rules}["]`)
+      .locator(`[data-testid^="wf-array-item-toggle-${rules}["]`)
       .evaluateAll(els =>
         els
           .map(e => e.getAttribute('data-testid') ?? '')
@@ -898,7 +920,10 @@ export class WorkflowPage {
       );
     const nextIndex = before.length ? Math.max(...before) + 1 : 0;
 
-    await humanClick(this.page.getByTestId(`wf-array-add-${rules}`));
+    const addButton = this.page.getByTestId(`wf-array-add-${rules}`);
+    await bringIntoFullView(addButton);
+    await pointAt(addButton, 700);
+    await humanClick(addButton);
 
     /*
       새 항목이 *그려질 때까지 기다렸다가* 연다.
@@ -1003,7 +1028,16 @@ export class WorkflowPage {
    * @returns how many subnets were given the zone
    */
   async setSubnetZone(zone: string): Promise<number> {
-    await this.expandAllParams();
+    /*
+      고칠 자리까지만 열고, 그 자리로는 브라우저 찾기로 간다.
+
+      ★ 여기도 `expandAllParams()` 로 이백 개를 전부 펼치고 있었다 — 화면에는 항목을 하나씩 눌러
+        여는 장면만 길게 남는다(2026-08-26 사용자 지적, 방화벽 쪽과 같은 문제). 사람은 고칠
+        그룹까지 훑어 내려가지 항목을 하나씩 열지 않는다.
+    */
+    await this.openPathTo('body_params.targetVNet.subnetInfoList[0]');
+    const jumped = await findInBrowser(this.page, 'subnetInfoList', 900);
+    if (jumped) await closeFind(this.page);
 
     const fields = this.page.locator(
       '[data-testid^="wf-field-body_params."][data-testid*="subnetInfoList"][data-testid$="zone"]',
@@ -1041,6 +1075,17 @@ export class WorkflowPage {
       button,
       'Clone & Edit 버튼이 없다 — 실행 이력이 있는 워크플로우에서만 나타난다',
     ).toBeVisible({ timeout: 30_000 });
+
+    /*
+      ★ 실행 화면을 잠깐 보여 준 뒤에 누른다.
+
+        이 자리는 *이미 돌아 본 워크플로우를 복제한다* 는 것을 보여 주는 데가 그 목적이다. 그런데
+        화면이 뜨자마자 눌러 버려, 보는 쪽에서는 실행 상태를 읽을 새도 없이 편집기가 떠 있었다
+        (2026-08-26 사용자 지적).
+    */
+    await bringIntoFullView(button);
+    await this.page.waitForTimeout(1_500);
+    await pointAt(button, 700);
     await humanClick(button);
 
     const confirm = this.page.getByTestId('workflow-clone-confirm');
@@ -1051,6 +1096,43 @@ export class WorkflowPage {
     await humanClick(this.page.getByTestId('workflow-clone-confirm-ok'));
 
     await this.expectDesignerOpen();
+
+    /*
+      복제본이 가리키던 것이 사라졌으면 안내가 뜬다 — 읽고 닫는다.
+
+      ★ 이 안내(`wf-broken-ref-notice`)는 화면 전체를 덮어 그 뒤 입력이 전부 막힌다. 실제로
+        워크플로우 이름 칸을 누르지 못해 죽었다(2026-08-27). 우리 소스에는 없고 배포된 이미지가
+        그리는 것이라, 무엇이 들어 있든 *있으면 닫는다* 로 다룬다.
+    */
+    const notice = this.page.getByTestId('wf-broken-ref-notice');
+    if (await notice.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      const text = (await notice.innerText().catch(() => ''))
+        .replace(/\s+/g, ' ')
+        .trim();
+      console.log(`[구간] 복제 안내: ${text.slice(0, 160)}`);
+      await this.page.waitForTimeout(1_200); // 읽을 틈
+
+      /*
+        ★ 아무 단추나 누르면 안 된다.
+
+          이 안내에는 *편집을 이어가는* 단추와 *나가는* 단추가 함께 있다. 마지막 것을 눌렀더니
+          편집기에서 빠져나와 빈 화면이 남았다(2026-08-27). 이어가는 쪽을 글자로 고르고, 없으면
+          Escape 로 닫는다 — 어느 쪽도 아니면 화면을 떠나지 않는 편이 낫다.
+      */
+      const labels = await notice
+        .locator('button')
+        .evaluateAll(els => els.map(e => (e.textContent ?? '').trim()));
+      console.log(`[구간] 안내 단추: ${labels.join(' | ')}`);
+
+      const go = notice
+        .locator('button')
+        .filter({ hasText: /continue|proceed|edit|ok|확인|계속|이어/i })
+        .first();
+      if (await go.count()) await humanClick(go);
+      else await this.page.keyboard.press('Escape');
+
+      await expect(notice).toBeHidden({ timeout: 10_000 });
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
