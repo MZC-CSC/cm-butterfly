@@ -35,14 +35,24 @@ The property table stays as it is. Each field can be typed in directly, or
 filled from a previous task — field by field, mixed freely. Most of the time
 this is what you want.
 
-### Take the whole result
+### Take from an earlier task
 
 The entire body becomes one previous task's result. There are no fields to edit,
 because the body is replaced wholesale. Use this when the earlier task returns
 exactly the shape this task expects — migration steps often line up this way.
 
-When you choose this, the panel lists **what will actually be passed** so you can
-see what the task will send.
+Choosing it lights up the tasks that run before this one, on the canvas and in
+the list that opens. Then:
+
+- press the **task name** to pass its whole result, or
+- press a **value under it** to pass just that part.
+
+Either way the body is replaced — the choice is only how much of the result goes
+across. The panel then lists **what will actually be passed** so you can see what
+the task will send.
+
+To back out, press **Stop picking**, choose *Fill in fields*, press **Cancel** in
+the list, or press Esc.
 
 > If nothing runs before this task, this option is switched off and the panel
 > says so.
@@ -65,8 +75,8 @@ There are three ways the next task can receive it, and the two choices at the to
 
 | What you choose | What is stored | What the task receives |
 | --- | --- | --- |
-| **Take the whole result** | `source` | the entire response |
-| **Take the whole result**, then one value from it | `source.$.payload` | `{"tag":"demo","value":42}` |
+| **Take from an earlier task**, task name pressed | `source` | the entire response |
+| **Take from an earlier task**, one value pressed | `source.$.payload` | `{"tag":"demo","value":42}` |
 | **Fill in fields** | `{"picked":"${source.$.id}"}` | `{"picked":"example-001"}` |
 
 The first two **replace the body outright** — that is why there are no fields left to edit. The third **keeps the body you built** and swaps in a value where you asked for one.
@@ -79,7 +89,7 @@ That is what the **Type** line is telling you when it says the types do not fit.
 
 ### The whole result cannot be dropped into one field
 
-`Fill in fields` always takes *one value out of* an earlier task, never the whole of it. To pass the whole result, switch to **Take the whole result** instead — that replaces the body rather than filling a slot in it.
+`Fill in fields` always takes *one value out of* an earlier task, never the whole of it. To pass the whole result, switch to **Take from an earlier task** instead — that replaces the body rather than filling a slot in it.
 
 ---
 
@@ -94,17 +104,17 @@ field.
 
 ### From the canvas
 
-Press **Take from a previous task** at the top of the panel, or drag it onto the
-canvas. The tasks you are allowed to pick light up and their names appear; the
-rest fade. Drop on one — or click it — and its values open.
+Choose **Take from an earlier task** at the top of the panel. The tasks you are
+allowed to pick light up and their names appear; the rest fade. Click one and its
+values open.
 
 This is usually the fastest when you know *which task* has the value but not what
 it is called.
 
 ### From the list
 
-The task selector at the top of the panel holds the same tasks. Use it when
-dragging is awkward.
+The list that opens alongside holds the same tasks with their values, searchable
+by name. Use it when the canvas is crowded or the task names are hard to read.
 
 ---
 

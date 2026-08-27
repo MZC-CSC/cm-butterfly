@@ -25,6 +25,12 @@
           @blur="getComponentNameOnBlur"
           placeholder="Enter task name"
         />
+        <!-- 이름은 사용자가 바꾸지만 컴포넌트는 그대로다. 어떤 칸이 나오는지, 무엇을
+             돌려주는지가 전부 여기서 갈리므로 이름 옆에 밝혀 둔다. -->
+        <p class="component-kind" data-testid="wf-task-component">
+          <span class="component-kind-label">Component</span>
+          <code>{{ getCurrentTaskComponentName() }}</code>
+        </p>
       </div>
 
       <!-- Path Parameters -->
@@ -86,18 +92,33 @@
         <h5 class="params-title">Body Parameters</h5>
 
         <!-- Where this task's body comes from. Filling fields one by one is the
-             common case; sending a previous task's whole result replaces the body
-             with a single string, so there are no fields left to draw. -->
+             common case; taking it from an earlier task replaces the body with a
+             single reference, so there are no fields left to draw.
+
+             ★ 두 갈래뿐이다. 예전에는 "결과 전체" 와 "앞선 태스크에서 가져오기" 를 따로
+               두었는데, 고르는 창에서 왼쪽 태스크 이름을 누르면 결과 전체, 오른쪽 값을
+               누르면 그 하위 경로가 되므로 둘은 같은 일의 두 입구였다. 나뉘어 있으면
+               무엇이 다른지 설명할 길이 없다. -->
         <div class="ref-source-bar">
           <label class="ref-source-option">
+            <!-- v-model 만으로는 부족하다. 이미 선택된 라디오를 다시 누르면 값이 바뀌지
+                 않아 아무 이벤트도 나지 않는데, 사용자는 "이쪽으로 되돌려 달라"는 뜻으로
+                 누른다. 고르는 중이었다면 그 클릭으로 멈춰야 한다. -->
             <input
               v-model="bodySource"
               type="radio"
               name="wf-body-source"
               value="fields"
               data-testid="wf-body-source-fields"
+              @click="setBodySourceFields()"
             />
             <span>Fill in fields</span>
+            <!-- 브라우저 기본 title 은 뜨기까지 한참 걸린다. 직접 그린다. -->
+            <span class="ref-source-help" role="tooltip">
+              Fill in <b>{{ getComponentNameValue() || 'this task' }}</b
+              >'s own fields, in the order and shape its request body asks for.
+              Any one field can still take a value from an earlier task.
+            </span>
           </label>
           <label
             class="ref-source-option"
@@ -111,36 +132,30 @@
               data-testid="wf-body-source-whole"
               :disabled="!taskReference.canBind.value"
             />
-            <span>An earlier task's whole result</span>
+            <span>Take from an earlier task</span>
+            <span class="ref-source-help" role="tooltip">
+              <template v-if="taskReference.canBind.value">
+                Send an earlier task's result as
+                <b>{{ getComponentNameValue() || 'this task' }}</b
+                >'s body. Its name passes the whole result, a value under it
+                passes one part. The fields go away — the body is replaced, not
+                filled.
+              </template>
+              <template v-else>
+                Nothing runs before this task, so there is no result to take.
+              </template>
+            </span>
           </label>
+          <!-- 고르는 중에는 그만둘 길이 화면에 있어야 한다. 캔버스만 밝고 창이 없을 때는
+               Esc 말고는 나올 방법이 없었다 — 그것을 아는 사람만 빠져나올 수 있다. -->
           <button
-            v-if="taskReference.canBind.value"
+            v-if="isPickingOnCanvas"
             type="button"
-            class="ref-pick-on-canvas"
-            draggable="true"
-            data-testid="wf-ref-pick-on-canvas"
-            title="Drag onto a task on the canvas, or press to pick"
-            @click="startPickingOnCanvas('', undefined)"
-            @dragstart="startPickingOnCanvas('', undefined)"
-            @dragend="stopPickingOnCanvas()"
+            class="ref-pick-cancel"
+            data-testid="wf-ref-pick-cancel"
+            @click="cancelReference()"
           >
-            <svg viewBox="0 0 16 16" class="ref-pick-icon" aria-hidden="true">
-              <circle
-                cx="8"
-                cy="8"
-                r="3.2"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.6"
-              />
-              <path
-                d="M8 1v2.4M8 12.6V15M1 8h2.4M12.6 8H15"
-                stroke="currentColor"
-                stroke-width="1.6"
-                stroke-linecap="round"
-              />
-            </svg>
-            Take from an earlier task
+            Stop picking
           </button>
           <span
             v-if="!taskReference.canBind.value"
@@ -259,6 +274,13 @@
           </div>
         </div>
       </div>
+
+      <!-- 본문이 없는 컴포넌트도 있다(메일 트리거처럼 HTTP 호출이 아닌 것). 지금까지는
+           아무것도 그리지 않아 "왜 이 태스크만 없지" 로 남았다. 없다는 것을 말해 준다. -->
+      <p v-else class="no-body-note" data-testid="wf-no-body-params">
+        This task sends no request body, so there is nothing to fill in or take
+        from an earlier task.
+      </p>
     </div>
   </div>
 </template>
@@ -672,6 +694,11 @@ export default defineComponent({
 
     const stopPickingOnCanvas = (): void => referencePickingStore.stop();
 
+    /** 캔버스가 고르기 상태인가 — 그만둘 버튼을 보일지 정한다. */
+    const isPickingOnCanvas = computed(
+      () => referencePickingStore.isPicking.value,
+    );
+
     /**
      * 값 고르기를 그만둔다 — 창도 닫고 캔버스 강조도 끈다.
      *
@@ -723,14 +750,34 @@ export default defineComponent({
         /^body_params\./,
         '',
       );
+      rememberQuoting(path, taskReference.targetType.value);
       setBodyParamByPath(path, buildFieldReference(chosen));
       taskReference.close();
+    };
+
+    /**
+     * Remember whether this field's reference goes into the stored body with quotes.
+     *
+     * The engine substitutes text: a string arrives bare and everything else arrives as
+     * JSON, so the quotes have to come from the body we store. A reference into a number
+     * or a boolean therefore has to sit there unquoted, or `5` is sent as `"5"`. The
+     * schema decides, because the schema is what the receiving API asks for.
+     */
+    const rememberQuoting = (path: string, fieldType?: string): void => {
+      const properties = step.value.properties as any;
+      const kept: string[] = Array.isArray(properties.rawBodyRefs)
+        ? properties.rawBodyRefs.filter((one: string) => one !== path)
+        : [];
+      if (fieldType && fieldType !== 'string') kept.push(path);
+      vueSet(properties, 'rawBodyRefs', kept);
     };
 
     /** Drop the reference and leave the field empty — restoring the old literal
      *  would put back a value the user cannot predict. */
     const clearReference = (fieldPath: string): void => {
-      setBodyParamByPath(fieldPath.replace(/^body_params\./, ''), '');
+      const path = fieldPath.replace(/^body_params\./, '');
+      rememberQuoting(path, undefined);
+      setBodyParamByPath(path, '');
     };
 
     /**
@@ -769,6 +816,10 @@ export default defineComponent({
       // the picker fill that slot and leave the body in field mode — a different screen from the
       // one this option is supposed to show.
       taskReference.open('', undefined);
+      // 캔버스도 함께 밝힌다. 어느 태스크의 결과를 넘길지 고르는 일이므로, 목록에서 찾는
+      // 것과 캔버스에서 짚는 것이 같은 자리에서 되어야 한다 — 두 경로가 달라 보이면
+      // 캔버스에서 고를 수 있다는 것을 모른다.
+      startPickingOnCanvas('', undefined);
       // 고르다 그만두면 이 선택도 없던 일이 되어야 한다. 무엇을 넘길지 정하지 않은 채
       // "결과 전체" 에 표시만 남으면, 화면은 그 모드인데 넘길 것이 없는 상태가 된다.
       pendingWholeBody.value = true;
@@ -2126,6 +2177,7 @@ export default defineComponent({
       clearReference,
       bodySource,
       cancelReference,
+      isPickingOnCanvas,
       wholeBodyReference,
       wholeBodyOutputRows,
       setBodySourceWhole,
@@ -2364,8 +2416,10 @@ export default defineComponent({
 }
 
 .json-editor-container {
+  /* 높이를 고정하지 않는다. 예전에는 min-height: 400px 이라 칸이 하나뿐인 태스크
+     (time 하나만 받는 sleep 등)에서도 400px 를 잡아, 빈 여백만 길고 패널에 스크롤이
+     생겼다. 내용만큼만 차지하게 둔다. */
   @apply bg-white;
-  min-height: 400px;
   padding: 0;
 }
 
@@ -2535,14 +2589,41 @@ export default defineComponent({
 }
 
 /* --- referencing a previous task's result --- */
+.component-kind {
+  margin: 6px 2px 0;
+  font-size: 11.5px;
+  color: #8b93a3;
+}
+.component-kind-label {
+  margin-right: 6px;
+}
+.component-kind code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #6b7280;
+}
+
+.no-body-note {
+  margin: 6px 2px 2px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
 .ref-source-bar {
+  /* 아래 칸들과 성격이 다르다 — 값이 아니라 *본문이 어디서 오는가* 를 정한다.
+     경계선과 옅은 바탕으로 갈라 두지 않으면 첫 번째 칸처럼 읽힌다. */
   display: flex;
   align-items: center;
   gap: 14px;
   flex-wrap: wrap;
-  padding: 6px 0 10px;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  background: #f7f8fb;
+  border: 1px solid #e6e8ef;
+  border-radius: 6px;
 }
 .ref-source-option {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -2550,30 +2631,61 @@ export default defineComponent({
   color: #3d4655;
   cursor: pointer;
 }
+/* 무엇을 고르는 것인지 호버로 알려 준다. 레이어로 그리는 이유는 브라우저 기본
+   툴팁이 한참 뒤에야 뜨기 때문이다 — 고르기 전에 읽혀야 소용이 있다. */
+.ref-source-help {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 0;
+  z-index: 40;
+  width: 290px;
+  padding: 8px 10px;
+  border: 1px solid #d8dbe4;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 6px 16px rgba(17, 24, 39, 0.12);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: #3d4655;
+  font-weight: 400;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.08s ease;
+}
+.ref-source-option:hover .ref-source-help {
+  opacity: 1;
+  visibility: visible;
+}
+
 .ref-source-option.is-disabled {
   color: #a6aebc;
   cursor: not-allowed;
 }
-.ref-pick-on-canvas {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  border: 1px solid #c6c7f5;
-  background: #eeeefc;
+/* 고르기 쪽 옵션은 아이콘을 달아 눈에 띄게 둔다 — 값을 어디서 가져올지 정하는 자리다. */
+.ref-source-option .ref-pick-icon {
   color: #4b4ddb;
-  border-radius: 6px;
-  padding: 4px 9px;
-  font-size: 11.5px;
-  font-weight: 600;
-  cursor: grab;
 }
-.ref-pick-on-canvas:active {
-  cursor: grabbing;
+.ref-source-option.is-disabled .ref-pick-icon {
+  color: #a6aebc;
 }
 .ref-pick-icon {
   width: 13px;
   height: 13px;
 }
+.ref-pick-cancel {
+  padding: 3px 10px;
+  border: 1px solid #c7cbd4;
+  border-radius: 4px;
+  background: #fff;
+  color: #4b5563;
+  font-size: 11px;
+  cursor: pointer;
+}
+.ref-pick-cancel:hover {
+  border-color: #9aa1ad;
+  color: #1f2937;
+}
+
 .ref-source-note {
   font-size: 11px;
   color: #6b7688;

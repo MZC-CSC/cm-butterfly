@@ -111,6 +111,7 @@
       <div class="array-header">
         <div class="header-left">
           <button
+            v-if="!reference"
             :data-testid="arrayToggleTestId"
             class="btn-collapse"
             @click="toggleArrayCollapse"
@@ -124,11 +125,41 @@
           >
             {{ fieldName
             }}<span v-if="isRequired" class="required-mark">*</span>
-            <span class="field-type">({{ arrayValue.length }} items)</span>
+            <span v-if="!reference" class="field-type"
+              >({{ arrayValue.length }} items)</span
+            >
           </label>
         </div>
         <div class="header-actions">
+          <!-- 배열 전체를 앞선 태스크의 결과로 받을 수 있다. 그 자리에는 입력 상자가 없어
+               개별 칸처럼 왼쪽에 버튼을 둘 자리가 없으므로, 항목을 더하는 버튼 옆에 둔다. -->
           <button
+            v-if="!reference && canBind"
+            type="button"
+            class="btn-ref-add"
+            :data-testid="`wf-field-ref-add-${referenceKey}`"
+            title="Take this whole list from an earlier task"
+            @click="$emit('reference', referenceKey, 'array')"
+          >
+            <svg viewBox="0 0 16 16" class="ref-add-icon" aria-hidden="true">
+              <circle
+                cx="8"
+                cy="8"
+                r="3.2"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              />
+              <path
+                d="M8 1v2.4M8 12.6V15M1 8h2.4M12.6 8H15"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+          <button
+            v-if="!reference"
             :data-testid="arrayAddTestId"
             class="btn-add-item"
             @click="addArrayItem"
@@ -138,7 +169,18 @@
         </div>
       </div>
 
-      <div v-if="!isArrayCollapsed" class="array-items">
+      <!-- 참조가 걸리면 항목 대신 참조를 보여준다. 실행할 때 목록 전체가 이 자리에 온다. -->
+      <TaskReferenceValue
+        v-if="reference"
+        :task="reference.task"
+        :path="reference.path"
+        :field="referenceKey"
+        :multiple="reference.multiple"
+        @edit="$emit('reference', referenceKey, 'array')"
+        @clear="$emit('reference-clear', referenceKey)"
+      />
+
+      <div v-if="!reference && !isArrayCollapsed" class="array-items">
         <!-- String Array -->
         <div v-if="isStringArray" class="string-array">
           <div
@@ -241,7 +283,7 @@
         </div>
       </div>
 
-      <div v-else class="collapsed-indicator">
+      <div v-else-if="!reference" class="collapsed-indicator">
         <span class="collapsed-text"
           >{{ arrayValue.length }} items (collapsed)</span
         >
@@ -253,6 +295,7 @@
       <div class="object-header">
         <div class="header-left">
           <button
+            v-if="!reference"
             :data-testid="objectToggleTestId"
             class="btn-collapse"
             @click="toggleObjectCollapse"
@@ -266,7 +309,7 @@
           >
             {{ fieldName
             }}<span v-if="isRequired" class="required-mark">*</span>
-            <span class="field-type"
+            <span v-if="!reference" class="field-type"
               >({{
                 Object.keys(fieldSchema.properties || {}).length
               }}
@@ -274,9 +317,49 @@
             >
           </label>
         </div>
+        <div class="header-actions">
+          <!-- 이 덩어리 전체를 앞선 태스크의 결과로 받는다. 안의 칸을 하나씩 채우는 대신
+               한 번에 넘길 때 쓴다 — 마이그레이션 계열이 그런 모양이다. -->
+          <button
+            v-if="!reference && canBind"
+            type="button"
+            class="btn-ref-add"
+            :data-testid="`wf-field-ref-add-${referenceKey}`"
+            title="Take this whole object from an earlier task"
+            @click="$emit('reference', referenceKey, 'object')"
+          >
+            <svg viewBox="0 0 16 16" class="ref-add-icon" aria-hidden="true">
+              <circle
+                cx="8"
+                cy="8"
+                r="3.2"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              />
+              <path
+                d="M8 1v2.4M8 12.6V15M1 8h2.4M12.6 8H15"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
+
+      <TaskReferenceValue
+        v-if="reference"
+        :task="reference.task"
+        :path="reference.path"
+        :field="referenceKey"
+        :multiple="reference.multiple"
+        @edit="$emit('reference', referenceKey, 'object')"
+        @clear="$emit('reference-clear', referenceKey)"
+      />
+
       <div
-        v-if="!isObjectCollapsed"
+        v-if="!reference && !isObjectCollapsed"
         class="object-properties"
         :class="{ 'depth-0-object': depth === 0 }"
       >
@@ -992,7 +1075,12 @@ export default defineComponent({
   /* 참조 버튼 · 레이블 · 값. 버튼이 늘 첫 칸을 차지해야 값 칸의 왼쪽 선이 흔들리지 않는다 —
      버튼이 없는 칸(참조가 이미 걸렸거나 가져올 곳이 없는 경우)에서도 폭을 비워 둔다. */
   display: grid;
-  grid-template-columns: 22px minmax(100px, 20%) 1fr;
+  /* 레이블 칸을 *이름 길이에 맞춰* 잡는다.
+     %로 고정했더니 중첩으로 들어갈수록 칸이 좁아져 acceleratorCount 같은 이름이
+     "acceleratorCo / unt" 처럼 **단어 중간에서** 잘렸다. max-content 면 이름이 한
+     줄에 들어갈 만큼만 가져가고, 입력 칸은 최소 140px 를 지킨다 — 이름이 정말 길면
+     그때서야 레이블이 접힌다. */
+  grid-template-columns: 22px minmax(120px, max-content) minmax(140px, 1fr);
   gap: 0.5rem;
   align-items: center;
 }
@@ -1022,7 +1110,8 @@ export default defineComponent({
   font-size: 0.875rem;
   text-align: right;
   padding-right: 0.5rem;
-  word-break: break-word;
+  /* 단어 중간에서 자르지 않는다. 자리가 정말 모자랄 때만 접힌다. */
+  word-break: normal;
   overflow-wrap: break-word;
 }
 

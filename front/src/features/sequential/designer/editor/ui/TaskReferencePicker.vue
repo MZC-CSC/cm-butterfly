@@ -188,9 +188,18 @@ const title = (): string =>
         </span>
       </div>
 
-      <p v-if="typeVerdict === 'mismatch'" class="rp-warn">
-        A whole object dropped into a text field may not fit. Press Apply to use
-        it anyway.
+      <!-- 맞지 않는 값은 고를 수 없다.
+           경고만 하고 통과시키면 저장은 되고 실행할 때 죽는다 — 그 사이에 아무 신호가
+           없어서, 워크플로우를 짜는 사람은 다 된 줄 안다. 엔진이 형변환을 지원하게 되면
+           그때 다시 경고로 낮춘다. -->
+      <p
+        v-if="typeVerdict === 'mismatch'"
+        class="rp-warn"
+        data-testid="wf-ref-type-blocked"
+      >
+        This value is {{ selectedType }}, and the field takes {{ targetType }}.
+        It cannot be used here — pick a {{ targetType }} value, or fill the
+        field in directly.
       </p>
       <p v-if="selectedMultiple" class="rp-warn">
         If the path matches more than one item, a list arrives.
@@ -234,7 +243,7 @@ const title = (): string =>
         type="button"
         class="rp-btn primary"
         data-testid="wf-ref-apply"
-        :disabled="!preview"
+        :disabled="!preview || typeVerdict === 'mismatch'"
         @click="emit('apply')"
       >
         Apply

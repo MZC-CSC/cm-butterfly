@@ -1,5 +1,4 @@
 import { insertDynamicComponent } from '@/shared/utils';
-import { getSequencePath } from '@/features/sequential/designer/editor/model/utils';
 import TaskComponentEditor from '@/features/sequential/designer/editor/ui/TaskComponentEditor.vue';
 import ContainerNameEditor from '@/features/sequential/designer/editor/ui/ContainerNameEditor.vue';
 import BashTaskEditor from '@/features/sequential/designer/editor/ui/BashTaskEditor.vue';
@@ -206,9 +205,10 @@ export function editorProviders() {
         );
       }
 
-      const label = document.createElement('label');
-      label.innerText = getSequencePath(definition.sequence, step.id) ?? '';
-      editor.appendChild(label);
+      // 패널 끝에 디자이너 내부 경로("MCI/sleep_for_1m_30s")를 아무 설명 없이 붙이던
+      // 자리다. 앞쪽 "MCI" 는 TaskGroup 스텝의 *타입* 이라 어디에도 쓰이지 않고, 이
+      // 경로로 조회할 수 있는 API 도 없다. 설명도 없이 떠 있어 화면이 깨진 것으로
+      // 읽혔다. 태스크를 식별하는 데 필요한 것(컴포넌트)은 이름 아래에 적는다.
 
       if (isReadonly) return lockInputs(editor);
       return editor;
