@@ -1760,18 +1760,81 @@ export class WorkflowPage {
     return this.page.getByTestId('wf-body-source-fields');
   }
 
+  /**
+   * 앞선 태스크에서 가져오기.
+   *
+   * 이 하나가 곧 고르기 시작이다 — 고르면 캔버스가 밝아지고 목록 창이 함께 열린다.
+   * 예전에는 "결과 전체" 라디오와 "가져오기" 버튼이 따로 있었으나 같은 일의 두 입구였다.
+   */
   get bodySourceWhole(): Locator {
     return this.page.getByTestId('wf-body-source-whole');
   }
 
-  /** Drag onto the canvas, or press, to choose the task to take from. */
   get pickOnCanvas(): Locator {
-    return this.page.getByTestId('wf-ref-pick-on-canvas');
+    return this.bodySourceWhole;
   }
 
   /** The plain input for a body field, addressed by its schema path. */
   bodyParamInput(path: string): Locator {
     return this.page.getByTestId(`wf-field-body_params.${path}`);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Dragging a component out of the palette
+  //
+  // A workflow can also be built by hand — drag a component from the Toolbox onto the canvas. That
+  // is a different path into the same editor from "make a workflow from a target model", and the
+  // task that lands this way carries no values at all, so what the panel shows is decided entirely
+  // by the component's schema.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /** One component in the Toolbox, by the name printed on it. */
+  paletteItem(component: string): Locator {
+    return this.page
+      .locator('.sqd-toolbox-item, [class*="toolbox"] [class*="item"]')
+      .filter({ hasText: component })
+      .first();
+  }
+
+  /**
+   * Drag a component from the palette onto the canvas.
+   *
+   * The library binds its own pointer handlers, so a synthesised drag event does not reach it —
+   * the move has to be made with real pointer steps. Fewer than a few intermediate moves and the
+   * library reads it as a click rather than a drag.
+   */
+  async dragFromPalette(component: string, dropOn?: string): Promise<void> {
+    const item = this.paletteItem(component);
+    await expect(item, `팔레트에 "${component}" 가 없다`).toBeVisible({
+      timeout: 15_000,
+    });
+    const target = dropOn
+      ? this.designer
+          .locator('.sqd-step-task')
+          .filter({ hasText: dropOn })
+          .last()
+      : this.designer.locator('.sqd-step-task').last();
+    await expect(target).toBeVisible({ timeout: 15_000 });
+
+    const from = await item.boundingBox();
+    const to = await target.boundingBox();
+    if (!from || !to)
+      throw new Error('팔레트 항목이나 놓을 자리를 찾지 못했다');
+
+    await this.page.mouse.move(
+      from.x + from.width / 2,
+      from.y + from.height / 2,
+    );
+    await this.page.mouse.down();
+    for (let step = 1; step <= 12; step += 1) {
+      await this.page.mouse.move(
+        from.x + ((to.x + to.width / 2 - from.x) * step) / 12,
+        from.y + ((to.y + to.height - from.y) * step) / 12,
+        { steps: 2 },
+      );
+    }
+    await this.page.mouse.up();
+    await this.page.waitForTimeout(600);
   }
 
   /** Said in place of the button when nothing runs before this task. */

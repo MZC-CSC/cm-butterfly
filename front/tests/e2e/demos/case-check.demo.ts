@@ -1,7 +1,8 @@
 import { test, expect, Page } from '@playwright/test';
 import fs from 'node:fs';
-import { getUser, config } from '../fixtures/test-data';
+import { getUser } from '../fixtures/test-data';
 import { LoginPage } from '../pages/login.page';
+import { WorkflowPage } from '../pages/workflow.page';
 import { seedChainOfTasks, deleteWorkflowById } from '../support/seedWorkflow';
 
 /**
@@ -47,20 +48,12 @@ test('고친 자리를 케이스별로 확인', async ({ page }) => {
   });
 
   try {
-    await page.goto(`${config.baseURL}/main/workflow-management/workflows`);
-    await page.reload();
-    await page
-      .locator('tbody tr')
-      .filter({ hasText: name })
-      .first()
-      .locator('td')
-      .nth(1)
-      .click();
-    await page.waitForTimeout(1200);
-    await page.getByTestId('workflow-viewer-edit-btn').click();
-    await expect(page.getByTestId('workflow-designer')).toBeVisible({
-      timeout: 20_000,
-    });
+    // ★ 목록을 훑어 찾지 않는다. 워크플로우는 지워지지 않고 쌓이므로 방금 만든 것이
+    //   둘째 페이지로 밀리면 영영 못 찾는다 — 실제로 그렇게 멈췄다. 검색으로 좁힌다.
+    const wf = new WorkflowPage(page);
+    await wf.gotoWorkflows();
+    await wf.selectWorkflow(name);
+    await wf.openEditorFromDetail();
     await page
       .locator('.sqd-step-task')
       .filter({ hasText: 'third_step' })
@@ -84,7 +77,10 @@ test('고친 자리를 케이스별로 확인', async ({ page }) => {
       await shot(page, 'B-도움말-열림');
       await label.click();
       await page.waitForTimeout(300);
-      console.log('다시 눌러 닫힘:', await page.locator('.field-help-layer').count());
+      console.log(
+        '다시 눌러 닫힘:',
+        await page.locator('.field-help-layer').count(),
+      );
       await shot(page, 'C-도움말-닫힘');
     } else {
       console.log('! 설명이 있는 칸이 없다');
@@ -104,7 +100,7 @@ test('고친 자리를 케이스별로 확인', async ({ page }) => {
     await page.waitForTimeout(400);
 
     // 캔버스에서 고르기 → 그 태스크로 좁혀지고 결과 전체가 정해지는가
-    await page.getByTestId('wf-ref-pick-on-canvas').click();
+    await page.getByTestId('wf-body-source-whole').click();
     await expect(
       page.locator('.sqd-step-task.sqd-pick-allowed').first(),
     ).toBeVisible({ timeout: 15_000 });
@@ -151,7 +147,7 @@ test('고친 자리를 케이스별로 확인', async ({ page }) => {
     await shot(page, 'J-취소후-라디오복귀');
 
     // 고르기 중 Esc
-    await page.getByTestId('wf-ref-pick-on-canvas').click();
+    await page.getByTestId('wf-body-source-whole').click();
     await expect(
       page.locator('.sqd-step-task.sqd-pick-allowed').first(),
     ).toBeVisible({ timeout: 15_000 });

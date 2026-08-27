@@ -35,15 +35,13 @@
     먼저 "first_step, second_step" 태스크가 차례로 이어진 워크플로우를 에디터에서 연다
     만약 "first_step" 태스크를 편집하면
     그러면 가져올 앞선 태스크가 없다는 안내가 보인다
-    그리고 값 참조 버튼이 없다
-    그리고 "앞선 태스크 결과 전체" 를 고를 수 없다
+    그리고 "앞선 태스크에서 가져오기" 를 고를 수 없다
 
   @unit
   시나리오: 앞선 태스크가 있으면 값을 가져올 수 있다
     먼저 "first_step, second_step" 태스크가 차례로 이어진 워크플로우를 에디터에서 연다
     만약 "second_step" 태스크를 편집하면
-    그러면 값 참조 버튼이 보인다
-    그리고 "앞선 태스크 결과 전체" 를 고를 수 있다
+    그러면 "앞선 태스크에서 가져오기" 를 고를 수 있다
 
   # --- 캔버스에서 고르기 -----------------------------------------------------
 
@@ -170,3 +168,74 @@
     그러면 잘못된 참조 안내 창이 뜬다
     그리고 문제가 된 태스크와 칸이 안내 창에 나온다
     그리고 그 칸이 문제 있는 칸으로 표시된다
+
+  # --- 저장했다 다시 열기 ---------------------------------------------------
+
+  # ★ 참조는 대상 칸의 타입에 따라 저장되는 모양이 다르다.
+  #   엔진의 치환은 글자 치환이라 따옴표가 본문 틀에서 와야 한다 — 문자열 칸은 따옴표 안에,
+  #   숫자·불리언 칸은 따옴표 없이 들어간다. 따옴표가 없으면 저장물은 JSON 이 아니고, 그것을
+  #   "본문 전체가 참조" 로 오판하면 다음에 열었을 때 칸이 통째로 사라진다.
+  #   화면에서는 저장까지 아무 일도 일어나지 않아, 다시 열어야만 드러난다.
+
+  @unit
+  시나리오: 참조는 칸의 타입에 맞는 모양으로 저장되고, 다시 열어도 칸이 그대로다
+    문자열 칸은 따옴표 안에, 숫자 칸은 따옴표 없이 저장돼야 한다. 숫자 칸을 따옴표에
+    가두면 실행할 때 5 대신 "5" 가 나가고, 따옴표를 벗기면 저장물이 JSON 이 아니게 되어
+    다시 열 때 칸이 사라진다 — 두 가지를 한 번에 본다.
+    먼저 "make_infra, migrate_step" 태스크가 차례로 이어지고 처음이 "tumblebug_infra_dynamic" 마지막이 "beetle_task_infra_migration" 인 워크플로우를 에디터에서 연다
+    그리고 "migrate_step" 태스크를 편집한다
+    그리고 "description" 칸을 "make_infra" 의 "$.description" 로 채운다
+    그리고 "targetSpecList[0].acceleratorCount" 칸을 "make_infra" 의 "$.statusCount.countCreating" 로 채운다
+    만약 워크플로우를 저장하고 다시 열면
+    그러면 저장된 본문에서 "description" 는 따옴표 안의 참조다
+    그리고 저장된 본문에서 "targetSpecList[0].acceleratorCount" 는 따옴표 없는 참조다
+    그리고 "migrate_step" 태스크의 칸이 그대로 있다
+    그리고 "description" 칸이 참조 값으로 표시된다
+    그리고 "targetSpecList[0].acceleratorCount" 칸이 참조 값으로 표시된다
+
+  # --- 배열·객체 통째로 가져오기 ---------------------------------------------
+
+  # ★ 개별 칸과 다른 점은 두 가지다.
+  #   ① 그 자리에는 입력 상자가 없다 — 참조 버튼이 "+ Add entity" 옆에 붙는다.
+  #   ② 저장될 때 따옴표가 붙지 않는다. 붙으면 배열이 아니라 배열처럼 생긴 *문자열*이
+  #     전달되고, 받는 쪽은 그걸 배열로 읽지 못한다.
+
+  # 추천이 돌려준 인프라 모델을 마이그레이션에 넘기는 실제 조합으로 본다 —
+  # 추천(damselfly) 응답에 배열과 객체가 다 들어 있다.
+
+  @unit
+  시나리오: 배열 전체를 앞선 태스크의 결과로 받는다
+    먼저 "recommend_step, migrate_step" 태스크가 차례로 이어지고 처음이 "damselfly_task_get_cloud_infra_model" 마지막이 "beetle_task_infra_migration" 인 워크플로우를 에디터에서 연다
+    그리고 "migrate_step" 태스크를 편집한다
+    만약 "targetInfra.nodeGroups" 칸을 "recommend_step" 의 "$.cloudInfraModel.targetInfra.nodeGroups" 로 채우면
+    그러면 "targetInfra.nodeGroups" 칸이 참조 값으로 표시된다
+    그리고 "targetInfra.nodeGroups" 의 항목 목록이 보이지 않는다
+
+  @unit
+  시나리오: 객체 전체를 앞선 태스크의 결과로 받는다
+    먼저 "recommend_step, migrate_step" 태스크가 차례로 이어지고 처음이 "damselfly_task_get_cloud_infra_model" 마지막이 "beetle_task_infra_migration" 인 워크플로우를 에디터에서 연다
+    그리고 "migrate_step" 태스크를 편집한다
+    만약 "targetInfra" 칸을 "recommend_step" 의 "$.cloudInfraModel.targetInfra" 로 채우면
+    그러면 "targetInfra" 칸이 참조 값으로 표시된다
+    그리고 "targetInfra" 의 하위 칸이 보이지 않는다
+
+  @unit
+  시나리오: 맞지 않는 타입은 고를 수 없다
+    문자열을 배열 칸에 넣으면 실행할 때 죽는다. 저장까지 통과시키면 그 사이에 알 길이
+    없으므로, 고르는 자리에서 막는다.
+    먼저 "recommend_step, migrate_step" 태스크가 차례로 이어지고 처음이 "damselfly_task_get_cloud_infra_model" 마지막이 "beetle_task_infra_migration" 인 워크플로우를 에디터에서 연다
+    그리고 "migrate_step" 태스크를 편집한다
+    만약 "targetInfra.nodeGroups" 칸의 값 고르기 창을 열고 "recommend_step" 의 "$.cloudInfraModel.targetInfra.name" 를 고르면
+    그러면 맞지 않는 타입이라는 안내가 보인다
+    그리고 그 값을 적용할 수 없다
+
+  @unit
+  시나리오: 배열·객체 참조는 따옴표 없이 저장된다
+    먼저 "recommend_step, migrate_step" 태스크가 차례로 이어지고 처음이 "damselfly_task_get_cloud_infra_model" 마지막이 "beetle_task_infra_migration" 인 워크플로우를 에디터에서 연다
+    그리고 "migrate_step" 태스크를 편집한다
+    그리고 "targetInfra.nodeGroups" 칸을 "recommend_step" 의 "$.cloudInfraModel.targetInfra.nodeGroups" 로 채운다
+    그리고 "targetCloud" 칸을 "recommend_step" 의 "$.cloudInfraModel.targetCloud" 로 채운다
+    만약 워크플로우를 저장하고 다시 열면
+    그러면 저장된 본문에서 "nodeGroups" 는 따옴표 없는 참조다
+    그리고 저장된 본문에서 "targetCloud" 는 따옴표 없는 참조다
+    그리고 "migrate_step" 태스크의 칸이 그대로 있다

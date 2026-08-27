@@ -98,19 +98,19 @@ test('taking a value from a task that runs earlier', async ({ page }) => {
     await selectTask(page, 'first_step');
     await beat(page);
     await expect(page.getByTestId('wf-ref-none-available')).toBeVisible();
-    await expect(page.getByTestId('wf-ref-pick-on-canvas')).toHaveCount(0);
+    await expect(page.getByTestId('wf-body-source-whole')).toHaveCount(0);
     await shot(page, 'first-task-has-nowhere-to-take-from');
     await beat(page, 2);
 
     // ── 2. A task with something before it ───────────────────────────────────
     await selectTask(page, 'third_step');
     await beat(page);
-    await expect(page.getByTestId('wf-ref-pick-on-canvas')).toBeVisible();
+    await expect(page.getByTestId('wf-body-source-whole')).toBeVisible();
     await shot(page, 'a-later-task-can-take-a-value');
     await beat(page, 2);
 
     // ── 3. Picking on the canvas ─────────────────────────────────────────────
-    await humanClick(page.getByTestId('wf-ref-pick-on-canvas'));
+    await humanClick(page.getByTestId('wf-body-source-whole'));
     await expect(
       page.locator('.sqd-step-task.sqd-pick-allowed').first(),
     ).toBeVisible({ timeout: 15_000 });
