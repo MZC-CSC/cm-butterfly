@@ -31,13 +31,44 @@ export function isReferenceRequestBody(requestBodyString: unknown): boolean {
     JSON.parse(trimmed);
     return false; // valid JSON → literal body, not a reference
   } catch {
-    // Not JSON. That used to settle it, but a body carrying a reference into a
-    // number, boolean, array or object field is not JSON either — the reference
-    // sits there unquoted so the engine can substitute the right type (see
-    // buildRequestBodyTemplate). Calling that "the whole body is one reference"
-    // loses every field in it, which is what the panel then draws: nothing.
-    return parseRequestBodyTemplate(trimmed) === null;
+    // Not JSON. That used to settle it, and it was wrong twice over.
+    //
+    // A body carrying a reference into a number, boolean, array or object field is
+    // not JSON either — the reference sits there unquoted so the engine can
+    // substitute the right type (see buildRequestBodyTemplate). And a body that is
+    // simply *malformed* is not JSON either, but calling that a reference hides the
+    // damage: the panel opens as though the whole body were one reference, and the
+    // fields the user wrote are gone with nothing said.
+    //
+    // So a whole-body reference has to look like one: a task name, optionally
+    // followed by a path. Braces, quotes, commas and spaces mean it is meant to be
+    // a body, and if it will not parse then it is broken.
+    if (parseRequestBodyTemplate(trimmed)) return false;
+    return WHOLE_BODY_REFERENCE.test(trimmed);
   }
+}
+
+/**
+ * What a whole-body reference may look like: `infra_recommend_get`, or that name
+ * followed by a path (`infra_recommend_get.$.cloudInfraModel`). Nothing that could
+ * only belong to a body.
+ */
+const WHOLE_BODY_REFERENCE = /^[A-Za-z_][\w-]*(\.[^\s"'{}[\],]+)*$/;
+
+/**
+ * A request body that cannot be read at all — neither JSON, nor a template with
+ * references in it, nor a reference to a whole task result.
+ *
+ * The editor draws the body as fields, so it has to parse it. When it cannot, the
+ * fields cannot be drawn and there is nothing to edit; saying so is the only honest
+ * thing to do, because falling back quietly loses whatever was written.
+ */
+export function isUnreadableRequestBody(requestBodyString: unknown): boolean {
+  if (typeof requestBodyString !== 'string') return false;
+  const trimmed = requestBodyString.trim();
+  if (trimmed === '') return false;
+  if (parseRequestBodyTemplate(trimmed)) return false;
+  return !WHOLE_BODY_REFERENCE.test(trimmed);
 }
 
 /**

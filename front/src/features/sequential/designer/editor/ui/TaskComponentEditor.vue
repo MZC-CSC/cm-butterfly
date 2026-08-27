@@ -262,6 +262,7 @@
                 :index-path="`body_params.${propName}`"
                 :references="fieldReferences"
                 :invalid-paths="invalidReferencePaths"
+                :coerced-paths="coercedPaths"
                 :can-bind="taskReference.canBind.value"
                 @update="updateBodyParamField(String(propName), $event)"
                 @reference="openReferencePicker"
@@ -303,6 +304,7 @@ import {
 } from '@/shared/utils/stringToObject';
 import { useTaskReference } from '../composables/useTaskReference';
 import referencePickingStore from '../store/referencePickingStore';
+import coercedFieldsStore from '../store/coercedFieldsStore';
 import TaskReferencePicker from './TaskReferencePicker.vue';
 import { useCommonTaskEditorModel } from '../model/commonTaskEditorModel';
 import type { Step } from '@/features/workflow/workflowEditor/model/types';
@@ -651,6 +653,18 @@ export default defineComponent({
       Object.fromEntries(
         extractFieldReferences(bodyParamsModel.value, 'body_params'),
       ),
+    );
+
+    /**
+     * Fields whose value was forced into the type the task asks for, on load.
+     *
+     * 사용자가 직접 고친 값이 아니므로 어느 칸이 손댔는지 보여야 한다 — 저장하기 전에
+     * 한 번 눈으로 확인할 자리를 주는 것이다.
+     */
+    const coercedPaths = computed<string[]>(() =>
+      coercedFieldsStore
+        .fieldsOf(step.value?.name || '')
+        .map(one => `body_params.${one}`),
     );
 
     /** Fields pointing at a task that does not run first — only possible for imported definitions. */
@@ -2170,6 +2184,7 @@ export default defineComponent({
       taskReference,
       fieldReferences,
       invalidReferencePaths,
+      coercedPaths,
       openReferencePicker,
       startPickingOnCanvas,
       stopPickingOnCanvas,

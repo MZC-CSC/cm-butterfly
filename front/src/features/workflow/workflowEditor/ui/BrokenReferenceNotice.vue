@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 /**
  * Tells the user, right after loading, that this workflow reads results from
  * tasks that do not run first.
@@ -12,15 +13,43 @@
  * Saving is not blocked. The user may be part way through rewiring, and blocking
  * would leave an imported workflow impossible to work on.
  */
-import type { IBrokenReference } from '@/entities/workflow/lib/referenceValidation';
+import type {
+  IBodyProblem,
+  IBrokenReference,
+} from '@/entities/workflow/lib/referenceValidation';
 
 interface IProps {
   broken: IBrokenReference[];
+  /** Bodies the editor cannot draw — malformed, or holding a value of the wrong type. */
+  problems?: IBodyProblem[];
+  /**
+   * Whether every mistyped value could be forced into shape.
+   *
+   * Offered only when *all* of them can. Fixing some would leave the user thinking
+   * the workflow is now sound when a task is still going to be refused.
+   */
+  canCoerce?: boolean;
 }
 
-defineProps<IProps>();
+const props = withDefaults(defineProps<IProps>(), {
+  problems: () => [],
+  canCoerce: false,
+});
 
-const emit = defineEmits(['close']);
+// ★ A body that will not parse is different in kind from a reference pointing the
+//   wrong way. The reference still leaves an editable workflow — the fields are all
+//   there, one of them points somewhere it should not. An unreadable body leaves
+//   nothing to edit: the panel cannot draw fields it could not read, and saving from
+//   that state writes the misreading over the file. So that case offers a way out
+//   rather than only an acknowledgement.
+const unreadable = computed(() =>
+  props.problems.filter(one => one.kind === 'unreadable'),
+);
+const mistyped = computed(() =>
+  props.problems.filter(one => one.kind === 'type'),
+);
+
+const emit = defineEmits(['close', 'leave', 'open-json', 'coerce']);
 </script>
 
 <template>
@@ -33,15 +62,84 @@ const emit = defineEmits(['close']);
   >
     <div class="broken-ref-panel">
       <h3 id="broken-ref-title" class="broken-ref-title">
-        This workflow has references that will not work
+        {{
+          unreadable.length
+            ? 'Part of this workflow could not be read'
+            : 'This workflow has values that will not work'
+        }}
       </h3>
-      <p class="broken-ref-lead">
+
+      <div v-if="unreadable.length" class="broken-ref-block">
+        <p class="broken-ref-lead">
+          The request body of the task below is not valid, so its fields cannot
+          be drawn. Editing here would save this screen over what is in the
+          file, and what is written there would be lost.
+        </p>
+        <div class="broken-ref-scroll">
+          <table class="broken-ref-table">
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th>What is stored</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(entry, index) in unreadable"
+                :key="`unreadable-${entry.task}-${index}`"
+                :data-testid="`wf-body-unreadable-${entry.task}`"
+              >
+                <td class="broken-ref-task">{{ entry.task }}</td>
+                <td class="broken-ref-target">
+                  <code>{{ entry.found }}</code>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div v-if="mistyped.length" class="broken-ref-block">
+        <p class="broken-ref-lead">
+          The values below are not the kind the task asks for. Sent as they
+          stand, the task will be refused when it runs.
+        </p>
+        <div class="broken-ref-scroll">
+          <table class="broken-ref-table">
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th>Field</th>
+                <th>Type</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(entry, index) in mistyped"
+                :key="`type-${entry.task}-${entry.field}-${index}`"
+                :data-testid="`wf-body-mistyped-${entry.task}-${entry.field}`"
+              >
+                <td class="broken-ref-task">{{ entry.task }}</td>
+                <td class="broken-ref-field">{{ entry.field }}</td>
+                <td class="broken-ref-target">
+                  {{ entry.found }}
+                  <span class="broken-ref-tag"
+                    >asks for {{ entry.expected }}</span
+                  >
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <p v-if="broken.length" class="broken-ref-lead">
         The values below read <strong>a task that does not run first</strong>.
         Run as it stands, the workflow will fail: there is nothing to take. Open
         each task and fix the fields marked in red.
       </p>
 
-      <div class="broken-ref-scroll">
+      <div v-if="broken.length" class="broken-ref-scroll">
         <table class="broken-ref-table">
           <thead>
             <tr>
@@ -75,20 +173,67 @@ const emit = defineEmits(['close']);
       </div>
 
       <div class="broken-ref-actions">
-        <button
-          type="button"
-          class="broken-ref-close"
-          data-testid="wf-broken-ref-close"
-          @click="emit('close')"
-        >
-          OK
-        </button>
+        <template v-if="unreadable.length">
+          <button
+            type="button"
+            class="broken-ref-secondary"
+            data-testid="wf-broken-ref-leave"
+            @click="emit('leave')"
+          >
+            Close the editor
+          </button>
+          <button
+            type="button"
+            class="broken-ref-close"
+            data-testid="wf-broken-ref-open-json"
+            @click="emit('open-json')"
+          >
+            Fix it as JSON
+          </button>
+        </template>
+        <template v-else>
+          <button
+            v-if="canCoerce"
+            type="button"
+            class="broken-ref-secondary"
+            data-testid="wf-broken-ref-coerce"
+            @click="emit('coerce')"
+          >
+            Convert them for me
+          </button>
+          <button
+            type="button"
+            class="broken-ref-close"
+            data-testid="wf-broken-ref-close"
+            @click="emit('close')"
+          >
+            OK
+          </button>
+        </template>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.broken-ref-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.broken-ref-secondary {
+  padding: 7px 14px;
+  border: 1px solid #c7cbd4;
+  border-radius: 5px;
+  background: #fff;
+  color: #4b5563;
+  font-size: 13px;
+  cursor: pointer;
+}
+.broken-ref-secondary:hover {
+  background: #f3f4f6;
+}
+
 .broken-ref-backdrop {
   position: fixed;
   inset: 0;

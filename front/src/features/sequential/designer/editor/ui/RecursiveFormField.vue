@@ -38,6 +38,15 @@
         @click.stop="fieldSchema.description && toggleHelp()"
       >
         {{ fieldName }}<span v-if="isRequired" class="required-mark">*</span>
+        <!-- 사용자가 적은 값이 아니라 로딩할 때 형식을 맞춰 바꾼 값이다. 저장하기 전에
+             한 번 보라는 표시다. -->
+        <span
+          v-if="wasCoerced"
+          class="field-coerced-mark"
+          :data-testid="`wf-field-coerced-${referenceKey}`"
+          title="This value was converted to the type this task asks for. Check it before saving."
+          >converted</span
+        >
         <span v-if="fieldSchema.description" class="field-help-mark">?</span>
         <!-- 설명은 레이어로 띄운다. 브라우저 기본 title 은 뜨기까지 한참 걸리고, 줄바꿈도
              길이 제한도 우리가 손댈 수 없다. 커서가 물음표로 바뀌고 밑줄까지 생기는데
@@ -258,6 +267,7 @@
                 :index-path="childIndexPath(String(propName), index)"
                 :references="references"
                 :invalid-paths="invalidPaths"
+                :coerced-paths="coercedPaths"
                 :can-bind="canBind"
                 :depth="depth + 1"
                 @update="
@@ -377,6 +387,7 @@
           :index-path="childIndexPath(String(propName))"
           :references="references"
           :invalid-paths="invalidPaths"
+          :coerced-paths="coercedPaths"
           :can-bind="canBind"
           :depth="depth + 1"
           @update="updateObjectProperty(String(propName), $event)"
@@ -479,6 +490,11 @@ export default defineComponent({
       type: Array,
       default: () => [],
     },
+    /** Paths whose value was converted on load, so the user can look them over. */
+    coercedPaths: {
+      type: Array,
+      default: () => [],
+    },
     // False when this task has nothing before it, so there is nothing to pull from.
     canBind: {
       type: Boolean,
@@ -526,6 +542,11 @@ export default defineComponent({
     const reference = computed(
       () =>
         (props.references as Record<string, any>)[referenceKey.value] || null,
+    );
+
+    /** True when this field's value was forced into shape rather than typed. */
+    const wasCoerced = computed(() =>
+      (props.coercedPaths as string[]).includes(referenceKey.value),
     );
 
     /** True when this field references a task that does not run before this one. */
@@ -965,6 +986,7 @@ export default defineComponent({
       referenceKey,
       reference,
       isInvalid,
+      wasCoerced,
       childIndexPath,
       arrayItemTestId,
       arrayAddTestId,
@@ -1113,6 +1135,18 @@ export default defineComponent({
   /* 단어 중간에서 자르지 않는다. 자리가 정말 모자랄 때만 접힌다. */
   word-break: normal;
   overflow-wrap: break-word;
+}
+
+.field-coerced-mark {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
 }
 
 .field-label.has-tooltip {
