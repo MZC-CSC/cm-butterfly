@@ -233,10 +233,13 @@ const emit = defineEmits(['close', 'leave', 'open-json', 'coerce']);
             Fix it as JSON
           </button>
         </template>
-        <!-- ★ 여기에 "OK" 를 두면 안 된다. 무엇을 승낙한다는 뜻인지 알 수 없고, 실은
-             그대로 두면 실행할 때 거절당한다. 할 수 있는 일만 적는다 — 여기서 바로잡거나,
-             글자로 고치러 가거나, 나가거나. -->
-        <template v-else>
+        <!-- ★ 경우마다 할 수 있는 일이 다르다.
+             본문을 읽지 못하면 여기서 고칠 자리가 없으니 나갈 길만 준다.
+             형식이 어긋난 것은 여기서 바로잡을 수 있으니 그 버튼을 더한다. "OK" 는 두지
+             않는다 — 무엇을 승낙한다는 뜻인지 알 수 없고, 그대로 두면 실행할 때 거절당한다.
+             참조가 엉뚱한 곳을 가리키는 것뿐이라면 이야기가 다르다. 칸은 다 있고 여기서
+             고치면 되므로, 알림을 닫고 이어서 손보는 것이 맞다. -->
+        <template v-else-if="mistyped.length || misquoted.length">
           <p v-if="canCoerce" class="broken-ref-hint">
             These can be put right here. The fields are marked afterwards so you
             can look them over before saving.
@@ -267,6 +270,15 @@ const emit = defineEmits(['close', 'leave', 'open-json', 'coerce']);
             Put them right
           </button>
         </template>
+        <button
+          v-else
+          type="button"
+          class="broken-ref-close"
+          data-testid="wf-broken-ref-close"
+          @click="emit('close')"
+        >
+          OK
+        </button>
       </div>
     </div>
   </div>
