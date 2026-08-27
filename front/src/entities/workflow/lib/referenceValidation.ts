@@ -14,6 +14,7 @@ import { ancestorsOf } from './designerTopology';
 import {
   extractFieldReferences,
   isReferenceRequestBody,
+  parseRequestBodyTemplate,
 } from '@/shared/utils/stringToObject';
 
 export interface IBrokenReference {
@@ -107,12 +108,15 @@ export function findBrokenReferences(
     }
 
     // Individual fields filled from previous tasks.
-    try {
-      extractFieldReferences(JSON.parse(requestBody)).forEach(
-        (reference, field) => judge(reference.task, field),
+    //
+    // Read with the template reader, not JSON.parse: a reference into a number or an
+    // object field is stored unquoted, so the body is not JSON until the engine
+    // substitutes. Parsing it as JSON throws and every field in it goes unchecked.
+    const body = parseRequestBodyTemplate(requestBody);
+    if (body) {
+      extractFieldReferences(body.model).forEach((reference, field) =>
+        judge(reference.task, field),
       );
-    } catch {
-      // Not JSON and not a reference — nothing here reads another task.
     }
   });
 

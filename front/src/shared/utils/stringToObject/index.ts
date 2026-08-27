@@ -31,7 +31,12 @@ export function isReferenceRequestBody(requestBodyString: unknown): boolean {
     JSON.parse(trimmed);
     return false; // valid JSON → literal body, not a reference
   } catch {
-    return true; // cannot parse → treated as a runtime reference
+    // Not JSON. That used to settle it, but a body carrying a reference into a
+    // number, boolean, array or object field is not JSON either — the reference
+    // sits there unquoted so the engine can substitute the right type (see
+    // buildRequestBodyTemplate). Calling that "the whole body is one reference"
+    // loses every field in it, which is what the panel then draws: nothing.
+    return parseRequestBodyTemplate(trimmed) === null;
   }
 }
 
@@ -115,6 +120,167 @@ export function extractFieldReferences(
   return found;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// The stored body is a *template*, not JSON
+//
+// cm-cicada keeps `request_body` as an opaque string and only the operator makes
+// JSON out of it, by substituting each `${task.path}` with the value it pulls.
+// That substitution is textual, and it is asymmetric:
+//
+//     return value if isinstance(value, str) else json.dumps(value)
+//
+// A string arrives WITHOUT quotes, everything else arrives as JSON text. So the
+// quotes have to come from the template, and which side they belong on depends
+// on the type of the field being filled:
+//
+//     "name": "${a.$.n}"   → "name": "abc"        a string field
+//     "count": ${a.$.n}    → "count": 5           a number field
+//     "spec": ${a.$.s}     → "spec": {"id": 1}    an object field
+//
+// Wrapping every reference in quotes — which is what `JSON.stringify` does, since
+// a reference is stored as a string — sends "5" where 5 was meant, and breaks the
+// body outright when the value is an object. So a body carrying a reference into
+// anything other than a string field is NOT valid JSON while it sits in storage.
+// It becomes JSON when the workflow runs.
+//
+// These two functions are that boundary: one writes the template, the other reads
+// it back. Nothing else in the console should call `JSON.stringify`/`JSON.parse`
+// on a request body.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Marks a value that was written into the template without quotes, so reading it
+ * back can tell the two apart. Never leaves this module.
+ */
+const RAW_MARK = '\u0000raw\u0000';
+
+/**
+ * The same mark, escaped, for writing into JSON text.
+ *
+ * A raw NUL is not allowed inside a JSON string, so the mark goes in as its
+ * escape and `JSON.parse` turns it back into the character above. Escaped is also
+ * why no real value can collide with it — the source text would have had to carry
+ * a NUL of its own.
+ */
+const RAW_MARK_ESCAPED = '\\u0000raw\\u0000';
+
+/**
+ * Writes the request body as cm-cicada expects it.
+ *
+ * `rawPaths` names the fields whose reference must go in unquoted — the ones
+ * whose schema type is not `string`. Paths are dotted from the body root, in the
+ * same shape `extractFieldReferences` produces (`targetInfra.nodeGroups[0].id`).
+ */
+export function buildRequestBodyTemplate(
+  body: unknown,
+  rawPaths: Iterable<string> = [],
+): string {
+  const raw = new Set(rawPaths);
+
+  const write = (node: unknown, path: string): string => {
+    if (Array.isArray(node)) {
+      return `[${node
+        .map((item, index) => write(item, `${path}[${index}]`))
+        .join(',')}]`;
+    }
+    if (node && typeof node === 'object') {
+      const parts = Object.entries(node as Record<string, unknown>).map(
+        ([key, value]) =>
+          `${JSON.stringify(key)}:${write(value, path ? `${path}.${key}` : key)}`,
+      );
+      return `{${parts.join(',')}}`;
+    }
+    // The one place quotes are dropped: a field that does not take a string, whose
+    // value is entirely one reference.
+    if (
+      typeof node === 'string' &&
+      raw.has(path) &&
+      WHOLE_VALUE_REFERENCE.test(node.trim())
+    ) {
+      return node.trim();
+    }
+    return JSON.stringify(node) ?? 'null';
+  };
+
+  return write(body, '');
+}
+
+/**
+ * Reads a stored request body back into a model, and reports which fields carried
+ * an unquoted reference so writing it again produces the same text.
+ *
+ * Returns null when the text is not a body at all — a whole-body reference
+ * (`"infra_recommend_get"`), or something that is neither.
+ */
+export function parseRequestBodyTemplate(
+  text: string,
+): { model: any; rawPaths: string[] } | null {
+  const trimmed = (text ?? '').trim();
+  if (!trimmed) return null;
+
+  // Quote the bare references so the text becomes JSON, keeping a mark on each so
+  // they can be told apart from the ones that were quoted to begin with.
+  let quoted = '';
+  let inString = false;
+  for (let i = 0; i < trimmed.length; i += 1) {
+    const ch = trimmed[i];
+    if (inString) {
+      quoted += ch;
+      if (ch === '\\') {
+        i += 1;
+        quoted += trimmed[i] ?? '';
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      quoted += ch;
+      continue;
+    }
+    if (ch === '$' && trimmed[i + 1] === '{') {
+      const end = trimmed.indexOf('}', i);
+      if (end < 0) return null;
+      quoted += `"${RAW_MARK_ESCAPED}${trimmed.slice(i, end + 1)}"`;
+      i = end;
+      continue;
+    }
+    quoted += ch;
+  }
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(quoted);
+  } catch {
+    return null;
+  }
+  // A bare string or number is not a body — `"infra_recommend_get"` is a
+  // whole-body reference and belongs to the other path.
+  if (!parsed || typeof parsed !== 'object') return null;
+
+  const rawPaths: string[] = [];
+  const strip = (node: any, path: string): any => {
+    if (Array.isArray(node)) {
+      return node.map((item, index) => strip(item, `${path}[${index}]`));
+    }
+    if (node && typeof node === 'object') {
+      const out: Record<string, any> = {};
+      Object.entries(node).forEach(([key, value]) => {
+        out[key] = strip(value, path ? `${path}.${key}` : key);
+      });
+      return out;
+    }
+    if (typeof node === 'string' && node.startsWith(RAW_MARK)) {
+      if (path) rawPaths.push(path);
+      return node.slice(RAW_MARK.length);
+    }
+    return node;
+  };
+
+  return { model: strip(parsed, ''), rawPaths };
+}
+
 /**
  * Every upstream task referenced by a request body, whichever form it takes:
  * a whole-body reference (`"A"` / `"A.$.x"`) or field references (`${A.$.x}`).
@@ -144,12 +310,12 @@ export function referencedTaskNames(
     return [...names];
   }
 
-  try {
-    extractFieldReferences(JSON.parse(trimmed)).forEach(({ task }) => {
+  // A body, whether plain JSON or a template with unquoted references in it.
+  const body = parseRequestBodyTemplate(trimmed);
+  if (body) {
+    extractFieldReferences(body.model).forEach(({ task }) => {
       if (isKnownTask(task)) names.add(task);
     });
-  } catch {
-    // not JSON and not a reference — nothing to read
   }
   return [...names];
 }

@@ -1,3 +1,4 @@
+import { buildRequestBodyTemplate } from '@/shared/utils/stringToObject';
 /**
  * Backend schema adapter (cm-cicada Type/Spec migration).
  *
@@ -173,6 +174,8 @@ export function buildTaskSpecFromStep(
   type: string,
   model: any,
   fixedModel: any,
+  /** Body fields whose reference must be written without quotes — see buildRequestBodyTemplate. */
+  rawBodyRefs: string[] = [],
 ): Record<string, any> {
   const m = model ?? {};
   switch (type) {
@@ -190,7 +193,10 @@ export function buildTaskSpecFromStep(
     case 'http':
     default:
       return {
-        request_body: JSON.stringify(m),
+        // Not JSON.stringify: a reference into a number, boolean, array or object field
+        // has to go in unquoted, or the engine substitutes a string where that type was
+        // meant — and breaks the body outright for the last two.
+        request_body: buildRequestBodyTemplate(m, rawBodyRefs),
         path_params: fixedModel?.path_params ?? {},
         query_params: fixedModel?.query_params ?? {},
       };
