@@ -192,11 +192,19 @@ function valueType(value: unknown): string {
 
 /** Does a value of this type belong in a field declared that way? */
 function fits(found: string, expected: string): boolean {
+  // Nothing is asked of a field the schema does not describe.
+  if (!expected) return true;
   if (found === expected) return true;
   if (expected === 'number' && found === 'integer') return true;
   if (expected === 'integer' && found === 'number') return true;
-  // Nothing is asked of a field the schema does not describe.
-  return !expected;
+  // ★ null 은 틀린 값이 아니라 *설정하지 않았다* 는 뜻이다.
+  //
+  //   이 API 들은 비워 둔 항목을 null 로 돌려주고, 받는 쪽은 기본값으로 처리한다. 추천이
+  //   돌려준 인프라 모델이 그대로 그렇게 생겼다 — 인프라 마이그레이션에서 k8s 관련 항목이
+  //   전부 null 인 것은 정상이다. 그것을 결함으로 세면 *추천으로 만든 워크플로우가 하나도
+  //   빠짐없이 걸린다.* 실제로 복제 후 편집이 그렇게 막혔다.
+  if (found === 'null') return true;
+  return false;
 }
 
 /**

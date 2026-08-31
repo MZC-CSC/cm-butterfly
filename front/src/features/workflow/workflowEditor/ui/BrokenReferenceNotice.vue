@@ -239,19 +239,17 @@ const emit = defineEmits(['close', 'leave', 'open-json', 'coerce']);
              않는다 — 무엇을 승낙한다는 뜻인지 알 수 없고, 그대로 두면 실행할 때 거절당한다.
              참조가 엉뚱한 곳을 가리키는 것뿐이라면 이야기가 다르다. 칸은 다 있고 여기서
              고치면 되므로, 알림을 닫고 이어서 손보는 것이 맞다. -->
+        <!-- ★ 여기서 막다른 길을 만들면 안 된다.
+             값의 형식이 어긋난 것은 *알림* 이지 편집을 막을 일이 아니다. 저장을 막지 않는
+             것이 이 화면의 설계이고(위 머리말), 무엇보다 고칠 수 없는 경우가 있다 —
+             덩어리 값은 만들어 낼 수 없으므로 "바로잡기" 가 나오지 않는다. 그때 나가기만
+             남으면 그 워크플로우는 화면에서 손댈 수 없게 된다. 이어서 편집하는 길을 늘
+             열어 둔다. -->
         <template v-else-if="mistyped.length || misquoted.length">
           <p v-if="canCoerce" class="broken-ref-hint">
             These can be put right here. The fields are marked afterwards so you
             can look them over before saving.
           </p>
-          <button
-            type="button"
-            class="broken-ref-secondary"
-            data-testid="wf-broken-ref-leave"
-            @click="emit('leave')"
-          >
-            Close the editor
-          </button>
           <button
             type="button"
             class="broken-ref-secondary"
@@ -261,14 +259,32 @@ const emit = defineEmits(['close', 'leave', 'open-json', 'coerce']);
             Fix it as JSON
           </button>
           <button
-            v-if="canCoerce"
+            v-if="!canCoerce"
             type="button"
             class="broken-ref-close"
-            data-testid="wf-broken-ref-coerce"
-            @click="emit('coerce')"
+            data-testid="wf-broken-ref-close"
+            @click="emit('close')"
           >
-            Put them right
+            Continue editing
           </button>
+          <template v-else>
+            <button
+              type="button"
+              class="broken-ref-secondary"
+              data-testid="wf-broken-ref-close"
+              @click="emit('close')"
+            >
+              Continue editing
+            </button>
+            <button
+              type="button"
+              class="broken-ref-close"
+              data-testid="wf-broken-ref-coerce"
+              @click="emit('coerce')"
+            >
+              Put them right
+            </button>
+          </template>
         </template>
         <button
           v-else
