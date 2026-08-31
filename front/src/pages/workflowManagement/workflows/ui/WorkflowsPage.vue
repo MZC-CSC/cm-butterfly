@@ -337,6 +337,7 @@ async function handleUpdateWorkflow(updatedData: object) {
         :tool-type="'edit'"
         :wft-id="selectedWorkflowId"
         @update:close-modal="e => (modalState.workflowToolModal.open = e)"
+        @open-json-editor="modalState.workflowJsonModal.open = true"
         @update:trigger="modalState.addWorkflow.trigger = true"
         @update:saved="handleSavedWorkflow"
       />

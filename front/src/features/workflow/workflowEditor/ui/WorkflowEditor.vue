@@ -9,7 +9,15 @@ import {
 } from '@cloudforet-test/mirinae';
 import { useWorkflowToolModel } from '@/features/workflow/workflowEditor/model/workflowEditorModel';
 import { useInputModel } from '@/shared/hooks/input/useInputModel';
-import { onBeforeMount, onMounted, reactive, ref, Ref, watch } from 'vue';
+import {
+  computed,
+  onBeforeMount,
+  onMounted,
+  reactive,
+  ref,
+  Ref,
+  watch,
+} from 'vue';
 import { Step } from '@/features/workflow/workflowEditor/model/types';
 import {
   ITargetModelResponse,
@@ -56,6 +64,7 @@ const emit = defineEmits([
   'update:close-modal',
   'update:trigger',
   'update:saved',
+  'open-json-editor',
 ]);
 
 const workflowToolModel = useWorkflowToolModel();
@@ -80,7 +89,36 @@ const trigger = reactive({ value: false });
  * In that case, instead of showing a blank screen, it records the reason and blocks saving —
  * because saving something it could not draw would change the execution order.
  */
+import BrokenReferenceNotice from './BrokenReferenceNotice.vue';
+import coercedFieldsStore from '@/features/sequential/designer/editor/store/coercedFieldsStore';
+import type { IBodyProblem } from '@/entities/workflow/lib/referenceValidation';
+import {
+  findBrokenReferences,
+  findBodyProblems,
+  canCoerceAll,
+  coerceValue,
+  type IBrokenReference,
+} from '@/entities/workflow/lib/referenceValidation';
 const isUneditable = ref(false);
+/**
+ * Values that read a task which does not run first. This editor cannot produce
+ * one — it only offers tasks that run before — but an imported definition can,
+ * and the engine takes it and fails at run time instead.
+ */
+const brokenReferences = ref<IBrokenReference[]>([]);
+const bodyProblems = ref<IBodyProblem[]>([]);
+/**
+ * Fields whose value was forced into the type its task asks for.
+ *
+ * Kept so the panel can mark them. A conversion the user did not type is still a
+ * change to their workflow — they should see which values it touched before saving.
+ */
+const canCoerceProblems = computed(() =>
+  canCoerceAll(bodyProblems.value, (task, field) =>
+    valueInSequence(task, field),
+  ),
+);
+const showBrokenReferences = ref(false);
 const loadWarnings = ref<string[]>([]);
 
 /**
@@ -860,6 +898,31 @@ function loadSequence() {
     // it to display would, on save, create dependencies that did not exist and silently change the workflow.
     isUneditable.value = loaded.representable === false;
     loadWarnings.value = loaded.warnings ?? [];
+    // Check what was loaded rather than trusting it: the engine accepts a
+    // reference to any task that exists by name, so a definition from an import
+    // or another tool can read a task that never ran.
+    coercedFieldsStore.clear();
+    brokenReferences.value = findBrokenReferences(
+      workflowData.value?.data?.task_groups ?? workflowData.value?.task_groups,
+    );
+    // ★ 읽히지 않는 본문은 참조가 어긋난 것과 성격이 다르다. 참조는 칸이 다 있고 하나가
+    //   엉뚱한 곳을 가리키는 것이라 여기서 고칠 수 있지만, 못 읽는 본문은 칸 자체가 없다 —
+    //   그 상태로 저장하면 화면이 읽어 내지 못한 것을 파일에 덮어쓴다.
+    bodyProblems.value = findBodyProblems(
+      workflowData.value?.data?.task_groups ?? workflowData.value?.task_groups,
+      componentName => {
+        // 컴포넌트는 두 모양으로 들어온다 — cm-cicada 가 준 `spec` 과, 화면이 쓰는
+        // `data` 로 옮겨 담은 것. 어느 쪽으로 들어왔든 같은 스키마를 가리킨다.
+        const component: any = (workflowToolModel.taskComponentList || []).find(
+          (candidate: any) => candidate?.name === componentName,
+        );
+        return (
+          component?.spec?.body_params_schema ?? component?.data?.body_params
+        );
+      },
+    );
+    showBrokenReferences.value =
+      brokenReferences.value.length > 0 || bodyProblems.value.length > 0;
     // When entering from a target model, inject the target model id into the lookup task and the literal
     // body into the migration task. Injected right after the sequence is built (before designer render),
     // so it is reflected as-is on save.
@@ -924,6 +987,11 @@ function injectTargetModelIntoSequence() {
       } else if (component === migrationComponent && literalBody) {
         // Put in the target model's literal value instead of a reference body (the right-hand table is filled with this value too).
         step.properties.model = { ...literalBody };
+        // The template this workflow came from fills this task from the lookup before it, so the
+        // step arrives carrying that reference. Injecting the literal value has to drop it too —
+        // otherwise the panel opens in whole-result mode and the values just injected are hidden
+        // behind it, and saving writes the reference back over them.
+        step.properties.referenceRequestBody = '';
       }
       if (step?.sequence) visit(step.sequence);
     }
@@ -1107,6 +1175,110 @@ function handleSaveCallback(designer: Designer | null) {
   }
 }
 
+/**
+ * 편집기를 닫고 JSON 으로 고치러 보낸다.
+ *
+ * 못 읽는 본문은 여기서 고칠 방법이 없다 — 칸을 그릴 수가 없으니 손댈 자리가 없다. 글자로
+ * 고치는 것이 유일한 길이라 그쪽으로 안내한다.
+ */
+function leaveForJsonEditor() {
+  showBrokenReferences.value = false;
+  emit('update:close-modal', false);
+  emit('open-json-editor');
+}
+
+/** One body value in the sequence, addressed the way the problem list names it. */
+function stepByTaskName(taskName: string): any {
+  const walk = (steps: any[]): any => {
+    for (const step of steps ?? []) {
+      if (step?.name === taskName) return step;
+      const found =
+        walk(step?.sequence ?? []) ||
+        Object.values(step?.branches ?? {}).reduce(
+          (hit: any, branch: any) => hit || walk(branch),
+          null,
+        );
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(sequentialSequence.value as any[]);
+}
+
+function pathParts(field: string): string[] {
+  return field
+    .replace(/\[(\d+)\]/g, '.$1')
+    .split('.')
+    .filter(Boolean);
+}
+
+function valueInSequence(taskName: string, field: string): unknown {
+  let cursor: any = stepByTaskName(taskName)?.properties?.model;
+  for (const part of pathParts(field)) {
+    if (cursor === undefined || cursor === null) return undefined;
+    cursor = cursor[part];
+  }
+  return cursor;
+}
+
+/**
+ * Forces every mistyped value into the type its field asks for.
+ *
+ * Only offered when all of them can be converted without losing anything ("5" → 5,
+ * never "5abc" → 5). The fields are marked afterwards: the user did not type this
+ * change, so they should be able to find what it touched.
+ */
+function coerceBodyValues() {
+  const marked: Array<{ task: string; field: string }> = [];
+
+  bodyProblems.value.forEach(problem => {
+    const step = stepByTaskName(problem.task);
+    if (!step?.properties) return;
+
+    if (problem.kind === 'reference-quoting') {
+      // 값은 그대로 두고 인용부호만 옮긴다. 참조가 어느 태스크의 무엇을 가리키는지는
+      // 바뀌지 않고, 저장될 때 따옴표가 붙느냐 마느냐만 달라진다.
+      const kept: string[] = Array.isArray(step.properties.rawBodyRefs)
+        ? step.properties.rawBodyRefs.filter(
+            (one: string) => one !== problem.field,
+          )
+        : [];
+      step.properties.rawBodyRefs =
+        problem.expected === 'string' ? kept : [...kept, problem.field];
+      marked.push({ task: problem.task, field: problem.field });
+      return;
+    }
+
+    if (problem.kind !== 'type' || !step.properties.model) return;
+    const parts = pathParts(problem.field);
+    let cursor: any = step.properties.model;
+    for (let i = 0; i < parts.length - 1; i += 1) {
+      cursor = cursor?.[parts[i]];
+      if (cursor === undefined || cursor === null) return;
+    }
+    const key = parts[parts.length - 1];
+    const converted = coerceValue(cursor?.[key], problem.expected);
+    if (converted === undefined) return;
+    cursor[key] = converted;
+    marked.push({ task: problem.task, field: problem.field });
+  });
+
+  // ★ 고친 것을 디자이너에게 건네야 저장에 반영된다.
+  //
+  //   저장은 `designer.getDefinition()` 을 읽는데, 디자이너는 자기 정의를 따로 들고 있다.
+  //   여기서 손댄 것은 우리 쪽 sequence 라 그대로 두면 화면만 바뀌고 파일은 그대로다.
+  //   배열 참조를 바꾸면 SequentialDesigner 의 watch 가 replaceDefinition 으로 넘겨 준다
+  //   (스텝 안쪽을 고친 것만으로는 watch 가 얕아서 걸리지 않는다).
+  sequentialSequence.value = [...sequentialSequence.value];
+
+  coercedFieldsStore.replace(marked);
+  bodyProblems.value = bodyProblems.value.filter(
+    one => one.kind === 'unreadable',
+  );
+  showBrokenReferences.value =
+    brokenReferences.value.length > 0 || bodyProblems.value.length > 0;
+}
+
 function handleCancel() {
   emit('update:close-modal', false);
   // emit('update:trigger');
@@ -1178,6 +1350,16 @@ function handleSelectTemplate(e) {
               How to run tasks in parallel
             </button>
           </header>
+          <BrokenReferenceNotice
+            v-if="showBrokenReferences"
+            :broken="brokenReferences"
+            :problems="bodyProblems"
+            @close="showBrokenReferences = false"
+            :can-coerce="canCoerceProblems"
+            @leave="handleCancel"
+            @open-json="leaveForJsonEditor"
+            @coerce="coerceBodyValues"
+          />
           <div
             v-if="loadWarnings.length"
             class="workflow-tool-notice mb-[12px]"
