@@ -641,7 +641,7 @@ Then(
     // 참조가 걸리면 목록 대신 참조 하나가 자리를 차지한다. 둘 다 보이면 사용자는 어느
     // 쪽이 실제로 나가는지 알 수 없다.
     await expect(
-      page.getByTestId(`wf-array-toggle-body_params.${field}`),
+      page.getByTestId(`wf-toggle-body_params.${field}`),
       '참조가 걸렸는데 배열을 펼치는 버튼이 남아 있다',
     ).toHaveCount(0);
     await expect(
@@ -653,7 +653,7 @@ Then(
 
 Then('{string} 의 하위 칸이 보이지 않는다', async ({ page }, field: string) => {
   await expect(
-    page.getByTestId(`wf-object-toggle-body_params.${field}`),
+    page.getByTestId(`wf-toggle-body_params.${field}`),
     '참조가 걸렸는데 객체를 펼치는 버튼이 남아 있다',
   ).toHaveCount(0);
   await expect(

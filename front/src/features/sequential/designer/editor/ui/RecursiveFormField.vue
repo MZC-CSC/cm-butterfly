@@ -577,18 +577,22 @@ export default defineComponent({
      * position picks a different toggle as soon as the form gains a field. The path names which
      * one it opens, the same way the leaf inputs are named.
      */
+    // ★ 셋 다 `wf-toggle-` 하나로 간다. develop 이 그렇게 쓰고 있고, 여기서 갈라 놓으면
+    //   같은 화면을 보는 e2e 가 브랜치마다 다른 이름을 찾게 된다 — 실제로 충돌했다.
+    //   경로가 이미 어느 쪽인지 말해 주므로(배열이면서 객체인 칸은 없다) 접두어를 나눌
+    //   이유도 없다. 항목은 뒤에 `[i]` 가 붙어 저절로 갈린다.
     const arrayToggleTestId = computed(
       () =>
-        `wf-array-toggle-${props.indexPath || props.currentPath || props.fieldName}`,
+        `wf-toggle-${props.indexPath || props.currentPath || props.fieldName}`,
     );
 
     const objectToggleTestId = computed(
       () =>
-        `wf-object-toggle-${props.indexPath || props.currentPath || props.fieldName}`,
+        `wf-toggle-${props.indexPath || props.currentPath || props.fieldName}`,
     );
 
     const arrayItemToggleTestId = (arrayIndex: number) =>
-      `wf-array-item-toggle-${props.indexPath || props.currentPath || props.fieldName}[${arrayIndex}]`;
+      `wf-toggle-${props.indexPath || props.currentPath || props.fieldName}[${arrayIndex}]`;
 
     /** The button that removes one entry, which needs the entry's position as well. */
     const arrayRemoveTestId = (arrayIndex: number) =>
