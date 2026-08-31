@@ -912,7 +912,7 @@ export class WorkflowPage {
         있으므로 펼치지 않고도 정확히 센다.
     */
     const before = await this.page
-      .locator(`[data-testid^="wf-array-item-toggle-${rules}["]`)
+      .locator(`[data-testid^="wf-toggle-${rules}["]`)
       .evaluateAll(els =>
         els
           .map(e => e.getAttribute('data-testid') ?? '')
@@ -935,13 +935,16 @@ export class WorkflowPage {
     /*
       새 항목은 **접힌 채로** 온다. 그 접기 손잡이를 눌러야 안의 칸이 생긴다.
 
-      ★ 손잡이의 식별자가 다른 것들과 다르다 — 배열 항목은 `wf-array-item-toggle-…[N]` 이고,
-        일반 필드에 쓰는 `wf-toggle-…` 가 아니다. 그 이름으로 기다리다 두 번 헛짚었고, 그동안
-        "N 번 항목이 나타나지 않는다" 로만 죽어 원인이 보이지 않았다. 실패할 때 화면에 있는
-        식별자를 찍게 해서야 드러났다. (2026-08-24)
+      ★ 배열 항목의 손잡이도 `wf-toggle-…[N]` 이다 — 배열 자체(`wf-toggle-…`)와 이름 규칙이 같고
+        뒤에 번호만 붙는다. 그래서 `openPathTo` 가 쓰는 이름과 한 갈래다.
+
+        한동안 `wf-array-item-toggle-…[N]` 으로 적어 두었는데, 그것은 **머지되지 않은 브랜치가
+        바꾼 이름**이었다. 그 브랜치 빌드가 dev 의 front-dev 에 올라가 있어 그때는 맞아 보였고,
+        develop 기준으로 돌리면 아무것도 잡지 못한다. 화면 식별자를 볼 때는 *어느 빌드를 보고
+        있는지* 부터 확인한다. (2026-08-27)
     */
     const newItem = this.page
-      .getByTestId(`wf-array-item-toggle-${rules}[${nextIndex}]`)
+      .getByTestId(`wf-toggle-${rules}[${nextIndex}]`)
       .first();
     await expect(
       newItem,
