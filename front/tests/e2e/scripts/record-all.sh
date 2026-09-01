@@ -114,7 +114,7 @@ esac
 # 여기서 한 번 정해 물려주면 아홉 구간이 한 벌로 묶인다. 특정 구간만 다시 찍을 때는 그 벌의 값을
 # 그대로 넘긴다: E2E_RUN_ID=433829 scripts/record-all.sh 5 6
 export E2E_RUN_ID="${E2E_RUN_ID:-$(date +%s | tail -c 7)}"
-echo "이번 벌 RUN_ID=$E2E_RUN_ID  (다시 찍을 때 이 값을 그대로 넘긴다)"
+echo "이번 벌 RUN_ID=$E2E_RUN_ID  (이 벌의 남은 구간을 이어 찍을 때만 이 값을 넘긴다 — 새 벌은 새 값)"
 
 # 찍기 전에 환경을 본다.
 #
