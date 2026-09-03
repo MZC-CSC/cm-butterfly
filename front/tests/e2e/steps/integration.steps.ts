@@ -358,7 +358,7 @@ When(
       privateKey: [
         '-----BEGIN OPENSSH PRIVATE KEY-----',
         '  여기에 접속할 서버의 개인키 전문을 붙여 넣습니다',
-        '-----END OPENSSH PRIVATE KEY-----',
+        '-----END OPENSSH PRIVATE KEY-----', // gitleaks:allow — placeholder shown in the recording, not a key
       ].join('\n'),
     });
   },
