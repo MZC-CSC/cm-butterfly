@@ -83,7 +83,8 @@ const currentLoadTestResult = computed<any | undefined>(() => {
 // Status label shown in the Evaluate Perf header next to Load Config; refreshed on each poll.
 const currentLoadTestStatusLabel = computed(() => {
   const status = currentLoadTestResult.value?.executionStatus as
-    string | undefined;
+    | string
+    | undefined;
   return status ? (LOADTEST_STATUS_LABEL[status] ?? status) : '';
 });
 // loadTestKey used for stopping and re-running.

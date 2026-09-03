@@ -28,8 +28,8 @@ async function growToFit(page: Page, area: Locator): Promise<void> {
   if (!box) return;
 
   // The grip sits in the bottom-right corner.
-  const gripX = box.x + box.width - 6;
-  const gripY = box.y + box.height - 6;
+  const gripX = box.x + box.width - 3;
+  const gripY = box.y + box.height - 3;
 
   const needed = await area
     .evaluate((el: HTMLTextAreaElement) => el.scrollHeight - el.clientHeight)
@@ -64,8 +64,8 @@ async function growToFit(page: Page, area: Locator): Promise<void> {
   const after = await area.boundingBox();
   if (after) {
     await page.mouse.move(
-      after.x + after.width - 6,
-      after.y + after.height - 6,
+      after.x + after.width - 3,
+      after.y + after.height - 3,
     );
   }
 }

@@ -6,7 +6,7 @@ import { ok } from '../support/apiMock';
 const { Given, Then } = createBdd(test);
 
 /**
- * Workflow run completion notification (BAR-1545, notification badge stage 3) — @mock.
+ * Workflow run completion notification (notification badge stage 3) — @mock.
  *
  * What this verifies and what it does not
  * ---------------------------------------

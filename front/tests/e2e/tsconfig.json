@@ -1,0 +1,26 @@
+{
+  /*
+    e2e 를 타입으로 검사한다.
+
+    ★ 저장소의 tsconfig 는 `src` 만 본다. 그래서 `import` 를 빠뜨린 이름이 타입 검사도 lint 도
+      모두 통과한 채 남았고, 9분짜리 촬영 구간을 하나 버리고 나서야 실행 시점에 드러났다
+      (2026-08-24, bringIntoFullView). 돌리는 데 몇 초면 된다:
+
+        npx tsc --noEmit -p tests/e2e/tsconfig.json
+  */
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "checkJs": false,
+    "strict": false,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "esModuleInterop": true,
+    "resolveJsonModule": true
+  },
+  "include": ["**/*.ts", "**/*.mts", "**/*.mjs"],
+  "exclude": [".features-gen", "node_modules"]
+}

@@ -24,14 +24,22 @@ nvm install && nvm use                               # node 버전은 .nvmrc 가
 npm ci
 npx playwright install --with-deps chromium
 
-export BASE_URL=http://cmig.dev.cscmzc.com           # 대상 콘솔
-export TEST_SOURCE_IP=<소스 VM 사설 IP>               # ★ 사설 IP 다 (아래 참고)
-export TEST_SOURCE_PRIVATE_KEY="$(cat e2e-source-key)"
+cp tests/e2e/e2e.config.example tests/e2e/e2e.config   # 자기 환경 값으로 채운다 (git 제외)
 
 npx bddgen --config tests/e2e/playwright.config.ts    # .feature → 테스트 생성
 npx playwright test --config=tests/e2e/playwright.config.ts
 
 npx playwright show-report playwright-report           # 결과·화면·영상 보기
+```
+
+주소·계정·소스 서버 IP 같이 **환경마다 다른 값은 `tests/e2e/e2e.config` 한 곳**에 둔다.
+이 파일은 `.gitignore` 되므로 자기 값이 저장소에 올라가지 않는다. 채울 항목과 설명은
+`e2e.config.example` 에 있다.
+
+한 번만 다른 환경을 겨눌 때는 앞에 붙이면 그쪽이 이긴다.
+
+```bash
+BASE_URL=http://other-host npx playwright test --config=tests/e2e/playwright.config.ts
 ```
 
 기본 실행은 **seed + functional** 이다. 실제 클라우드 자원을 만드는 것은 빠져 있다.

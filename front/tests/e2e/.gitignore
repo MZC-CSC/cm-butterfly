@@ -3,3 +3,6 @@
 test-results/
 playwright-report/
 e2e-report/
+
+# 개인 실행 환경 설정 — e2e.config.example 을 복사해서 만든다
+e2e.config

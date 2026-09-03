@@ -17,11 +17,17 @@ import {
   descriptions,
 } from '../fixtures/test-data';
 import { uniqueName } from '../support/naming';
-import { spotlight } from '../support/spotlight';
+import { spotlight, spotlightText } from '../support/spotlight';
 import { getSessionToken } from '../support/apiWait';
 import { scenarioState } from '../support/world';
 import { recall, remember } from '../support/handoff';
-import { humanClick } from '../support/humanize';
+import {
+  bringIntoFullView,
+  humanClick,
+  humanDrag,
+  pointAt,
+} from '../support/humanize';
+import { findInBrowser, closeFind } from '../support/browserFind';
 import { openScreen } from '../support/navigate';
 
 const { Given, When, Then } = createBdd(test);
@@ -41,7 +47,40 @@ const { Given, When, Then } = createBdd(test);
  * Both are judged by their real result instead.
  */
 
-// ── 구간1: the migration guide and the help panel ───────────────────────
+// ── 구간1: the first-visit guidance, the migration guide and the help panel ──
+
+/**
+ * The welcome someone with nothing here yet is shown, once.
+ *
+ * ★ It is asserted rather than dismissed if present. The console offers it only while the reader
+ *   is still on step 1 - one source group left behind by an earlier run is enough to stop it
+ *   appearing. Passing either way would mean the take shows the opening a first-time reader sees
+ *   on some runs and not on others, with nothing to say which. `record-all.sh` clears the data
+ *   before a take so this holds; a single-segment retake needs the same.
+ *
+ *   Both of these were seen on 2026-08-14: the first take failed here because the modal covered
+ *   the guide and nothing dealt with it, and the second passed because the modal never appeared.
+ */
+Then('처음 방문 안내가 보인다', async ({ page }) => {
+  await expect(page.getByTestId('guided-setup-welcome')).toBeVisible({
+    timeout: 20_000,
+  });
+});
+
+Then('안내에 마이그레이션 다섯 단계가 보인다', async ({ page }) => {
+  const steps = page.getByTestId('guided-setup-welcome-steps');
+  await expect(steps).toBeVisible();
+  // Five, because that is what the guide screen also counts. A different number here and the two
+  // screens disagree about what the migration is.
+  await expect(steps.locator('li')).toHaveCount(5);
+});
+
+When('안내에서 시작을 누르면', async ({ page }) => {
+  await humanClick(page.getByTestId('guided-setup-welcome-start'));
+  await expect(page.getByTestId('guided-setup-welcome')).toBeHidden({
+    timeout: 15_000,
+  });
+});
 
 When('마이그레이션 가이드 화면을 열면', async ({ page }) => {
   await openScreen(page, 'migrationguide', '/main/migration-guide');
@@ -105,16 +144,17 @@ Then('도움말에 현재 화면 설명이 보인다', async ({ page }) => {
  *   인코딩해도 복구되지 않으므로 *찍을 때* 프레임 간 변화량을 줄이는 수밖에 없다. 걸음을 잘게 나눠
  *   조금씩 움직이면 같은 거리를 가도 한 프레임이 담는 변화가 작아진다. (2026-07-31)
  */
+/**
+ * Widen the docked panel and put it back.
+ *
+ * The pointer travels to the edge before pressing - see `humanDrag`. Pressing without arriving
+ * showed the panel resizing while the cursor was elsewhere.
+ */
 Given('도움말 패널의 폭을 넓혔다 줄인다', async ({ page }) => {
-  const box = await page.getByTestId('help-resizer').first().boundingBox();
-  if (!box) return;
-  const y = box.y + box.height / 2;
-  await page.mouse.move(box.x + box.width / 2, y);
-  await page.mouse.down();
-  await page.mouse.move(box.x - 220, y, { steps: 60 });
+  const edge = page.getByTestId('help-resizer').first();
+  await humanDrag(edge, { dx: -220, dy: 0 });
   await page.waitForTimeout(500);
-  await page.mouse.move(box.x + 60, y, { steps: 60 });
-  await page.mouse.up();
+  await humanDrag(edge, { dx: 220, dy: 0 });
   await page.waitForTimeout(500);
 });
 
@@ -135,47 +175,76 @@ Then('도움말이 떠 있는 창으로 바뀐다', async ({ page }) => {
   );
 });
 
+/**
+ * Move the floating help window by its title bar.
+ *
+ * ★ Grabbed by the header, and the pointer travels there first. It used to press wherever the
+ *   handle happened to be without moving to it, so the take showed the window sliding across the
+ *   screen while the cursor was still over the button that had undocked it - the window appeared to
+ *   move on its own. `humanDrag` arrives, presses, carries, and lets go.
+ */
 Given('도움말 창을 다른 위치로 옮긴다', async ({ page }) => {
-  const box = await page.getByTestId('help-header').first().boundingBox();
-  if (!box) return;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.down();
-  // A short move. It used to travel 300 across and 180 down, which threw the window far enough
-  // that the next step read a stale handle position.
-  await page.mouse.move(box.x - 120, box.y + 90, { steps: 40 });
-  await page.mouse.up();
-  await page.waitForTimeout(600);
+  const panel = page.getByTestId('help-panel');
+  const before = await panel.boundingBox();
+  await humanDrag(page.getByTestId('help-header').first(), {
+    dx: -320,
+    dy: 180,
+  });
+  /*
+    가로와 세로가 *둘 다* 움직였는지 본다.
+
+    ★ 예전에는 가로로만 움직였다. 도킹을 해제해도 창이 자기 크기를 갖지 않아 화면만큼 키가
+      컸고, 옮기기가 그 높이로 세로 한계를 계산해 y 가 못 박혔다. 화면에서는 커서가 제목 줄을
+      놓친 것처럼 보였다. 한쪽만 확인하면 그 상태가 그대로 통과한다.
+  */
+  const after = await panel.boundingBox();
+  expect(before && after, '도움말 창의 위치를 읽지 못했다').toBeTruthy();
+  expect(
+    Math.round(before!.x - after!.x),
+    '가로로 움직이지 않았다',
+  ).toBeGreaterThan(100);
+  expect(
+    Math.round(after!.y - before!.y),
+    '세로로 움직이지 않았다',
+  ).toBeGreaterThan(100);
 });
 
-/**
- * Widen the floating window by its left edge.
- *
- * ★ Two things have to be true for this to look like what it is, and neither was.
- *
- *   The handle has to be read *after* the window has settled from being moved. Reading it too
- *   early gives the position it used to be at, so the drag starts from empty space and the window
- *   grows with the cursor nowhere near it - on the recording that reads as impossible.
- *
- *   And the cursor has to travel the way the edge does. The handle sits on the left edge
- *   (`.help-resizer`, `left: 0`, `col-resize`), so widening means going left - straight left.
- *   The old drag also went 120 down, which changes nothing and leaves the pointer wandering
- *   diagonally while only the width moves. (2026-08-14, from watching the take)
- */
-Given('도움말 창의 크기를 키운다', async ({ page }) => {
-  const handle = page.getByTestId('help-resizer').first();
-  // Let the move finish before asking where the edge is.
-  await page.waitForTimeout(400);
-  const box = await handle.boundingBox();
-  if (!box) return;
+/*
+  옮긴 자리에서 크기를 바꾼다.
 
-  const y = box.y + box.height / 2;
-  // Arrive on the handle first, so the pointer is visibly on the edge it is about to pull.
-  await page.mouse.move(box.x + box.width / 2, y, { steps: 12 });
-  await page.waitForTimeout(250);
-  await page.mouse.down();
-  await page.mouse.move(box.x - 220, y, { steps: 60 });
-  await page.mouse.up();
-  await page.waitForTimeout(400);
+  ★ 끌고 있는 변이 포인터를 따라오는지가 요점이다. 떠 있는 창은 왼쪽이 고정돼 있어, 왼쪽 모서리를
+    잡고 끌면 정작 오른쪽 변이 늘어나 창이 손에서 달아나 보였다. 그래서 넓힐 때는 *오른쪽 변이
+    그대로*, 높일 때는 *윗변이 그대로*인지 함께 확인한다.
+*/
+Given('도움말 창의 크기를 조절한다', async ({ page }) => {
+  const panel = page.getByTestId('help-panel');
+  const before = await panel.boundingBox();
+
+  await humanDrag(page.getByTestId('help-resizer').first(), {
+    dx: -180,
+    dy: 0,
+  });
+  const wider = await panel.boundingBox();
+  expect(wider!.width, '폭이 넓어지지 않았다').toBeGreaterThan(
+    before!.width + 80,
+  );
+  expect(
+    Math.abs(wider!.x + wider!.width - (before!.x + before!.width)),
+    '왼쪽 모서리를 끌었는데 오른쪽 변이 움직였다',
+  ).toBeLessThan(8);
+
+  await humanDrag(page.getByTestId('help-resizer-bottom').first(), {
+    dx: 0,
+    dy: -200,
+  });
+  const shorter = await panel.boundingBox();
+  expect(shorter!.height, '높이가 줄지 않았다').toBeLessThan(
+    wider!.height - 80,
+  );
+  expect(
+    Math.abs(shorter!.y - wider!.y),
+    '아래를 끌었는데 윗변이 움직였다',
+  ).toBeLessThan(8);
 });
 
 Given('도움말을 닫는다', async ({ page }) => {
@@ -209,7 +278,7 @@ function connectionFor(
  * ways of getting connections in.
  */
 When(
-  '소스 연결정보 CSV로 {string} 그룹을 등록하면',
+  '소스 연결정보 파일로 {string} 그룹을 등록하면',
   async ({ page }, groupName: string) => {
     const name = uniqueName(groupName);
     const source = new SourceServicesPage(page);
@@ -270,6 +339,31 @@ Given(
   },
 );
 
+/*
+  보여주기 위한 등록 — 개인키 자리에 *안내 문구*만 넣는다.
+
+  ★ 이 칸만 평문으로 그려져, 실제 키를 치면 그 본문이 영상에 그대로 남는다. 그런데 수집에 쓰는
+    연결은 진짜 키가 있어야 한다. 그래서 둘로 나눴다 — *쓰는 것*은 사전 작업에서 조용히 만들고,
+    *보여주는 것*은 여기서 찍는다. 등록되는 내용은 같고 키만 문구다.
+*/
+When(
+  '소스 서비스에 {string} 소스서버를 안내 문구만 넣어 등록한다',
+  async ({ page }, groupName: string) => {
+    const name = uniqueName(groupName);
+    const source = new SourceServicesPage(page);
+    await source.goto();
+    await source.createSourceGroupWithConnection(name, {
+      ...connectionFor('onprem-web', 'nano'),
+      name,
+      privateKey: [
+        '-----BEGIN OPENSSH PRIVATE KEY-----',
+        '  여기에 접속할 서버의 개인키 전문을 붙여 넣습니다',
+        '-----END OPENSSH PRIVATE KEY-----', // gitleaks:allow — placeholder shown in the recording, not a key
+      ].join('\n'),
+    });
+  },
+);
+
 Then('소스그룹 목록에 {string} 이 보인다', async ({ page }, name: string) => {
   const source = new SourceServicesPage(page);
   await source.goto();
@@ -286,7 +380,11 @@ Then('소스그룹 목록에 {string} 이 보인다', async ({ page }, name: str
 function specLabel(spec?: string): string {
   if (!spec) return '';
   const size = spec.split('+').pop() ?? spec;
-  return `\n선택한 스펙 : ${size.toUpperCase()}`;
+  /*
+    ★ 대문자로 바꾸지 않는다. 화면에서 고르고 입력하는 값이 전부 소문자(`t3a.large`)인데 설명에만
+      대문자로 적히면, 나란히 놓았을 때 다른 값처럼 보인다 (2026-08-24 사용자 지적).
+  */
+  return `\n선택한 스펙 : ${size}`;
 }
 
 // ── 구간3·4: recommending against a named CSP and region ────────────────
@@ -347,39 +445,128 @@ When(
 async function openPortByDuplicating(page: Page): Promise<void> {
   const editor = new JsonEditorPage(page);
   await editor.switchToTable();
+  /*
+    Everything open first. A folded node has no rows at all, so the family of a rule cannot be read
+    - and which nodes start folded differs between the source model and the target model.
+  */
+  await editor.expandAll();
   await editor.search('22');
-  await editor.enableFilter();
+  /*
+    Not filtered. The family of a rule is on its `dstCIDR` row, and filtering to rows that say `22`
+    takes that row away - leaving no way to tell the IPv4 rule from the IPv6 one. The search still
+    highlights, so the screen shows where the rule is.
 
-  const portRow = editor.row('22');
+    ★ 대신 *다음 일치* 를 눌러 옮겨 간다. 검색만 하면 표가 스스로 첫 일치로 움직여, 누른 것도
+      없이 화면이 좁혀진 것처럼 보인다 - 걸지도 않은 필터가 걸린 줄로 읽힌다(사용자 지적).
+  */
+  await editor.stepThroughMatches(2);
+
+  /*
+    The rule to copy has to be an IPv4 one.
+
+    ★ A collected firewall carries both families, so `22` appears twice - once with `0.0.0.0/0` and
+      once with `::/0`. Taking whichever came first took the IPv6 rule about half the time, and the
+      copy inherited `::/0` along with everything else. cm-beetle does not carry IPv6 rules into a
+      recommendation, so the port was in the source model, absent from the target model, and absent
+      from the machine - while every step reported success. (2026-08-14. The target model came back
+      with `no match` for 5555, and the source model had it on `::/0`.)
+
+      The on-prem model is where both families show up; a target model has one rule per port.
+  */
+  const portRow = await editor.ipv4PortRow('22');
   await expect(
     portRow,
-    '방화벽에 22번 규칙이 없다 — 소스 서버에 방화벽이 설정돼 있어야 수집에 잡힌다',
+    '방화벽에 IPv4 22번 규칙이 없다 — 소스 서버에 방화벽이 설정돼 있어야 수집에 잡힌다',
   ).toBeVisible({ timeout: 15_000 });
 
-  const item = await editor.enclosingItem(portRow);
-  await editor.duplicateRow(item);
+  /*
+    The rule to copy, taken by its path rather than by walking up from the port row.
 
-  // The copy is the second row now matching 22; changing it leaves the original alone.
-  const copy = editor.rowsMatching('22').nth(1);
-  await editor.setRowValue(copy, '5555');
+    ★ Walking up meant deciding where a rule begins, and it kept landing one rule over. The row
+      knows its own path (`$.0.firewallTable.6.dstPorts`); the rule is that path with the field
+      removed.
+  */
+  const rulePath = await editor.rulePathOf(portRow);
+  const before = await editor.rowsMatching('22').count();
 
-  // Now show that it is there.
-  //
-  // ★ The grid is filtered to rows matching 22, so the moment the copy becomes 5555 it drops out of
-  //   the view - on screen the rule appears to have been typed and then lost, and nothing says the
-  //   port was added. Searching for the new value brings it back into a view that contains only it,
-  //   which is the thing worth looking at.
-  await editor.search('5555');
-  const added = editor.row('5555');
+  /*
+    Copy the rule, then change the row that was copied *from*.
+
+    ★ The two are identical, so which one is edited makes no difference to what the document ends
+      up holding - one rule allowing 22, one allowing 5555, both IPv4. And the original's path is
+      already in hand, while the copy's would have to be found.
+
+      Finding it is where this went wrong twice. Duplicating shifts every rule after the original
+      down one place, so "the last row that says 22" is whatever slid into that spot - here the
+      IPv6 rule, which cm-beetle drops on the way into a recommendation: the port stayed in the
+      source model and reached neither the target model nor the machine, with every step still
+      reporting success. Assuming the copy sits at the next index is the same guess in another
+      form, and where any rule sits depends on how the document was collected.
+  */
+  /*
+    복제하기 전에 **22 줄을 화면 한가운데로** 옮긴다.
+
+    ★ 사본은 바로 아래에 생긴다. 22 줄이 화면 위쪽에 붙어 있으면 사본이 아래로 밀려 나가 *두 개가
+      됐다는 것* 이 영상에 남지 않고, 반대로 아래쪽에 있으면 복제 단추를 누르는 자리가 화면 끝에
+      걸린다. 가운데에 두면 위아래가 다 보인다.
+
+    ★ 다음 규칙을 화면에 들이는 방식이었는데, 그러면 22 줄이 위로 밀려 올라가 눌리는 자리가 표
+      머리글 근처가 됐다 — 영상에서는 *ROW 머리글을 누르는* 것처럼 보였다(2026-08-24 사용자 지적).
+  */
+  await portRow
+    .evaluate((el: Element) =>
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' }),
+    )
+    .catch(() => {});
+  await page.waitForTimeout(900);
+
+  await editor.duplicateRow(editor.rowAt(rulePath));
+  /*
+    복제 뒤에 펼치지 않는다.
+
+    ★ 예전에는 사본이 접힌 채로 들어와 그 안의 칸들이 행이 아니었고, 그래서 복제 직후 전체
+      펼치기를 다시 눌렀다(표는 327→328 로 늘었는데 규칙은 26 그대로였다).
+
+      그건 화면 쪽 결함이었고 고쳤다 — **사본이 원본의 펼침 상태를 그대로 물려받는다**
+      (JsonPropertyGrid `carryExpansionThroughInsert`). 위에서 전체 펼치기로 시작하므로 원본이
+      펼쳐져 있고, 따라서 사본도 펼쳐진 채로 생긴다.
+
+      다시 누르면 표가 통째로 다시 그려져 화면만 크게 튄다 — 보는 사람에게는 쓸데없는 클릭이다
+      (2026-08-19 사용자 지적). 사본이 정말 펼쳐졌는지는 바로 아래 규칙 수 단언이 잡는다.
+  */
+  await expect(
+    editor.rowsMatching('22'),
+    '22번 규칙이 복제되지 않았다 — 복제 버튼이 방화벽 규칙이 아닌 다른 항목에 눌렸을 수 있다',
+  ).toHaveCount(before + 1, { timeout: 10_000 });
+
+  await editor.setRowValue(editor.portRowOf(rulePath), '5555');
+
+  const family = await editor.familyOfRuleContaining('5555');
+  expect(
+    family,
+    '복제한 방화벽 규칙이 IPv4 가 아니다 — cm-beetle 은 IPv6 규칙을 추천으로 옮기지 않아, ' +
+      '이 포트는 소스 모델에만 남고 타깃 모델·인스턴스에는 나타나지 않는다',
+  ).toBe('ipv4');
+
+  /*
+    검색을 다시 하지 않는다.
+
+    ★ 전에는 5555 로 다시 검색해 그 줄을 화면에 들였다. 그런데 복제 직후 화면에는 **원본 22 와
+      사본이 나란히 보이고**, 사본의 포트를 5555 로 고치는 것까지 한 화면에서 일어난다 — 22 와
+      5555 가 함께 보이므로 무엇이 달라졌는지 그대로 읽힌다. 거기서 다시 검색을 걸면 표가 좁혀지며
+      화면이 크게 튀고, 방금 본 것을 다시 찾는 군더더기가 된다 (2026-08-24 사용자 지적).
+
+      줄은 값이 아니라 경로로 잡는다 — 값으로 찾으면 22 가 여럿일 때 어느 것인지 알 수 없다.
+  */
+  const added = editor.portRowOf(rulePath);
   await expect(
     added,
     '5555 규칙이 추가되지 않았다 — 복제한 행의 포트가 바뀌지 않았을 수 있다',
   ).toBeVisible({ timeout: 10_000 });
+  await expect(added).toBeInViewport({ timeout: 5_000 });
+  await page.waitForTimeout(1_000);
 
-  // Point at it. Someone who has never used the console will not spot one changed number in a table
-  // of ports on their own.
-  await spotlight(page, added);
-
+  // 22 로 걸어 둔 검색만 정리한다.
   await editor.closeSearch();
 }
 
@@ -438,6 +625,15 @@ When(
     const editor = new JsonEditorPage(page);
     await editor.openFromTargetModel();
     await editor.switchToTable();
+    /*
+      Open the document out before searching.
+
+      ★ A folded node has no rows at all - they are absent from the DOM, not hidden - and the
+        search only narrows what is drawn. Searching a folded document finds nothing and reads as
+        "the port is not there", which is what happened while the port was sitting in the model all
+        along. (2026-08-14)
+    */
+    await editor.expandAll();
     await editor.search(query);
     await editor.enableFilter();
   },
@@ -491,7 +687,14 @@ When('타깃 모델의 스펙을 4GB 급으로 변경하면', async ({ page }) =
   await expect(specRow, `스펙이 ${next} 로 바뀌지 않았다`).toContainText(size, {
     timeout: 10_000,
   });
-  await spotlight(page, specRow);
+
+  /*
+    바꾼 값은 짚지 않는다 — 방금 그 자리에서 직접 고쳤으므로 어디를 봐야 하는지가 이미 분명하다.
+
+    ★ 커서를 그 줄로 다시 보내면 *고친 뒤에 그 줄을 누르고 떠나는* 것처럼 보인다(2026-08-24
+      사용자 지적). 값이 읽힐 만큼만 멈추고 다음으로 간다.
+  */
+  await page.waitForTimeout(500);
 
   await editor.closeSearch();
 });
@@ -679,12 +882,34 @@ When(
     await wf.fillWorkflowName(name, trackDescription(track));
 
     await wf.selectTaskInDesigner(workflowData.infraMigrationTask);
+
+    /*
+      스크롤은 여기서 한 번뿐이다.
+
+      ★ 예전에는 칸을 찾기 전에도, 값을 짚은 뒤에도, 편집을 마친 뒤에도 굴렸다. 영상에서는 그것이
+        *계속 스크롤만 하는* 장면으로 남아 무엇을 고치는지가 묻혔다. 사람이 하는 일은 한 번 굴려
+        무엇이 있는지 보고 곧바로 고칠 자리로 가는 것이다. 그 뒤의 이동은 spotlight 가 해당 칸을
+        화면에 들여 주므로 따로 굴릴 필요가 없다. (2026-08-19 사용자 지적)
+    */
+    await wf.scrollThroughParams();
     await wf.setTaskParam('query', 'nameSeed', seed);
 
-    // Both edits happen here, in the workflow, on a model nobody touched.
-    const port = process.env.TEST_WF_PORT_OVERRIDE || '6666';
-    const replaced = await wf.setPortInWorkflow('5555', port);
-    console.log(`[트랙${track}] 워크플로우에서 포트 ${replaced} → ${port}`);
+    /*
+      Both edits happen here, in the workflow, on a model nobody touched.
+
+      ★ The port is *added*, not rewritten. The other two routes each add a rule - one at the target
+        model, one at the source model - so this one adds too, and the three can be compared. It
+        used to clone the track that already had 5555 and change that rule to 6666, which made this
+        the only route doing something different, and left nothing to say whether 5555 had survived.
+
+        The workflow copied is the plain one, which has no 5555 anywhere, so a 5555 on the built
+        machine can only have come from here.
+    */
+    const port = process.env.TEST_WF_PORT_OVERRIDE || '5555';
+    const index = await wf.addPortRuleInWorkflow(port);
+    console.log(
+      `[트랙${track}] 워크플로우에서 방화벽 규칙 추가 — [${index}] ${port}/tcp`,
+    );
 
     const spec = await wf.setSpecInWorkflow(
       process.env.TEST_WF_SPEC_OVERRIDE || 't3a.small',
@@ -692,12 +917,15 @@ When(
     scenarioState.workflowSpec = spec;
     console.log(`[트랙${track}] 워크플로우에서 스펙 → ${spec}`);
 
-    // Show what else is in there before leaving the panel.
-    await wf.scrollThroughParams();
-
     await wf.saveWorkflow();
-    await waitForDagRegistered(page, name);
 
+    /*
+      기다리기 *전에* 그 워크플로우를 연다.
+
+      ★ 순서가 뒤였다 — 목록에서 몇 초를 기다린 뒤에야 실행 화면으로 옮겼다. 영상에서는 아무 일도
+        일어나지 않는 목록이 길게 이어지고, 정작 봐야 할 실행 상태는 Run 을 누른 뒤에야 나온다
+        (2026-08-24 사용자 지적). 먼저 열어 두면 기다리는 동안에도 볼 것이 있다.
+    */
     // ★ 저장한 뒤에도 화면이 *원본* 에 남아 있을 수 있다.
     //
     //   새 워크플로우를 만들 때는 저장이 끝나면 앱이 그것을 골라 Run Status 로 옮겨 준다. 복제본을
@@ -708,6 +936,9 @@ When(
     await wf.gotoWorkflows();
     // 목록에서 복제본 행을 실제로 눌러 연다 — 선택 상태만 보고 건너뛰면 뷰어가 원본을 그린 채로 남는다.
     await wf.openRunViewer(name, true);
+
+    // 실행 화면에 와서 기다린다. 준비되면 그 자리에서 Run 을 누른다.
+    await waitForDagRegistered(page, name);
     await wf.runHere();
 
     remember(`workflow:${track}`, name);
@@ -844,6 +1075,57 @@ Then('워크플로우의 작업별 상태가 모두 정상이다', async ({ page
   if (!(await graph.isVisible({ timeout: 2_000 }).catch(() => false))) {
     await wf.openRunViewer(name as string);
   }
+  /*
+    ★ 인프라를 만드는 작업이 끝나는 것을 *이 화면에서* 지켜본다.
+
+      예전에는 여기서 상태만 훑고 곧장 다음 화면으로 넘어갔다. 그런데 정작 볼 것은 그 작업이
+      끝나는 순간이라, 보는 쪽에서는 무엇을 기다렸는지 알 수 없었다. 다른 데 갔다 오지 말고
+      실행 화면에 머무는 편이 낫다는 것이 사용자 판단이다 (2026-08-25).
+
+      뒤따르는 대기 작업(sleep_for_1m_30s)까지 기다리지는 않는다 — 보여 줄 것이 없다.
+  */
+  //   ★ 실행 그래프의 노드는 *작업 이름* 으로 그려진다 — 컴포넌트 이름이 아니다.
+  //     `workflowData.infraMigrationTask`(=beetle_task_infra_migration)는 디자이너 캔버스에서
+  //     쓰는 컴포넌트 이름이라 여기서는 아무것도 잡지 못한다. 그런데 못 잡으면 조용히 건너뛰므로
+  //     기다리는 코드가 있는데도 Running 인 채로 다음 화면으로 넘어갔다 (2026-08-25).
+  const migrationTask = 'infra_migration';
+  const migration = wf.runNode(migrationTask);
+  if (await migration.count()) {
+    /*
+      ★ 그래프를 화면에 들이는 것을 *스크롤로* 보여 준다.
+
+        앞 단계(값 확인)가 파라미터를 읽느라 화면을 아래로 내려 둔 채 끝난다. 그 상태에서 곧장
+        작업을 고르면 화면이 위로 튀어, 보는 쪽에는 *아무 것도 안 했는데 화면이 바뀌고 무언가
+        눌리는* 것으로 남았다 (2026-08-25 사용자 지적). 먼저 스크롤해 올라온 뒤 고른다.
+    */
+    await bringIntoFullView(graph);
+    await page.waitForTimeout(600);
+    await wf.pickTask(migrationTask, false);
+    await expect(
+      migration,
+      `${migrationTask} 작업이 성공으로 끝나지 않았다`,
+    ).toHaveAttribute('data-state', 'success', { timeout: 300_000 });
+
+    /*
+      ★ 끝나는 순간을 남기려면 그 뒤에 *움직임*이 있어야 한다.
+
+        기다리는 동안 화면은 가만히 있으므로 정지 제거가 그 구간을 통째로 잘라 낸다. 그러면
+        Running 바로 다음이 다음 화면이 되어, 정작 보여 주려던 "Success 로 끝났다"가 사라진다
+        (2026-08-25 첫 촬영본에서 실제로 그렇게 잘렸다). 끝난 작업에 커서를 얹어 그 자리를
+        가리키고 잠깐 머문다 — 커서가 움직이므로 잘리지 않고, 어디를 보라는 뜻도 된다.
+    */
+    //   커서가 이미 그 노드에 얹혀 있으면 다시 얹어도 움직이지 않아 그대로 잘린다(첫 시도가
+    //   그랬다). 화면 반대쪽인 상세 패널의 **State** 로 옮겨 갔다가 돌아온다 — 커서가 화면을
+    //   가로지르므로 확실히 남고, 가리키는 것도 "이 작업이 Success 로 끝났다" 그 자체다.
+    const stateChip = page
+      .getByTestId('workflow-run-task-detail')
+      .getByText('Success', { exact: true })
+      .first();
+    if (await stateChip.count()) await pointAt(stateChip, 1_500);
+    await pointAt(migration, 1_000);
+    await page.waitForTimeout(1_000);
+  }
+
   const failed = graph.locator(
     '[data-state="failed"], [data-state="upstream_failed"]',
   );
@@ -965,6 +1247,175 @@ Then(
       ports.join(','),
       `${infraName} 의 보안그룹에 5555 가 없다 — 모델 단계에서 넣은 방화벽 규칙이 인프라까지 오지 않았다`,
     ).toContain('5555');
+    console.log(`[보안그룹] ${infraName} — 열린 포트 ${ports.join(', ')}`);
+  },
+);
+
+/**
+ * 같은 답을 **화면에서** 다시 얻는다.
+ *
+ * ★ 위 판정은 REST 로 물어 확실하지만 화면에는 아무것도 남지 않는다. 최종 확인은 워크로드 상세에서
+ *   하기로 했으므로(사용자 결정), 노드 상세의 보안그룹을 펼쳐 그 포트를 눈으로 보이는 자리에서
+ *   확인한다. 영상에 남는 것은 이쪽이다.
+ *
+ *   ★ 노드는 이 스텝이 직접 고른다. 목록을 여는 것과 상세를 여는 것은 다르다 — 카드를 눌러야
+ *   보안그룹이 나온다. 앞 단계가 골라 두었으려니 하고 넘어가면 "보안그룹이 없다"로 죽는다
+ *   (2026-08-19 실제로 그랬다). 구간을 따로 돌릴 때도 앞 단계에 기대지 않는다.
+ */
+/**
+ * 고친 값이 실제로 올라온 기계에 반영됐는지 **화면에서** 본다.
+ *
+ * ★ 두 가지를 고쳤으면 두 가지를 다 본다. 방화벽만 보고 넘어가면 스펙이 반영되지 않았어도
+ *   통과한다 — 실제로 스펙은 워크플로우 파라미터에서만 확인하고 있었다(2026-08-19 사용자 지적).
+ */
+Then(
+  '워크로드 상세에서 스펙이 {string} 인지 확인한다',
+  async ({ page }, spec: string) => {
+    /*
+      노드는 이 스텝이 직접 고른다. 앞 단계는 *목록*까지만 열어 두고, Spec 은 *상세*에 있다 —
+      카드를 눌러야 나온다(2026-08-19 실측). 구간을 따로 돌릴 때도 앞 단계에 기대지 않는다.
+    */
+    const wl = new WorkloadPage(page);
+
+    /*
+      ★ 이미 열려 있으면 다시 열지 않는다.
+
+        앞 단계("노드 목록이 보인다")가 방금 Server 탭을 열어 두었는데 여기서 조건 없이 또
+        눌러, 영상에서는 같은 탭을 연달아 두 번 누르는 장면이 됐다 (2026-08-25 사용자 지적).
+        구간을 따로 돌릴 때는 앞 단계가 없으므로 *없을 때만* 연다.
+    */
+    const nodeList = page.locator('.vmList-card').first();
+    if (!(await nodeList.isVisible({ timeout: 2_000 }).catch(() => false))) {
+      await wl.openServerTab().catch(() => {});
+      await page.waitForTimeout(1_500);
+    }
+    await wl.selectNode('');
+    await page.waitForTimeout(2_000);
+
+    /*
+      행은 라벨 칸에서 거슬러 올라가 잡는다.
+        `locator('tr', { hasText: /^Spec$/ })` 은 맞지 않는다 — hasText 는 행 *전체* 글자를 보는데
+        그 값이 "Spec t3a.large (aws+ap-northeast-2+t3a.large)" 라 `^Spec$` 에 걸리지 않는다.
+        정확히 이 이유로 "Spec 행이 없다"로 죽었다(2026-08-19).
+    */
+    const row = page
+      .getByText('Spec', { exact: true })
+      .first()
+      .locator('xpath=ancestor::tr[1]');
+
+    await expect(
+      row,
+      '노드 상세에 Spec 행이 없다 — 노드 상세가 열리지 않았다',
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(
+      row,
+      `노드 상세의 스펙이 ${spec} 이 아니다 — 모델에서 올린 스펙이 인스턴스까지 오지 않았다`,
+    ).toContainText(spec, { timeout: 15_000 });
+
+    /*
+      상세 정보를 화면 위로 올려 **내용이 다 나온 뒤에** 찾는다.
+
+      ★ 상세가 아직 화면 아래에 걸려 있는 채로 찾기를 걸면 물들 자리가 화면 밖이라 아무 것도
+        보이지 않는다 — 찾기 창만 뜨고 끝난다 (2026-08-24 사용자 지적).
+    */
+    await row
+      .evaluate((el: Element) =>
+        el.scrollIntoView({ block: 'start', behavior: 'smooth' }),
+      )
+      .catch(() => {});
+    await page.waitForTimeout(1_200);
+
+    /*
+      값을 브라우저 찾기로 짚는다.
+
+      ★ 강조 고리로 짚던 자리다. 고리는 요소의 사각형을 감싸는데 넓은 칸에서는 값이 없는 오른쪽까지
+        둘러싸고, 화면이 다시 그려지면 혼자 남아 끊긴다. 찾기는 *글자 자체*를 물들이고 몇 군데
+        있는지도 보여 준다 (2026-08-24 사용자 결정).
+
+        열 수 없는 실행(녹화가 아닌 경우)에서는 커서를 얹는 것으로 대신한다.
+    */
+    const found = await findInBrowser(page, spec);
+    if (!found) await pointAt(row);
+    await page.waitForTimeout(1_000);
+    await closeFind(page);
+    console.log(
+      `[스펙·화면] ${(await row.innerText()).replace(/\s+/g, ' ').trim()}`,
+    );
+  },
+);
+
+Then(
+  '워크로드 상세의 보안그룹에서 {string} 포트를 확인한다',
+  async ({ page }, port: string) => {
+    /*
+      서버 탭을 이 스텝이 연다.
+
+      ★ 노드는 *Server* 탭에 있고, 인프라를 고르면 열리는 것은 *Detail* 탭이다. 구간4 는 앞에
+        "노드 목록이 보인다" 단계가 있어 탭이 열려 있었지만 구간6 에는 그 단계가 없어, 같은
+        스텝이 거기서만 "노드를 찾을 수 없다"로 죽었다(2026-08-19). 앞 단계에 기대지 않는다.
+    */
+    const wl = new WorkloadPage(page);
+
+    /*
+      이미 노드 상세를 보고 있으면 그대로 쓴다.
+
+      ★ 앞 단계(스펙 확인)가 방금 이 화면을 열어 놓았는데, 이 스텝이 탭을 다시 열고 노드를 다시
+        고르면 **목록으로 나갔다 같은 자리로 돌아오는** 장면이 된다. 보는 쪽에서는 왜 그러는지
+        알 수 없다 (2026-08-24 사용자 지적). 없을 때만 연다.
+    */
+    const toggle = page.locator('[data-testid^="node-sg-toggle-"]').first();
+    if (!(await toggle.isVisible({ timeout: 2_000 }).catch(() => false))) {
+      await wl.openServerTab().catch(() => {});
+      await page.waitForTimeout(1_500);
+      await wl.selectNode('');
+      await page.waitForTimeout(2_000);
+    }
+    await expect(
+      toggle,
+      '노드 상세에 보안그룹이 없다 — 노드를 고르지 않았거나 아직 만들어지지 않았다',
+    ).toBeVisible({ timeout: 30_000 });
+
+    await humanClick(toggle);
+
+    const cells = page.locator('[data-testid^="node-sg-rule-port-"]');
+    await expect(
+      cells.first(),
+      '보안그룹을 펼쳤는데 규칙이 나오지 않는다',
+    ).toBeVisible({ timeout: 30_000 });
+
+    const shown = await cells.allInnerTexts();
+    const hit = cells.filter({ hasText: port }).first();
+    await expect(
+      hit,
+      `화면의 보안그룹에 ${port} 이 없다 — 화면에 보이는 포트: ${shown.join(', ')}`,
+    ).toBeVisible({ timeout: 15_000 });
+
+    /*
+      순서가 중요하다 — **보이게 해 놓고 찾는다.**
+
+      ★ 전에는 찾고 나서 화면에 올렸다. 그러면 물들 자리가 화면 밖이라 찾기 창만 뜨고 아무 것도
+        보이지 않고, 게다가 찾자마자 닫아 버려 강조가 남지도 않았다 (2026-08-24 사용자 지적).
+
+        사람이 하는 순서대로 한다 — 규칙을 화면에 들이고, 찾고, 물든 것을 잠깐 보고, 닫는다.
+    */
+    await hit
+      .evaluate((el: Element) =>
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' }),
+      )
+      .catch(() => {});
+    await page.waitForTimeout(900);
+    await expect(hit).toBeInViewport({ timeout: 5_000 });
+
+    const foundPort = await findInBrowser(page, port);
+    if (!foundPort) await pointAt(hit);
+    await page.waitForTimeout(1_200);
+    await closeFind(page);
+
+    // 닫은 뒤에도 그 줄이 화면에 남아 있어야 한다 — 이 구간의 마지막 화면이다.
+    await expect(hit).toBeInViewport({ timeout: 5_000 });
+    await page.waitForTimeout(1_000);
+
+    console.log(`[보안그룹·화면] 열린 포트 ${shown.join(', ')}`);
   },
 );
 
@@ -1021,12 +1472,15 @@ Then(
     //   인프라는 장비가 한 대도 뜨지 않아도 *레코드*로 남는다. AWS 가 그 가용영역에 스펙 용량이
     //   없어 전량 실패한 적이 있는데, 그때도 행은 그대로 목록에 있었고 이 검사는 통과했다 —
     //   "네 대가 다 만들어졌다"고 말하면서 그중 하나는 빈 껍데기였다. 실제로 돌고 있는지까지 본다.
+    //   Running 이거나 Suspended 이면 장비는 만들어진 것이다. 확인이 끝난 트랙은 그 자리에서
+    //   멈추므로(구간3·5·6 끝), 여기까지 오면 트랙1·3 은 이미 Suspended 다. 빈 껍데기는 그
+    //   어느 쪽도 아니고, 상태 뒤의 개수도 0 이라 여전히 걸린다.
     const status = await getInfraStatus(page, infraId);
     console.log(`[인프라] ${infraId} = ${status}`);
     expect(
       status,
-      `${track} 번 트랙 인프라가 정상 상태가 아니다 (${status}) — 목록에 보이는 것과 실제로 떠 있는 것은 다르다`,
-    ).toMatch(/Running/i);
+      `${track} 번 트랙 인프라에 떠 있는 장비가 없다 (${status}) — 목록에 보이는 것과 실제로 만들어진 것은 다르다`,
+    ).toMatch(/(Running|Suspended):[1-9]/i);
   },
 );
 
@@ -1037,6 +1491,37 @@ Given(
     scenarioState.infraName = infraId;
     scenarioState.infraId = infraId;
     await new WorkloadPage(page).selectMci(infraId);
+  },
+);
+
+/**
+ * Stop a track's infra once there is nothing left to do with it.
+ *
+ * Three of the four tracks exist to show that a value changed at their own point reaches the
+ * machine that gets built. Once that is on screen, the machine has served its purpose - and four
+ * of them running until the cleanup segment is simply four machines being paid for. Only track 2
+ * stays up, because the software migration and the load test run against it.
+ *
+ * Stopped, not deleted. The cleanup segment still has to show a deletion, and the workload list
+ * still has to show all four side by side in 구간6b.
+ */
+Given(
+  '{string} 번 트랙이 만든 인프라를 중지한다',
+  async ({ page }, track: string) => {
+    const infraId = infraFor(track);
+    const wl = new WorkloadPage(page);
+    await wl.gotoMci();
+    await wl.selectMci(infraId);
+    await wl.stopInstance(infraId);
+  },
+);
+
+Given(
+  '{string} 번 트랙이 만든 인프라를 다시 켠다',
+  async ({ page }, track: string) => {
+    const infraId = infraFor(track);
+    const wl = new WorkloadPage(page);
+    await wl.resumeInstance(infraId);
   },
 );
 
@@ -1054,6 +1539,72 @@ Given(
     await wl.waitUntilMciGone(infraId);
   },
 );
+
+/**
+ * 목록에서 몇 건을 골라 지운다.
+ *
+ * ★ 트랙 이름으로 찾지 않는다. 앞 구간이 하나 실패하면 그 인프라가 없고, 이름으로 찾으면 지우는
+ *   일까지 함께 실패한다 — 지우는 것은 무엇이 남아 있든 되어야 한다. 지난 회차가 남긴 것이 섞여
+ *   있어도 그대로 지운다 (2026-08-24 사용자 결정).
+ *
+ * @param wanted 고를 건수
+ * @param waitGone 지워질 때까지 기다릴지 — 두 건짜리는 기다리지 않는다. 다음 단계가 *지워지는
+ *                 중인 것을 포함해* 남은 것을 모두 고르므로, 여기서 기다리면 그 화면이 없어진다.
+ */
+async function deleteSomeInfra(
+  page: Page,
+  wanted: number,
+  waitGone: boolean,
+): Promise<void> {
+  const wl = new WorkloadPage(page);
+  await wl.gotoMci();
+  await page.waitForTimeout(1_500);
+
+  const names = await wl.selectFirstMcis(wanted);
+  expect(
+    names.length,
+    `지울 인프라가 ${wanted} 건 필요한데 목록에 ${names.length} 건뿐이다`,
+  ).toBeGreaterThan(0);
+  console.log(`[삭제] ${names.length} 건 요청 — ${names.join(', ')}`);
+
+  await wl.openDeleteModal();
+  await wl.confirmDelete(
+    await wl.deleteKeywordFromScreen(),
+    'normal',
+    waitGone ? 1_500 : 2_500,
+  );
+  if (waitGone) {
+    for (const name of names) await wl.waitUntilMciGone(name);
+  }
+}
+
+When('인프라 한 건을 골라 삭제한다', async ({ page }) => {
+  await deleteSomeInfra(page, 1, true);
+});
+
+When('인프라 두 건을 함께 골라 삭제한다', async ({ page }) => {
+  await deleteSomeInfra(page, 2, false);
+});
+
+/**
+ * 남은 것을 전부 골라 지운다 — 지워지는 중인 것까지.
+ *
+ * ★ 이것이 마지막 화면이다. 진행 중인 대상을 포함해 요청하면 목록과 확인 창이 그것을 어떻게
+ *   다루는지가 드러난다.
+ */
+When('남은 인프라를 진행 중인 것까지 모두 골라 삭제한다', async ({ page }) => {
+  const wl = new WorkloadPage(page);
+  await wl.gotoMci();
+  await page.waitForTimeout(2_000); // 목록이 진행 중 상태를 그릴 틈을 준다
+  const picked = await wl.selectEveryMciLeft();
+  console.log(
+    `[삭제] 남은 ${picked.length} 건을 모두 골랐다 — ${picked.join(', ')}`,
+  );
+  if (picked.length === 0) return;
+
+  await wl.openDeleteModal();
+  await wl.confirmDelete(await wl.deleteKeywordFromScreen(), 'normal', 8_000);
+});
 
 // ── 구간7·8: software, judged by the install rather than the run ────────
 
@@ -1128,8 +1679,23 @@ Then('소프트웨어 설치가 시작된다', async ({ page }) => {
     }
     await page.waitForTimeout(15_000);
   }
+  /*
+    여기서 grasshopper 만 가리키면 엉뚱한 곳을 파게 된다.
+
+    ★ 기록이 없다는 것은 대개 grasshopper 가 아니라 **그 앞에서 멈췄다**는 뜻이다. 워크플로우의
+      소프트웨어 마이그레이션 작업이 grasshopper 를 부르는데, 그 호출이 400 으로 거절되면 기록
+      자체가 생기지 않는다. 실제로 그랬다(2026-08-24) — cm-honeybee 가 그 연결의 인프라 정보를
+      주지 못해 노드 ID 를 못 찾았고, 원인은 *연결정보를 지우고 다시 만든 뒤 예전 인프라를 그대로
+      대상으로 삼은 것* 이었다(08-주의사항 C-24).
+
+      그래서 어디를 봐야 하는지까지 적는다. 실패한 작업의 로그에 거절 사유가 그대로 있다.
+  */
   throw new Error(
-    '소프트웨어 설치가 시작되지 않았다 — grasshopper 에 실행 기록이 없다',
+    '소프트웨어 설치가 시작되지 않았다 — grasshopper 에 실행 기록이 없다.\n' +
+      '기록이 없다는 것은 grasshopper 가 아니라 그 앞에서 멈췄다는 뜻일 때가 많다. ' +
+      '워크플로우 Run Status 에서 실패한 작업의 로그를 본다 — grasshopper 호출이 400 으로 거절됐다면 ' +
+      '사유가 거기 있다(흔한 것: 연결정보를 다시 만든 뒤 예전 인프라를 대상으로 삼아 노드 ID 를 못 찾음). ' +
+      '08-주의사항 C-21·C-24.',
   );
 });
 
@@ -1164,6 +1730,7 @@ Given(
     const deadline = Date.now() + 60 * 60_000;
     let last = '';
     let round = 0;
+    let halfwayShown = false;
     while (Date.now() < deadline) {
       const list = await readSoftwareStatuses(
         page,
@@ -1185,6 +1752,18 @@ Given(
         if (!pending.length) {
           scenarioState.swMigrationRows = list;
           return;
+        }
+
+        /*
+          절반쯤 왔을 때 한 번, 진행되는 작업을 열어 자세히 본다.
+
+          ★ 그동안은 그래프만 다시 들여다보고 있었다 — 화면은 몇 분간 거의 같아서, 무엇이
+            진행되는지가 보이지 않았다. 절반을 넘긴 시점은 볼 것이 생긴 시점이라(끝난 것과
+            남은 것이 함께 있다) 거기서 한 번 열어 본다 (2026-08-24 사용자 지적).
+        */
+        if (!halfwayShown && done * 2 >= list.length) {
+          halfwayShown = true;
+          if (swWorkflow) await wf.browseRunWhileWaiting(true).catch(() => {});
         }
       }
       // Spend the wait on the run rather than in front of it - same as the infra wait.
@@ -1404,6 +1983,52 @@ Then('워크플로우는 여전히 실패로 남는다', async ({ page }) => {
 // 포트가 타깃 모델에 남고, 타깃 모델이 워크플로우로 넘어가고, 그 워크플로우가 실제 장비를
 // 만든다. 말로는 이어졌다고 할 수 있지만 화면에서 짚어 주지 않으면 보는 사람은 알 수 없다.
 
+Then(
+  '워크플로우의 {string} 작업에 {string} 값이 그대로 있다',
+  async ({ page }, taskName: string, value: string) => {
+    const wf = new WorkflowPage(page);
+
+    // ★ 어느 워크플로우를 보고 있는지 먼저 못 박는다.
+    //
+    //   복제본을 만들어 돌린 뒤에는 화면이 원본을 그린 채로 남아 있을 수 있다. 그러면 판정은
+    //   *원본의* 파라미터를 읽고 "바꾼 값이 없다"고 한다 — 정작 복제본에는 제대로 들어가 있고
+    //   만들어진 인스턴스도 바뀐 값을 쓴다(실제로 보안그룹에 6666 이 열려 있었다). 화면 하나
+    //   때문에 정상을 결함으로 부르는 자리라, 읽기 전에 그 워크플로우를 이름으로 열어 둔다.
+    //   (2026-08-01)
+    const opened = recall('workflow:last');
+
+    /*
+      ★ 화면에 이미 그 값이 보이면 아무 데도 가지 않는다.
+
+        원래는 조건 없이 화면을 새로 받고(흰 화면) 목록으로 나가 이름으로 검색해 돌아왔다.
+        복제본을 편집했을 때 화면이 *복제의 바탕이 된 원본* 값을 계속 보여 주는 제품 결함을
+        피하려던 것인데, 결함이 없는 길에서도 그 왕복이 그대로 나왔다. 이 스텝은 한 구간에서
+        두 번 불리므로 왕복도 두 번이다. 목록이 길면 검색이 맞지만, 방금 만들어 넘어온 화면에서는
+        찾을 것이 없다 (2026-08-25 사용자 지적).
+
+        그래서 *먼저 그냥 읽어 본다*. 값이 있으면 그것으로 끝이고, 없을 때만 — 즉 그 결함에
+        걸렸을 때만 — 새로 받아 다시 연다. 값이 틀린 채로 지나가는 일은 없다: 없으면 판정이
+        그대로 실패한다.
+    */
+    try {
+      await wf.showParamValue(taskName, value);
+      return;
+    } catch (first) {
+      if (!opened) throw first;
+    }
+
+    //   여기까지 왔다는 것은 화면이 옛 값을 그리고 있다는 뜻이다. 사람이 처음 들어오는 것과
+    //   같은 상태로 만들어 다시 읽는다. 결함이 고쳐지면 이 대비는 지운다.
+    //   (재현 절차와 원인은 그 이슈에)
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const graph = page.getByTestId('workflow-run-graph');
+    if (!(await graph.isVisible({ timeout: 8_000 }).catch(() => false))) {
+      await wf.openRunViewer(opened, true);
+    }
+    await wf.showParamValue(taskName, value);
+  },
+);
+
 /**
  * Open the task's parameters and read down them, without singling anything out.
  *
@@ -1558,23 +2183,83 @@ Given('알림함을 비운다', async ({ page }) => {
  * announcement is not worth losing a take over.
  */
 /**
- * Stay on the run status screen until the notice arrives.
+ * 알림이 올 때까지 지금 화면에 그대로 머무른다.
  *
- * A long job announces itself when it finishes, and this is the one place in the walkthrough that
- * shows it happening. Waiting here rather than wandering off means the screen does not change
- * while nothing is happening - the wait is one still frame, easy to cut, and what follows starts
- * exactly when the notice appears.
+ * ★ 화면 요소를 기다리지 않는다. 도착 신호는 화면 가운데에 잠깐 떴다 사라지는 봉투인데, DOM 으로
+ *   붙잡으려 하면 타이밍에 걸려 놓치고 놓쳐도 조용히 지나간다. 대신 **콘솔 자신의 API** 로
+ *   "확인할 메시지가 있는지"만 본다.
  *
- * Nothing is asserted about the wait itself; the step after this is the one that opens it.
+ * ★ 메시지가 생기는 순간이 곧 애니메이션이 뜨는 순간이다. 브라우저 쪽 트래커가 10초마다 작업
+ *   완료를 확인하다가, 발견하면 메시지를 넣고 *그 자리에서* 목록을 다시 읽어 봉투를 띄운다
+ *   (`shared/libs/tracking/runner.ts` · `entities/notification/lib/notificationStore.ts`).
+ *   그러니 API 에 메시지가 보이면 봉투는 이미 떴거나 뜨는 중이다 — 오래 기다릴 이유가 없다.
+ *
+ * ★ 발견하면 곧바로 알림 배지로 커서를 옮긴다. 두 가지를 한다 — 사람이 알림을 보고 그리로
+ *   가는 동선이 되고, **그 구간에 실제 움직임이 생겨 정지 제거에 잘려 나가지 않는다.**
+ *   봉투는 1700px 화면에서 64px 짜리라 정지 판정의 잡음 한계를 못 넘길 수 있고, 앞뒤가 모두
+ *   멈춰 있으면 그 대기가 통째로 잘린다.
  */
-Given('실행 화면에서 완료 알림이 올 때까지 기다린다', async ({ page }) => {
-  const count = page.getByTestId('notification-count');
-  const arrived = await count
-    .isVisible({ timeout: 10 * 60_000 })
-    .catch(() => false);
-  console.log(
-    arrived ? '[알림] 도착 — 화면에 배지가 떴다' : '[알림] 오지 않았다',
-  );
+Then('알림이 도착할 때까지 이 화면에서 기다린다', async ({ page, request }) => {
+  const token = await getSessionToken(page);
+  const post = (op: string) =>
+    request.post(`${config.baseURL}/api/${op}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {},
+    });
+
+  /*
+    기다리기 전에 비운다.
+
+    ★ 이미 와 있던 알림은 봉투를 띄우지 않는다. 저장소가 첫 적재분을 *로그인 직후의 밀린 목록*
+      으로 보고 신호로 치지 않기 때문이다(notificationStore 의 primed). 직전 회차가 남긴 것이
+      하나라도 있으면 이 화면이 열리는 순간 그것으로 채워지고, 그 뒤로는 새 것이 와도 "이미 있던
+      것"과 섞여 버린다. 실제로 그렇게 애니메이션이 아예 뜨지 않은 회차가 있었다(2026-08-19).
+
+      여기서 비우면 이 화면이 열려 있는 동안 *처음으로* 들어오는 것이 이번 실행의 알림이고,
+      들어오는 그 순간 봉투가 뜬다.
+  */
+  const before = await post('listnotifications')
+    .then(r => r.json())
+    .then(b => (b?.responseData ?? []).length)
+    .catch(() => 0);
+  if (before > 0) {
+    await post('readallnotifications').catch(() => null);
+    console.log(`[알림] 앞선 회차가 남긴 ${before} 건을 비우고 기다린다`);
+    await page.waitForTimeout(2_000);
+  }
+
+  const deadline = Date.now() + 10 * 60_000;
+  let arrived = 0;
+
+  for (let i = 0; Date.now() < deadline; i++) {
+    const res = await post('listnotifications').catch(() => null);
+    const body = await res?.json().catch(() => ({}));
+    const items = body?.responseData ?? [];
+    if (Array.isArray(items) && items.length > 0) {
+      arrived = items.length;
+      break;
+    }
+    await page.waitForTimeout(2_000);
+  }
+
+  expect(
+    arrived,
+    '10분을 기다려도 알림이 오지 않았다 — 완료를 확인해 알림을 넣는 쪽을 봐야 한다',
+  ).toBeGreaterThan(0);
+  console.log(`[알림] ${arrived} 건 도착 — 봉투가 배지로 날아가는 자리다`);
+
+  /*
+    봉투가 날아가는 것을 지켜보기만 한다. 배지로 커서를 옮기지 않는다.
+
+    ★ 종전에는 여기서 배지를 강조했다. 그런데 강조는 커서를 그 자리로 *옮겨 놓기만* 하고
+      손을 떼서, 화면에는 커서가 한가운데에서 우상단으로 갑자기 튀는 것으로 보였다. 사람이라면
+      거기까지 갔으면 누른다(2026-08-19 사용자 지적).
+
+      누르는 것은 다음 단계("알림을 열어 확인하면")의 몫이고 그쪽이 커서를 자연스럽게 데려간다.
+      그러니 여기서는 봉투가 배지에 닿는 것만 보여 주고 손대지 않는다 — 눈길을 끄는 일은
+      애니메이션이 이미 하고 있다.
+  */
+  await page.waitForTimeout(2_500);
 });
 
 Then('완료 알림을 읽고 지운다', async ({ page }) => {
@@ -1600,124 +2285,17 @@ Then('알림이 몇 건 남았는지 확인한다', async ({ page }) => {
   ).toBeGreaterThan(0);
 });
 
-Then('알림을 하나씩 열어 확인하고 지운다', async ({ page }) => {
-  const cleared = await new NotificationPage(page).readAndClearEachOne();
-  console.log(`[알림] ${cleared} 건을 하나씩 확인하고 지웠다`);
-  expect(cleared, '지울 알림이 하나도 없다').toBeGreaterThan(0);
-});
-
-/**
- * Clear what is left in one press.
- *
- * Reading a notice and closing it has already been shown by the step before this. Repeating it
- * down the whole stack adds nothing and leaves the cursor travelling to a row and back for each
- * one - which is what a person avoids by pressing "Mark all read".
- */
-Then('남은 알림을 모두 비운다', async ({ page }) => {
-  await new NotificationPage(page).clearAll();
-});
+Then(
+  '앞 두 건을 하나씩 열어 확인하고 나머지는 한 번에 비운다',
+  async ({ page }) => {
+    const cleared = await new NotificationPage(page).readAndClearEachOne();
+    console.log(
+      `[알림] ${cleared} 건을 하나씩 확인하고, 나머지는 한 번에 비웠다`,
+    );
+    expect(cleared, '지울 알림이 하나도 없다').toBeGreaterThan(0);
+  },
+);
 
 Then('알림함이 비었다', async ({ page }) => {
   await new NotificationPage(page).expectEmpty();
-});
-
-// ── 구간6b 보강: 만들어진 서버를 노드 상세에서 확인한다 ───────────────────────
-
-/**
- * Open the node detail of the infrastructure a track built.
- *
- * Why here rather than in the workflow: the values a person changed - the spec, the port - are
- * carried in the workflow's request body, and reading them there means expanding folded panels
- * and scrolling for a string. The node detail says what was actually created, in one place.
- */
-When(
-  '{string} 번 트랙이 만든 인프라의 노드 상세를 열면',
-  async ({ page }, track: string) => {
-    const infraId = infraFor(track);
-    const wl = new WorkloadPage(page);
-    await wl.gotoMci();
-    await wl.selectMci(infraId);
-    await wl.selectNode('');
-  },
-);
-
-/**
- * The fields that say what was built.
- *
- * Each is checked for a real value, not merely for being on screen: the row renders either way,
- * and a field read under the wrong name comes out as the placeholder. That is exactly how the
- * region row would have failed - the response spells it lower case while the declared type said
- * otherwise - and nothing would have complained.
- */
-Then(
-  '노드 상세에 사양·이미지·네트워크·CSP 자원 ID 가 보인다',
-  async ({ page }) => {
-    const fields = [
-      'node-info-spec',
-      'node-info-image',
-      'node-info-vnet',
-      'node-info-subnet',
-      'node-info-sshkey',
-      'node-info-disk',
-      'node-info-region',
-      'node-info-csp-resource-id',
-    ];
-    for (const testId of fields) {
-      const cell = page.getByTestId(testId).first();
-      await expect(cell, `${testId} 가 화면에 없다`).toBeVisible({
-        timeout: 20_000,
-      });
-      const text = ((await cell.textContent()) ?? '').trim();
-      expect(
-        text,
-        `${testId} 가 비어 있다 — 필드 이름이 응답과 어긋났을 수 있다`,
-      ).not.toBe('');
-      expect(text, `${testId} 가 값 대신 자리표시자다`).not.toBe('--');
-    }
-  },
-);
-
-/** Expand a security group - the call goes out at this click, not before. */
-When('노드 상세에서 보안 그룹을 펼치면', async ({ page }) => {
-  const toggle = page.locator('[data-testid^="node-sg-toggle-"]').first();
-  await expect(toggle, '보안 그룹이 없다').toBeVisible({ timeout: 20_000 });
-  await humanClick(toggle);
-});
-
-/**
- * The port a person added to the model, read from the rules of the group that was created.
- *
- * This is the check the scenario used to make against the workflow's request body. There it only
- * proved that we had *asked* for the port; here it proves the security group actually carries it.
- */
-Then(
-  '보안 그룹 규칙에 {string} 포트가 보인다',
-  async ({ page }, port: string) => {
-    const ports = page.locator('[data-testid^="node-sg-rule-port-"]');
-    await expect(ports.first(), '보안 그룹 규칙이 그려지지 않았다').toBeVisible(
-      {
-        timeout: 20_000,
-      },
-    );
-    const values = await ports.allTextContents();
-    const found = values.some(v => v.split(/[^0-9]+/).includes(port));
-    expect(
-      found,
-      `보안 그룹 규칙에 ${port} 이 없다 — 규칙: ${values.join(', ')}`,
-    ).toBe(true);
-  },
-);
-
-/**
- * The spec of the machine that was built.
- *
- * The scenario used to read this from the workflow's request body, which only says what was
- * asked for. What matters is what came out - and that is what this row carries.
- */
-Then('노드 상세의 사양이 {string} 이다', async ({ page }, spec: string) => {
-  const cell = page.getByTestId('node-info-spec').first();
-  await expect(cell, '사양 칸이 화면에 없다').toBeVisible({ timeout: 20_000 });
-  await expect(cell, `사양이 ${spec} 이 아니다`).toContainText(spec, {
-    timeout: 10_000,
-  });
 });

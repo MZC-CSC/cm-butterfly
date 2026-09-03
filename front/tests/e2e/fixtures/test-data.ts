@@ -1,3 +1,6 @@
+// Pull `e2e.config` in before anything reads process.env.
+import '../support/loadConfig';
+
 /**
  * Test data and settings — accounts, namespaces, specs, etc. managed in one place.
  * Sensitive/environment-dependent values are overridden via environment variables.
@@ -13,7 +16,7 @@
  *     port it uses the protocol's default port (80/443).
  *
  * Examples:
- *   BASE_URL=https://cmig.dev.cscmzc.com   → used as-is
+ *   BASE_URL=https://console.example.com   → used as-is
  *   E2E_PORT=8080                          → http://localhost:8080
  *   E2E_HOST=10.0.0.5 E2E_PORT=80          → http://10.0.0.5:80
  */

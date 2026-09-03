@@ -18,6 +18,9 @@
 #
 set -euo pipefail
 
+# 개인 설정(e2e.config)을 읽는다. 이미 준 환경변수가 우선이다.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/load-config.sh"
+
 IP="${TEST_SOURCE_IP:?TEST_SOURCE_IP 가 필요하다 (소스 서버 공인 IP)}"
 KEY="${TEST_SOURCE_KEY:?TEST_SOURCE_KEY 가 필요하다 (소스 서버 SSH 개인키 경로)}"
 USER="${TEST_SOURCE_SSH_USER:-ubuntu}"

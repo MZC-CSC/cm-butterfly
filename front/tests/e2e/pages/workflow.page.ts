@@ -1,8 +1,14 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 import { workflowData } from '../fixtures/test-data';
-import { humanClick, humanFill } from '../support/humanize';
+import {
+  humanClick,
+  humanFill,
+  pointAt,
+  bringIntoFullView,
+} from '../support/humanize';
 import { spotlight, spotlightText } from '../support/spotlight';
+import { findInBrowser, closeFind } from '../support/browserFind';
 import { describe as writeDescription } from '../support/describe';
 import { openScreen } from '../support/navigate';
 
@@ -22,7 +28,7 @@ import { openScreen } from '../support/navigate';
  * template + type/spec tasks in the SequentialDesigner (designer/editor).
  *
  * ⚠️ Sections without data-testid: the workflow domain .vue files currently have no data-testid.
- *   BAR-880 (selector stabilization) — data-testid has been added at the key points of the workflow domain:
+ *   Selector stabilization — data-testid has been added at the key points of the workflow domain:
  *     workflow-list-table · taskcomponent-list-table · workflow-template-list-table ·
  *     workflow-json-view (open JSON from detail) · workflow-json-viewer (viewer body).
  *   Even if screen text or DOM structure changes, these testids locate elements precisely. Only sections
@@ -45,7 +51,7 @@ export class WorkflowPage {
   /**
    * List table — each screen uses its *own* testid.
    * If multiple screens share the same testid, it becomes ambiguous which table is meant,
-   * and it grabs the wrong place when the screen changes. (BAR-880 — selector stabilization)
+   * and it grabs the wrong place when the screen changes.
    */
   // The table testid differs per screen. Because a new Page Object is created for each step,
   // we must not hold "the current screen" as instance state — each method points at its own table directly.
@@ -231,21 +237,6 @@ export class WorkflowPage {
     ).toBeVisible();
   }
 
-  /** Open the selected task's log (an attempt number can be specified) */
-  async openTaskLog(tryNumber?: number): Promise<Locator> {
-    const button = tryNumber
-      ? this.page.locator(
-          `[data-testid="workflow-run-log-try"][data-try="${tryNumber}"]`,
-        )
-      : this.page.getByTestId('workflow-run-log-try').first();
-    await humanClick(button);
-    // The full log is collapsed. It must be expanded to see the content.
-    await humanClick(this.page.getByText('Full log'));
-    const log = this.page.getByTestId('workflow-run-log');
-    await expect(log).toBeVisible({ timeout: 20_000 });
-    return log;
-  }
-
   /** Progress indicator — whether it is running, and how many of how many have finished */
   get runProgress() {
     return this.page.getByTestId('workflow-run-progress');
@@ -314,9 +305,10 @@ export class WorkflowPage {
         `[data-testid="workflow-rerun-scope"][data-scope="${scope}"]`,
       ),
     );
-    await expect(this.page.getByTestId('workflow-rerun-confirm')).toBeVisible({
-      timeout: 20_000,
-    });
+    const confirm = this.page.getByTestId('workflow-rerun-confirm');
+    await expect(confirm).toBeVisible({ timeout: 20_000 });
+    // 확인 창이 화면에 온전히 들어오게 — 아래쪽이 잘리면 무엇을 다시 돌리는지 읽을 수 없다.
+    await bringIntoFullView(confirm);
     return this.page.getByTestId('workflow-rerun-target');
   }
 
@@ -326,9 +318,9 @@ export class WorkflowPage {
    */
   async previewRerunFailed(): Promise<Locator> {
     await humanClick(this.page.getByTestId('workflow-rerun-failed-btn'));
-    await expect(this.page.getByTestId('workflow-rerun-confirm')).toBeVisible({
-      timeout: 20_000,
-    });
+    const confirm = this.page.getByTestId('workflow-rerun-confirm');
+    await expect(confirm).toBeVisible({ timeout: 20_000 });
+    await bringIntoFullView(confirm);
     return this.page.getByTestId('workflow-rerun-target');
   }
 
@@ -359,56 +351,44 @@ export class WorkflowPage {
   }
 
   /**
-   * Copy the workflow on screen and open the copy for editing.
+   * 고칠 칸이 있는 자리까지 **경로를 따라** 연다.
    *
-   * The console has no "save as", and a workflow that has already run cannot be edited in place -
-   * so this is the only way to keep the original and vary it. The button appears once there is
-   * run history. The backend names the copy `{original}_copy`; the caller renames it.
+   * ★ 전부 펼치지 않는다. 접힌 것이 이백 개 가까워, 화면에는 *줄을 하나씩 눌러 내려가는* 장면만
+   *   몇 분 남고 정작 고치는 장면은 짧아서 정지 제거에 함께 잘려 나간다 — 보는 쪽에서는
+   *   "펼치기만 계속하다 끝났다"가 된다(2026-08-19 사용자 지적).
+   *
+   *   토글에 그 자리의 경로가 이름으로 붙어 있으므로(`wf-toggle-{경로}`), 목표 경로의 조상만
+   *   골라 누르면 된다. 세 번이면 닿는다. 이미 펼쳐져 있으면 누르지 않는다.
+   *
+   * @param path 목표 칸의 경로 (예: `body_params.targetSecurityGroupList[0].firewallRules`)
    */
-  async cloneAndEdit(): Promise<void> {
-    const button = this.page.getByTestId('workflow-clone-edit-btn');
-    await expect(
-      button,
-      'Clone & Edit 버튼이 없다 — 실행 이력이 있는 워크플로우에서만 나타난다',
-    ).toBeVisible({ timeout: 30_000 });
-    await humanClick(button);
-
-    const confirm = this.page.getByTestId('workflow-clone-confirm');
-    await expect(confirm).toBeVisible({ timeout: 15_000 });
-    await humanClick(this.page.getByTestId('workflow-clone-confirm-ok'));
-
-    await this.expectDesignerOpen();
-  }
-
-  /**
-   * Open everything the panel folded away.
-   *
-   * The editor collapses arrays and objects deeper than two levels so the form stays readable, so a
-   * test that reads the rendered fields cannot see the values that decide the outcome. A person
-   * clicks to open them; so do we.
-   *
-   * The toggles carry no test identifier, so they are found by the component's own class names.
-   */
-  async expandAllParams(maxRounds = 6): Promise<number> {
-    let opened = 0;
-    for (let round = 0; round < maxRounds; round++) {
-      const closed = this.page.locator(
-        '[data-testid="wf-task-editor"] button.btn-collapse, [data-testid="wf-task-editor"] button.btn-item-collapse',
-      );
-      const count = await closed.count().catch(() => 0);
-      let clickedThisRound = 0;
-      for (let i = 0; i < count; i++) {
-        const button = closed.nth(i);
-        const label = (await button.innerText().catch(() => '')).trim();
-        if (!label.includes('\u25b6')) continue;
-        await button.click({ timeout: 5_000 }).catch(() => {});
-        clickedThisRound++;
-        opened++;
-        await this.page.waitForTimeout(12);
+  async openPathTo(path: string): Promise<number> {
+    // body_params.targetSecurityGroupList[0].firewallRules
+    //   → body_params / …targetSecurityGroupList / …[0] / …firewallRules
+    const steps: string[] = [];
+    let acc = '';
+    for (const part of path.split('.')) {
+      acc = acc ? `${acc}.${part}` : part;
+      const m = part.match(/^(.*?)(\[\d+\])$/);
+      if (m) {
+        steps.push(acc.slice(0, acc.length - m[2].length));
+        steps.push(acc);
+      } else {
+        steps.push(acc);
       }
-      if (clickedThisRound === 0) break;
     }
-    await this.page.waitForTimeout(400);
+
+    let opened = 0;
+    for (const step of steps) {
+      const toggle = this.page.getByTestId(`wf-toggle-${step}`).first();
+      if (!(await toggle.count())) continue; // 접히지 않는 자리는 토글이 없다
+      const label = (await toggle.innerText().catch(() => '')).trim();
+      if (!label.includes('\u25b6')) continue; // ▶ 만 접힌 것
+      await toggle.scrollIntoViewIfNeeded().catch(() => {});
+      await humanClick(toggle);
+      opened++;
+      await this.page.waitForTimeout(250);
+    }
     return opened;
   }
 
@@ -426,26 +406,6 @@ export class WorkflowPage {
     await expect(field).toBeVisible({ timeout: 15_000 });
     await humanFill(field, value);
     await this.page.waitForTimeout(400);
-  }
-
-  /** A task node in the run graph, by its name. */
-  taskNode(name: string): Locator {
-    return this.page
-      .getByTestId('workflow-run-node')
-      .filter({ hasText: name })
-      .first();
-  }
-
-  /** Select a task in the run graph so its detail and parameters open. */
-  async pickTask(name: string): Promise<void> {
-    const node = this.taskNode(name);
-    await node.scrollIntoViewIfNeeded().catch(() => {});
-    await humanClick(node);
-    await expect(this.page.getByTestId('workflow-run-task-detail')).toBeVisible(
-      {
-        timeout: 15_000,
-      },
-    );
   }
 
   async cancelClone(): Promise<void> {
@@ -581,9 +541,44 @@ export class WorkflowPage {
   }
 
   async saveWorkflow(): Promise<void> {
-    await humanClick(this.designerSaveButton);
+    /*
+      누르는 것이 보이게 한다.
+
+      ★ Save 는 모달 *아래쪽 푸터*에 있다. 편집기가 화면보다 길면 그 푸터가 화면 밖으로 밀리는데,
+        클릭 자체는 그래도 성립한다 — 그래서 영상에는 **보이지도 않는 버튼이 눌리고 다음 화면으로
+        넘어가는** 장면만 남았다. 사람이라면 할 수 없는 일이다 (2026-08-24 사용자 지적).
+
+        그래서 화면에 들이고, 정말 들어왔는지 확인한 뒤 누른다. 들일 수 없으면 조용히 누르지 않고
+        여기서 멈춘다 — 그 경우는 화면 쪽을 봐야 하는 일이다.
+    */
+    const save = this.designerSaveButton;
+    /*
+      ★ `scrollIntoViewIfNeeded` 는 조금이라도 보이면 아무 것도 하지 않고, `toBeInViewport()` 는
+        한 픽셀만 걸쳐도 통과한다. 그래서 단추가 화면 가장자리에 반쯤 걸린 채 눌렸고, 영상에는
+        여전히 저장하는 장면이 없었다 (2026-08-24, 두 번째 지적).
+
+        가운데로 끌어오고 *전부* 보이는지로 확인한다.
+    */
+    await bringIntoFullView(save);
+    await expect(
+      save,
+      'Save 가 화면에 온전히 들어오지 않는다 — 사람이 누를 수 없는 자리에 있다',
+    ).toBeInViewport({ ratio: 1, timeout: 10_000 });
+
+    await humanClick(save);
+
     // Confirm via the save-success toast (Success) or the modal closing
     await expect(this.designer).toBeHidden({ timeout: 15_000 });
+
+    /*
+      저장됐다는 알림을 잠깐 둔다.
+
+      ★ 전에는 알림이 뜬 채로 이미 다음 화면으로 넘어가 있어, 저장이 됐는지가 영상에 남지 않았다.
+    */
+    const toast = this.page.locator('text=/Success/i').first();
+    if (await toast.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await this.page.waitForTimeout(1_500);
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -642,14 +637,6 @@ export class WorkflowPage {
   /** query parameter input (e.g. nameSeed) */
   private queryParam(key: string): Locator {
     return this.page.getByTestId(`wf-query-param-${key}`);
-  }
-
-  /**
-   * body parameter input. Targeted by schema path — e.g. `targetInfra.name`, `targetCloud.csp`.
-   * (The testid is assigned in the form `wf-field-body_params.{path}`.)
-   */
-  private bodyField(path: string): Locator {
-    return this.page.getByTestId(`wf-field-body_params.${path}`);
   }
 
   /** Read the current value in the edit panel — used to confirm "what the default is" in the default-value scenario */
@@ -781,7 +768,8 @@ export class WorkflowPage {
   }
 
   async setSpecInWorkflow(size: string): Promise<string> {
-    await this.expandAllParams();
+    // 스펙은 노드 그룹 아래에 있다. 그 자리까지만 열고 나머지는 건드리지 않는다.
+    await this.openPathTo('body_params.targetInfra.nodeGroups[0]');
 
     // ★ Only the node's own spec counts, and it is found by its *path*.
     //
@@ -820,7 +808,7 @@ export class WorkflowPage {
         await this.page.waitForTimeout(500);
 
         const next = [...parts.slice(0, -1), size].join('+');
-        await spotlight(this.page, field);
+        await pointAt(field);
         return next;
       }
     }
@@ -847,16 +835,160 @@ export class WorkflowPage {
    *
    * @returns the port that was replaced
    */
+  /**
+   * Open a port by adding a firewall rule, rather than by rewriting one that is already there.
+   *
+   * ★ Adding is what the other two routes do - the target model and the source model each gain a
+   *   rule - so this one adds too, and all three can be compared. Rewriting an existing rule was
+   *   what this used to do, and it meant the workflow track was demonstrating something the others
+   *   were not.
+   *
+   * The rule is copied field for field from the one that allows 22, because a rule needs protocol,
+   * direction and CIDR as well as a port, and a blank field turns into an infrastructure that comes
+   * up unreachable. Only the port differs.
+   *
+   * @returns the index the new rule was given
+   */
+  async addPortRuleInWorkflow(port: string): Promise<number> {
+    /*
+      고칠 자리까지만 연다 — 전부 펼치지 않는다.
+
+      ★ 예전에는 `expandAllParams()` 로 들어오자마자 전부 펼쳤다. 접힌 것이 이백 개 가까워
+        **화면에는 항목을 하나씩 눌러 여는 장면이 28초 동안 이어졌다**(2026-08-26 사용자 지적).
+        사람이 하는 일이 아니고, 무엇을 하려는 것인지도 알 수 없다.
+
+        접힌 채로 두면 안 되는 이유는 하나뿐이다 — 접힌 항목은 안의 칸이 아예 그려지지 않아
+        새 규칙이 받을 번호를 0 으로 잘못 센다(2026-08-24 구간5 실패). 그 문제는 *그 배열까지의
+        경로만* 열면 똑같이 해결된다. 나머지 이백 개는 열 이유가 없다.
+    */
+
+    /*
+      The array cb-tumblebug actually builds the security group from.
+
+      ★ Several arrays in this body have names that read the same. `targetK8sCluster.securityGroupIds`
+        is not built here at all, and `targetSpecList[0].details` / `targetOsImageList[0].details`
+        are the recommendation's own notes. A rule added to any of those changes nothing on the
+        machine, and the run still succeeds - the take would show a port being typed and a machine
+        without it.
+
+        Confirmed against a machine that was built: a rule added here at `Ports` came back on the
+        created security group. Note the name changes on the way - the model says `Ports`, the
+        created resource says `Port`, so a check that reads the built group has to ask for both.
+    */
+    const rules = 'body_params.targetSecurityGroupList[0].firewallRules';
+
+    await this.openPathTo(rules);
+
+    /*
+      고칠 자리로는 **브라우저 찾기로** 간다.
+
+      ★ 사람이라면 고칠 그룹까지 눈으로 훑어 내려가지, 항목을 하나씩 눌러 열지 않는다. 그런데
+        파라미터가 길어 휠로 굴리면 그것대로 한참이다. `firewallRules` 는 이 본문에 한 번만
+        나오므로 찾기로 한 번에 닿는다 (2026-08-26 사용자 제안).
+
+      찾기를 쓸 수 없는 환경(녹화가 아닐 때)이면 아래에서 단추를 화면에 들이는 것으로 갈음한다.
+    */
+    const jumped = await findInBrowser(this.page, 'firewallRules', 900);
+    if (jumped) await closeFind(this.page);
+
+    /*
+      새 규칙이 받을 번호 — 이미 그려진 칸의 번호에서 가장 큰 것 다음이다.
+
+      ★ 새 항목은 배열 *끝* 에 붙는다(RecursiveFormField 의 `push`). 그래서 있는 번호 중 가장 큰
+        것 다음이 새 번호다.
+
+      ★ 규칙이 하나도 없어 0 이 나오는 것은 정상이다. 복제해 온 워크플로우의 이 배열은 비어 있고,
+        추천이 정한 포트(22·80 등)는 실행 시점에 합쳐진다 — 만들어진 보안그룹에 22 와 5555 가
+        함께 있는 것으로 확인했다(2026-08-24). 그러니 여기서 0 을 "펼치기 실패"로 단정하면 안 된다.
+
+      ★ 다만 *새로 붙은 항목은 접힌 채로 온다.* 그래서 바로 아래에서 그 항목까지 경로를 열어야
+        한다 — 그것이 빠져 실패했던 것이고, 들어올 때 한 번 펼치는 것만으로는 해결되지 않는다.
+    */
+    /*
+      ★ 항목의 *접기 손잡이* 로 센다 — 안의 칸으로 세지 않는다.
+
+        칸(`wf-field-…[N].Ports`)은 그 항목이 펼쳐져 있을 때만 그려진다. 그래서 칸으로 세면
+        접힌 항목을 놓치고, 그것을 피하려고 이백 개를 전부 펼치고 있었다. 손잡이는 접혀 있어도
+        있으므로 펼치지 않고도 정확히 센다.
+    */
+    const before = await this.page
+      .locator(`[data-testid^="wf-toggle-${rules}["]`)
+      .evaluateAll(els =>
+        els
+          .map(e => e.getAttribute('data-testid') ?? '')
+          .map(id => Number(id.match(/firewallRules\[(\d+)\]/)?.[1] ?? -1)),
+      );
+    const nextIndex = before.length ? Math.max(...before) + 1 : 0;
+
+    const addButton = this.page.getByTestId(`wf-array-add-${rules}`);
+    await bringIntoFullView(addButton);
+    await pointAt(addButton, 700);
+    await humanClick(addButton);
+
+    /*
+      새 항목이 *그려질 때까지 기다렸다가* 연다.
+
+      ★ `openPathTo` 는 접기 손잡이가 아직 없으면 조용히 건너뛴다. 방금 더한 항목은 화면에 그려지기
+        전이라 그 자리를 그냥 지나쳤고, 그래서 "N 번 항목의 칸이 나타나지 않았다" 로 죽었다
+        (2026-08-24 구간5). 손잡이가 생긴 것을 보고 나서 연다.
+    */
+    /*
+      새 항목은 **접힌 채로** 온다. 그 접기 손잡이를 눌러야 안의 칸이 생긴다.
+
+      ★ 배열 항목의 손잡이도 `wf-toggle-…[N]` 이다 — 배열 자체(`wf-toggle-…`)와 이름 규칙이 같고
+        뒤에 번호만 붙는다. 그래서 `openPathTo` 가 쓰는 이름과 한 갈래다.
+
+        한동안 `wf-array-item-toggle-…[N]` 으로 적어 두었는데, 그것은 **머지되지 않은 브랜치가
+        바꾼 이름**이었다. 그 브랜치 빌드가 dev 의 front-dev 에 올라가 있어 그때는 맞아 보였고,
+        develop 기준으로 돌리면 아무것도 잡지 못한다. 화면 식별자를 볼 때는 *어느 빌드를 보고
+        있는지* 부터 확인한다. (2026-08-27)
+    */
+    const newItem = this.page
+      .getByTestId(`wf-toggle-${rules}[${nextIndex}]`)
+      .first();
+    await expect(
+      newItem,
+      `방화벽 규칙을 더했는데 ${nextIndex} 번 항목이 생기지 않았다`,
+    ).toBeVisible({ timeout: 15_000 });
+
+    await newItem.scrollIntoViewIfNeeded().catch(() => {});
+    await humanClick(newItem);
+    await this.page.waitForTimeout(600);
+
+    // 새로 생긴 항목만 연다 — 전부 펼치면 화면이 다시 클릭만 반복한다.
+    await this.openPathTo(`${rules}[${nextIndex}]`);
+
+    const field = (name: string) =>
+      this.page.getByTestId(`wf-field-${rules}[${nextIndex}].${name}`);
+    await expect(
+      field('Ports'),
+      `방화벽 규칙을 더했는데 ${nextIndex} 번 항목의 칸이 나타나지 않았다`,
+    ).toBeVisible({ timeout: 15_000 });
+
+    // Everything except the port matches the rule that already allows SSH.
+    for (const [name, value] of [
+      ['CIDR', '0.0.0.0/0'],
+      ['Direction', 'inbound'],
+      ['Protocol', 'tcp'],
+      ['Ports', port],
+    ] as const) {
+      const input = field(name);
+      await input.scrollIntoViewIfNeeded().catch(() => {});
+      await input.click();
+      await input.fill('');
+      await input.pressSequentially(value, { delay: 40 });
+      await this.page.waitForTimeout(200);
+    }
+
+    await pointAt(field('Ports'));
+    return nextIndex;
+  }
+
   async setPortInWorkflow(from: string, to: string): Promise<string> {
     await this.expandAllParams();
 
-    // 화면이 움직인다는 것을 먼저 한 번 보이고, 그 다음에 칸을 찾는다.
-    //
-    // 순서가 반대였다. 칸을 먼저 잡아 두고 굴렸더니, 굴리는 사이에 그 칸이 다시 접혀 눌리지
-    // 않았다 — 요소는 있는데 보이지 않으니 클릭이 끝나지 않고 15초를 채우고 죽었다. 굴리기를
-    // 끝낸 *뒤에* 찾으면 그 자리에 있는 것을 잡는다. (2026-08-01)
-    await this.scrollThroughParams();
-    await this.expandAllParams();
+    // 여기서는 굴리지 않는다 — 편집 화면에 들어갈 때 한 번 굴린 것으로 충분하다.
+    // 접힌 것을 편 뒤 곧바로 그 칸을 잡고, spotlight 가 그 자리로 화면을 옮겨 준다. (2026-08-19)
 
     const all = await this.readBodyFields();
     const found = all.find(
@@ -877,7 +1009,7 @@ export class WorkflowPage {
       await field.pressSequentially(to, { delay: 60 });
       await this.page.waitForTimeout(500);
 
-      await spotlight(this.page, field);
+      await pointAt(field);
       return value;
     }
 
@@ -899,7 +1031,16 @@ export class WorkflowPage {
    * @returns how many subnets were given the zone
    */
   async setSubnetZone(zone: string): Promise<number> {
-    await this.expandAllParams();
+    /*
+      고칠 자리까지만 열고, 그 자리로는 브라우저 찾기로 간다.
+
+      ★ 여기도 `expandAllParams()` 로 이백 개를 전부 펼치고 있었다 — 화면에는 항목을 하나씩 눌러
+        여는 장면만 길게 남는다(2026-08-26 사용자 지적, 방화벽 쪽과 같은 문제). 사람은 고칠
+        그룹까지 훑어 내려가지 항목을 하나씩 열지 않는다.
+    */
+    await this.openPathTo('body_params.targetVNet.subnetInfoList[0]');
+    const jumped = await findInBrowser(this.page, 'subnetInfoList', 900);
+    if (jumped) await closeFind(this.page);
 
     const fields = this.page.locator(
       '[data-testid^="wf-field-body_params."][data-testid*="subnetInfoList"][data-testid$="zone"]',
@@ -917,7 +1058,7 @@ export class WorkflowPage {
       await field.click();
       await field.pressSequentially(zone, { delay: 55 });
       await this.page.waitForTimeout(400);
-      await spotlight(this.page, field);
+      await pointAt(field);
     }
     return count;
   }
@@ -937,6 +1078,17 @@ export class WorkflowPage {
       button,
       'Clone & Edit 버튼이 없다 — 실행 이력이 있는 워크플로우에서만 나타난다',
     ).toBeVisible({ timeout: 30_000 });
+
+    /*
+      ★ 실행 화면을 잠깐 보여 준 뒤에 누른다.
+
+        이 자리는 *이미 돌아 본 워크플로우를 복제한다* 는 것을 보여 주는 데가 그 목적이다. 그런데
+        화면이 뜨자마자 눌러 버려, 보는 쪽에서는 실행 상태를 읽을 새도 없이 편집기가 떠 있었다
+        (2026-08-26 사용자 지적).
+    */
+    await bringIntoFullView(button);
+    await this.page.waitForTimeout(1_500);
+    await pointAt(button, 700);
     await humanClick(button);
 
     const confirm = this.page.getByTestId('workflow-clone-confirm');
@@ -947,6 +1099,43 @@ export class WorkflowPage {
     await humanClick(this.page.getByTestId('workflow-clone-confirm-ok'));
 
     await this.expectDesignerOpen();
+
+    /*
+      복제본이 가리키던 것이 사라졌으면 안내가 뜬다 — 읽고 닫는다.
+
+      ★ 이 안내(`wf-broken-ref-notice`)는 화면 전체를 덮어 그 뒤 입력이 전부 막힌다. 실제로
+        워크플로우 이름 칸을 누르지 못해 죽었다(2026-08-27). 우리 소스에는 없고 배포된 이미지가
+        그리는 것이라, 무엇이 들어 있든 *있으면 닫는다* 로 다룬다.
+    */
+    const notice = this.page.getByTestId('wf-broken-ref-notice');
+    if (await notice.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      const text = (await notice.innerText().catch(() => ''))
+        .replace(/\s+/g, ' ')
+        .trim();
+      console.log(`[구간] 복제 안내: ${text.slice(0, 160)}`);
+      await this.page.waitForTimeout(1_200); // 읽을 틈
+
+      /*
+        ★ 아무 단추나 누르면 안 된다.
+
+          이 안내에는 *편집을 이어가는* 단추와 *나가는* 단추가 함께 있다. 마지막 것을 눌렀더니
+          편집기에서 빠져나와 빈 화면이 남았다(2026-08-27). 이어가는 쪽을 글자로 고르고, 없으면
+          Escape 로 닫는다 — 어느 쪽도 아니면 화면을 떠나지 않는 편이 낫다.
+      */
+      const labels = await notice
+        .locator('button')
+        .evaluateAll(els => els.map(e => (e.textContent ?? '').trim()));
+      console.log(`[구간] 안내 단추: ${labels.join(' | ')}`);
+
+      const go = notice
+        .locator('button')
+        .filter({ hasText: /continue|proceed|edit|ok|확인|계속|이어/i })
+        .first();
+      if (await go.count()) await humanClick(go);
+      else await this.page.keyboard.press('Escape');
+
+      await expect(notice).toBeHidden({ timeout: 10_000 });
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1062,7 +1251,14 @@ export class WorkflowPage {
     const pointed = await spotlightText(this.page, hit, value);
     if (!pointed) await spotlight(this.page, hit);
 
-    await this.scrollThroughParams(params);
+    /*
+      여기서 다시 훑지 않는다.
+
+      ★ 짚은 다음에도 패널을 끝까지 굴리고 있었다. 보는 쪽에서는 값을 찾은 뒤에도 화면이 계속
+        내려가는 것으로 보여, 무엇을 확인한 것인지 흐려진다. 스크롤은 *편집 화면에 처음 들어갈 때
+        한 번*만 하고(사람도 그렇게 한다), 그 뒤에는 고칠 자리·볼 자리로 곧장 간다. (2026-08-19)
+    */
+    await this.page.waitForTimeout(700);
   }
 
   /**
@@ -1208,10 +1404,43 @@ export class WorkflowPage {
     //   작업을 고르자마자 확인 창이 떠 버리면, 보는 사람은 *무엇을 눌러서* 그 창이 떴는지 알 수
     //   없다. 커서가 버튼에 닿고 한 박자 쉬었다 눌러야 누른 것이 보인다. (2026-07-31)
     await button.scrollIntoViewIfNeeded().catch(() => {});
-    await humanClick(button, { pauseBeforeMs: 700 });
 
+    /*
+      눌렸는지를 *결과*로 판정한다.
+
+      ★ 미리내는 비활성을 표준 속성이 아니라 클래스로만 표현한다(DESIGN-MIRINAE §1.6).
+        이 버튼은 실행이 도는 동안 잠기는데, 잠긴 버튼을 눌러도 Playwright 는 아무 불평 없이
+        지나가고 화면에서는 **아무 일도 일어나지 않는다**. 그러고는 20초 뒤 확인 창이 없다는
+        엉뚱한 자리에서 죽는다(2026-08-19 구간8b 가 그것이었다).
+
+        앞 단계의 재실행이 막 끝난 참이라 화면이 아직 '도는 중'을 붙들고 있을 수 있다.
+        확인 창이 뜰 때까지 몇 번 더 눌러 본다 - 뜨면 눌린 것이고, 끝내 안 뜨면 그때 실패한다.
+    */
     const confirm = this.page.getByTestId('workflow-rerun-confirm');
-    await expect(confirm).toBeVisible({ timeout: 20_000 });
+    for (let attempt = 0; attempt < 4; attempt++) {
+      /*
+        ★ 누르기 *전에* 확인한다.
+
+          창이 이미 떠 있으면 그것이 화면을 덮고 있어, 그 아래 버튼을 다시 누르려다 15초를
+          기다리다 죽는다 — 창은 정상적으로 떴는데 실패로 끝난다(2026-08-20 실제로 그랬다).
+          잠긴 버튼을 대비한 재시도가 그 반대 상황을 만든 것이다.
+      */
+      if (await confirm.isVisible({ timeout: 1_000 }).catch(() => false)) break;
+
+      await humanClick(button, {
+        pauseBeforeMs: attempt === 0 ? 700 : 150,
+      }).catch(() => {});
+      const shown = await confirm
+        .isVisible({ timeout: 8_000 })
+        .catch(() => false);
+      if (shown) break;
+      await this.page.waitForTimeout(2_000);
+    }
+
+    await expect(
+      confirm,
+      '재실행 확인 창이 뜨지 않는다 - 버튼이 잠겨 있어 클릭이 먹지 않았을 수 있다',
+    ).toBeVisible({ timeout: 20_000 });
     await spotlight(
       this.page,
       this.page.getByTestId('workflow-rerun-target').first(),
@@ -1300,6 +1529,25 @@ export class WorkflowPage {
    *
    * @param taskName the task in the run graph that did the installing
    */
+  /**
+   * 설치 목록에서 이름 하나를 찾아 짚는다. 없으면 그냥 지나간다 — 판정은 위에서 이미 했다.
+   */
+  private async pointAtSoftware(table: Locator, name: string): Promise<void> {
+    const pager = new TablePagination(this.page, table);
+    for (let i = 0; i < 6; i++) {
+      const row = table.locator('tbody tr', { hasText: name }).first();
+      if (await row.count()) {
+        await row.scrollIntoViewIfNeeded().catch(() => {});
+        await spotlightText(this.page, row, name);
+        await this.page.waitForTimeout(1_500);
+        return;
+      }
+      if (!(await pager.next())) break;
+      await this.page.waitForTimeout(900);
+    }
+    console.log(`[소프트웨어] 목록에서 ${name} 을 찾지 못했다`);
+  }
+
   async showInstalledSoftware(taskName: string): Promise<number> {
     await this.pickTask(taskName, false);
 
@@ -1319,13 +1567,39 @@ export class WorkflowPage {
 
     // Read down the list. This is the answer to "did it actually install", and one screenful of it
     // is not the whole answer.
+    //
+    // ★ 표 안만 굴리는 것으로는 부족했다. 결과 창 자체가 화면보다 길어, 표를 끝까지 읽어도 창의
+    //   아래쪽은 한 번도 나오지 않았다 — 영상에는 결과의 윗부분만 남았다 (2026-08-24 사용자 지적).
+    //   그래서 표를 읽은 뒤 창을 끝까지 내려 보고 다시 올라온다.
     await this.page.waitForTimeout(1_200);
     await this.scrollThroughParams(table);
+
+    await overlay
+      .evaluate(async (el: Element) => {
+        const step = (el as HTMLElement).clientHeight * 0.8;
+        const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+        for (let y = 0; y <= el.scrollHeight; y += step) {
+          el.scrollTo({ top: y, behavior: 'smooth' });
+          await sleep(700);
+        }
+        el.scrollTo({ top: 0, behavior: 'smooth' });
+        await sleep(700);
+      })
+      .catch(() => {});
 
     const rows = await table
       .locator('tbody tr')
       .count()
       .catch(() => 0);
+
+    /*
+      약속한 것을 화면에서 짚는다.
+
+      ★ 이 구간의 제목은 *nginx 를 확인한다* 인데, 목록이 이름순이라 첫 페이지에는 nginx 가 없다.
+        스크롤만 하고 넘어가면 45건이 스쳐 지나갈 뿐 정작 약속한 항목은 영상에 담기지 않는다
+        (2026-08-19 실제로 그랬다). 이 표에는 검색칸이 없으므로 페이지를 넘겨 찾는다.
+    */
+    await this.pointAtSoftware(table, 'nginx');
 
     // ★ Close it before leaving.
     //
@@ -1388,8 +1662,51 @@ export class WorkflowPage {
     if (!(await graph.isVisible({ timeout: 30_000 }).catch(() => false)))
       return;
 
+    /*
+      그래프를 화면 위쪽으로 끌어온다.
+
+      ★ 위에 있는 워크플로우 목록은 여기서 볼 것이 아니다. 그것이 화면 절반을 차지하면 그래프는
+        아래에 반쯤 걸리고, 재실행 단추나 안내 문구도 잘려 읽히지 않는다 (2026-08-24 사용자 지적).
+    */
+    await graph
+      .evaluate((el: Element) =>
+        el.scrollIntoView({ block: 'start', inline: 'nearest' }),
+      )
+      .catch(() => {});
+    await this.page.waitForTimeout(400);
+
     // The wheel turns whatever is under the pointer, and the pointer was last on the confirmation
-    // button. Put it on the graph first, or the notches go to something that does not scroll.
+    const lastNode = this.page.getByTestId('workflow-run-node').last();
+
+    /*
+      이미 다 보이면 아무 것도 하지 않는다.
+
+      ★ 이 함수는 기다리는 동안 몇 초마다 불린다. 그때마다 커서를 옮기고 휠을 돌려서, 영상에는
+        같은 화면을 계속 만지작거리는 모습으로 남았다 (2026-08-24 사용자 지적).
+    */
+    const allVisible = async () =>
+      lastNode
+        .evaluate((el: Element) => {
+          const r = el.getBoundingClientRect();
+          return r.bottom > 0 && r.bottom <= window.innerHeight;
+        })
+        .catch(() => false);
+    if (await allVisible()) return;
+
+    /*
+      그래프를 화면 위로 올린다.
+
+      ★ 전에는 마지막 노드가 화면 *끝에 걸리는* 순간 멈췄다. 그러면 위쪽에 아무 상관 없는 워크플로우
+        목록이 그대로 남고 마지막 작업은 아슬아슬하게 걸린다 — 무엇이 진행되는지 보라고 만든 화면인데
+        정작 그것이 가장 안 보인다.
+    */
+    await graph
+      .evaluate((el: Element) => el.scrollIntoView({ block: 'start' }))
+      .catch(() => {});
+    await this.page.waitForTimeout(400);
+    if (await allVisible()) return;
+
+    // 휠은 커서 아래 있는 것을 굴린다 — 그래프 위에 올려 두지 않으면 엉뚱한 것이 움직인다.
     const box = await graph.boundingBox();
     if (box) {
       await this.page.mouse.move(
@@ -1398,7 +1715,6 @@ export class WorkflowPage {
       );
     }
 
-    const lastNode = this.page.getByTestId('workflow-run-node').last();
     const bottomOf = () =>
       lastNode
         .evaluate((el: Element) => el.getBoundingClientRect().bottom)
@@ -1406,13 +1722,7 @@ export class WorkflowPage {
 
     let previous = await bottomOf();
     for (let i = 0; i < 12; i++) {
-      const visible = await lastNode
-        .evaluate((el: Element) => {
-          const r = el.getBoundingClientRect();
-          return r.bottom > 0 && r.bottom <= window.innerHeight;
-        })
-        .catch(() => false);
-      if (visible) return;
+      if (await allVisible()) return;
 
       await this.page.mouse.wheel(0, 260);
       await this.page.waitForTimeout(200);

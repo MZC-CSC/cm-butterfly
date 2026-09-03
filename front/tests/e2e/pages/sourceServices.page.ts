@@ -3,6 +3,15 @@ import { TablePagination } from '../support/pagination';
 import { humanClick, humanFill } from '../support/humanize';
 import { openScreen } from '../support/navigate';
 import { spotlight } from '../support/spotlight';
+import { buildXlsx } from '../support/xlsx.mjs';
+
+/** 연결정보 파일 형식. 화면은 둘 다 받고, 담기는 내용은 같다. */
+export type ImportFormat = 'csv' | 'xlsx';
+import {
+  screenCapturesTheDesktop,
+  writeTempFile,
+  pickFileInDesktopDialog,
+} from '../support/desktopFileDialog';
 
 /**
  * SourceServicesPage — 소스 서비스(소스 컴퓨팅, cm-honeybee) 화면의 "어디서/어떻게".
@@ -19,7 +28,7 @@ import { spotlight } from '../support/spotlight';
  *  - 소프트웨어 수집          : import-software
  *
  * 셀렉터는 data-testid 우선(getByTestId) + 아직 미부여 구간은 실제 .vue의
- * placeholder/label/버튼 텍스트로 fallback. data-testid 부여(BAR-880) 후 fallback 제거.
+ * placeholder/label/버튼 텍스트로 fallback. data-testid 부여 후 fallback 제거.
  */
 export class SourceServicesPage {
   /** ★ 화면 위치(URL) — 라우트 /main + source-computing/source-services */
@@ -188,9 +197,7 @@ export class SourceServicesPage {
   }
   private connectionRow(name: string): Locator {
     // 위 groupRow 와 같은 이유 — 행은 표 안에서만 찾는다.
-    const table = this.page
-      .getByTestId('source-connection-list-table')
-      .or(this.page.locator('table'));
+    const table = this.page.getByTestId('source-connection-list-table');
     return table.getByRole('row', { name: new RegExp(name) }).first();
   }
   /** 연결 목록의 "Export" 버튼 — 선택한 연결이 없으면 비활성 */
@@ -340,28 +347,90 @@ export class SourceServicesPage {
     await this.expectGroupListed(name);
   }
 
+  /**
+   * 연결정보 파일에 들어갈 행. 첫 줄은 머리글이고 열 순서는 화면이 요구하는 그대로다.
+   *
+   * CSV 든 엑셀이든 담기는 내용은 같다 — 형식만 다르다. 그래서 여기서 한 번 만들고, 내보낼 때
+   * 형식을 고른다. 두 벌로 두면 한쪽만 고쳐져 "엑셀에서만 되는" 차이가 생긴다.
+   */
+  private importRows(conns: Connection[]): string[][] {
+    return [
+      [
+        'name',
+        'description',
+        'ip_address',
+        'ssh_port',
+        'user',
+        'password',
+        'private_key',
+      ],
+      ...conns.map(c => [
+        c.name ?? '',
+        '',
+        c.ip ?? '',
+        String(c.sshPort ?? '22'),
+        c.user ?? '',
+        // 개인키가 있으면 그것만 쓴다 - 화면은 인증 수단 하나를 요구한다.
+        c.privateKey ? '' : (c.password ?? ''),
+        c.privateKey ?? '',
+      ]),
+    ];
+  }
+
+  /** 같은 행을 화면이 받는 파일 하나로 만든다. */
+  private importFile(
+    rows: string[][],
+    format: ImportFormat,
+  ): { name: string; mimeType: string; buffer: Buffer } {
+    if (format === 'xlsx') {
+      return {
+        name: 'sources.xlsx',
+        mimeType:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        buffer: buildXlsx(rows),
+      };
+    }
+    const cell = (v: string): string =>
+      /["\n,]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+    // ★ BOM 을 붙인다 - 엑셀이 없으면 한글이 깨진 채로 열린다.
+    const csv =
+      '\uFEFF' + rows.map(r => r.map(cell).join(',')).join('\n') + '\n';
+    return {
+      name: 'sources.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(csv, 'utf-8'),
+    };
+  }
+
   /** 소스그룹을 만들되 연결정보 여러 건을 CSV 대량 임포트로 한 번에 넣는다.
    *  익스포트가 *여러 건 선택*을 제대로 담는지 확인하려면 한 그룹에 연결이 둘 이상 있어야 한다. */
   async createSourceGroupWithBulkImport(
     name: string,
     connNames: string[],
+    format: ImportFormat = 'csv',
+    description?: string,
   ): Promise<void> {
-    const header =
-      'name,description,ip_address,ssh_port,user,password,private_key';
     // A password is needed so honeybee accepts the connection (user + one auth
     // method). The export blanks it back out regardless, which is what we check.
-    const rows = connNames.map(n => `${n},,10.0.0.1,22,ubuntu,e2e-dummy-pass,`);
-    const csv = '\uFEFF' + [header, ...rows].join('\n') + '\n';
+    const rows = this.importRows(
+      connNames.map(n => ({
+        name: n,
+        ip: '10.0.0.1',
+        user: 'ubuntu',
+        password: 'e2e-dummy-pass',
+      })),
+    );
 
     await humanClick(this.addGroupButton);
     await humanFill(this.serviceNameInput, name);
+    // 무엇을 어떻게 만든 그룹인지 목록에서 바로 읽히도록 - 파일로 넣은 것과 하나씩 넣은 것이
+    // 목록에 나란히 쌓이면 이름만으로는 구분이 안 된다.
+    if (description) await humanFill(this.serviceDescriptionInput, description);
     await humanClick(this.withConnectionToggle);
 
-    await this.page.getByTestId('source-import-input').setInputFiles({
-      name: 'bulk.csv',
-      mimeType: 'text/csv',
-      buffer: Buffer.from(csv, 'utf-8'),
-    });
+    await this.page
+      .getByTestId('source-import-input')
+      .setInputFiles(this.importFile(rows, format));
 
     // 서버 파싱 후 미리보기에 건수가 뜬 뒤 등록한다.
     await expect(this.page.getByTestId('source-import-count')).toContainText(
@@ -389,25 +458,9 @@ export class SourceServicesPage {
   async createSourceGroupImportingConnections(
     name: string,
     conns: Connection[],
+    format: ImportFormat = 'xlsx',
   ): Promise<void> {
-    const cell = (v: string | undefined): string => {
-      const s = v ?? '';
-      return /["\n,]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const header =
-      'name,description,ip_address,ssh_port,user,password,private_key';
-    const rows = conns.map(c =>
-      [
-        cell(c.name),
-        '',
-        cell(c.ip),
-        cell(String(c.sshPort ?? '22')),
-        cell(c.user),
-        cell(c.privateKey ? '' : c.password),
-        cell(c.privateKey),
-      ].join(','),
-    );
-    const csv = '﻿' + [header, ...rows].join('\n') + '\n';
+    const file = this.importFile(this.importRows(conns), format);
 
     await humanClick(this.addGroupButton);
     await humanFill(this.serviceNameInput, name);
@@ -421,30 +474,34 @@ export class SourceServicesPage {
     //
     // Waiting for the chooser is what keeps the operating system's own window from opening -
     // the browser asks for a file, this catches the request first and answers it.
-    const chooser = this.page.waitForEvent('filechooser');
-    await humanClick(this.page.getByTestId('source-import-file'));
+    if (screenCapturesTheDesktop()) {
+      // The desktop itself is being recorded, so let the real window open and answer it the way a
+      // person does. This is the only route that puts the act of choosing a file on screen; the
+      // one below skips it, and the recording then shows a filename arriving on its own.
+      const onDisk = writeTempFile(file.name, file.buffer);
+      await humanClick(this.page.getByTestId('source-import-file'));
+      await this.page.waitForTimeout(2_500);
+      await pickFileInDesktopDialog(onDisk);
+      await this.page.waitForTimeout(2_500);
+    } else {
+      // Nothing outside the browser is being recorded, so answering the request before the window
+      // opens costs nothing and keeps the run from depending on a desktop being there at all.
+      const chooser = this.page.waitForEvent('filechooser');
+      await humanClick(this.page.getByTestId('source-import-file'));
 
-    // Stay on the button for a beat before the file turns up.
-    //
-    // ★ The chooser is the operating system's window and never appears in the recording. Answer it
-    //   the instant it opens and the filename lands in the same frame as the press, which reads as
-    //   the button having produced it. Holding the pointer there for a moment leaves a gap the
-    //   viewer fills in themselves - that is where the file was picked, off screen.
-    await this.page.waitForTimeout(1_500);
+      // Stay on the button for a beat before the file turns up, so the filename does not land in
+      // the same frame as the press and read as the button having produced it. The gap is where a
+      // viewer puts the choosing they cannot see.
+      await this.page.waitForTimeout(1_500);
 
-    await (
-      await chooser
-    ).setFiles({
-      name: 'sources.csv',
-      mimeType: 'text/csv',
-      buffer: Buffer.from(csv, 'utf-8'),
-    });
+      await (await chooser).setFiles(file);
+    }
 
     // The chosen file is named on screen before anything is read. This is the step that used to be
     // missing: rows appeared in the preview with nothing to say where they came from, and there was
     // no way to tell a file had been attached at all.
     const filename = this.page.getByTestId('source-import-filename');
-    await expect(filename).toContainText('sources.csv', { timeout: 10_000 });
+    await expect(filename).toContainText(file.name, { timeout: 10_000 });
 
     // Point at the name itself.
     //
@@ -746,12 +803,6 @@ export class SourceServicesPage {
     await expect(this.connectionDetailInformation).toContainText(ip);
   }
 
-  /** 커넥션 목록에 그 이름이 보이는지 */
-  async expectConnectionListed(connName: string): Promise<void> {
-    await this.openConnectionsTab();
-    await expect(this.connectionRow(connName)).toBeVisible({ timeout: 20_000 });
-  }
-
   /** 커넥션 목록에서 사라졌는지 */
   async expectConnectionAbsent(connName: string): Promise<void> {
     await this.openConnectionsTab();
@@ -893,18 +944,70 @@ export class SourceServicesPage {
     await expect(this.groupStatus).toHaveAttribute('data-status', 'Success', {
       timeout: 60_000,
     });
+
+    /*
+      결과를 *보고 나서* 다음으로 넘어간다.
+
+      ★ 상태는 이미 Success 인 채로 목록에 나오는 경우가 많다. 그러면 위 기다림이 그 자리에서
+        바로 통과해, 화면에서는 **누르자마자 다음 버튼을 누르는 것처럼** 보인다. 결과가 나오기도
+        전에 움직이는 모양새다(2026-08-19 사용자 지적).
+
+        보는 사람이 갱신된 상태를 읽을 만큼은 멈춘다. 판정과는 무관하고 *보여주기* 위한 시간이다.
+    */
+    await this.page.waitForTimeout(1_500);
+  }
+
+  /**
+   * 수집이 끝나 정제 팝업이 열릴 때까지 기다린다.
+   *
+   * ★ 수집은 honeybee 가 소스 서버에 SSH 로 붙어 하는 일이라 **누른 즉시 끝나지 않는다.**
+   *   버튼을 누르고 바로 다음 단계로 넘어가면, 팝업이 아직 없는 상태에서 Convert 를 누르려다
+   *   기본 시한(15초)에 걸려 실패한다.
+   *
+   *   인프라 수집은 빨라 우연히 그 시한 안에 들어왔고, 소프트웨어 수집은 패키지를 훑느라 더
+   *   오래 걸려 걸렸다 — 즉 **원래 둘 다 기다리지 않고 있었고**, 하나만 운 좋게 통과한 것이다.
+   *   기다릴 것은 버튼이 아니라 *수집이 끝났다는 신호*, 곧 정제 팝업이다.
+   */
+  private async waitForRefinePopup(timeout: number): Promise<boolean> {
+    return this.refineConvertButton
+      .waitFor({ state: 'visible', timeout })
+      .then(() => true)
+      .catch(() => false);
+  }
+
+  /**
+   * Refresh 로 상태를 확인한 뒤 수집 버튼을 누르고, 정제 팝업이 열릴 때까지 기다린다.
+   *
+   * ★ 누르자마자 다음으로 넘어가면 안 된다 — 수집은 honeybee 가 소스 서버에 SSH 로 붙어 하는
+   *   일이라 즉시 끝나지 않는다. 기다릴 것은 버튼이 아니라 *수집이 끝났다는 신호*, 곧 팝업이다.
+   *
+   * ★ 한 번 더 누르는 이유. Refresh 는 상태 값만 바꾸는 것이 아니라 그 아래 버튼들을 다시
+   *   그린다. `data-status` 가 Success 가 된 직후는 아직 그리는 중일 수 있고, 그 순간의 클릭은
+   *   **아무 일도 하지 않는다**(요청이 나가지 않는다). 브라우저를 직접 몰아 같은 화면을 확인해
+   *   보면, Refresh 뒤에 잠깐 여유를 두면 2초 만에 팝업이 열리고 여유 없이 누르면 열리지
+   *   않는다 — 수집이 느린 것이 아니라 클릭이 사라진 것이다.
+   *
+   *   그래서 짧게 기다려 보고 팝업이 없으면 한 번 더 누른다. 수집은 같은 자료를 다시 읽는
+   *   것이라 두 번 눌려도 결과가 달라지지 않는다. 실패를 덮는 폴백이 아니라, 클릭이 먹었는지를
+   *   확인하는 것이다 — 두 번째도 열리지 않으면 그대로 실패한다.
+   */
+  private async collectAndOpenRefine(button: Locator): Promise<void> {
+    await this.refreshGroupStatus();
+    await humanClick(button);
+    if (await this.waitForRefinePopup(20_000)) return;
+
+    await humanClick(button);
+    await expect(this.refineConvertButton).toBeVisible({ timeout: 180_000 });
   }
 
   /** 인프라 수집 실행 (그룹단위 import-infra) — 선택된 그룹 상세에서 Refresh 후 Collect Infra */
   async collectInfra(): Promise<void> {
-    await this.refreshGroupStatus();
-    await humanClick(this.collectInfraButton);
+    await this.collectAndOpenRefine(this.collectInfraButton);
   }
 
   /** 소프트웨어 수집 실행 (그룹단위 import-software) — Refresh 후 Collect SW */
   async collectSoftware(): Promise<void> {
-    await this.refreshGroupStatus();
-    await humanClick(this.collectSwButton);
+    await this.collectAndOpenRefine(this.collectSwButton);
   }
 
   /**

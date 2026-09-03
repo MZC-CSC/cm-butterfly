@@ -14,11 +14,20 @@
 # 인프라(워크로드)는 여기서 건드리지 않는다. CSP 자원이 걸려 있어 제품의 삭제 기능으로 지워야 한다.
 #
 # 사용법:
-#   HOST=cmig.dev.cscmzc.com scripts/reset-dev-data.sh
+#   scripts/reset-dev-data.sh          # e2e.config 의 BASE_URL 을 따른다
+#   HOST=other-host scripts/reset-dev-data.sh
 set -uo pipefail
 
-HOST="${HOST:-cmig.dev.cscmzc.com}"
-SSH_KEY="${E2E_SSH_KEY:-$HOME/.ssh/cb-webtool.pem}"
+# 개인 설정(e2e.config)을 읽는다. 이미 준 환경변수가 우선이다.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/load-config.sh"
+
+# 대상 장비. 따로 주지 않으면 e2e.config 의 BASE_URL 에서 호스트만 떼어 쓴다 —
+# 콘솔 주소를 한 곳에만 적어 두게 하려는 것이다.
+if [ -z "${HOST:-}" ]; then
+  HOST="${BASE_URL:?BASE_URL 또는 HOST 가 필요하다 — e2e.config 를 만들었는지 확인한다}"
+  HOST="${HOST#*://}"; HOST="${HOST%%/*}"; HOST="${HOST%%:*}"
+fi
+SSH_KEY="${E2E_SSH_KEY:?E2E_SSH_KEY 가 필요하다 — e2e.config 에 적는다}"
 AUTH="${DEV_BASIC_AUTH:-default:default}"
 
 ssh -o StrictHostKeyChecking=no -i "$SSH_KEY" "ubuntu@$HOST" AUTH="$AUTH" 'bash -s' <<'REMOTE'
@@ -37,9 +46,18 @@ done
 echo "  소스그룹      $n 건 삭제"
 
 # 종류마다 경로가 다르므로 목록에서 종류를 함께 읽어 짝을 맞춘다.
+#
+# ★ 목록이 빌 때까지 돌린다 — 한 번만 훑으면 남는 것이 있다.
+#
+#   한 번 받아 온 목록으로만 지우면, 그 응답에 담기지 않은 것은 그대로 살아남는다. 실패로도
+#   잡히지 않아 "30 건 삭제" 라고 말하면서 옛 모델이 남았다. 그러면 다음 촬영에서 *이름이 같은
+#   옛 모델*이 골라진다 — 그것이 가리키는 소스 그룹은 이미 지워졌으므로 추천이 400 으로 죽는다
+#   (2026-08-31 구간7). 남은 것이 없을 때까지 다시 훑는다.
 m=0
-for pair in $(for t in true false; do
-    curl -s -u "$AUTH" "$DF/model/$t" | python3 -c "
+for round in 1 2 3 4 5; do
+  found=0
+  for pair in $(for t in true false; do
+      curl -s -u "$AUTH" "$DF/model/$t" | python3 -c "
 import sys,json
 target = '$t' == 'true'
 for x in json.load(sys.stdin) or []:
@@ -50,11 +68,21 @@ for x in json.load(sys.stdin) or []:
     else:                           continue
     print(path + '|' + x['id'])
 "
-  done); do
-  path="${pair%%|*}"; id="${pair##*|}"
-  code=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE -u "$AUTH" "$DF/$path/$id")
-  [ "$code" = "200" ] && m=$((m+1)) || echo "    실패($code) $path/$id"
+    done); do
+    found=$((found+1))
+    path="${pair%%|*}"; id="${pair##*|}"
+    code=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE -u "$AUTH" "$DF/$path/$id")
+    [ "$code" = "200" ] && m=$((m+1)) || echo "    실패($code) $path/$id"
+  done
+  [ "$found" -eq 0 ] && break
 done
+
+left=$(for t in true false; do curl -s -u "$AUTH" "$DF/model/$t" | python3 -c "
+import sys,json; print(len(json.load(sys.stdin) or []))"; done | paste -sd+ | bc)
+if [ "${left:-0}" -gt 0 ]; then
+  echo "  모델          $m 건 삭제 — ❌ ${left} 건이 남았다. 이름이 같은 옛 모델이 골라져 촬영이 죽는다"
+  exit 1
+fi
 echo "  모델          $m 건 삭제"
 
 w=0

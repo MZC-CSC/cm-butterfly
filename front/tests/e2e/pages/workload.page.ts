@@ -1,6 +1,6 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
-import { humanClick, humanFill } from '../support/humanize';
+import { humanClick, humanFill, bringIntoFullView } from '../support/humanize';
 import { openSubScreen } from '../support/navigate';
 
 /**
@@ -16,7 +16,7 @@ import { openSubScreen } from '../support/navigate';
  *   - Load testing is cm-ant — `Runloadtest`, `Getlastloadtestexecutionstate`,
  *     `Getlastloadtestresult`, `Getlastloadtestmetrics`, scenario catalog `*LoadTestScenarioCatalog*`.
  *
- * Prefer data-testid, and where it is not yet assigned (BAR-880) fall back to the actual .vue markup (placeholder/role/text).
+ * Prefer data-testid, and where it is not yet assigned fall back to the actual .vue markup (placeholder/role/text).
  */
 export class WorkloadPage {
   /** ★ Screen location (URL) — routing: /main → workload-operations → workloads → mci-wls|pmk-wls */
@@ -84,14 +84,17 @@ export class WorkloadPage {
    *  an MCI created after the list loads will not show up just by waiting. Periodically
    *  refresh the page and keep checking until the row appears (up to ~10 min for provisioning delay). */
   async expectMciVisible(infraName: string): Promise<void> {
+    /*
+      ★ 지금 쪽만 보지 않는다.
+
+        예전에는 현재 쪽에 그 행이 있는지만 봤다. 목록이 한 쪽을 넘어가면 방금 만든 인프라가
+        둘째 쪽에 앉는데, 그것을 *목록에 없다* 로 읽어 만들어진 인프라를 못 찾았다고 죽었다
+        (2026-08-26). 촬영을 여러 회차 돌려 인프라가 쌓이면 반드시 그렇게 된다.
+    */
     const deadline = Date.now() + 600_000;
+    const pager = new TablePagination(this.page, this.mciTable);
     for (;;) {
-      if (
-        await this.mciRow(infraName)
-          .isVisible()
-          .catch(() => false)
-      )
-        return;
+      if ((await pager.findRow(this.mciRow(infraName))) !== null) return;
       if (Date.now() > deadline) break;
       await this.page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
       await this.expectMciListLoaded().catch(() => {});
@@ -255,7 +258,7 @@ export class WorkloadPage {
   /**
    * The confirm (Delete) button of the delete modal.
    *
-   * With BAR-1444 the modal became a 3-stage async flow (confirm/progress/error) and renders its footer as a custom slot.
+   * The modal is a 3-stage async flow (confirm/progress/error) and renders its footer as a custom slot.
    * Each button carries a testid, so we grab it by that (the previous default `.confirm-button` button no longer exists).
    */
   private get deleteConfirmButton(): Locator {
@@ -309,7 +312,7 @@ export class WorkloadPage {
    * closed on the way (three scenarios were red on that alone).
    *
    * The phrase is whatever the dialog is asking for — one target's name, several names, or a
-   * phrase carrying the count — so it is passed in rather than assumed (BAR-1717).
+   * phrase carrying the count — so it is passed in rather than assumed.
    */
   async sendDelete(
     keyword: string,
@@ -377,6 +380,22 @@ export class WorkloadPage {
   ): Promise<void> {
     await this.sendDelete(infraName, method);
 
+    /*
+      고른 것 가운데 이번 요청에 들어가지 않는 것이 있으면, 화면이 먼저 그것을 알린다.
+
+      ★ *이미 지워지는 중인* 워크로드는 이번 삭제에 포함되지 않는다. 그래서 진행 중인 것까지
+        모두 고르면 안내 창이 뜨는데, 그것을 넘기지 않아 요청이 나가지 않았고 진행 창을 30초
+        기다리다 죽었다 (2026-08-24 구간9).
+
+        이 안내는 그 단계가 보여주려는 화면이기도 하다 — 잠깐 두었다가 넘긴다.
+    */
+    const notice = this.page.getByTestId('mci-delete-notice');
+    if (await notice.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await this.page.waitForTimeout(1_500);
+      await this.continueFromNotice();
+      await expect(notice).toBeHidden({ timeout: 10_000 });
+    }
+
     // Close the progress dialog once it appears.
     //
     // Deleting cloud resources takes minutes and the dialog stays up for the whole of it, over the
@@ -387,7 +406,7 @@ export class WorkloadPage {
     // The dialog says so itself: closing it does not stop the delete, and the list carries the
     // state in its Delete Status column. So this is what a person does here too.
     await expect(this.deleteProgress).toBeVisible({ timeout: 30_000 });
-    // Wait out the hold the dialog puts on Close (BAR-1717).
+    // Wait out the hold the dialog puts on Close.
     await this.waitDeleteCloseReleased();
 
     // Then let it be seen before closing it.
@@ -402,7 +421,7 @@ export class WorkloadPage {
   }
 
   /**
-   * Waits out the hold the dialog puts on Close right after a request goes out (BAR-1717).
+   * Waits out the hold the dialog puts on Close right after a request goes out.
    *
    * The dialog stays put for a few seconds so the request has time to be written down before
    * anyone can walk away from it. Clicking through that hold does nothing — and mirinae marks a
@@ -448,7 +467,7 @@ export class WorkloadPage {
       .catch(() => false);
   }
 
-  // ── BAR-1444 async delete flow ──────────────────────────────────────────────
+  // ── Asynchronous delete flow ──────────────────────────────────────────────
 
   /** After pressing delete, whether the modal switched to "deletion in progress" (progress). */
   async expectDeleteInProgress(): Promise<void> {
@@ -461,7 +480,7 @@ export class WorkloadPage {
     await humanClick(this.deleteCloseButton);
   }
 
-  // ── Deleting a mixed selection (BAR-1717) ──────────────────────────────
+  // ── Deleting a mixed selection ──────────────────────────────
 
   /** Selects several rows at once, in the order given. */
   async selectMcis(infraNames: string[]): Promise<void> {
@@ -470,7 +489,98 @@ export class WorkloadPage {
     }
   }
 
-  // ── Sending several at once (BAR-1719) ───────────────────────────────
+  /**
+   * 목록 위에서부터 몇 건을 고른다.
+   *
+   * ★ 이름으로 찾지 않는다 — 앞 구간이 실패해 그 인프라가 없으면 이름으로는 아무 것도 못 고르고
+   *   지우는 일까지 함께 실패한다. 지난 회차가 남긴 것이 섞여 있어도 그대로 지운다.
+   *
+   * @returns 고른 것들의 이름
+   */
+  async selectFirstMcis(wanted: number): Promise<string[]> {
+    const rows = this.mciTable.locator('tbody tr');
+    const count = await rows.count();
+    const picked: string[] = [];
+    for (let i = 0; i < count && picked.length < wanted; i++) {
+      const row = rows.nth(i);
+      const box = row.locator('td.select-checkbox').first();
+      if (!(await box.isVisible().catch(() => false))) continue;
+      const name = (
+        await row
+          .locator('td')
+          .nth(1)
+          .innerText()
+          .catch(() => '')
+      )
+        .trim()
+        .split(/\s+/)[0];
+      if (!name) continue;
+      await humanClick(
+        box.locator('.p-checkbox, input[type="checkbox"]').first(),
+      ).catch(() => {});
+      picked.push(name);
+    }
+    return picked;
+  }
+
+  /**
+   * 목록에 남은 것을 전부 고른다 — 지워지는 중인 것까지.
+   *
+   * ★ 지우는 화면이 어떻게 달라지는지를 보이려면 이것이 필요하다. 한 건만 지울 때, 두 건을 고를 때,
+   *   그리고 *이미 지워지는 중인 것을 포함해* 남은 것을 다 고를 때 — 세 가지가 각각 다른 화면이고,
+   *   마지막이 목록이 진행 중 상태를 어떻게 그리는지 보여 준다 (2026-08-24 사용자 결정).
+   *
+   * @returns 고른 건수
+   */
+  /**
+   * 확인 창이 요구하는 말을 **화면에서 읽는다.**
+   *
+   * ★ 계산하지 않는다. 개수로 규칙을 흉내 낼 수는 있지만(한 건이면 이름, 두세 건이면 이름 나열,
+   *   네 건 이상이면 `Delete N Workloads`), 그 개수는 *고른 것* 이 아니라 **요청될 것** 기준이다 —
+   *   이미 지워지는 중인 워크로드는 이번 삭제에 들어가지 않는다(MciDeleteModal 의 `checkKeyword`,
+   *   `requestTargets`).
+   *
+   *   그래서 "진행 중인 것까지 모두 고른다" 는 자리에서 계산과 화면이 어긋난다. 화면이 그 말을
+   *   입력칸 placeholder 로 알려 주므로 그것을 읽어 쓴다. (2026-08-24)
+   */
+  async deleteKeywordFromScreen(): Promise<string> {
+    const input = this.deleteConfirmInput.first();
+    await expect(input).toBeVisible({ timeout: 15_000 });
+    const shown = (await input.getAttribute('placeholder')) ?? '';
+    if (!shown.trim()) {
+      throw new Error(
+        '확인 창이 요구하는 말을 읽지 못했다 — 입력칸 placeholder 가 비어 있다',
+      );
+    }
+    return shown.trim();
+  }
+
+  async selectEveryMciLeft(): Promise<string[]> {
+    const rows = this.mciTable.locator('tbody tr');
+    const count = await rows.count();
+    const picked: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const row = rows.nth(i);
+      const box = row.locator('td.select-checkbox').first();
+      if (!(await box.isVisible().catch(() => false))) continue;
+      const name = (
+        await row
+          .locator('td')
+          .nth(1)
+          .innerText()
+          .catch(() => '')
+      )
+        .trim()
+        .split(/\s+/)[0];
+      await humanClick(
+        box.locator('.p-checkbox, input[type="checkbox"]').first(),
+      ).catch(() => {});
+      if (name) picked.push(name);
+    }
+    return picked;
+  }
+
+  // ── Sending several at once ───────────────────────────────
 
   /** The notice shown before a large selection is sent. */
   async expectSubmitNotice(): Promise<void> {
@@ -755,12 +865,9 @@ export class WorkloadPage {
     //   its tabs from a prop with no slot, so a data-testid cannot be attached to the tab button
     //   without modifying mirinae; scoping to the tab strip disambiguates it cleanly instead.
     return this.page
-      .getByTestId('vm-tab-evaluatePerf')
-      .or(
-        this.page
-          .locator('.p-button-tab .button-group button')
-          .filter({ hasText: /evaluate perf/i }),
-      )
+      .getByTestId('vm-detail-tabs')
+      .locator('.button-group button')
+      .filter({ hasText: /evaluate perf/i })
       .first();
   }
   private get loadConfigButton(): Locator {
@@ -839,7 +946,10 @@ export class WorkloadPage {
 
   /** Run the load test (Runloadtest) — click PButtonModal's default confirm button */
   async submitLoadConfig(): Promise<void> {
-    await humanClick(this.loadConfigConfirmButton.last());
+    // 눌리는 것이 보이게 — 이 버튼은 설정 창 아래쪽이라 값을 채우고 나면 화면에 반쯤 걸린다.
+    const confirm = this.loadConfigConfirmButton.last();
+    await bringIntoFullView(confirm);
+    await humanClick(confirm);
   }
 
   /**
@@ -1066,6 +1176,21 @@ export class WorkloadPage {
     await this.expectMciListLoaded();
     await this.selectMci(infraName);
     await this.chooseInfraAction('suspend');
+    await this.confirmLifecycle();
+  }
+
+  /**
+   * Bring a stopped infra back up.
+   *
+   * ★ 만든 인프라는 *만든 그 구간에서* 멈춘다 — 켜 둘 이유가 없고, 구간을 중간까지만 돌리면
+   *   그대로 남아 계속 과금된다(2026-08-26 실제로 t3a.large 다섯 대가 이틀 가까이 돌았다).
+   *   그래서 뒤 구간이 그 인프라를 실제로 쓸 때 여기서 되살린다.
+   */
+  async resumeInstance(infraName: string): Promise<void> {
+    await this.gotoMci();
+    await this.expectMciListLoaded();
+    await this.selectMci(infraName);
+    await this.chooseInfraAction('resume');
     await this.confirmLifecycle();
   }
 

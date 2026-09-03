@@ -13,7 +13,7 @@ import { humanClick } from '../support/humanize';
  * confirming it, then goes to an existing target model to show the JSON editor.
  *
  * Run:
- *   E2E_DEMO_PACE=1 BASE_URL=http://cmig.dev.cscmzc.com \
+ *   E2E_DEMO_PACE=1 BASE_URL=http://localhost \
  *   npx playwright test tests/e2e/demos/recommend-target-model.demo.ts \
  *     --config=tests/e2e/playwright.demo.config.ts
  */

@@ -1,5 +1,11 @@
 import { Page, Locator, expect } from '@playwright/test';
-import { humanClick, humanFill } from '../support/humanize';
+import {
+  humanClick,
+  pointAt,
+  humanFill,
+  bringIntoFullView,
+} from '../support/humanize';
+import { spotlight } from '../support/spotlight';
 import { describe as writeDescription } from '../support/describe';
 
 /**
@@ -72,6 +78,16 @@ export class JsonEditorPage {
    * opening in table mode and in text mode.
    */
   async switchToTable(): Promise<void> {
+    /*
+      ★ 이미 표로 보고 있으면 누르지 않는다.
+
+        모드는 열릴 때마다 다를 수 있어 이 호출은 형식이 아니다. 그런데 조건 없이 누르다 보니
+        *이미 표인 화면에서 `table` 을 한 번 더 누르는* 장면이 남았다 — 보는 쪽에서는 무엇이
+        달라지는지 알 수 없다 (2026-08-25 사용자 지적).
+    */
+    const grid = this.page.locator('.pg-table').first();
+    if (await grid.isVisible({ timeout: 2_000 }).catch(() => false)) return;
+
     await this.switchMode('table');
     // Confirm by the grid itself rather than by a control that exists in more than one mode.
     await expect(this.page.locator('.pg-table').first()).toBeVisible({
@@ -111,6 +127,25 @@ export class JsonEditorPage {
   }
 
   /**
+   * 일치 지점을 하나씩 짚어 간다.
+   *
+   * ★ 검색만 하면 표가 첫 일치로 *스스로 옮겨 간다*. 보는 사람에게는 누른 것도 없이 화면이
+   *   좁혀진 것처럼 보여, 걸지도 않은 필터가 걸린 줄로 읽힌다(2026-08-19 사용자 지적).
+   *
+   *   여기서 필터를 켜지 않는 데에는 이유가 있다 — 켜면 규칙의 갈래를 말해 주는 `dstCIDR` 행이
+   *   사라져 IPv4 와 IPv6 를 가릴 수 없다. 그러니 필터를 켜는 대신 *다음 일치* 를 눌러 옮겨
+   *   간다. 화면이 왜 움직였는지가 그 동작으로 설명된다.
+   */
+  async stepThroughMatches(times = 1): Promise<void> {
+    const next = this.page.getByTestId('json-grid-search-next');
+    for (let i = 0; i < times; i++) {
+      if (!(await next.count())) return;
+      await humanClick(next, { pauseBeforeMs: 500 });
+      await this.page.waitForTimeout(900);
+    }
+  }
+
+  /**
    * Leave the editor without saving.
    *
    * ★ The editor is an overlay on the model's own route, so the address does not change when it
@@ -121,9 +156,11 @@ export class JsonEditorPage {
    *   (2026-07-31)
    */
   async close(): Promise<void> {
+    // 타깃·소스 두 편집기가 같은 자리를 쓴다. 열려 있는 쪽 하나만 화면에 있으므로 둘을 함께 잡는다.
     const cancel = this.page
-      .getByTestId('target-custom-cancel')
-      .or(this.page.getByTestId('source-custom-cancel'))
+      .locator(
+        '[data-testid="target-custom-cancel"], [data-testid="source-custom-cancel"]',
+      )
       .first();
     if (await cancel.isVisible({ timeout: 3_000 }).catch(() => false)) {
       await humanClick(cancel);
@@ -132,7 +169,18 @@ export class JsonEditorPage {
   }
 
   async closeSearch(): Promise<void> {
-    await humanClick(this.page.getByTestId('json-grid-search-close'));
+    /*
+      ★ 닫는 동작이 보여야 한다.
+
+        검색을 닫으면 걸어 둔 필터가 풀리며 문서 전체가 다시 그려진다 — 화면이 통째로 바뀌는
+        일이다. 그런데 커서가 순식간에 가서 눌러 버려, 보는 쪽에는 *아무 것도 안 했는데 화면이
+        바뀐 것* 으로 남았다 (2026-08-25 사용자 지적). 닫기 표시로 커서를 옮겨 잠깐 머문 뒤
+        누르고, 바뀐 화면을 읽을 틈을 준다.
+    */
+    const close = this.page.getByTestId('json-grid-search-close');
+    await pointAt(close, 700);
+    await humanClick(close);
+    await this.page.waitForTimeout(900);
   }
 
   /** Rows currently drawn in the grid. */
@@ -161,6 +209,141 @@ export class JsonEditorPage {
     });
   }
 
+  /**
+   * Open every folded node so the whole document is on screen as rows.
+   *
+   * A folded node's children are not rows at all - they are absent from the DOM, not merely hidden.
+   * Anything that reads the grid without doing this reads whatever happens to be open, which is a
+   * different set on the source model and on the target model.
+   */
+  async expandAll(): Promise<void> {
+    await humanClick(
+      this.page.locator('.jse-menu button[title="Expand all"]').first(),
+    );
+    await this.page.waitForTimeout(500);
+  }
+
+  /**
+   * The port row of a rule with an IPv4 address.
+   *
+   * ★ A collected firewall carries both families, so a port appears twice - `firewallTable.6` with
+   *   `0.0.0.0/0` and `firewallTable.18` with `::/0`. cm-beetle drops IPv6 rules on the way into a
+   *   recommendation, so a copy taken from the wrong one leaves the port in the source model and
+   *   nowhere else, while every step reports success. (2026-08-14)
+   *
+   *   Each row carries its own `data-path`, so the rule a port belongs to is known rather than
+   *   guessed: take the field off the path and ask that rule for its `dstCIDR`. Reading the
+   *   neighbouring rows instead means deciding where a rule begins and ends, which the document
+   *   already answers.
+   */
+  async ipv4PortRow(value: string): Promise<Locator> {
+    const rule = await this.ruleWithPort(value, 'ipv4');
+    if (!rule) {
+      throw new Error(
+        `IPv4 규칙에서 포트가 "${value}" 인 행을 찾지 못했다 — 표가 접혀 있으면 그 행이 아예 ` +
+          `없으므로 expandAll 을 먼저 부른다. 행에 data-path 가 없으면 규칙을 짚을 수 없다.`,
+      );
+    }
+    return this.portRowOf(rule);
+  }
+
+  /** The port row of this rule, whichever name this layer gives the field. */
+  portRowOf(rulePath: string): Locator {
+    return this.page.locator(
+      `[data-path="${rulePath}.dstPorts"], [data-path="${rulePath}.Ports"]`,
+    );
+  }
+
+  /** Which address family the rule holding this port belongs to. */
+  async familyOfRuleContaining(
+    value: string,
+  ): Promise<'ipv4' | 'ipv6' | 'unknown'> {
+    if (await this.ruleWithPort(value, 'ipv4')) return 'ipv4';
+    if (await this.ruleWithPort(value, 'ipv6')) return 'ipv6';
+    return 'unknown';
+  }
+
+  /** The path of the firewall rule whose port is this, in the family asked for. */
+  private async ruleWithPort(
+    port: string,
+    family: 'ipv4' | 'ipv6',
+  ): Promise<string | null> {
+    return this.page.evaluate(
+      ({ wanted, want }) => {
+        const rows = Array.from(
+          document.querySelectorAll<HTMLElement>('.pg-table tbody tr.pg-row'),
+        );
+        const read = (path: string) => {
+          const row = rows.find(r => r.dataset.path === path);
+          return (row?.querySelector('.pg-value')?.textContent ?? '').trim();
+        };
+
+        /*
+          The field names differ by layer. An on-prem model writes `dstPorts` / `dstCIDR`; a target
+          model writes `Ports` / `CIDR`. Both are looked for rather than assumed - asking for one
+          name against the other document finds nothing, which reads as the rule not being there.
+        */
+        for (const row of rows) {
+          const path = row.dataset.path ?? '';
+          const field = ['.dstPorts', '.Ports'].find(f => path.endsWith(f));
+          if (!field) continue;
+          if (
+            (row.querySelector('.pg-value')?.textContent ?? '').trim() !==
+            wanted
+          )
+            continue;
+
+          const rule = path.slice(0, -field.length);
+          const cidr = read(`${rule}.dstCIDR`) || read(`${rule}.CIDR`);
+          if (!cidr) continue;
+          if ((want === 'ipv6') === cidr.includes('::/')) return rule;
+        }
+        return null;
+      },
+      { wanted: port, want: family },
+    );
+  }
+
+  /** The row at this document path. */
+  rowAt(path: string): Locator {
+    return this.page.locator(`[data-path="${path}"]`);
+  }
+
+  /**
+   * The path of the array item this field belongs to.
+   *
+   * ★ Not worked out by walking up until the indentation shallows - that is a guess about where one
+   *   item ends and the next begins, and it kept landing one rule over. A row carrying
+   *   `$.0.firewallTable.6.dstPorts` says outright that its item is `$.0.firewallTable.6`.
+   */
+  async rulePathOf(row: Locator): Promise<string> {
+    const path = await row.getAttribute('data-path');
+    if (!path) {
+      throw new Error(
+        '행에 data-path 가 없다 — 이 판이 오래된 이미지다. 경로 없이는 어느 규칙인지 짚을 수 없다.',
+      );
+    }
+    return path.replace(/\.[^.]+$/, '');
+  }
+
+  /**
+   * The paths of every firewall rule currently in the document.
+   *
+   * Taken before and after a duplication so the new one can be found by comparison. The alternative
+   * - assuming the copy lands at the next index - is a guess about what the editor does, and the
+   * index of any rule depends entirely on how the document was collected.
+   */
+  async rulePaths(): Promise<string[]> {
+    return this.page.evaluate(() =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>('.pg-table tbody tr.pg-row'),
+      )
+        .map(r => r.dataset.path ?? '')
+        .filter(p => /\.dstPorts$/.test(p))
+        .map(p => p.replace(/\.dstPorts$/, '')),
+    );
+  }
+
   /** The row whose *key* is this, for fields addressed by name rather than by value. */
   rowByKey(key: string): Locator {
     return this.gridRows
@@ -181,9 +364,50 @@ export class JsonEditorPage {
    * and the copy's port is changed. Writing a whole rule by hand would test the keyboard, not the
    * product.
    */
+  /**
+   * 어느 항목의 사본을 뜨는지 화면에서 먼저 짚는다.
+   *
+   * ★ 복제 버튼은 그 줄의 **오른쪽 끝**에 있다. 값은 왼쪽에 있으니, 그냥 누르면 화면에서는
+   *   커서가 값과 상관없는 자리로 건너뛰어 *엉뚱한 데를 누르는 것*처럼 보인다
+   *   (2026-08-19 사용자 지적).
+   *
+   *   그래서 그 줄을 먼저 짚어 두고 버튼으로 옮겨 간다. 무엇을 복제하는지가 눈으로 이어진다.
+   */
+  /**
+   * 복제하기 전에 **복제 아이콘 위에** 커서를 얹는다.
+   *
+   * ★ 전에는 그 줄의 *값* 을 강조했다. 그런데 복제 단추는 줄 오른쪽 끝(ROW 칸)에 있어서, 값을
+   *   짚은 다음 아무 예고 없이 사본이 나타났다 — 무엇을 눌러서 생긴 것인지가 영상에 없다
+   *   (2026-08-24 사용자 지적).
+   *
+   *   단추는 그 줄에 커서가 얹혀야 나타나므로, 줄에 먼저 얹어 단추를 띄우고 그 위로 옮겨 잠깐
+   *   머문다. 그러면 무엇을 누르는지가 보이고, 눌린 뒤 사본이 생기는 것이 이어진다.
+   */
+  private async pointAtDuplicateButton(locator: Locator): Promise<Locator> {
+    const icon = locator.getByTestId('json-grid-row-duplicate').first();
+    if (!(await icon.count())) return icon;
+
+    /*
+      누르는 것이 화면에 보여야 한다.
+
+      ★ 단추는 줄 오른쪽 끝(ROW 칸)에 있다. 그 자리가 화면 밖이면 눌리기는 해도 영상에는 사본이
+        저절로 나타난 것으로 남는다 — 실제로 그랬다(2026-08-24 촬영본에서 ROW 칸이 내내 비어
+        있었다). 화면에 들이고, 정말 들어왔는지 확인한 뒤 커서를 얹는다.
+    */
+    await icon.scrollIntoViewIfNeeded().catch(() => {});
+    await this.page.waitForTimeout(300);
+    await expect(
+      icon,
+      '복제 단추가 화면에 들어오지 않는다 — 이대로 누르면 무엇을 눌렀는지 영상에 남지 않는다',
+    ).toBeInViewport({ timeout: 5_000 });
+
+    await pointAt(icon, 900);
+    return icon;
+  }
+
   async duplicateRow(locator: Locator): Promise<void> {
     await expect(locator).toBeVisible({ timeout: 15_000 });
-    const inline = locator.getByTestId('json-grid-row-duplicate');
+    const inline = await this.pointAtDuplicateButton(locator);
     if (await inline.count()) {
       await humanClick(inline.first());
       return;
@@ -202,19 +426,31 @@ export class JsonEditorPage {
    */
   async enclosingItem(row: Locator): Promise<Locator> {
     const rows = this.gridRows;
-    const total = await rows.count();
-    const target = await row.getAttribute('class');
     const depthOf = (cls: string | null) =>
       Number((cls ?? '').match(/depth-(\d+)/)?.[1] ?? '0');
-    const want = depthOf(target);
+    const want = depthOf(await row.getAttribute('class'));
 
-    let index = -1;
-    for (let i = 0; i < total; i++) {
-      if ((await rows.nth(i).getAttribute('class')) === target) {
-        index = i;
-        break;
-      }
-    }
+    /*
+      Where this row actually sits, asked of the row itself.
+
+      ★ It used to find the position by scanning for the first row whose `class` string matched.
+        Class carries depth, not identity - every row at the same depth has the same one - so the
+        scan stopped at whichever row came first and called it the target. The walk upwards then
+        started from a stranger, and the copy was taken of whatever array item happened to enclose
+        *that*.
+
+        Seen on 2026-08-14: filtering the grid to `22` also brings in the image rows, because the
+        AMI id was `ami-05fa22e12f2cb12aa`. The port rule was found correctly, the position was
+        not, and the duplicate landed inside the image subtree. Nothing failed at that moment -
+        it surfaced fifteen seconds later as a second `22` row that was never created.
+    */
+    const index = await row.evaluate(el => {
+      const body = el.closest('tbody');
+      if (!body) return -1;
+      return Array.from(body.querySelectorAll('tr.pg-row')).indexOf(el);
+    });
+    if (index < 0) return row;
+
     for (let i = index - 1; i >= 0; i--) {
       const candidate = rows.nth(i);
       if (depthOf(await candidate.getAttribute('class')) >= want) continue;
@@ -289,15 +525,25 @@ export class JsonEditorPage {
    * Saving from here never overwrites the original - it creates a new model under the name given.
    * That is the point of the custom pass: the collected model stays as collected.
    */
-  async saveAsCustom(name: string, description?: string): Promise<void> {
+  async saveAsCustom(name: string, description?: string): Promise<string> {
     // The two custom-view screens name their save button differently - the source one has carried
     // `create-form-save` for a while, the target one had no identifier at all until now.
-    await humanClick(
-      this.page
-        .getByTestId('target-custom-save')
-        .or(this.page.getByTestId('create-form-save'))
-        .first(),
-    );
+    /*
+      누르는 것이 보이게 한다 — 이 단추는 편집기 아래쪽 가장자리에 있다.
+
+      ★ 워크플로우 저장은 이미 이렇게 고쳤는데 이쪽은 빠져 있었다. 화면에 들어와 있는지 확인하고
+        누르므로, 못 들이면 조용히 넘어가지 않고 여기서 멈춘다 (2026-08-24).
+    */
+    const save = this.page
+      .getByTestId('target-custom-save')
+      .or(this.page.getByTestId('create-form-save'))
+      .first();
+    await bringIntoFullView(save);
+    await expect(
+      save,
+      '저장 단추가 화면에 온전히 들어오지 않는다 — 이대로 누르면 무엇을 눌렀는지 영상에 남지 않는다',
+    ).toBeInViewport({ ratio: 1, timeout: 10_000 });
+    await humanClick(save);
     await humanFill(
       this.page
         .locator(
@@ -317,7 +563,35 @@ export class JsonEditorPage {
       );
     }
 
+    /*
+      저장 응답에서 그 모델의 **고유 ID** 를 받아 둔다.
+
+      ★ 이름으로 고르면 화면이 따라오지 않아도 알 수 없다. 목록의 표시만 바뀌고 상세는 이전
+        모델을 잡고 있는 상태가 실제로 생겼고, 그대로 추천이 나가 *원본 기준 결과*가 돌아왔다.
+        규칙에 5555 가 없어 제품 결함으로 볼 뻔했다(2026-08-01, 2026-08-19 재발).
+        ID 는 그 모델만 가리키므로 고르는 것도 확인하는 것도 어긋날 수 없다.
+    */
+    const created = this.page.waitForResponse(
+      r =>
+        /cm-damselfly\/(CreateOnPremModel|CreateCloudModel)/.test(r.url()) &&
+        r.request().method() === 'POST',
+      { timeout: 30_000 },
+    );
     await humanClick(this.page.getByTestId('model-name-save'));
+
+    let savedId = '';
+    try {
+      const body = await (await created).json();
+      savedId =
+        body?.responseData?.id ??
+        body?.responseData?.data?.id ??
+        body?.data?.id ??
+        body?.id ??
+        '';
+    } catch {
+      savedId = '';
+    }
+    console.log(`[모델저장] ${name} → id=${savedId || '(응답에서 못 읽음)'}`);
 
     // ★ 저장했으면 편집기를 닫고 나온다.
     //
@@ -327,5 +601,6 @@ export class JsonEditorPage {
     //   데였다(모델 편집기 두 번, 설치 목록 창, 복제한 워크플로우). 나가는 자리에서 닫는 것이
     //   부르는 쪽마다 기억하는 것보다 낫다. (2026-08-01)
     await this.close();
+    return savedId;
   }
 }

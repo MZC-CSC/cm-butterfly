@@ -10,12 +10,18 @@
 # 이미 있으면 아무것도 하지 않으므로 몇 번을 돌려도 안전하다.
 #
 # 사용법:
-#   HOST=cmig.dev.cscmzc.com scripts/seed-samples.sh
+#   scripts/seed-samples.sh            # e2e.config 의 BASE_URL 을 따른다
 set -uo pipefail
+
+# 개인 설정(e2e.config)을 읽는다. 이미 준 환경변수가 우선이다.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/load-config.sh"
 
 HOST="${HOST:-${BASE_URL#*://}}"
 HOST="${HOST%%/*}"
-SSH_KEY="${E2E_SSH_KEY:-$HOME/.ssh/cb-webtool.pem}"
+# 포트를 뗀다 - BASE_URL 이 front-dev(:5174) 를 가리킬 때가 있고, 그대로 두면 ssh 가 그것을
+# 호스트 이름의 일부로 읽어 "No such file or directory" 로 죽는다(2026-08-19).
+HOST="${HOST%%:*}"
+SSH_KEY="${E2E_SSH_KEY:?E2E_SSH_KEY 가 필요하다 — e2e.config 에 적는다}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
 scp -q -o StrictHostKeyChecking=no -i "$SSH_KEY" \

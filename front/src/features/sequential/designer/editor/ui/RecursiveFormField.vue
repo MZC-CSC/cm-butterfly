@@ -13,19 +13,19 @@
         v-if="fieldSchema.type === 'string' && shouldUseTextarea"
         :data-testid="fieldTestId"
         :value="fieldValue || ''"
-        @input="handleInput($event)"
         class="field-textarea"
         :placeholder="`Enter ${fieldName}`"
         rows="6"
-      ></textarea>
+        @input="handleInput($event)"
+      />
       <input
         v-else-if="fieldSchema.type === 'string'"
         :data-testid="fieldTestId"
         type="text"
         :value="fieldValue || ''"
-        @input="handleInput($event)"
         class="field-input"
         :placeholder="`Enter ${fieldName}`"
+        @input="handleInput($event)"
       />
       <input
         v-else-if="
@@ -34,17 +34,17 @@
         :data-testid="fieldTestId"
         type="number"
         :value="fieldValue || 0"
-        @input="handleInput($event)"
         class="field-input"
         :placeholder="`Enter ${fieldName}`"
+        @input="handleInput($event)"
       />
       <input
         v-else-if="fieldSchema.type === 'boolean'"
         :data-testid="fieldTestId"
         type="checkbox"
         :checked="!!fieldValue"
-        @change="handleInput($event)"
         class="field-checkbox"
+        @change="handleInput($event)"
       />
     </div>
 
@@ -54,8 +54,8 @@
         <div class="header-left">
           <button
             :data-testid="arrayToggleTestId"
-            @click="toggleArrayCollapse"
             class="btn-collapse"
+            @click="toggleArrayCollapse"
           >
             {{ isArrayCollapsed ? '▶' : '▼' }}
           </button>
@@ -72,8 +72,8 @@
         <div class="header-actions">
           <button
             :data-testid="arrayAddTestId"
-            @click="addArrayItem"
             class="btn-add-item"
+            @click="addArrayItem"
           >
             + Add entity
           </button>
@@ -92,14 +92,14 @@
               :data-testid="arrayItemTestId(index)"
               type="text"
               :value="item"
-              @input="updateArrayItem(index, $event)"
               class="field-input"
               :placeholder="`Item ${index + 1}`"
+              @input="updateArrayItem(index, $event)"
             />
             <button
               :data-testid="arrayRemoveTestId(index)"
-              @click="removeArrayItem(index)"
               class="btn-remove-item"
+              @click="removeArrayItem(index)"
             >
               ×
             </button>
@@ -118,29 +118,27 @@
           >
             <div
               class="item-header"
-              @click="toggleItemCollapse(index)"
               style="cursor: pointer"
+              @click="toggleItemCollapse(index)"
             >
               <div class="item-header-left">
                 <button
                   :data-testid="arrayItemToggleTestId(index)"
-                  @click.stop="toggleItemCollapse(index)"
                   class="btn-item-collapse"
+                  @click.stop="toggleItemCollapse(index)"
                 >
                   {{ isItemCollapsed(index) ? '▶' : '▼' }}
                 </button>
                 <span class="item-title">Item {{ index + 1 }}</span>
                 <span v-if="isItemCollapsed(index)" class="item-prop-count">
-                  ({{
-                    Object.keys(fieldSchema.items.properties || {}).length
-                  }}
+                  ({{ Object.keys(fieldSchema.items.properties || {}).length }}
                   properties)
                 </span>
               </div>
               <button
                 :data-testid="arrayRemoveTestId(index)"
-                @click.stop="removeArrayItem(index)"
                 class="btn-remove-item"
+                @click.stop="removeArrayItem(index)"
               >
                 × Remove
               </button>
@@ -158,17 +156,15 @@
                 :task-name="taskName"
                 :current-path="`${currentPath}[]`"
                 :index-path="childIndexPath(String(propName), index)"
+                :depth="depth + 1"
                 @update="
                   updateObjectArrayItemProperty(index, String(propName), $event)
                 "
-                :depth="depth + 1"
               />
             </div>
             <div v-else class="item-collapsed-indicator">
               <span class="item-collapsed-text">
-                {{
-                  Object.keys(fieldSchema.items.properties || {}).length
-                }}
+                {{ Object.keys(fieldSchema.items.properties || {}).length }}
                 properties (collapsed)
               </span>
             </div>
@@ -193,8 +189,8 @@
         <div class="header-left">
           <button
             :data-testid="objectToggleTestId"
-            @click="toggleObjectCollapse"
             class="btn-collapse"
+            @click="toggleObjectCollapse"
           >
             {{ isObjectCollapsed ? '▶' : '▼' }}
           </button>
@@ -231,8 +227,8 @@
           :task-name="taskName"
           :current-path="computedChildPath(propName)"
           :index-path="childIndexPath(String(propName))"
-          @update="updateObjectProperty(String(propName), $event)"
           :depth="depth + 1"
+          @update="updateObjectProperty(String(propName), $event)"
         />
       </div>
       <div v-else class="collapsed-indicator">

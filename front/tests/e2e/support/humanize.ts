@@ -61,7 +61,16 @@ const DEMO_BEAT_MS = Number(process.env.E2E_DEMO_BEAT_MS ?? 75);
 */
 const DEMO_TRAVEL_MS = 170; // time for a journey across the whole screen
 const DEMO_TRAVEL_MIN_MS = 45; // time for a hop to the neighbouring control
-const DEMO_TRAVEL_STEPS = 30; // points along the longest journey
+/*
+  가장 긴 이동에 찍는 지점 수.
+
+  ★ 서른 개였는데, 그만큼이 *한 번에 하나씩* 브라우저로 나간다. 계산상 170ms 짜리 이동이 실제로는
+    왕복 시간에 눌려 0.5초 가까이 걸렸고, 화면은 빠르게 넘어가는데 커서만 끌리듯 움직였다 —
+    사람이 손을 옮기는 모습이 아니라 렉이 걸린 모습이다 (2026-08-24 사용자 지적).
+
+    열 개면 24fps 에서 지점 사이가 두어 프레임이라 충분히 매끄럽고, 왕복이 3분의 1로 준다.
+*/
+const DEMO_TRAVEL_STEPS = 10; // points along the longest journey
 const DEMO_TRAVEL_REFERENCE_REACH = 2200; // screen diagonal to fall back on, in pixels
 /*
   A field should never hold the camera for long. Short values are typed, which reads as
@@ -189,8 +198,81 @@ async function travelTo(locator: Locator): Promise<void> {
     DEMO_TRAVEL_MIN_MS + (DEMO_TRAVEL_MS - DEMO_TRAVEL_MIN_MS) * share;
   // Fewer points for a short hop - thirty of them across forty pixels is finer than the screen can
   // show, and each one still costs a round trip to the browser.
-  const steps = Math.max(6, Math.round(DEMO_TRAVEL_STEPS * share));
-  const perStep = Math.max(6, Math.round(duration / steps));
+  const steps = Math.max(4, Math.round(DEMO_TRAVEL_STEPS * share));
+  // 왕복 자체가 이미 시간을 먹으므로 그만큼 빼고 쉰다 — 빼지 않으면 계산보다 훨씬 느려진다.
+  const perStep = Math.max(0, Math.round(duration / steps) - 8);
+
+  for (let i = 1; i <= steps; i++) {
+    const t = ease(i / steps);
+    await page.mouse.move(
+      from.x + (to.x - from.x) * t,
+      from.y + (to.y - from.y) * t,
+    );
+    await pause(perStep);
+  }
+  pointerAt = to;
+}
+
+/**
+ * Drag something by its handle, the way a hand would.
+ *
+ * ★ Not `page.mouse.down()` on a spot. The drawn cursor follows `page.mouse`, so a drag that starts
+ *   without travelling there first shows the window moving while the pointer sits somewhere else
+ *   entirely - which is what the help window did: it slid across the screen with the cursor still
+ *   over the button that had undocked it. The pointer has to arrive at the handle, press, carry it,
+ *   and let go.
+ *
+ * @param handle what is grabbed - a title bar, a resize corner
+ * @param by how far to carry it
+ */
+export async function humanDrag(
+  handle: Locator,
+  by: { dx: number; dy: number },
+): Promise<void> {
+  const page: Page = handle.page();
+  await handle.scrollIntoViewIfNeeded().catch(() => {});
+  const box = await handle.boundingBox().catch(() => null);
+  if (!box) return;
+
+  const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+  // Arrive first, so the press happens where the pointer is.
+  await travelToPoint(page, from);
+  await pause(isDemoPace() ? 320 : 60);
+  await page.mouse.down();
+  await pause(isDemoPace() ? 220 : 40);
+
+  // Carry it in steps - a single jump reads as the window teleporting.
+  const steps = isDemoPace() ? 40 : 12;
+  for (let i = 1; i <= steps; i++) {
+    const t = ease(i / steps);
+    await page.mouse.move(from.x + by.dx * t, from.y + by.dy * t);
+    await pause(isDemoPace() ? 14 : 4);
+  }
+  pointerAt = { x: from.x + by.dx, y: from.y + by.dy };
+
+  await pause(isDemoPace() ? 220 : 40);
+  await page.mouse.up();
+  await pause(isDemoPace() ? 420 : 80);
+}
+
+/** Move the pointer to a point with the same pacing `travelTo` uses for elements. */
+async function travelToPoint(
+  page: Page,
+  to: { x: number; y: number },
+): Promise<void> {
+  const from = pointerAt ?? { x: to.x, y: Math.max(0, to.y - 200) };
+  const distance = Math.hypot(to.x - from.x, to.y - from.y);
+  const viewport = page.viewportSize();
+  const reach = viewport
+    ? Math.hypot(viewport.width, viewport.height)
+    : DEMO_TRAVEL_REFERENCE_REACH;
+  const share = Math.min(1, distance / reach);
+  const duration =
+    DEMO_TRAVEL_MIN_MS + (DEMO_TRAVEL_MS - DEMO_TRAVEL_MIN_MS) * share;
+  const steps = Math.max(4, Math.round(DEMO_TRAVEL_STEPS * share));
+  // 왕복 자체가 이미 시간을 먹으므로 그만큼 빼고 쉰다 — 빼지 않으면 계산보다 훨씬 느려진다.
+  const perStep = Math.max(0, Math.round(duration / steps) - 8);
 
   for (let i = 1; i <= steps; i++) {
     const t = ease(i / steps);
@@ -217,6 +299,43 @@ async function travelTo(locator: Locator): Promise<void> {
  *     같은 프레임이라, 보는 사람은 *무엇을 눌러서* 그 창이 떴는지 알 수 없다. 그런 자리에만 한
  *     박자를 더 준다. (2026-07-31)
  */
+/**
+ * 값이 있는 자리에 커서를 두고 잠깐 머무른다 — 원을 그리지 않는다.
+ *
+ * ★ 강조 고리(spotlight)를 쓰던 자리를 이것으로 바꾼다. 고리는 요소의 사각형을 감싸는데,
+ *   **입력칸에는 글자 노드가 없어 칸 전체가 잡힌다.** 값은 왼쪽에 있고 칸은 넓으니, 정작 값이
+ *   없는 오른쪽 빈 자리를 감싼 채 돌았다. 게다가 도는 동안 화면이 다시 그려지면 고리만 남아
+ *   뚝뚝 끊긴다(원본 촬영본에서도 그랬다).
+ *
+ *   사람이 하는 일은 그 값에 손을 얹고 잠깐 두는 것이다. 커서는 `travelTo` 가 이미 *글자가
+ *   시작되는 곳*을 겨누므로 넓은 칸에서도 값 위에 놓인다. (2026-08-24 사용자 결정)
+ */
+/**
+ * 요소를 화면 *가운데*로 끌어온다.
+ *
+ * ★ `scrollIntoViewIfNeeded` 는 조금이라도 보이면 아무 것도 하지 않는다. 그래서 버튼이 아래쪽에
+ *   반쯤 걸린 채로 눌리고, 영상에서는 무엇을 눌렀는지 흐릿하게 남는다 (2026-08-24 사용자 지적 —
+ *   부하 설정 확인 버튼). 눌리는 것이 보여야 하는 자리에서는 가운데로 끌어온다.
+ */
+export async function bringIntoFullView(locator: Locator): Promise<void> {
+  await locator
+    .evaluate((el: Element) =>
+      el.scrollIntoView({ block: 'center', inline: 'nearest' }),
+    )
+    .catch(() => {});
+  await pause(400);
+}
+
+export async function pointAt(locator: Locator, holdMs = 1_000): Promise<void> {
+  if (!isDemoPace()) {
+    // 촬영이 아니면 커서를 그리지 않는다 — 그 자리가 화면에 있는지만 확인한다.
+    await locator.scrollIntoViewIfNeeded().catch(() => {});
+    return;
+  }
+  await travelTo(locator);
+  await pause(holdMs);
+}
+
 export async function humanClick(
   locator: Locator,
   opts?: Parameters<Locator['click']>[0] & { pauseBeforeMs?: number },

@@ -250,7 +250,7 @@ Then(
  *   gate for the (independent) load test that follows. So we poll the button, capture what the screen shows and how it
  *   compares to the API, attach it all to the report — and never throw. The load test proceeds regardless.
  *
- *   (Load test independence: CLAUDE §"redesign" / BAR-1595 — infra migration success + the API SW verdict are the gates;
+ *   (Load test independence — infra migration success + the API SW verdict are the gates;
  *    the console SW screen is observation only.)
  */
 Then(

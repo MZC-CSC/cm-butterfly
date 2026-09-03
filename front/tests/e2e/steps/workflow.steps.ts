@@ -367,7 +367,7 @@ Then(
   },
 );
 
-// ── cm-cicada type/spec schema regression (BAR-1389) ──────────────────────
+// ── cm-cicada type/spec schema regression ──────────────────────
 //
 // As cm-cicada changed TaskComponent to the type/spec schema, two console screens were left out of the
 // upstream patch and we supplemented them ourselves.

@@ -44,7 +44,7 @@ watch(
         <p-badge
           v-for="(provider, index) in data"
           :key="index"
-          :backgroundColor="provider.color"
+          :background-color="provider.color"
           class="mr-1"
         >
           {{ provider.name }}
