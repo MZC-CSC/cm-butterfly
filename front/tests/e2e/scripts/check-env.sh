@@ -117,7 +117,7 @@ for pair in "nano ${TEST_SOURCE_NANO_IP:-}" "micro ${TEST_SOURCE_MICRO_IP:-}"; d
       #   대상의 nginx 가 떠 있어야 성립한다. (2026-08-14 구간8 실패)
       if [ "$label" = "nano" ]; then
         st="$(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=8 \
-               -i "${E2E_SOURCE_KEY:-$HOME/.ssh/e2e-source-key}" \
+               -i "${TEST_SOURCE_KEY:-$HOME/.ssh/e2e-source-key}" \
                "ubuntu@$ip" 'systemctl is-active nginx' 2>/dev/null || true)"
         if [ "$st" = "active" ]; then
           say "  nginx (소프트웨어 소스)" "실행 중"
