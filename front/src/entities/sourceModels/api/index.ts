@@ -16,13 +16,14 @@ const DELETE_SOURCE_SOFTWARE_MODEL = 'cm-damselfly/DeleteSourceSoftwareModel';
 const CREATE_SOURCE_SOFTWARE_MODEL = 'cm-damselfly/CreateSourceSoftwareModel';
 
 export function useGetSourceModelList() {
-  const requestWrapper: Required<Pick<RequestBodyWrapper<any>, 'pathParams'>> =
+  // cm-damselfly 0.6.4 selects the stage with a query parameter (GET /model?modelStage=).
+  const requestWrapper: Required<Pick<RequestBodyWrapper<any>, 'queryParams'>> =
     {
-      pathParams: { isTargetModel: 'false' },
+      queryParams: { modelStage: 'source' },
     };
   return useAxiosPost<
     IAxiosResponse<ISourceModelResponse[]>,
-    Required<Pick<RequestBodyWrapper<any>, 'pathParams'>>
+    Required<Pick<RequestBodyWrapper<any>, 'queryParams'>>
   >(GET_SOURCE_MODEL_LIST, requestWrapper);
 }
 

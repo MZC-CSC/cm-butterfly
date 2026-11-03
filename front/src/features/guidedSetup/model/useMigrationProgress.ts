@@ -200,7 +200,7 @@ async function anythingCollected(groups: any[]): Promise<boolean> {
 /** Steps 3 and 4 - the same call, told apart by which side of the migration it describes. */
 async function models(isTargetModel: boolean): Promise<any[]> {
   const payload = await post(GET_MODELS, {
-    pathParams: { isTargetModel: String(isTargetModel) },
+    queryParams: { modelStage: isTargetModel ? 'target' : 'source' },
   });
   return asArray(payload);
 }

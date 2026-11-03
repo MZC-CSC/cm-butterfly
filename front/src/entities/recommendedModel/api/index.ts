@@ -9,9 +9,9 @@ import {
   IRecommendModelResponse,
 } from '@/entities/recommendedModel/model/types';
 
-// tb-0.12.9 clean break: removed the old 'RecommendVMInfra' (POST /recommendation/mci) → consolidated into 'RecommendVmInfraCandidates' (POST /recommendation/infra) (cm-beetle BC-6)
-const GET_RECOMMEND_MODEL = 'cm-beetle/RecommendVmInfraCandidates';
-const GET_RECOMMEND_CANDIDATES = 'cm-beetle/RecommendVmInfraCandidates';
+// POST /recommendation/infra. cm-beetle 0.6.2 renamed the operation from RecommendVmInfraCandidates; path and body are unchanged.
+const GET_RECOMMEND_MODEL = 'cm-beetle/RecommendInfraCandidates';
+const GET_RECOMMEND_CANDIDATES = 'cm-beetle/RecommendInfraCandidates';
 const GET_RECOMMEND_COST = 'cm-ant/Updateandgetestimatecost';
 
 export function useGetRecommendModelListBySourceModel(

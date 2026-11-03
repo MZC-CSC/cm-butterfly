@@ -67,13 +67,14 @@ export function createTargetSoftwareModel(data: ICreateTargetSoftwareModelPayloa
 }
 
 export function useGetTargetModelList() {
-  const requestWrapper: Required<Pick<RequestBodyWrapper<any>, 'pathParams'>> =
+  // cm-damselfly 0.6.4 selects the stage with a query parameter (GET /model?modelStage=).
+  const requestWrapper: Required<Pick<RequestBodyWrapper<any>, 'queryParams'>> =
     {
-      pathParams: { isTargetModel: 'true' },
+      queryParams: { modelStage: 'target' },
     };
   return useAxiosPost<
     IAxiosResponse<ITargetModelResponse[]>,
-    Required<Pick<RequestBodyWrapper<any>, 'pathParams'>>
+    Required<Pick<RequestBodyWrapper<any>, 'queryParams'>>
   >(GET_SOURCE_MODEL_LIST, requestWrapper);
 }
 
