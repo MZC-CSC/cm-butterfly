@@ -64,9 +64,12 @@ async function handleProviderChange(provider: string) {
     });
     const info = data.responseData;
     state.fields = info?.credentials ?? [];
-    state.fields.forEach(field => {
-      state.values[field.key] = '';
-    });
+    // Replace the object rather than adding keys to it: Vue 2 does not track keys
+    // added to a reactive object afterwards, so the typed values would never reach
+    // the computed request and the Add button would stay disabled.
+    state.values = Object.fromEntries(
+      state.fields.map(field => [field.key, '']),
+    );
     if (!state.region) state.region = info?.default_region ?? '';
   } catch (e) {
     state.specError =
@@ -80,7 +83,8 @@ function isMultiline(key: string) {
 }
 
 const request = computed<ICspSourceGroupRequest | null>(() => {
-  if (!state.name.trim() || !state.provider || !state.region.trim()) return null;
+  if (!state.name.trim() || !state.provider || !state.region.trim())
+    return null;
   if (!state.fields.length) return null;
   if (state.fields.some(field => !state.values[field.key]?.trim())) return null;
   return {
@@ -120,9 +124,9 @@ watch(request, value => emit('update:value', value), { immediate: true });
 
     <p-pane-layout class="layout">
       <p class="field-note">
-        Enter the credential of the cloud account to migrate from. It is stored by
-        the source collector (cm-honeybee) and is not shown again. The target cloud
-        account is configured separately.
+        Enter the credential of the cloud account to migrate from. It is stored
+        by the source collector (cm-honeybee) and is not shown again. The target
+        cloud account is configured separately.
       </p>
       <p-field-group label="Provider" required>
         <!-- PSelectDropdown reports the choice through @select only. -->
@@ -130,6 +134,7 @@ watch(request, value => emit('update:value', value), { immediate: true });
           :menu="providerItems"
           :selected.sync="state.provider"
           placeholder="Select a provider"
+          use-fixed-menu-style
           data-testid="csp-source-provider"
           @select="handleProviderChange"
         />
@@ -185,15 +190,20 @@ watch(request, value => emit('update:value', value), { immediate: true });
 
 <style scoped lang="postcss">
 .csp-source-group-form {
-  @apply flex flex-col gap-4 border-none;
-  .layout {
-    @apply p-4;
-  }
-  .field-note {
-    @apply text-sm text-gray-500 mb-2;
-  }
-  .field-note.error {
-    @apply text-red-500;
-  }
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  border: none;
+}
+.layout {
+  padding: 1rem;
+}
+.field-note {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+}
+.field-note.error {
+  color: #dc2626;
 }
 </style>

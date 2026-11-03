@@ -254,9 +254,13 @@ const handleConnectionModal = (value: boolean) => {
 
 <style scoped lang="postcss">
 .source-type {
-  @apply flex items-center gap-4 px-4 pt-4;
-  .source-type-label {
-    @apply text-sm font-bold;
-  }
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1rem 0;
+}
+.source-type-label {
+  font-size: 0.875rem;
+  font-weight: 700;
 }
 </style>

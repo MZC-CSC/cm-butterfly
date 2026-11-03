@@ -40,7 +40,10 @@ const resourceTypeItems: Array<{ name: CspResourceType; label: string }> = [
   { name: 'rdbms', label: 'Managed RDBMS' },
 ];
 
-const resDiscover = useDiscoverSourceGroupResources(props.sourceServiceId, null);
+const resDiscover = useDiscoverSourceGroupResources(
+  props.sourceServiceId,
+  null,
+);
 const resCreate = useCreateConnectionInfo(props.sourceServiceId, null);
 
 const state = reactive({
@@ -128,7 +131,8 @@ async function handleConfirm() {
     };
     if (item.extra?.zone) request.zone = item.extra.zone;
     if (isVm.value && state.withSsh) {
-      request.ip_address = item.extra?.private_ip || item.extra?.public_ip || '';
+      request.ip_address =
+        item.extra?.private_ip || item.extra?.public_ip || '';
       request.ssh_port = state.sshPort;
       request.user = state.sshUser;
       request.private_key = state.sshPrivateKey;
@@ -178,6 +182,7 @@ function handleClose() {
             <p-select-dropdown
               :menu="resourceTypeItems"
               :selected.sync="state.resourceType"
+              use-fixed-menu-style
               data-testid="csp-connection-resource-type"
               @select="v => (state.resourceType = v)"
             />
@@ -276,40 +281,71 @@ function handleClose() {
 
 <style scoped lang="postcss">
 .csp-connection {
-  @apply flex flex-col gap-3 p-2;
-  .note {
-    @apply text-sm text-gray-500;
-  }
-  .discover-row {
-    @apply flex items-end gap-3;
-  }
-  .loading {
-    @apply flex items-center gap-2 text-sm text-gray-500;
-  }
-  .resource-list {
-    @apply flex flex-col border border-gray-200 rounded max-h-80 overflow-y-auto;
-    li {
-      @apply flex items-start gap-2 px-3 py-2 border-b border-gray-100 cursor-pointer;
-      &[data-selected='true'] {
-        @apply bg-blue-100;
-      }
-    }
-    .resource-text {
-      @apply flex flex-col;
-    }
-    .resource-name {
-      @apply text-sm font-bold;
-    }
-    .resource-id,
-    .resource-extra {
-      @apply text-xs text-gray-500;
-    }
-  }
-  .ssh-section {
-    @apply flex flex-col gap-2 border-t border-gray-200 pt-3;
-  }
-  .ssh-toggle {
-    @apply flex items-center gap-2 text-sm cursor-pointer;
-  }
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem;
+}
+.note {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+.discover-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+.resource-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 20rem;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.25rem;
+}
+.resource-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+}
+.resource-list li[data-selected='true'] {
+  background: #e8f0fe;
+}
+.resource-text {
+  display: flex;
+  flex-direction: column;
+}
+.resource-name {
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+.resource-id,
+.resource-extra {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+.ssh-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 0.75rem;
+}
+.ssh-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  cursor: pointer;
 }
 </style>
