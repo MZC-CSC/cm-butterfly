@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { i18n } from '@/app/i18n';
-import { PButtonModal } from '@cloudforet-test/mirinae';
+import { PButtonModal, PRadio, PRadioGroup } from '@cloudforet-test/mirinae';
+import CspSourceGroupForm from '@/features/sourceServices/cspSourceGroupForm/ui/CspSourceGroupForm.vue';
+import type { ICspSourceGroupRequest } from '@/entities/sourceService/model/types';
 import { reactive, ref, watchEffect } from 'vue';
 import { UpdateSourceService } from '@/features/sourceServices';
 import { useRegisterSourceGroup } from '@/entities/sourceService/api';
@@ -37,12 +39,49 @@ const state = reactive({
   description: '',
 });
 
+// On-premise groups are reached over SSH; a CSP group is the customer's cloud account,
+// read through its API with the credential entered here.
+const sourceType = ref<'onprem' | 'csp'>('onprem');
+const cspRequest = ref<ICspSourceGroupRequest | null>(null);
+
+const sourceTypeOptions = [
+  { value: 'onprem', label: 'On-premise (SSH)' },
+  { value: 'csp', label: 'Cloud (CSP account)' },
+];
+
 watchEffect(() => {
+  if (sourceType.value === 'csp') {
+    isDisabled.value = !!cspRequest.value;
+    return;
+  }
   isDisabled.value =
     !!state.sourceServiceName &&
     state.sourceServiceName.length > 0 &&
     !isImportBlocked.value;
 });
+
+const handleCspRequest = (value: ICspSourceGroupRequest | null) => {
+  cspRequest.value = value;
+};
+
+const registerCspGroup = async () => {
+  if (!cspRequest.value) return;
+  try {
+    const { data } = await registerSourceGroup.execute({
+      request: cspRequest.value,
+    });
+    if (data.status && data.status.code === 200) {
+      showSuccessMessage('success', 'Register Success');
+      emit('update:trigger');
+      emit('update:isModalOpened', false);
+    }
+  } catch (error) {
+    showErrorMessage(
+      'failed',
+      (error as any).errorMsg?.value || 'Service Registering Failed',
+    );
+  }
+};
 
 const handleImportBlocked = (blocked: boolean) => {
   isImportBlocked.value = blocked;
@@ -58,6 +97,10 @@ const handleSourceServiceInfo = (value: any) => {
 const isConfirmNoConnectionOpen = ref<boolean>(false);
 
 const handleConfirm = async () => {
+  if (sourceType.value === 'csp') {
+    await registerCspGroup();
+    return;
+  }
   if (
     sourceConnectionStore.withSourceConnection &&
     sourceConnectionStore.editConnections.length === 0
@@ -155,7 +198,26 @@ const handleConnectionModal = (value: boolean) => {
       @close="handleCancel"
     >
       <template #body>
+        <div class="source-type" data-testid="source-service-type">
+          <span class="source-type-label">Source Type</span>
+          <p-radio-group>
+            <p-radio
+              v-for="option in sourceTypeOptions"
+              :key="option.value"
+              v-model="sourceType"
+              :value="option.value"
+              :data-testid="`source-service-type-${option.value}`"
+            >
+              <span>{{ option.label }}</span>
+            </p-radio>
+          </p-radio-group>
+        </div>
+        <csp-source-group-form
+          v-if="sourceType === 'csp'"
+          @update:value="handleCspRequest"
+        />
         <update-source-service
+          v-else
           :is-edit="false"
           @update:import-blocked="handleImportBlocked"
           :loading="registerSourceGroup.isLoading.value"
@@ -190,4 +252,11 @@ const handleConnectionModal = (value: boolean) => {
   </div>
 </template>
 
-<style scoped lang="postcss"></style>
+<style scoped lang="postcss">
+.source-type {
+  @apply flex items-center gap-4 px-4 pt-4;
+  .source-type-label {
+    @apply text-sm font-bold;
+  }
+}
+</style>

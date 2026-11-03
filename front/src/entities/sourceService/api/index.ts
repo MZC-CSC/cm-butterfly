@@ -3,7 +3,14 @@ import {
   RequestBodyWrapper,
   useAxiosPost,
 } from '@/shared/libs';
-import { IInfraSourceGroupResponse } from '@/entities/sourceService/model/types';
+import {
+  IInfraSourceGroupResponse,
+  ICspInfo,
+  ICspListResponse,
+  ICspRegionListResponse,
+  IDiscoverResponse,
+  CspResourceType,
+} from '@/entities/sourceService/model/types';
 import { axiosInstance } from '@/shared/libs/api/instance';
 import type { ISourceGroup } from '@/entities/sourceService/model/types';
 
@@ -18,6 +25,11 @@ const GET_SOFTWARE_INFO_SOURCE_GROUP =
   'cm-honeybee/get-software-info-source-group';
 const GET_INFRA_INFO_SOURCE_GROUP_REFINE =
   'cm-honeybee/get-infra-info-source-group-refined';
+const LIST_CSP = 'cm-honeybee/list-csp';
+const GET_CSP = 'cm-honeybee/get-csp';
+const LIST_SOURCE_GROUP_REGIONS = 'cm-honeybee/list-source-group-regions';
+const DISCOVER_SOURCE_GROUP_RESOURCES =
+  'cm-honeybee/discover-source-group-resources';
 
 export function useRegisterSourceGroup<T, D>(
   sourceGroupData: D | ISourceGroup,
@@ -135,4 +147,55 @@ export function useGetInfraSourceGroupInfraRefine(
     IAxiosResponse<any>,
     Required<Pick<RequestBodyWrapper<{ sgId: string | null }>, 'pathParams'>>
   >(GET_INFRA_INFO_SOURCE_GROUP_REFINE, requestWrapper);
+}
+
+// CSP-type source groups (cm-honeybee 0.6.0+). The source account's credential is
+// stored by cm-honeybee in its own OpenBao and is never returned, so the console
+// only ever sends it.
+
+export function useGetCspList() {
+  return useAxiosPost<IAxiosResponse<ICspListResponse>, null>(LIST_CSP, null);
+}
+
+// The credential keys, examples and default region of one CSP — the form is
+// built from this instead of a per-CSP layout in the console.
+export function useGetCspInfo(name: string | null) {
+  const requestWrapper: Required<
+    Pick<RequestBodyWrapper<{ name: string | null }>, 'pathParams'>
+  > = {
+    pathParams: { name },
+  };
+  return useAxiosPost<
+    IAxiosResponse<ICspInfo>,
+    Required<Pick<RequestBodyWrapper<{ name: string | null }>, 'pathParams'>>
+  >(GET_CSP, requestWrapper);
+}
+
+// Regions and zones, queried live with the credential stored for the group.
+export function useListSourceGroupRegions(sgId: string | null) {
+  const requestWrapper: Required<
+    Pick<RequestBodyWrapper<{ sgId: string | null }>, 'pathParams'>
+  > = {
+    pathParams: { sgId },
+  };
+  return useAxiosPost<
+    IAxiosResponse<ICspRegionListResponse>,
+    Required<Pick<RequestBodyWrapper<{ sgId: string | null }>, 'pathParams'>>
+  >(LIST_SOURCE_GROUP_REGIONS, requestWrapper);
+}
+
+// What actually exists in the source account, read from the CSP rather than
+// from anything the platform registered.
+export function useDiscoverSourceGroupResources(
+  sgId: string | null,
+  resourceType: CspResourceType | null,
+) {
+  const requestWrapper = {
+    pathParams: { sgId },
+    queryParams: { resource_type: resourceType },
+  };
+  return useAxiosPost<IAxiosResponse<IDiscoverResponse>, any>(
+    DISCOVER_SOURCE_GROUP_RESOURCES,
+    requestWrapper,
+  );
 }

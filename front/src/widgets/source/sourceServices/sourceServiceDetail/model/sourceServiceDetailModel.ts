@@ -4,6 +4,7 @@ import { useDefinitionTableModel } from '@/shared/hooks/table/definitionTable/us
 import {
   SourceServiceStatusType,
   SourceServiceTableType,
+  sourceTypeLabel,
 } from '@/entities/sourceService/model/types';
 
 export function useSourceServiceDetailModel() {
@@ -22,6 +23,7 @@ export function useSourceServiceDetailModel() {
     tableModel.tableState.fields = [
       { label: 'Source Service Name', name: 'name' },
       { label: 'ID', name: 'id' },
+      { label: 'Type', name: 'sourceType' },
       { label: 'Description', name: 'description' },
       {
         label: 'Agent Status / Connection Status',
@@ -50,6 +52,7 @@ export function useSourceServiceDetailModel() {
         name: sourceService.name,
         id: sourceService.id,
         description: sourceService.description,
+        sourceType: sourceTypeLabel(sourceService),
         status: {
           ...setServiceStatus(sourceService.status),
           outcomes: sourceService.connectionOutcomes ?? [],

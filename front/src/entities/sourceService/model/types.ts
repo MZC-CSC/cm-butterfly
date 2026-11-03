@@ -7,6 +7,73 @@ export interface ISourceGroup {
 }
 
 /**
+ * How a source group's connections are collected. cm-honeybee still answers with the
+ * earlier spelling `ssh` (or an empty value) for on-premise groups.
+ */
+export const SourceGroupType = {
+  OnPremise: 'onprem',
+  Csp: 'csp',
+} as const;
+
+export function isCspSourceGroup(type?: string | null): boolean {
+  return (type ?? '').toLowerCase() === SourceGroupType.Csp;
+}
+
+export type CspResourceType = 'vm' | 'k8s' | 'object_storage' | 'nlb' | 'rdbms';
+
+export interface ICspCredentialField {
+  key: string;
+  example: string;
+  description: string;
+}
+
+export interface ICspInfo {
+  name: string;
+  credential_keys: string[];
+  credentials: ICspCredentialField[];
+  region_keys: string[];
+  default_region?: string;
+}
+
+export interface ICspListResponse {
+  csp: string[];
+}
+
+export interface ICspRegion {
+  name: string;
+  display_name: string;
+  zones: string[];
+}
+
+export interface ICspRegionListResponse {
+  provider: string;
+  regions: ICspRegion[];
+}
+
+export interface IDiscoveredResource {
+  resource_type: CspResourceType;
+  resource_id: string;
+  name: string;
+  region?: string;
+  extra?: Record<string, any>;
+}
+
+export interface IDiscoverResponse {
+  items: IDiscoveredResource[] | null;
+  unsupported?: boolean;
+  reason?: string;
+}
+
+export interface ICspSourceGroupRequest {
+  name: string;
+  description: string;
+  type: typeof SourceGroupType.Csp;
+  provider_name: string;
+  region_name: string;
+  credential: Array<{ key: string; value: string }>;
+}
+
+/**
  * What the server said about one connection, kept as it said it.
  *
  * A source service that cannot be reached is shown as failed, but "failed" alone does
@@ -35,6 +102,18 @@ export interface ISourceService {
   connectionOutcomes?: ISourceConnectionOutcome[];
   infraModel?: IInfraSourceGroupResponse;
   softwareModel?: any;
+  /** `csp` for a cloud source account; anything else is an on-premise group. */
+  type?: string;
+  providerName?: string;
+  regionName?: string;
+}
+
+// On-premise groups read the machines over SSH; CSP groups read a cloud account.
+export function sourceTypeLabel(sourceService: ISourceService): string {
+  if (!isCspSourceGroup(sourceService.type)) return 'On-premise';
+  return `Cloud (${sourceService.providerName ?? '-'} / ${
+    sourceService.regionName ?? '-'
+  })`;
 }
 
 export interface ISourceAgentAndConnectionStatusResponse {
@@ -71,6 +150,9 @@ export interface ISourceServiceResponseElement {
   id: string;
   name: string;
   connection_info_status_count: ISourceConnectionStatusCountResponse;
+  type?: string;
+  provider_name?: string;
+  region_name?: string;
 }
 
 export interface ISourceServiceResponse {
@@ -92,6 +174,7 @@ export type SourceServiceTableType =
   | 'id'
   | 'description'
   | 'connectionCount'
+  | 'sourceType'
   | 'status'
   | 'viewInfra'
   | 'viewSoftware';

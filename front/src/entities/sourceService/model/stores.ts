@@ -55,6 +55,9 @@ export const useSourceServiceStore = defineStore(NAMESPACE, () => {
       // object after the fact is not observed, so anything watching it would never see it
       // arrive.
       connectionOutcomes: [],
+      type: service.type,
+      providerName: service.provider_name,
+      regionName: service.region_name,
     }));
   }
 

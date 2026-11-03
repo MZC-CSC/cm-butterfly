@@ -5,6 +5,7 @@ import { useGetSourceServiceList } from '@/entities/sourceService/api';
 import {
   ISourceService,
   SourceServiceTableType,
+  sourceTypeLabel,
 } from '@/entities/sourceService/model/types';
 import { watch } from 'vue';
 
@@ -20,6 +21,7 @@ export function useSourceServiceListModel() {
     tableModel.tableState.fields = [
       { name: 'name', label: 'Name' },
       { name: 'id', label: 'id' },
+      { name: 'sourceType', label: 'Type' },
       { name: 'description', label: 'Description' },
       { name: 'connectionCount', label: 'Connection #' },
     ];
@@ -47,6 +49,7 @@ export function useSourceServiceListModel() {
       name: sourceService.name,
       description: sourceService.description || '-',
       connectionCount: sourceService.connectionCount ?? '',
+      sourceType: sourceTypeLabel(sourceService),
       id: sourceService.id,
       originalData: sourceService,
     };

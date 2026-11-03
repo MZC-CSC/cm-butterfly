@@ -17,6 +17,9 @@ import { showSuccessMessage } from '@/shared/utils';
 import AddSourceServiceModal from '@/features/sourceServices/addSourceServiceModal/ui/AddSourceServiceModal.vue';
 import EditSourceServiceModal from '@/features/sourceServices/editSourceServiceModal/ui/EditSourceServiceModal.vue';
 import { GuidedStepBanner } from '@/features/guidedSetup';
+import CspConnectionModal from '@/widgets/source/sourceConnections/cspConnectionModal/ui/CspConnectionModal.vue';
+import { useSourceServiceStore } from '@/entities/sourceService/model/stores';
+import { isCspSourceGroup } from '@/entities/sourceService/model/types';
 
 const sourceConnectionName = ref<string>('');
 const multiSelectedConnectionIds = ref<string[]>([]);
@@ -29,6 +32,16 @@ const selectedConnectionId = ref<string>('');
 const { sourceConnectionStore } = useSourceInfraCollectModel();
 
 const sidebar = useSidebar();
+const sourceServiceStore = useSourceServiceStore();
+
+// A CSP source group adds connections by picking resources from the cloud account,
+// so its Add/Edit opens a different modal from the SSH connection form.
+const selectedService = computed(() =>
+  sourceServiceStore.getServiceById(selectedServiceId.value),
+);
+const isCspSelected = computed(() =>
+  isCspSourceGroup(selectedService.value?.type),
+);
 
 const { isCollapsed, isGnbToolboxShown } = storeToRefs(sidebar);
 
@@ -293,8 +306,16 @@ const data = computed(() => {
       />
     </div>
     <div class="relative z-70">
+      <csp-connection-modal
+        v-if="modalStates.addSourceConnection.open && isCspSelected"
+        :source-service-id="selectedServiceId"
+        :provider-name="selectedService?.providerName"
+        :region-name="selectedService?.regionName"
+        @update:is-modal-opened="handleConnectionModal"
+        @update:trigger="modalStates.addSourceConnection.trigger = true"
+      />
       <source-connection-modal
-        v-if="
+        v-else-if="
           modalStates.addSourceConnection.open &&
           modalStates.addSourceConnection.category === 'add'
         "
