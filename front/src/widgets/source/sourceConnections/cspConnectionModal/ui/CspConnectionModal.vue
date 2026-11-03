@@ -111,10 +111,13 @@ const canSave = computed(
 );
 
 // Connection names stay ASCII-safe; the CSP's display name is kept as the description.
+// cm-honeybee requires the name to be unique across every source group, so the same
+// resource added to two groups would collide — the group id keeps them apart.
 function connectionName(item: IDiscoveredResource) {
-  return `${item.resource_type}-${item.resource_id}`
+  const resource = `${item.resource_type}-${item.resource_id}`
     .replace(/[^A-Za-z0-9-]/g, '-')
-    .slice(0, 60);
+    .slice(0, 50);
+  return `${resource}-${props.sourceServiceId.slice(0, 8)}`;
 }
 
 async function handleConfirm() {
