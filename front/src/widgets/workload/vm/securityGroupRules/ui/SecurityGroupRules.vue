@@ -4,7 +4,7 @@
  *
  * Why it is not fetched with the node: the node detail is drawn from a list response already in
  * hand, so opening a node costs nothing. Rules need their own call, and calling per row is what
- * took this screen down with 429s once three infrastructures existed (BAR-1637).
+ * took this screen down with 429s once three infrastructures existed.
  *
  * Why nothing is cached: a security group can change, and a cached copy cannot say that it did.
  * Someone opening this is asking what is open *now*. The call goes out only on a click, so it

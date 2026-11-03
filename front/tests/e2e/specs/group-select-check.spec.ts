@@ -11,7 +11,7 @@ import { SourceServicesPage } from '../pages/sourceServices.page';
  * Guessing between those cost a run each time, so this prints the row's class before and after and
  * says whether the tab turned up.
  *
- *   BASE_URL=http://cmig.dev.cscmzc.com TEST_GROUP=onprem-group-460311 \
+ *   BASE_URL=http://localhost TEST_GROUP=onprem-group-460311 \
  *     npx playwright test --config=tests/e2e/playwright.specs.config.ts group-select-check
  */
 test('clicking a source group opens its detail @integration', async ({

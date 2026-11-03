@@ -10,7 +10,7 @@ import { WorkflowPage } from '../pages/workflow.page';
  * Evidence for the parameter-panel analysis: what a person sees first, what is folded away, and
  * how much of what is on screen has any bearing on the result. Saves nothing to the environment.
  *
- *   BASE_URL=http://cmig.dev.cscmzc.com TEST_TARGET_MODEL=<name> SHOT_DIR=/tmp/uxshots \
+ *   BASE_URL=http://localhost TEST_TARGET_MODEL=<name> SHOT_DIR=/tmp/uxshots \
  *     npx playwright test --config=tests/e2e/playwright.specs.config.ts editor-ux-capture
  */
 test('what the parameter panel shows @integration', async ({ page }) => {

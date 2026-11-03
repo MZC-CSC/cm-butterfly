@@ -16,7 +16,7 @@ import { WorkloadPage } from '../pages/workload.page';
  *
  * Not tagged, so no project picks it up. Run it deliberately:
  *
- *   BASE_URL=http://cmig.dev.cscmzc.com npx playwright test \
+ *   BASE_URL=http://localhost npx playwright test \
  *     --config=tests/e2e/playwright.config.ts --project=integration \
  *     tests/e2e/specs/cleanup-dev-workloads.spec.ts
  */

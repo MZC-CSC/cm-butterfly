@@ -17,7 +17,7 @@ import { WorkflowPage } from '../pages/workflow.page';
  *
  * Opens the editor on a target model and prints every field it finds. Saves nothing.
  *
- *   BASE_URL=http://cmig.dev.cscmzc.com TEST_TARGET_MODEL=<name> \
+ *   BASE_URL=http://localhost TEST_TARGET_MODEL=<name> \
  *     npx playwright test --config=tests/e2e/playwright.specs.config.ts body-fields-dump
  */
 test('what the workflow editor draws for the body @integration', async ({
