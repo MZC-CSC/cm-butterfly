@@ -24,6 +24,8 @@ const dictionary = [
   'templates',
   'task',
   'components',
+  'object',
+  'storages',
   'workloads',
   'workload',
   'operations',

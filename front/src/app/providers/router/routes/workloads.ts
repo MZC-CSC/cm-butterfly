@@ -1,6 +1,7 @@
 import { RouteConfig } from 'vue-router';
 import { WORKLOAD_OPERATIONS_ROUTE } from '@/app/providers/router/routes/constants';
 import { MciPage, WorkloadsPage, PmkPage } from '@/pages/workloadOperations';
+import { MENU_ID } from '@/entities';
 
 export const workloadsRoutes: RouteConfig[] = [
   {
@@ -39,6 +40,19 @@ export const workloadsRoutes: RouteConfig[] = [
             },
           },
         ],
+      },
+      {
+        path: 'object-storages',
+        name: MENU_ID.OBJECT_STORAGES,
+        component: () =>
+          import(
+            '@/pages/workloadOperations/objectStorages/ui/ObjectStoragesPage.vue'
+          ),
+        meta: {
+          lsbVisible: true,
+          menuId: MENU_ID.OBJECT_STORAGES,
+          category: WORKLOAD_OPERATIONS_ROUTE._NAME,
+        },
       },
     ],
   },

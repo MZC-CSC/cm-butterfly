@@ -150,6 +150,15 @@ menus:
     restype: menu
     isaction: "false"
     priority: 0
+
+  # Bucket migration through cm-beetle: source buckets -> target recommendation ->
+  # bucket creation, and the buckets created so far.
+  - id: objectstorages
+    parentid: workloadoperations
+    displayname: Object Storages
+    restype: menu
+    isaction: "false"
+    priority: 1
   
   ################## step3 : menu : migrations > workloadoperations ################
   # Hidden along with their Cloud Resources parent - see the note there.
