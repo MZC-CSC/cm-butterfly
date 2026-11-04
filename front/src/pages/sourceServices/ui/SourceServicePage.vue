@@ -20,6 +20,7 @@ import AddSourceServiceModal from '@/features/sourceServices/addSourceServiceMod
 import EditSourceServiceModal from '@/features/sourceServices/editSourceServiceModal/ui/EditSourceServiceModal.vue';
 import { GuidedStepBanner } from '@/features/guidedSetup';
 import CspConnectionModal from '@/widgets/source/sourceConnections/cspConnectionModal/ui/CspConnectionModal.vue';
+import CspConnectionEditModal from '@/widgets/source/sourceConnections/cspConnectionModal/ui/CspConnectionEditModal.vue';
 import { useSourceServiceStore } from '@/entities/sourceService/model/stores';
 import { isCspSourceGroup } from '@/entities/sourceService/model/types';
 
@@ -76,10 +77,9 @@ const serverConnectionTabs = [
   { name: 'infraCollect', label: 'Infra Collect' },
   { name: 'softwareCollect', label: 'Software Collect' },
 ];
-const bucketConnectionTabs = [
-  { name: 'information', label: 'Information' },
-  { name: 'bucketCollect', label: 'Bucket Collect' },
-];
+// A bucket has no host, port or credential of its own: its information tab shows the
+// bucket and the collect step instead of the server fields.
+const bucketConnectionTabs = [{ name: 'information', label: 'Information' }];
 const sourceConnectionDetailTabState = reactive({
   activeTab: 'information',
   tabs: computed(() =>
@@ -155,13 +155,27 @@ function handleGroupModal(value: boolean) {
 // Detail > Object Storage opens the same Add Cloud Resources window as Connections,
 // started on buckets.
 const cspInitialResourceType = ref<'object_storage' | undefined>(undefined);
+// Add / Edit with a connection selected edits it; otherwise (or from Discover) it adds.
+const cspAddMode = ref(false);
+const cspEditing = computed(
+  () =>
+    !!selectedConnectionId.value &&
+    !cspInitialResourceType.value &&
+    !cspAddMode.value,
+);
 function openBucketScan() {
   cspInitialResourceType.value = 'object_storage';
   handleConnectionModal(true);
 }
+function switchToCspAdd() {
+  cspAddMode.value = true;
+}
 
 function handleConnectionModal(value: boolean) {
-  if (!value) cspInitialResourceType.value = undefined;
+  if (!value) {
+    cspInitialResourceType.value = undefined;
+    cspAddMode.value = false;
+  }
   modalStates.addSourceConnection.open = value;
   isCollapsed.value = value;
   isGnbToolboxShown.value = !value;
@@ -261,7 +275,18 @@ const data = computed(() => {
                 >
                   <template #information>
                     <div data-testid="source-connection-detail-information">
+                      <SourceBucketCollect
+                        v-if="isBucketConnection"
+                        :source-group-id="selectedServiceId"
+                        :connection-id="selectedConnectionId"
+                        :connection-name="selectedConnection?.name ?? ''"
+                        :description="selectedConnection?.description ?? ''"
+                        :bucket-name="selectedConnection?.resource_id ?? ''"
+                        :provider-name="selectedService?.providerName"
+                        :region-name="selectedService?.regionName"
+                      />
                       <SourceInformation
+                        v-else
                         :connection-id="selectedConnectionId"
                       />
                     </div>
@@ -277,17 +302,6 @@ const data = computed(() => {
                         @update:metaViewerModalState="
                           e => (modalStates.addInfraMetaViewer.open = e)
                         "
-                      />
-                    </div>
-                  </template>
-                  <template #bucketCollect>
-                    <div data-testid="source-connection-detail-bucket-collect">
-                      <SourceBucketCollect
-                        :source-group-id="selectedServiceId"
-                        :connection-id="selectedConnectionId"
-                        :bucket-name="selectedConnection?.resource_id ?? ''"
-                        :provider-name="selectedService?.providerName"
-                        :region-name="selectedService?.regionName"
                       />
                     </div>
                   </template>
@@ -339,8 +353,18 @@ const data = computed(() => {
       />
     </div>
     <div class="relative z-70">
+      <csp-connection-edit-modal
+        v-if="
+          modalStates.addSourceConnection.open && isCspSelected && cspEditing
+        "
+        :source-service-id="selectedServiceId"
+        :connection-id="selectedConnectionId"
+        @update:is-modal-opened="handleConnectionModal"
+        @update:trigger="modalStates.addSourceConnection.trigger = true"
+        @add="switchToCspAdd"
+      />
       <csp-connection-modal
-        v-if="modalStates.addSourceConnection.open && isCspSelected"
+        v-else-if="modalStates.addSourceConnection.open && isCspSelected"
         :source-service-id="selectedServiceId"
         :provider-name="selectedService?.providerName"
         :region-name="selectedService?.regionName"

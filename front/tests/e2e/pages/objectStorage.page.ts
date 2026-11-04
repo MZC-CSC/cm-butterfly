@@ -158,32 +158,36 @@ export class ObjectStoragePage {
     return (await listed.getAttribute('data-id')) ?? '';
   }
 
-  /** 등록된 연결 없이 버킷 이름을 직접 넣어 소스 모델을 만든다. 모델 ID 를 돌려준다. */
-  async createSourceModelWithManualBucket(
-    group: string,
+  /** 연결 목록에서 그 버킷 연결을 열고 Information 의 Collect → Save as Source Model 로 저장한다. */
+  async collectAndSaveFromConnection(
     bucket: string,
     name: string,
-  ): Promise<string> {
-    await this.openModels();
-    await this.openModelTab('Source');
-    await humanClick(this.page.getByTestId('os-models-source-create'));
-    const dropdown = this.page.getByTestId('os-source-create-group');
-    await humanClick(dropdown);
+  ): Promise<void> {
+    await this.expectBucketConnection(bucket);
     await humanClick(
-      dropdown
-        .locator('.p-context-menu-item', { hasText: `${group} (` })
+      this.page
+        .getByTestId('source-connection-list-table')
+        .getByRole('row', { name: new RegExp(bucket) })
         .first(),
     );
-    await humanFill(this.input('os-source-create-manual-name'), bucket);
-    await humanClick(this.page.getByTestId('os-source-create-manual-add'));
+    await expect(this.page.getByTestId('bucket-collect-name')).toHaveText(
+      bucket,
+      { timeout: 15_000 },
+    );
+    await humanClick(this.page.getByTestId('bucket-collect-run'));
+    await expect(
+      this.page.getByTestId('bucket-collect-status'),
+    ).toHaveAttribute('data-status', 'success', { timeout: 120_000 });
+    await humanClick(this.page.getByTestId('bucket-collect-save-model'));
     await expect(
       this.page.getByTestId(`os-source-create-bucket-${bucket}`),
-    ).toHaveAttribute('data-selected', 'true');
+    ).toHaveAttribute('data-selected', 'true', { timeout: 30_000 });
     await humanFill(this.input('os-source-create-name'), name);
     await humanClick(this.confirmButton('os-source-create-save'));
-    const listed = this.page.getByTestId(`os-models-source-${name}`);
-    await expect(listed).toBeVisible({ timeout: 30_000 });
-    return (await listed.getAttribute('data-id')) ?? '';
+    await expect(this.page.getByTestId('bucket-collect-saved')).toContainText(
+      name,
+      { timeout: 30_000 },
+    );
   }
 
   async expectSourceModelBucket(name: string, bucket: string): Promise<void> {

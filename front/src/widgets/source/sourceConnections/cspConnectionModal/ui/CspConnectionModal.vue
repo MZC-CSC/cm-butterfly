@@ -11,7 +11,10 @@ import {
 } from '@cloudforet-test/mirinae';
 import { computed, onMounted, reactive } from 'vue';
 import { useDiscoverSourceGroupResources } from '@/entities/sourceService/api';
-import { useCreateConnectionInfo } from '@/entities/sourceConnection/api';
+import {
+  useCreateConnectionInfo,
+  useGetSourceConnectionList,
+} from '@/entities/sourceConnection/api';
 import { cspConnectionName } from '@/entities/sourceConnection/model/cspConnection';
 import type {
   CspResourceType,
@@ -47,6 +50,26 @@ const resDiscover = useDiscoverSourceGroupResources(
   null,
 );
 const resCreate = useCreateConnectionInfo(props.sourceServiceId, null);
+const resConnections = useGetSourceConnectionList(null);
+
+// Resources this source service already has as connections. They are shown but cannot
+// be picked again (cm-honeybee rejects a second connection with the same name).
+const registered = reactive<{ ids: string[] }>({ ids: [] });
+async function loadRegistered() {
+  try {
+    const { data } = await resConnections.execute({
+      pathParams: { sgId: props.sourceServiceId },
+    } as any);
+    registered.ids = ((data.responseData as any)?.connection_info ?? []).map(
+      (c: any) => `${c.resource_type}:${c.resource_id}`,
+    );
+  } catch {
+    registered.ids = [];
+  }
+}
+function isRegistered(item: IDiscoveredResource) {
+  return registered.ids.includes(`${item.resource_type}:${item.resource_id}`);
+}
 
 const state = reactive({
   resourceType: (props.initialResourceType ?? 'vm') as CspResourceType,
@@ -61,9 +84,8 @@ const state = reactive({
   sshUser: '',
   sshPort: '22',
   sshPrivateKey: '',
-  // A resource the CSP does not list (or that discovery cannot reach) can be typed in.
+  // Kept for the disabled manual entry; enabled once cm-honeybee verifies a typed-in resource.
   manualId: '',
-  manualZone: '',
 });
 
 const isVm = computed(() => state.resourceType === 'vm');
@@ -74,6 +96,7 @@ async function handleDiscover() {
   state.notice = '';
   state.discovered = false;
   try {
+    await loadRegistered();
     const { data } = await resDiscover.execute({
       pathParams: { sgId: props.sourceServiceId },
       queryParams: { resource_type: state.resourceType },
@@ -99,27 +122,11 @@ onMounted(() => {
 });
 
 function toggle(id: string) {
+  const item = state.items.find(i => i.resource_id === id);
+  if (item && isRegistered(item)) return;
   const i = state.selectedIds.indexOf(id);
   if (i >= 0) state.selectedIds.splice(i, 1);
   else state.selectedIds.push(id);
-}
-
-function addManual() {
-  const id = state.manualId.trim();
-  if (!id) return;
-  if (!state.items.some(i => i.resource_id === id)) {
-    state.items.push({
-      resource_type: state.resourceType,
-      resource_id: id,
-      name: id,
-      extra: state.manualZone.trim()
-        ? { zone: state.manualZone.trim(), entered: 'manually' }
-        : { entered: 'manually' },
-    } as IDiscoveredResource);
-  }
-  if (!state.selectedIds.includes(id)) state.selectedIds.push(id);
-  state.manualId = '';
-  state.manualZone = '';
 }
 
 function summary(item: IDiscoveredResource) {
@@ -250,16 +257,24 @@ function handleClose() {
             :key="item.resource_id"
             :data-testid="`csp-connection-resource-${item.resource_id}`"
             :data-selected="state.selectedIds.includes(item.resource_id)"
+            :data-registered="isRegistered(item)"
             @click="toggle(item.resource_id)"
           >
             <input
               type="checkbox"
-              :checked="state.selectedIds.includes(item.resource_id)"
+              :checked="
+                isRegistered(item) ||
+                state.selectedIds.includes(item.resource_id)
+              "
+              :disabled="isRegistered(item)"
               :data-testid="`csp-connection-pick-${item.resource_id}`"
               @click.stop="toggle(item.resource_id)"
             />
             <div class="resource-text">
-              <span class="resource-name">{{ item.name }}</span>
+              <span class="resource-name"
+                >{{ item.name }}
+                <span v-if="isRegistered(item)" class="tag">Registered</span>
+              </span>
               <span class="resource-id">{{ item.resource_id }}</span>
               <span class="resource-extra">{{ summary(item) }}</span>
             </div>
@@ -276,29 +291,24 @@ function handleClose() {
           >
             <p-text-input
               v-model="state.manualId"
+              disabled
               data-testid="csp-connection-manual-id"
-              @keyup.enter="addManual"
-            />
-          </p-field-group>
-          <p-field-group
-            v-if="state.resourceType !== 'object_storage'"
-            label="Zone"
-          >
-            <p-text-input
-              v-model="state.manualZone"
-              data-testid="csp-connection-manual-zone"
             />
           </p-field-group>
           <p-button
             style-type="tertiary"
             icon-left="ic_plus"
-            :disabled="!state.manualId.trim()"
+            disabled
             data-testid="csp-connection-manual-add"
-            @click="addManual"
           >
             Add to list
           </p-button>
         </div>
+        <p class="note" data-testid="csp-connection-manual-note">
+          Entering a resource by hand is not available yet: cm-honeybee
+          registers the connection without checking that the resource exists, so
+          only resources found by Discover can be added.
+        </p>
 
         <div v-if="isVm" class="ssh-section">
           <label class="ssh-toggle" data-testid="csp-connection-with-ssh">
@@ -333,7 +343,9 @@ function handleClose() {
       </div>
     </template>
     <template #close-button>
-      <span>{{ i18n.t('COMPONENT.BUTTON_MODAL.CANCEL') }}</span>
+      <span data-testid="csp-connection-cancel">{{
+        i18n.t('COMPONENT.BUTTON_MODAL.CANCEL')
+      }}</span>
     </template>
     <template #confirm-button>
       <span data-testid="csp-connection-confirm">{{
@@ -398,6 +410,19 @@ function handleClose() {
 .resource-text {
   display: flex;
   flex-direction: column;
+}
+.tag {
+  margin-left: 0.375rem;
+  padding: 0 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #6b7280;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+}
+.resource-list li[data-registered='true'] {
+  cursor: default;
+  color: #9ca3af;
 }
 .resource-name {
   font-size: 0.875rem;

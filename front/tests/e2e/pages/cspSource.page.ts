@@ -154,18 +154,66 @@ export class CspSourcePage {
     return resourceId;
   }
 
-  /** 탐색 목록에 없는 자원을 ID(버킷은 이름)로 직접 넣는다. 넣은 행은 바로 선택된다. */
-  async enterManually(resourceId: string): Promise<void> {
+  /** 이미 연결로 등록된 자원은 Registered 로 보이고 체크박스가 잠겨 있다. */
+  async expectRegistered(resourceId: string): Promise<void> {
+    await humanClick(this.page.getByTestId('csp-connection-discover'));
+    const row = this.resourceList.getByTestId(
+      `csp-connection-resource-${resourceId}`,
+    );
+    await expect(row).toHaveAttribute('data-registered', 'true', {
+      timeout: 120_000,
+    });
+    await expect(
+      this.page.getByTestId(`csp-connection-pick-${resourceId}`),
+    ).toBeDisabled();
+  }
+
+  async closeConnectionModal(): Promise<void> {
+    // 미리내 모달은 Escape 로 닫히지 않는다 — Cancel 을 누른다.
+    await humanClick(
+      this.page.locator('button', {
+        has: this.page.getByTestId('csp-connection-cancel'),
+      }),
+    );
+    await expect(this.page.getByTestId('csp-connection-modal-body')).toBeHidden(
+      { timeout: 15_000 },
+    );
+  }
+
+  /** 연결을 고른 뒤 Add / Edit — 클라우드 연결은 수정 창이 열린다. 설명을 바꿔 저장한다. */
+  async editConnectionDescription(
+    connectionName: RegExp,
+    description: string,
+  ): Promise<void> {
+    await humanClick(
+      this.page
+        .getByTestId('source-connection-list-table')
+        .getByRole('row', { name: connectionName })
+        .first(),
+    );
+    await humanClick(
+      this.page.getByTestId('source-connection-add-edit').first(),
+    );
+    await expect(this.page.getByTestId('csp-connection-edit-body')).toBeVisible(
+      { timeout: 15_000 },
+    );
     await humanFill(
       this.page
-        .locator('input[data-testid="csp-connection-manual-id"]')
+        .locator('textarea[data-testid="csp-connection-edit-description"]')
         .first(),
-      resourceId,
+      description,
     );
-    await humanClick(this.page.getByTestId('csp-connection-manual-add'));
+    await humanClick(
+      this.page.locator('button', {
+        has: this.page.getByTestId('csp-connection-edit-save'),
+      }),
+    );
+    await expect(this.page.getByTestId('csp-connection-edit-body')).toBeHidden({
+      timeout: 30_000,
+    });
     await expect(
-      this.resourceList.getByTestId(`csp-connection-resource-${resourceId}`),
-    ).toHaveAttribute('data-selected', 'true');
+      this.page.getByTestId('source-connection-list-table'),
+    ).toContainText(description, { timeout: 30_000 });
   }
 
   async addPickedResources(): Promise<void> {

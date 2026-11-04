@@ -4,22 +4,27 @@ import { computed, reactive, watch } from 'vue';
 import { useRouter } from 'vue-router/composables';
 import { useCollectInfra } from '@/entities/sourceConnection/api';
 import { MODEL_ROUTE } from '@/app/providers/router/routes/constants';
+import CreateObjectStorageSourceModelModal from '@/widgets/models/createObjectStorageSourceModel/ui/CreateObjectStorageSourceModelModal.vue';
 import { formatDate, showErrorMessage, toErrorMessage } from '@/shared/utils';
 
 /**
- * Collect step for a bucket connection of a cloud source service.
+ * Information of a bucket connection of a cloud source service. A bucket has no host,
+ * port or credential of its own (the credential stays on the source service), so this
+ * shows the bucket and its collect step in place of the server fields.
  *
- * Collecting asks cm-honeybee to look the bucket up in the source account (import-infra
- * runs the CSP lookup for every resource type), which confirms the bucket is there. The
- * source model is made from the registered buckets in Models > Object Storage Models.
+ * Collect Object Storage asks cm-honeybee to look the bucket up in the source account
+ * (import-infra runs the CSP lookup for every resource type), which confirms it exists.
+ * Save as Source Model then opens the source model window with this bucket chosen, the
+ * same window Models > Object Storage Models uses for several buckets.
  *
- * cm-honeybee 0.6.3 stores the looked-up bucket but its data endpoint reads it back
- * empty, and it does not collect the bucket's settings, so this tab shows only whether
- * the bucket was found.
+ * cm-honeybee 0.6.3 does not collect the bucket's settings and reads the stored lookup
+ * back empty (cm-honeybee#82), so only whether the bucket was found is shown.
  */
 interface IProps {
   sourceGroupId: string;
   connectionId: string;
+  connectionName: string;
+  description: string;
   bucketName: string;
   providerName?: string;
   regionName?: string;
@@ -33,6 +38,8 @@ const state = reactive({
   status: '' as '' | 'success' | 'failed',
   message: '',
   collectedAt: '',
+  saveOpen: false,
+  savedModelName: '',
 });
 
 // A different connection starts from nothing collected.
@@ -42,6 +49,7 @@ watch(
     state.status = '';
     state.message = '';
     state.collectedAt = '';
+    state.savedModelName = '';
   },
 );
 
@@ -67,6 +75,10 @@ async function handleCollect() {
   }
 }
 
+function onSaved(model: any) {
+  state.savedModelName = model?.name ?? '';
+}
+
 function goToModels() {
   router.push({ name: MODEL_ROUTE.OBJECT_STORAGE_MODELS._NAME });
 }
@@ -75,6 +87,12 @@ function goToModels() {
 <template>
   <div class="bucket-collect" data-testid="bucket-collect">
     <dl class="rows">
+      <dt>Name</dt>
+      <dd>{{ connectionName }}</dd>
+      <dt>Description</dt>
+      <dd>{{ description || '-' }}</dd>
+      <dt>Resource Type</dt>
+      <dd>Object Storage (bucket)</dd>
       <dt>Bucket</dt>
       <dd data-testid="bucket-collect-name">{{ bucketName }}</dd>
       <dt>Source account</dt>
@@ -91,26 +109,51 @@ function goToModels() {
           :loading="resCollect.isLoading.value"
           @click="handleCollect"
         >
-          Collect Bucket
+          Collect Object Storage
         </p-button>
       </dd>
       <dt>Collected At</dt>
       <dd>{{ state.collectedAt || '-' }}</dd>
       <dt>Source Model</dt>
-      <dd>
-        <button
-          type="button"
-          class="link"
-          data-testid="bucket-collect-go-models"
-          @click="goToModels"
+      <dd class="with-action">
+        <span data-testid="bucket-collect-saved">
+          <template v-if="state.savedModelName">
+            Saved as {{ state.savedModelName }} ·
+            <button
+              type="button"
+              class="link"
+              data-testid="bucket-collect-go-models"
+              @click="goToModels"
+            >
+              Object Storage Models
+            </button>
+          </template>
+          <template v-else>-</template>
+        </span>
+        <p-button
+          data-testid="bucket-collect-save-model"
+          style-type="tertiary"
+          size="sm"
+          :disabled="state.status !== 'success'"
+          @click="state.saveOpen = true"
         >
-          Create it in Object Storage Models ->
-        </button>
+          Save as Source Model
+        </p-button>
       </dd>
     </dl>
     <p v-if="state.message" class="error" data-testid="bucket-collect-error">
       {{ state.message }}
     </p>
+
+    <div class="relative z-70">
+      <create-object-storage-source-model-modal
+        v-if="state.saveOpen"
+        :initial-group-id="sourceGroupId"
+        :initial-bucket="bucketName"
+        @saved="onSaved"
+        @update:close-modal="state.saveOpen = false"
+      />
+    </div>
   </div>
 </template>
 
@@ -136,11 +179,11 @@ function goToModels() {
 .with-action {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.75rem;
 }
 .link {
   color: #1d4ed8;
-  font-size: 0.875rem;
 }
 .error {
   margin-top: 0.5rem;

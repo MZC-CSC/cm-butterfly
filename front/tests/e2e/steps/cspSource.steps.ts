@@ -3,7 +3,7 @@ import { expect } from '@playwright/test';
 import { test } from '../support/fixtures';
 import { CspSourcePage } from '../pages/cspSource.page';
 import { SourceServicesPage } from '../pages/sourceServices.page';
-import { cspAccess, testBucket, testVm } from '../support/cspAccess';
+import { cspAccess, testVm } from '../support/cspAccess';
 import { uniqueName } from '../support/naming';
 
 const { Given, When, Then } = createBdd(test);
@@ -64,15 +64,23 @@ When(
   },
 );
 
-When(
-  '그 서비스의 연결 추가에서 자원 유형을 오브젝트 스토리지로 바꾸고 시험용 버킷 이름을 직접 입력하면',
+Then(
+  '연결 추가 창을 다시 열면 시험용 VM 이 등록됨으로 잠겨 있다',
   async ({ page }) => {
-    await new SourceServicesPage(page).selectGroup(groupName);
     const csp = new CspSourcePage(page);
-    await page.getByRole('tab', { name: /Connections/i }).click();
     await csp.openCspConnectionModal();
-    await csp.chooseResourceType('Object Storage');
-    await csp.enterManually(testBucket());
+    await csp.expectRegistered(testVm());
+    await csp.closeConnectionModal();
+  },
+);
+
+Then(
+  '그 연결을 고르고 Add·Edit 로 설명을 바꾸면 목록에 반영된다',
+  async ({ page }) => {
+    await new CspSourcePage(page).editConnectionDescription(
+      new RegExp(`vm-${testVm()}`),
+      `edited by e2e ${groupName}`,
+    );
   },
 );
 

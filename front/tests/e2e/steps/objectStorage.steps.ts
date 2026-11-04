@@ -14,7 +14,6 @@ const run = {
   group: '',
   sourceModel: '',
   sourceModelId: '',
-  manualBucket: '',
   targetModel: '',
   bucketsBefore: [] as string[],
   created: [] as string[],
@@ -34,7 +33,6 @@ Given('시험용 계정으로 클라우드 소스 서비스를 등록한다', as
     group: '',
     sourceModel: '',
     sourceModelId: '',
-    manualBucket: '',
     targetModel: '',
     bucketsBefore: [],
     created: [],
@@ -90,26 +88,20 @@ When('같은 CSP·리전으로 추천받아 목표 모델로 저장하면', asyn
 });
 
 When(
-  'Object Storage Models 에서 등록되지 않은 버킷 이름을 직접 입력해 소스 모델을 만들면',
+  '그 버킷 연결의 정보에서 수집하고 소스 모델로 저장하면',
   async ({ page }) => {
-    run.sourceModel = uniqueName('e2e-os-manual');
-    run.manualBucket = uniqueName('e2e-not-listed-bucket');
-    run.sourceModelId = await new ObjectStoragePage(
-      page,
-    ).createSourceModelWithManualBucket(
-      run.group,
-      run.manualBucket,
+    run.sourceModel = uniqueName('e2e-os-conn');
+    await new ObjectStoragePage(page).collectAndSaveFromConnection(
+      testBucket(),
       run.sourceModel,
     );
-    expect(run.sourceModelId).toMatch(/^art-/);
   },
 );
 
-Then('그 소스 모델에 입력한 버킷이 들어 있다', async ({ page }) => {
-  await new ObjectStoragePage(page).expectSourceModelBucket(
-    run.sourceModel,
-    run.manualBucket,
-  );
+Then('그 소스 모델에 그 버킷이 들어 있다', async ({ page }) => {
+  const os = new ObjectStoragePage(page);
+  await os.openModels();
+  await os.expectSourceModelBucket(run.sourceModel, testBucket());
 });
 
 Then('목표 모델이 그 소스 모델을 계보로 가리킨다', async ({ page }) => {

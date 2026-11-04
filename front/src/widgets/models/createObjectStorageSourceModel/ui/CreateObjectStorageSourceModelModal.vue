@@ -30,6 +30,12 @@ import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
  * CORS, encryption, access), so they are confirmed here before the model is saved.
  * The recommendation keeps or turns off each setting depending on the target cloud.
  */
+interface IProps {
+  // Opened from a bucket connection: that source service and bucket start selected.
+  initialGroupId?: string;
+  initialBucket?: string;
+}
+const props = defineProps<IProps>();
 const emit = defineEmits(['update:close-modal', 'saved']);
 
 interface IGroupItem {
@@ -57,7 +63,7 @@ const state = reactive({
   name: '',
   description: '',
   saving: false,
-  // A bucket the source service has not registered (or cannot list) can be typed in.
+  // Kept for the disabled manual entry; enabled once cm-honeybee verifies a typed-in bucket.
   manualName: '',
 });
 
@@ -91,6 +97,11 @@ onMounted(async () => {
         provider: g.provider_name ?? '',
         region: g.region_name ?? '',
       }));
+    if (props.initialGroupId) {
+      await selectGroup(props.initialGroupId);
+      const row = buckets.value.find(b => b.bucketName === props.initialBucket);
+      if (row) row.selected = true;
+    }
   } catch (e) {
     showErrorMessage(
       'failed',
@@ -143,15 +154,6 @@ function newRow(bucketName: string, manual: boolean): IBucketRow {
     corsOrigins: '*',
     corsMethods: 'GET',
   };
-}
-
-function addManual() {
-  const name = state.manualName.trim();
-  if (!name) return;
-  const existing = buckets.value.find(b => b.bucketName === name);
-  if (existing) existing.selected = true;
-  else buckets.value.push(newRow(name, true));
-  state.manualName = '';
 }
 
 function splitList(value: string) {
@@ -330,21 +332,29 @@ async function handleSave() {
           <p-field-group label="Add a bucket that is not listed">
             <p-text-input
               v-model="state.manualName"
+              disabled
               placeholder="bucket name"
               data-testid="os-source-create-manual-name"
-              @keyup.enter="addManual"
             />
           </p-field-group>
           <p-button
             style-type="tertiary"
             icon-left="ic_plus"
-            :disabled="!state.manualName.trim()"
+            disabled
             data-testid="os-source-create-manual-add"
-            @click="addManual"
           >
             Add
           </p-button>
         </div>
+        <p
+          v-if="state.groupId"
+          class="note"
+          data-testid="os-source-create-manual-note"
+        >
+          A source model is made from buckets registered in the source service.
+          Entering a bucket by hand is not available yet, because cm-honeybee
+          does not check that a typed-in bucket exists.
+        </p>
         <p v-if="buckets.length" class="note">
           The source service does not collect these settings yet. Set them as
           the source bucket has them; the recommendation turns off what the

@@ -2,7 +2,7 @@
 import { PButton } from '@cloudforet-test/mirinae';
 
 /**
- * Object storage row of a cloud source service's detail. Buckets are read with the
+ * Object storage row of a cloud source service's detail. Buckets are discovered with the
  * credential stored on the source service, the same way Connections > Add / Edit reads
  * any resource, so this opens that same window set to object storage instead of keeping
  * a second list here.
@@ -15,8 +15,8 @@ const emit = defineEmits(['open-scan']);
     <div class="scan-label">Object Storage (Buckets)</div>
     <div class="scan-value">
       <span class="note"
-        >Read the account's buckets with this source service's credential and
-        add them as connections.</span
+        >Discover the account's buckets with this source service's credential
+        and add them as connections.</span
       >
       <p-button
         style-type="tertiary"
@@ -24,7 +24,7 @@ const emit = defineEmits(['open-scan']);
         data-testid="csp-bucket-scan-run"
         @click="emit('open-scan')"
       >
-        Scan Buckets
+        Discover Buckets
       </p-button>
     </div>
   </div>
