@@ -3,7 +3,7 @@ import { expect } from '@playwright/test';
 import { test } from '../support/fixtures';
 import { CspSourcePage } from '../pages/cspSource.page';
 import { SourceServicesPage } from '../pages/sourceServices.page';
-import { cspAccess } from '../support/cspAccess';
+import { cspAccess, testVm } from '../support/cspAccess';
 import { uniqueName } from '../support/naming';
 
 const { Given, When, Then } = createBdd(test);
@@ -60,7 +60,7 @@ When(
     const csp = new CspSourcePage(page);
     await page.getByRole('tab', { name: /Connections/i }).click();
     await csp.openCspConnectionModal();
-    pickedVm = await csp.discoverAndPick(cspAccess().testVmId);
+    pickedVm = await csp.discoverAndPick(testVm());
   },
 );
 

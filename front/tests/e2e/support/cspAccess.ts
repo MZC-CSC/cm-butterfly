@@ -10,11 +10,20 @@ export interface CspAccess {
   region: string;
   accessKey: string;
   secretKey: string;
-  /**
-   * The one VM the tests may register. It must be a throwaway VM created for testing — never
-   * the first VM the account happens to list, which can be someone's working machine.
-   */
-  testVmId: string;
+}
+
+/**
+ * The one VM the tests may register. It must be a throwaway VM created for testing — never
+ * the first VM the account happens to list, which can be someone's working machine.
+ */
+export function testVm(): string {
+  const vm = process.env.TEST_CSP_VM_ID ?? '';
+  if (!vm) {
+    throw new Error(
+      'TEST_CSP_VM_ID 가 없다 — 시험용으로 만든 VM 의 ID 를 지정한다(남의 VM 을 쓰지 않는다)',
+    );
+  }
+  return vm;
 }
 
 /**
@@ -37,14 +46,12 @@ export function cspAccess(): CspAccess {
     region: process.env.TEST_CSP_REGION ?? '',
     accessKey: process.env.TEST_CSP_ACCESS_KEY ?? '',
     secretKey: process.env.TEST_CSP_SECRET_KEY ?? '',
-    testVmId: process.env.TEST_CSP_VM_ID ?? '',
   };
   const missing = Object.entries({
     TEST_CSP_PROVIDER: access.provider,
     TEST_CSP_REGION: access.region,
     TEST_CSP_ACCESS_KEY: access.accessKey,
     TEST_CSP_SECRET_KEY: access.secretKey,
-    TEST_CSP_VM_ID: access.testVmId,
   })
     .filter(([, v]) => !v)
     .map(([k]) => k);
