@@ -5,7 +5,6 @@ import {
   PButton,
   PFieldGroup,
   PSelectDropdown,
-  PCheckbox,
   PTextInput,
   PTextarea,
   PSpinner,
@@ -60,6 +59,9 @@ const state = reactive({
   sshUser: '',
   sshPort: '22',
   sshPrivateKey: '',
+  // A resource the CSP does not list (or that discovery cannot reach) can be typed in.
+  manualId: '',
+  manualZone: '',
 });
 
 const isVm = computed(() => state.resourceType === 'vm');
@@ -94,6 +96,24 @@ function toggle(id: string) {
   const i = state.selectedIds.indexOf(id);
   if (i >= 0) state.selectedIds.splice(i, 1);
   else state.selectedIds.push(id);
+}
+
+function addManual() {
+  const id = state.manualId.trim();
+  if (!id) return;
+  if (!state.items.some(i => i.resource_id === id)) {
+    state.items.push({
+      resource_type: state.resourceType,
+      resource_id: id,
+      name: id,
+      extra: state.manualZone.trim()
+        ? { zone: state.manualZone.trim(), entered: 'manually' }
+        : { entered: 'manually' },
+    } as IDiscoveredResource);
+  }
+  if (!state.selectedIds.includes(id)) state.selectedIds.push(id);
+  state.manualId = '';
+  state.manualZone = '';
 }
 
 function summary(item: IDiscoveredResource) {
@@ -226,9 +246,11 @@ function handleClose() {
             :data-selected="state.selectedIds.includes(item.resource_id)"
             @click="toggle(item.resource_id)"
           >
-            <p-checkbox
-              :selected="state.selectedIds.includes(item.resource_id)"
-              :value="true"
+            <input
+              type="checkbox"
+              :checked="state.selectedIds.includes(item.resource_id)"
+              :data-testid="`csp-connection-pick-${item.resource_id}`"
+              @click.stop="toggle(item.resource_id)"
             />
             <div class="resource-text">
               <span class="resource-name">{{ item.name }}</span>
@@ -237,6 +259,40 @@ function handleClose() {
             </div>
           </li>
         </ul>
+
+        <div class="manual-row" data-testid="csp-connection-manual">
+          <p-field-group
+            :label="`Not listed? Enter the ${
+              state.resourceType === 'object_storage'
+                ? 'bucket name'
+                : 'resource ID'
+            }`"
+          >
+            <p-text-input
+              v-model="state.manualId"
+              data-testid="csp-connection-manual-id"
+              @keyup.enter="addManual"
+            />
+          </p-field-group>
+          <p-field-group
+            v-if="state.resourceType !== 'object_storage'"
+            label="Zone"
+          >
+            <p-text-input
+              v-model="state.manualZone"
+              data-testid="csp-connection-manual-zone"
+            />
+          </p-field-group>
+          <p-button
+            style-type="tertiary"
+            icon-left="ic_plus"
+            :disabled="!state.manualId.trim()"
+            data-testid="csp-connection-manual-add"
+            @click="addManual"
+          >
+            Add to list
+          </p-button>
+        </div>
 
         <div v-if="isVm" class="ssh-section">
           <label class="ssh-toggle" data-testid="csp-connection-with-ssh">
@@ -292,10 +348,20 @@ function handleClose() {
   font-size: 0.875rem;
   color: #6b7280;
 }
-.discover-row {
+.discover-row,
+.manual-row {
   display: flex;
   align-items: flex-end;
   gap: 0.75rem;
+}
+/* The field group keeps a bottom margin; without this the button sits lower than the input. */
+.discover-row :deep(.p-field-group),
+.manual-row :deep(.p-field-group) {
+  margin-bottom: 0;
+}
+.manual-row {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 0.75rem;
 }
 .loading {
   display: flex;

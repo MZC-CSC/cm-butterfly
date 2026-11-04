@@ -14,6 +14,7 @@ const run = {
   group: '',
   sourceModel: '',
   sourceModelId: '',
+  manualBucket: '',
   targetModel: '',
   bucketsBefore: [] as string[],
   created: [] as string[],
@@ -28,6 +29,16 @@ Then('이행된 버킷 목록이 보인다', async ({ page }) => {
 });
 
 Given('시험용 계정으로 클라우드 소스 서비스를 등록한다', async ({ page }) => {
+  // 이 스텝이 시나리오의 시작이다. 앞 시나리오가 남긴 이름이 정리 단계로 넘어가지 않게 비운다.
+  Object.assign(run, {
+    group: '',
+    sourceModel: '',
+    sourceModelId: '',
+    manualBucket: '',
+    targetModel: '',
+    bucketsBefore: [],
+    created: [],
+  });
   const access = cspAccess();
   run.group = uniqueName('e2e-os-csp');
   const sources = new SourceServicesPage(page);
@@ -75,6 +86,29 @@ When('같은 CSP·리전으로 추천받아 목표 모델로 저장하면', asyn
     access.provider,
     access.region,
     run.targetModel,
+  );
+});
+
+When(
+  'Object Storage Models 에서 등록되지 않은 버킷 이름을 직접 입력해 소스 모델을 만들면',
+  async ({ page }) => {
+    run.sourceModel = uniqueName('e2e-os-manual');
+    run.manualBucket = uniqueName('e2e-not-listed-bucket');
+    run.sourceModelId = await new ObjectStoragePage(
+      page,
+    ).createSourceModelWithManualBucket(
+      run.group,
+      run.manualBucket,
+      run.sourceModel,
+    );
+    expect(run.sourceModelId).toMatch(/^art-/);
+  },
+);
+
+Then('그 소스 모델에 입력한 버킷이 들어 있다', async ({ page }) => {
+  await new ObjectStoragePage(page).expectSourceModelBucket(
+    run.sourceModel,
+    run.manualBucket,
   );
 });
 

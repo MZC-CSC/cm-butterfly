@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { i18n } from '@/app/i18n';
 import {
+  PButton,
   PButtonModal,
   PFieldGroup,
   PSelectDropdown,
@@ -39,6 +40,7 @@ interface IGroupItem {
 }
 interface IBucketRow extends ISourceBucket {
   connectionName: string;
+  manual: boolean;
   selected: boolean;
   corsOrigins: string;
   corsMethods: string;
@@ -55,6 +57,8 @@ const state = reactive({
   name: '',
   description: '',
   saving: false,
+  // A bucket the source service has not registered (or cannot list) can be typed in.
+  manualName: '',
 });
 
 const accessItems = [
@@ -107,16 +111,8 @@ async function selectGroup(id: string) {
     buckets.value = connections
       .filter((c: any) => c.resource_type === 'object_storage')
       .map((c: any) => ({
-        bucketName: c.resource_id,
+        ...newRow(c.resource_id, false),
         connectionName: c.name,
-        selected: false,
-        versioningEnabled: false,
-        corsEnabled: false,
-        encryptionEnabled: false,
-        isPublic: false,
-        accessFrequency: '',
-        corsOrigins: '*',
-        corsMethods: 'GET',
       }));
     if (!state.name && selectedGroup.value) {
       state.name = `os-src-${selectedGroup.value.provider}-${Date.now()
@@ -131,6 +127,31 @@ async function selectGroup(id: string) {
   } finally {
     state.loadingBuckets = false;
   }
+}
+
+function newRow(bucketName: string, manual: boolean): IBucketRow {
+  return {
+    bucketName,
+    connectionName: '',
+    manual,
+    selected: manual,
+    versioningEnabled: false,
+    corsEnabled: false,
+    encryptionEnabled: false,
+    isPublic: false,
+    accessFrequency: '',
+    corsOrigins: '*',
+    corsMethods: 'GET',
+  };
+}
+
+function addManual() {
+  const name = state.manualName.trim();
+  if (!name) return;
+  const existing = buckets.value.find(b => b.bucketName === name);
+  if (existing) existing.selected = true;
+  else buckets.value.push(newRow(name, true));
+  state.manualName = '';
 }
 
 function splitList(value: string) {
@@ -229,9 +250,9 @@ async function handleSave() {
           class="note"
           data-testid="os-source-create-empty"
         >
-          This source service has no bucket connections. Add buckets in Source
-          Services first (Detail &gt; Scan Buckets, or Connections &gt; Add /
-          Edit).
+          This source service has no bucket connections. Add them in Source
+          Services (Detail &gt; Scan Buckets, or Connections &gt; Add / Edit),
+          or enter a bucket below.
         </p>
         <table
           v-else-if="buckets.length"
@@ -263,7 +284,10 @@ async function handleSave() {
                   :data-testid="`os-source-create-pick-${b.bucketName}`"
                 />
               </td>
-              <td>{{ b.bucketName }}</td>
+              <td>
+                {{ b.bucketName }}
+                <span v-if="b.manual" class="tag">entered</span>
+              </td>
               <td>
                 <input
                   v-model="b.versioningEnabled"
@@ -302,6 +326,25 @@ async function handleSave() {
             </tr>
           </tbody>
         </table>
+        <div v-if="state.groupId" class="manual-row">
+          <p-field-group label="Add a bucket that is not listed">
+            <p-text-input
+              v-model="state.manualName"
+              placeholder="bucket name"
+              data-testid="os-source-create-manual-name"
+              @keyup.enter="addManual"
+            />
+          </p-field-group>
+          <p-button
+            style-type="tertiary"
+            icon-left="ic_plus"
+            :disabled="!state.manualName.trim()"
+            data-testid="os-source-create-manual-add"
+            @click="addManual"
+          >
+            Add
+          </p-button>
+        </div>
         <p v-if="buckets.length" class="note">
           The source service does not collect these settings yet. Set them as
           the source bucket has them; the recommendation turns off what the
@@ -345,6 +388,22 @@ async function handleSave() {
 .note {
   font-size: 0.875rem;
   color: #6b7280;
+}
+.manual-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+.manual-row :deep(.p-field-group) {
+  margin-bottom: 0;
+}
+.tag {
+  margin-left: 0.375rem;
+  padding: 0 0.375rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
 }
 .loading {
   display: flex;

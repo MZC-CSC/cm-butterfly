@@ -146,9 +146,26 @@ export class CspSourcePage {
       `csp-connection-resource-${resourceId}`,
     );
     await expect(target).toHaveCount(1, { timeout: 30_000 });
-    await humanClick(target);
+    // 행이 아니라 체크박스를 누른다 — 체크박스가 클릭을 삼켜 선택이 안 되던 결함이 있었다(11-04).
+    await humanClick(
+      this.page.getByTestId(`csp-connection-pick-${resourceId}`),
+    );
     await expect(target).toHaveAttribute('data-selected', 'true');
     return resourceId;
+  }
+
+  /** 탐색 목록에 없는 자원을 ID(버킷은 이름)로 직접 넣는다. 넣은 행은 바로 선택된다. */
+  async enterManually(resourceId: string): Promise<void> {
+    await humanFill(
+      this.page
+        .locator('input[data-testid="csp-connection-manual-id"]')
+        .first(),
+      resourceId,
+    );
+    await humanClick(this.page.getByTestId('csp-connection-manual-add'));
+    await expect(
+      this.resourceList.getByTestId(`csp-connection-resource-${resourceId}`),
+    ).toHaveAttribute('data-selected', 'true');
   }
 
   async addPickedResources(): Promise<void> {

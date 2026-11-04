@@ -3,7 +3,7 @@ import { expect } from '@playwright/test';
 import { test } from '../support/fixtures';
 import { CspSourcePage } from '../pages/cspSource.page';
 import { SourceServicesPage } from '../pages/sourceServices.page';
-import { cspAccess, testVm } from '../support/cspAccess';
+import { cspAccess, testBucket, testVm } from '../support/cspAccess';
 import { uniqueName } from '../support/naming';
 
 const { Given, When, Then } = createBdd(test);
@@ -61,6 +61,18 @@ When(
     await page.getByRole('tab', { name: /Connections/i }).click();
     await csp.openCspConnectionModal();
     pickedVm = await csp.discoverAndPick(testVm());
+  },
+);
+
+When(
+  '그 서비스의 연결 추가에서 자원 유형을 오브젝트 스토리지로 바꾸고 시험용 버킷 이름을 직접 입력하면',
+  async ({ page }) => {
+    await new SourceServicesPage(page).selectGroup(groupName);
+    const csp = new CspSourcePage(page);
+    await page.getByRole('tab', { name: /Connections/i }).click();
+    await csp.openCspConnectionModal();
+    await csp.chooseResourceType('Object Storage');
+    await csp.enterManually(testBucket());
   },
 );
 

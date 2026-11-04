@@ -132,41 +132,45 @@ function goToModels() {
 
 <template>
   <div class="bucket-scan" data-testid="csp-bucket-scan">
-    <div class="tab-section-header">
-      <p>Object Storage (Buckets)</p>
-    </div>
-    <p class="note">
-      Reads the buckets of the source account with this source service's
-      credential and registers the chosen ones as connections. A source model is
-      then made from them in Models &gt; Object Storage Models.
-    </p>
-    <div class="row">
-      <p-button
-        style-type="secondary"
-        icon-left="ic_search"
-        :loading="resDiscover.isLoading.value"
-        data-testid="csp-bucket-scan-run"
-        @click="handleScan"
-      >
-        Scan Buckets
-      </p-button>
-      <p-button
-        style-type="primary"
-        :disabled="!state.selected.length"
-        :loading="state.registering"
-        data-testid="csp-bucket-scan-register"
-        @click="handleRegister"
-      >
-        Register {{ state.selected.length }} Bucket(s)
-      </p-button>
-      <button
-        type="button"
-        class="link"
-        data-testid="csp-bucket-scan-go-models"
-        @click="goToModels"
-      >
-        Object Storage Models ->
-      </button>
+    <!-- Laid out as one more row of the detail table above, so it reads as part of the
+         source service's details rather than a separate section further down. -->
+    <div class="scan-row">
+      <div class="scan-label">Object Storage (Buckets)</div>
+      <div class="scan-value">
+        <span class="note"
+          >Scan the account's buckets with this source service's credential and
+          register them as connections.</span
+        >
+        <div class="row">
+          <button
+            type="button"
+            class="link"
+            data-testid="csp-bucket-scan-go-models"
+            @click="goToModels"
+          >
+            Object Storage Models ->
+          </button>
+          <p-button
+            style-type="tertiary"
+            size="sm"
+            :loading="resDiscover.isLoading.value"
+            data-testid="csp-bucket-scan-run"
+            @click="handleScan"
+          >
+            Scan Buckets
+          </p-button>
+          <p-button
+            style-type="primary"
+            size="sm"
+            :disabled="!state.selected.length"
+            :loading="state.registering"
+            data-testid="csp-bucket-scan-register"
+            @click="handleRegister"
+          >
+            Register {{ state.selected.length }} Bucket(s)
+          </p-button>
+        </div>
+      </div>
     </div>
     <p v-if="state.notice" class="note" data-testid="csp-bucket-scan-notice">
       {{ state.notice }}
@@ -243,7 +247,25 @@ function goToModels() {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  margin-top: 1.5rem;
+}
+.scan-row {
+  display: flex;
+  font-size: 0.875rem;
+  background: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
+}
+.scan-label {
+  flex: 0 0 18rem;
+  padding: 0.5rem 1rem;
+  font-weight: 700;
+}
+.scan-value {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.375rem 1rem;
 }
 .note {
   font-size: 0.875rem;

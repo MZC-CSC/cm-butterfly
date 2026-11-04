@@ -152,6 +152,41 @@ export class ObjectStoragePage {
     return (await listed.getAttribute('data-id')) ?? '';
   }
 
+  /** 등록된 연결 없이 버킷 이름을 직접 넣어 소스 모델을 만든다. 모델 ID 를 돌려준다. */
+  async createSourceModelWithManualBucket(
+    group: string,
+    bucket: string,
+    name: string,
+  ): Promise<string> {
+    await this.openModels();
+    await this.openModelTab('Source');
+    await humanClick(this.page.getByTestId('os-models-source-create'));
+    const dropdown = this.page.getByTestId('os-source-create-group');
+    await humanClick(dropdown);
+    await humanClick(
+      dropdown
+        .locator('.p-context-menu-item', { hasText: `${group} (` })
+        .first(),
+    );
+    await humanFill(this.input('os-source-create-manual-name'), bucket);
+    await humanClick(this.page.getByTestId('os-source-create-manual-add'));
+    await expect(
+      this.page.getByTestId(`os-source-create-bucket-${bucket}`),
+    ).toHaveAttribute('data-selected', 'true');
+    await humanFill(this.input('os-source-create-name'), name);
+    await humanClick(this.confirmButton('os-source-create-save'));
+    const listed = this.page.getByTestId(`os-models-source-${name}`);
+    await expect(listed).toBeVisible({ timeout: 30_000 });
+    return (await listed.getAttribute('data-id')) ?? '';
+  }
+
+  async expectSourceModelBucket(name: string, bucket: string): Promise<void> {
+    await humanClick(this.page.getByTestId(`os-models-source-${name}`));
+    await expect(
+      this.page.getByTestId('os-models-source-detail'),
+    ).toContainText(bucket);
+  }
+
   async recommendAndSaveTargetModel(
     sourceModel: string,
     provider: string,
