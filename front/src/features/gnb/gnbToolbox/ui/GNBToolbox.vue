@@ -26,6 +26,7 @@ const dictionary = [
   'components',
   'object',
   'storages',
+  'storage',
   'workloads',
   'workload',
   'operations',

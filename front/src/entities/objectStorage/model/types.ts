@@ -118,6 +118,8 @@ export interface IArtifact<T> {
   category: 'infra' | 'software' | 'data';
   stage: 'source' | 'planning' | 'target';
   schemaType?: string;
+  sourceGroupId?: string;
+  parentId?: string;
   lineage?: {
     sourceGroupId?: string;
     sourceModelId?: string;

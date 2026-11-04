@@ -10,6 +10,7 @@ export const MENU_ID = Object.freeze({
   MODELS: 'models',
   SOURCE_MODELS: 'sourcemodels',
   TARGET_MODELS: 'targetmodels',
+  OBJECT_STORAGE_MODELS: 'objectstoragemodels',
   WORKFLOW_MANAGEMENT: 'workflowmanagement',
   WORKFLOWS: 'workflows',
   WORKFLOW_TEMPLATES: 'workflowtemplates',

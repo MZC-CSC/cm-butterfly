@@ -66,7 +66,4 @@ export interface ITargetModelResponse {
   userModelName: string;
   userModelVersion: string;
   zone: string;
-  modelType?: string;
-  // Present when the row is an object storage model kept in cm-beetle's artifact store.
-  objectStorage?: any;
 }

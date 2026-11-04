@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { PDefinitionTable } from '@cloudforet-test/mirinae';
 import { useSourceModelDetailModel } from '@/widgets/models/sourceModels';
-import { computed, onBeforeMount, ref, watch, watchEffect } from 'vue';
-import { isObjectStorageModel } from '@/entities/objectStorage/model/asModel';
+import { onBeforeMount, ref, watch, watchEffect } from 'vue';
 
 interface iProps {
   selectedSourceModelId: string;
@@ -24,12 +23,6 @@ const { sourceModelStore, setSourceModelId, initTable, tableModel } =
 const sourceModelName = ref<string | undefined>('');
 const sourceModelDescription = ref<string | undefined>('');
 const recommendedModelList = ref<string>('infra'); // Initialize as a string
-// Object storage models are kept by cm-beetle and are viewed, not edited, as JSON.
-const isObjectStorage = computed(() =>
-  isObjectStorageModel(
-    sourceModelStore.getSourceModelById(props.selectedSourceModelId),
-  ),
-);
 
 watchEffect(() => {
   sourceModelName.value = sourceModelStore.getSourceModelById(
@@ -95,13 +88,6 @@ function handleRecommendedList() {
     props.selectedSourceModelId,
   );
 
-  if (isObjectStorageModel(sourceModel)) {
-    emit('update:view-recommend-list-modal', true);
-    emit('update:source-model-name', sourceModelName.value);
-    emit('update:recommended-model-list', 'objectStorage');
-    return;
-  }
-
   // Set the recommended model list based on modelType
   if (sourceModel?.modelType === 'SoftwareModel') {
     recommendedModelList.value = 'software';
@@ -147,9 +133,7 @@ function handleRecommendedList() {
           data-testid="source-detail-custom-view"
           @click="handleJsonModal"
         >
-          {{
-            isObjectStorage ? 'View Source Model' : 'Custom & View Source Model'
-          }}
+          Custom & View Source Model
         </p>
         <!-- <p-button style-type="transparent" @click="handleJsonModal">
         </p-button> -->

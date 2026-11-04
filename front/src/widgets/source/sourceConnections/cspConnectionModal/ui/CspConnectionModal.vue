@@ -13,6 +13,7 @@ import {
 import { computed, reactive } from 'vue';
 import { useDiscoverSourceGroupResources } from '@/entities/sourceService/api';
 import { useCreateConnectionInfo } from '@/entities/sourceConnection/api';
+import { cspConnectionName } from '@/entities/sourceConnection/model/cspConnection';
 import type {
   CspResourceType,
   IDiscoveredResource,
@@ -110,14 +111,12 @@ const canSave = computed(
     (!state.withSsh || (!!state.sshUser && !!state.sshPrivateKey)),
 );
 
-// Connection names stay ASCII-safe; the CSP's display name is kept as the description.
-// cm-honeybee requires the name to be unique across every source group, so the same
-// resource added to two groups would collide — the group id keeps them apart.
 function connectionName(item: IDiscoveredResource) {
-  const resource = `${item.resource_type}-${item.resource_id}`
-    .replace(/[^A-Za-z0-9-]/g, '-')
-    .slice(0, 50);
-  return `${resource}-${props.sourceServiceId.slice(0, 8)}`;
+  return cspConnectionName(
+    item.resource_type,
+    item.resource_id,
+    props.sourceServiceId,
+  );
 }
 
 async function handleConfirm() {

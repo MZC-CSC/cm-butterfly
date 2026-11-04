@@ -11,10 +11,6 @@ import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 import { useRouter } from 'vue-router/composables';
 import { WORKFLOW_MANAGEMENT_ROUTE } from '@/app/providers/router/routes/constants';
 import { GuidedStepBanner } from '@/features/guidedSetup';
-import MigrateObjectStorageModal from '@/widgets/models/migrateObjectStorage/ui/MigrateObjectStorageModal.vue';
-import ObjectStorageModelView from '@/widgets/models/objectStorageModelView/ui/ObjectStorageModelView.vue';
-import { isObjectStorageModel } from '@/entities/objectStorage/model/asModel';
-import { updateObjectStorageModel } from '@/entities/objectStorage/api';
 
 const router = useRouter();
 
@@ -92,13 +88,6 @@ const migrationTypeForWorkflow = computed(() => {
   return 'infra'; // default
 });
 
-const selectedTargetModel = computed(() =>
-  targetModelStore.getTargetModelById(selectedTargetModelId.value),
-);
-const isObjectStorage = computed(() =>
-  isObjectStorageModel(selectedTargetModel.value),
-);
-
 const mainTabState = reactive({
   activeTab: 'details',
   tabs: [
@@ -127,9 +116,6 @@ const modalStates = reactive({
   workflowEditorModal: {
     open: false,
   },
-  migrateObjectStorageModal: {
-    open: false,
-  },
 });
 
 function handleClickTargetModel(data: { id: string; name: string }) {
@@ -145,16 +131,6 @@ function handleUpdateTargetModel(e) {
   modalStates.editModelModal.open = false;
   modalStates.editModelModal.context.name = e.name;
   modalStates.editModelModal.context.description = e.description;
-
-  if (isObjectStorageModel(targetModel)) {
-    updateObjectStorageModel(targetModel?.objectStorage, e.name, e.description)
-      .then(() => {
-        showSuccessMessage('success', 'Successfully updated target model');
-        modalStates.editModelModal.trigger = true;
-      })
-      .catch(err => showErrorMessage('error', err?.message ?? err));
-    return;
-  }
 
   const requestBody = Object.assign({}, targetModel, {
     userModelName: e.name,
@@ -215,9 +191,6 @@ function handleUpdateTargetModel(e) {
               @update:workflow-edit-modal="
                 e => (modalStates.workflowEditorModal.open = e)
               "
-              @update:migrate-object-storage-modal="
-                e => (modalStates.migrateObjectStorageModal.open = e)
-              "
             />
           </template>
         </p-tab>
@@ -240,13 +213,8 @@ function handleUpdateTargetModel(e) {
       />
     </div>
     <div class="relative z-70">
-      <object-storage-model-view
-        v-if="modalStates.customViewJsonModal.open && isObjectStorage"
-        :model="selectedTargetModel"
-        @update:close-modal="modalStates.customViewJsonModal.open = false"
-      />
       <custom-view-target-model
-        v-else-if="modalStates.customViewJsonModal.open"
+        v-if="modalStates.customViewJsonModal.open"
         :selected-target-id="selectedTargetModelId"
         :selected-target-name="selectedTargetModelName"
         @update:close-modal="modalStates.customViewJsonModal.open = false"
@@ -258,11 +226,6 @@ function handleUpdateTargetModel(e) {
       />
     </div>
     <div class="relative z-70">
-      <migrate-object-storage-modal
-        v-if="modalStates.migrateObjectStorageModal.open"
-        :model="selectedTargetModel"
-        @update:close-modal="modalStates.migrateObjectStorageModal.open = false"
-      />
       <workflow-editor
         v-if="modalStates.workflowEditorModal.open"
         :target-model-name="targetModelName"

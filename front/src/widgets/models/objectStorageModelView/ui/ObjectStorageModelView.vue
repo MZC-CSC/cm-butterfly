@@ -8,20 +8,18 @@ import { computed } from 'vue';
  * recommendation, where the target bucket names and versioning are adjusted.
  */
 interface IProps {
-  model: any;
+  artifact: any;
 }
 const props = defineProps<IProps>();
 const emit = defineEmits(['update:close-modal']);
 
-const json = computed(() =>
-  JSON.stringify(props.model?.objectStorage ?? {}, null, 2),
-);
+const json = computed(() => JSON.stringify(props.artifact ?? {}, null, 2));
 </script>
 
 <template>
   <p-button-modal
     :visible="true"
-    :header-title="`View Model: ${model?.userModelName ?? ''}`"
+    :header-title="`View Model: ${artifact?.name ?? ''}`"
     size="lg"
     hide-footer-close-button
     @confirm="emit('update:close-modal', false)"

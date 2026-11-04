@@ -20,25 +20,20 @@ import { showSuccessMessage } from '@/shared/utils';
 
 /**
  * Creates the buckets of an object storage target model in the target cloud
- * (cm-beetle MigrateObjectStorage). This is where an infra target model would go on to a
- * workflow; cm-cicada has no task for bucket migration, so the console starts it directly
- * and follows the request until cm-beetle reports the outcome. The migrated buckets are
- * then managed under Workload Operations ▸ Object Storages.
+ * (cm-beetle MigrateObjectStorage). Object storage migration ends here: cm-cicada has no
+ * bucket task, so the console starts it directly and follows the request until cm-beetle
+ * reports the outcome. The migrated buckets are then managed under Workload Operations ▸
+ * Object Storages, which is also where a later data migration picks its destination.
  */
 interface IProps {
-  model: any;
+  target: IArtifact<IRecommendedObjectStorage>;
 }
 const props = defineProps<IProps>();
 const emit = defineEmits(['update:close-modal']);
 
 const router = useRouter();
 const nsId = DEFAULT_NAMESPACE;
-const artifact = computed(
-  () =>
-    props.model?.objectStorage as
-      | IArtifact<IRecommendedObjectStorage>
-      | undefined,
-);
+const artifact = computed(() => props.target);
 
 const state = reactive({
   nameSeed: '',

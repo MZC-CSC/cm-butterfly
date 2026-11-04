@@ -27,41 +27,45 @@ Then('이행된 버킷 목록이 보인다', async ({ page }) => {
   await new ObjectStoragePage(page).expectMigratedList();
 });
 
-Given(
-  '시험용 버킷을 커넥션으로 가진 클라우드 소스 서비스를 등록한다',
+Given('시험용 계정으로 클라우드 소스 서비스를 등록한다', async ({ page }) => {
+  const access = cspAccess();
+  run.group = uniqueName('e2e-os-csp');
+  const sources = new SourceServicesPage(page);
+  const csp = new CspSourcePage(page);
+  await sources.goto();
+  await csp.openCspRegistration();
+  await csp.selectProvider(access.provider);
+  await csp.fill(run.group, access);
+  await csp.register();
+  await csp.expectGroupShownAsCloud(run.group, access);
+});
+
+When(
+  '소스 서비스 상세에서 버킷을 스캔해 시험용 버킷을 등록하면',
   async ({ page }) => {
-    const access = cspAccess();
-    const bucket = testBucket();
-    run.group = uniqueName('e2e-os-csp');
-    const sources = new SourceServicesPage(page);
-    const csp = new CspSourcePage(page);
-    await sources.goto();
-    await csp.openCspRegistration();
-    await csp.selectProvider(access.provider);
-    await csp.fill(run.group, access);
-    await csp.register();
-    await csp.expectGroupShownAsCloud(run.group, access);
-    await sources.selectGroup(run.group);
-    await page.getByRole('tab', { name: /Connections/i }).click();
-    await csp.openCspConnectionModal();
-    await csp.chooseResourceType('Object Storage');
-    await csp.discoverAndPick(bucket);
-    await csp.addPickedResources();
+    await new ObjectStoragePage(page).scanAndRegisterBucket(
+      run.group,
+      testBucket(),
+    );
   },
 );
 
-When('그 버킷 커넥션을 수집해 소스 모델로 저장하면', async ({ page }) => {
-  const os = new ObjectStoragePage(page);
-  run.sourceModel = uniqueName('e2e-os-src');
-  await os.collectBucket(run.group, testBucket());
-  await os.saveCollectedAsSourceModel(run.sourceModel);
+Then('그 버킷이 커넥션 목록에 보인다', async ({ page }) => {
+  await new ObjectStoragePage(page).expectBucketConnection(testBucket());
 });
 
-Then('소스 모델 목록에 오브젝트 스토리지 유형으로 보인다', async ({ page }) => {
-  run.sourceModelId = await new ObjectStoragePage(
-    page,
-  ).expectObjectStorageModel('source', run.sourceModel);
-});
+When(
+  'Object Storage Models 에서 그 버킷으로 소스 모델을 만들면',
+  async ({ page }) => {
+    run.sourceModel = uniqueName('e2e-os-src');
+    run.sourceModelId = await new ObjectStoragePage(page).createSourceModel(
+      run.group,
+      testBucket(),
+      run.sourceModel,
+    );
+    expect(run.sourceModelId).toMatch(/^art-/);
+  },
+);
 
 When('같은 CSP·리전으로 추천받아 목표 모델로 저장하면', async ({ page }) => {
   const access = cspAccess();
@@ -75,13 +79,10 @@ When('같은 CSP·리전으로 추천받아 목표 모델로 저장하면', asyn
 });
 
 Then('목표 모델이 그 소스 모델을 계보로 가리킨다', async ({ page }) => {
-  const artifact = await new ObjectStoragePage(page).targetModelArtifact(
+  const lineage = await new ObjectStoragePage(page).targetModelSourceId(
     run.targetModel,
   );
-  expect(artifact.lineage?.sourceModelId).toBe(run.sourceModelId);
-  expect(
-    artifact.payload?.targetObjectStorages?.map((b: any) => b.sourceBucketName),
-  ).toContain(testBucket());
+  expect(lineage).toBe(run.sourceModelId);
 });
 
 When('목표 모델에서 버킷을 만들면', async ({ page }) => {

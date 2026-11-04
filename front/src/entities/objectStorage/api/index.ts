@@ -3,12 +3,16 @@ import type {
   IArtifact,
   IBeetleResponse,
   IMigratedBucket,
+  IObjectStorageAccessRequest,
   IRecommendedObjectStorage,
+  IScannedBucket,
   ISourceObjectStorage,
   ObjectStorageSupport,
 } from '@/entities/objectStorage/model/types';
 import { OBJECT_STORAGE_SCHEMA } from '@/entities/objectStorage/model/types';
 
+const SCAN = 'cm-beetle/ScanObjectStorage';
+const INSPECT = 'cm-beetle/InspectObjectStorage';
 const SUPPORT = 'cm-beetle/GetObjectStorageSupport';
 const RECOMMEND = 'cm-beetle/RecommendObjectStorage';
 const MIGRATE = 'cm-beetle/MigrateObjectStorage';
@@ -44,6 +48,21 @@ async function call<T>(
     return wrapped.data as T;
   }
   return payload as T;
+}
+
+// cm-beetle direct flow (kept for testing): the account keys are typed in and used for
+// this read only.
+export function scanSourceBuckets(access: IObjectStorageAccessRequest) {
+  return call<IScannedBucket[]>(SCAN, { request: access });
+}
+
+export function inspectSourceBuckets(
+  access: IObjectStorageAccessRequest,
+  selectedBucketNames: string[],
+) {
+  return call<ISourceObjectStorage>(INSPECT, {
+    request: { ...access, selectedBucketNames },
+  });
 }
 
 export async function getObjectStorageSupport(): Promise<ObjectStorageSupport> {

@@ -3,28 +3,19 @@ import { PButton, PStatus } from '@cloudforet-test/mirinae';
 import { computed, reactive, watch } from 'vue';
 import { useRouter } from 'vue-router/composables';
 import { useCollectInfra } from '@/entities/sourceConnection/api';
-import { saveSourceModel } from '@/entities/objectStorage/api';
-import type { ISourceObjectStorage } from '@/entities/objectStorage/model/types';
 import { MODEL_ROUTE } from '@/app/providers/router/routes/constants';
-import { SimpleEditForm } from '@/widgets/layout';
-import {
-  formatDate,
-  showErrorMessage,
-  showSuccessMessage,
-  toErrorMessage,
-} from '@/shared/utils';
+import { formatDate, showErrorMessage, toErrorMessage } from '@/shared/utils';
 
 /**
- * Collect step for a bucket connection of a CSP source service.
+ * Collect step for a bucket connection of a cloud source service.
  *
- * Collecting asks cm-honeybee to look the bucket up in the source account
- * (import-infra runs the CSP lookup for every resource type). The bucket is then saved
- * as a source model — the same step a server's collected infra takes — so that it can be
- * recommended and migrated from the model screens.
+ * Collecting asks cm-honeybee to look the bucket up in the source account (import-infra
+ * runs the CSP lookup for every resource type), which confirms the bucket is there. The
+ * source model is made from the registered buckets in Models > Object Storage Models.
  *
- * The model is built from the connection (bucket name) and the source service (CSP and
- * region). cm-honeybee 0.6.3 stores the looked-up bucket but its data endpoint reads it
- * back empty, and the lookup carries nothing beyond the name and region anyway.
+ * cm-honeybee 0.6.3 stores the looked-up bucket but its data endpoint reads it back
+ * empty, and it does not collect the bucket's settings, so this tab shows only whether
+ * the bucket was found.
  */
 interface IProps {
   sourceGroupId: string;
@@ -42,9 +33,6 @@ const state = reactive({
   status: '' as '' | 'success' | 'failed',
   message: '',
   collectedAt: '',
-  saveOpen: false,
-  saving: false,
-  savedModelName: '',
 });
 
 // A different connection starts from nothing collected.
@@ -54,7 +42,6 @@ watch(
     state.status = '';
     state.message = '';
     state.collectedAt = '';
-    state.savedModelName = '';
   },
 );
 
@@ -64,10 +51,6 @@ const statusView = computed(() => {
   if (state.status === 'failed') return { theme: 'red', text: 'Failed' };
   return { theme: 'gray', text: 'Not collected' };
 });
-
-const defaultModelName = computed(() =>
-  `os-src-${props.bucketName}`.replace(/[^A-Za-z0-9-]/g, '-').slice(0, 50),
-);
 
 async function handleCollect() {
   state.message = '';
@@ -84,41 +67,8 @@ async function handleCollect() {
   }
 }
 
-function sourceModelPayload(): ISourceObjectStorage {
-  return {
-    description: `Collected from source service ${props.sourceGroupId}`,
-    sourceCloud: {
-      csp: props.providerName ?? '',
-      region: props.regionName ?? '',
-    },
-    sourceObjectStorages: [{ bucketName: props.bucketName }],
-  };
-}
-
-async function handleSave(e: { name: string; description: string }) {
-  state.saving = true;
-  try {
-    await saveSourceModel(
-      e.name.trim(),
-      e.description,
-      sourceModelPayload(),
-      props.sourceGroupId,
-    );
-    state.savedModelName = e.name.trim();
-    state.saveOpen = false;
-    showSuccessMessage('success', 'Source model saved');
-  } catch (err) {
-    showErrorMessage(
-      'Error',
-      toErrorMessage(err, 'Could not save the source model.'),
-    );
-  } finally {
-    state.saving = false;
-  }
-}
-
-function goToSourceModels() {
-  router.push({ name: MODEL_ROUTE.SOURCE_MODELS._NAME });
+function goToModels() {
+  router.push({ name: MODEL_ROUTE.OBJECT_STORAGE_MODELS._NAME });
 }
 </script>
 
@@ -147,46 +97,20 @@ function goToSourceModels() {
       <dt>Collected At</dt>
       <dd>{{ state.collectedAt || '-' }}</dd>
       <dt>Source Model</dt>
-      <dd class="with-action">
-        <span data-testid="bucket-collect-saved">
-          {{ state.savedModelName ? `Saved as ${state.savedModelName}` : '-' }}
-        </span>
-        <p-button
-          data-testid="bucket-collect-save-model"
-          style-type="secondary"
-          size="sm"
-          :disabled="state.status !== 'success'"
-          @click="state.saveOpen = true"
-        >
-          Save as Source Model
-        </p-button>
+      <dd>
         <button
           type="button"
           class="link"
           data-testid="bucket-collect-go-models"
-          :class="{ hidden: !state.savedModelName }"
-          @click="goToSourceModels"
+          @click="goToModels"
         >
-          Go to Source Models ->
+          Create it in Object Storage Models ->
         </button>
       </dd>
     </dl>
     <p v-if="state.message" class="error" data-testid="bucket-collect-error">
       {{ state.message }}
     </p>
-
-    <div class="relative z-70">
-      <simple-edit-form
-        v-if="state.saveOpen"
-        header-title="Save as Source Model"
-        name-label="Model Name"
-        name-placeholder="Model Name"
-        :name="defaultModelName"
-        description=""
-        @update:save-modal="handleSave"
-        @update:close-modal="state.saveOpen = false"
-      />
-    </div>
   </div>
 </template>
 
@@ -217,9 +141,6 @@ function goToSourceModels() {
 .link {
   color: #1d4ed8;
   font-size: 0.875rem;
-}
-.link.hidden {
-  visibility: hidden;
 }
 .error {
   margin-top: 0.5rem;

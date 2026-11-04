@@ -8,9 +8,7 @@ import {
   PTextInput,
 } from '@cloudforet-test/mirinae';
 import { computed, onMounted, reactive, ref } from 'vue';
-import { useRouter } from 'vue-router/composables';
 import { useGetProviderList } from '@/entities/provider/api';
-import { useSourceModelStore } from '@/entities';
 import {
   getObjectStorageSupport,
   recommendObjectStorage,
@@ -22,7 +20,6 @@ import type {
   ISourceObjectStorage,
   ObjectStorageSupport,
 } from '@/entities/objectStorage/model/types';
-import { MODEL_ROUTE } from '@/app/providers/router/routes/constants';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 
 /**
@@ -31,19 +28,12 @@ import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
  * source model). Same place in the flow as the infra and software recommendations.
  */
 interface IProps {
-  sourceModelId: string;
+  source: IArtifact<ISourceObjectStorage>;
 }
 const props = defineProps<IProps>();
-const emit = defineEmits(['update:close-modal']);
+const emit = defineEmits(['update:close-modal', 'saved']);
 
-const router = useRouter();
-const sourceModelStore = useSourceModelStore();
-const sourceArtifact = computed(
-  () =>
-    sourceModelStore.getSourceModelById(props.sourceModelId)?.objectStorage as
-      | IArtifact<ISourceObjectStorage>
-      | undefined,
-);
+const sourceArtifact = computed(() => props.source);
 const sourceBuckets = computed(
   () => sourceArtifact.value?.payload?.sourceObjectStorages ?? [],
 );
@@ -105,7 +95,7 @@ async function handleSave() {
   if (!recommended.value || !sourceArtifact.value) return;
   state.saving = true;
   try {
-    await saveTargetModel(
+    const saved = await saveTargetModel(
       target.modelName.trim(),
       recommended.value.description ?? '',
       recommended.value,
@@ -113,6 +103,7 @@ async function handleSave() {
     );
     state.saved = true;
     showSuccessMessage('success', 'Target model saved');
+    emit('saved', saved);
   } catch (e) {
     showErrorMessage(
       'failed',
@@ -121,11 +112,6 @@ async function handleSave() {
   } finally {
     state.saving = false;
   }
-}
-
-function goToTargetModels() {
-  emit('update:close-modal', false);
-  router.push({ name: MODEL_ROUTE.TARGET_MODELS._NAME });
 }
 
 function handleClose() {
@@ -248,23 +234,19 @@ function handleClose() {
             />
           </p-field-group>
           <p class="saved" data-testid="os-recommend-saved">
-            <template v-if="state.saved">
-              Saved.
-              <button
-                type="button"
-                class="link"
-                data-testid="os-recommend-go-target"
-                @click="goToTargetModels"
-              >
-                Go to Target Models ->
-              </button>
-            </template>
+            {{
+              state.saved
+                ? 'Saved. The target model is listed on the Target tab.'
+                : ''
+            }}
           </p>
         </template>
       </div>
     </template>
     <template #close-button>
-      <span>{{ i18n.t('COMPONENT.BUTTON_MODAL.CANCEL') }}</span>
+      <span data-testid="os-recommend-close">{{
+        i18n.t('COMPONENT.BUTTON_MODAL.CANCEL')
+      }}</span>
     </template>
     <template #confirm-button>
       <span data-testid="os-recommend-save">Save as a Target Model</span>

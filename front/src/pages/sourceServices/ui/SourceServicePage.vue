@@ -7,6 +7,7 @@ import SourceConnectionList from '@/widgets/source/sourceConnections/sourceConne
 import SourceInformation from '@/widgets/source/sourceConnections/sourceConnectionDetail/information/ui/SourceInformation.vue';
 import SourceInfraCollect from '@/widgets/source/sourceConnections/sourceConnectionDetail/infraCollect/ui/SourceInfraCollect.vue';
 import SourceSoftwareCollect from '@/widgets/source/sourceConnections/sourceConnectionDetail/softwareCollect/ui/SourceSoftwareCollect.vue';
+import CspBucketScan from '@/widgets/source/sourceServices/cspBucketScan/ui/CspBucketScan.vue';
 import SourceBucketCollect from '@/widgets/source/sourceConnections/sourceConnectionDetail/bucketCollect/ui/SourceBucketCollect.vue';
 import SourceConnectionModal from '@/widgets/source/sourceConnections/sourceConnectionModal/ui/SourceConnectionModal.vue';
 import { useSidebar } from '@/shared/libs/store/sidebar';
@@ -221,6 +222,12 @@ const data = computed(() => {
               @update:custom-view-json-modal="
                 e => (modalStates.addInfraMetaViewer.open = e)
               "
+            />
+            <!-- A cloud source service also scans its account's buckets here. -->
+            <CspBucketScan
+              v-if="isCspSelected"
+              :source-service-id="selectedServiceId"
+              @update:trigger="modalStates.addSourceConnection.trigger = true"
             />
           </template>
           <template #connections>
