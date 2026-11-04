@@ -226,4 +226,80 @@ export class CspSourcePage {
       { timeout: 60_000 },
     );
   }
+
+  /**
+   * 잠긴 수집 버튼에 마우스를 올려 사유 툴팁이 뜨는지 본다.
+   * 미리내 버튼의 disabled 는 클래스뿐이라 isEnabled() 로 판정하지 않는다(DESIGN-MIRINAE §1.6) —
+   * 래퍼가 내보내는 사유와, 실제 마우스로 띄운 툴팁 문구로 확인한다.
+   */
+  async expectCollectReasonOnHover(
+    triggerTestId: string,
+    buttonTestId: string,
+    reason: RegExp,
+  ): Promise<void> {
+    await expect(this.page.getByTestId(triggerTestId)).toHaveAttribute(
+      'data-disabled-reason',
+      reason,
+      { timeout: 60_000 },
+    );
+    const button = this.page.getByTestId(buttonTestId);
+    await button.scrollIntoViewIfNeeded();
+    await this.page.mouse.move(0, 0);
+    await button.hover();
+    await expect(
+      // 먼저 띄운 툴팁은 숨겨진 채 DOM 에 남는다 — 지금 보이는 것만 본다.
+      this.page.locator(
+        '.p-tooltip.disabled-reason-tooltip[aria-hidden="false"]',
+      ),
+    ).toContainText(reason, { timeout: 10_000 });
+    await this.page.mouse.move(0, 0);
+  }
+
+  /** 그룹 상세(Detail 탭)로 돌아간다. 연결을 추가한 뒤에는 Connections 탭에 있다. */
+  async openGroupDetailTab(): Promise<void> {
+    await humanClick(this.page.getByRole('tab', { name: /Detail/i }).first());
+    await expect(
+      this.page.getByTestId('source-group-collect-infra'),
+    ).toBeVisible({ timeout: 30_000 });
+  }
+
+  /** 잠긴 버튼을 강제로 눌러도 import-infra·import-software 요청이 나가지 않아야 한다. */
+  async expectGroupCollectSendsNothing(): Promise<void> {
+    const calls: string[] = [];
+    const listener = (r: { url(): string; postData(): string | null }) => {
+      if (
+        /import-infra|import-software/i.test(`${r.url()} ${r.postData() ?? ''}`)
+      )
+        calls.push(r.url());
+    };
+    this.page.on('request', listener);
+    await this.page
+      .getByTestId('source-group-collect-infra')
+      .click({ force: true });
+    await this.page
+      .getByTestId('source-group-collect-sw')
+      .click({ force: true });
+    await this.page.waitForTimeout(2_000);
+    this.page.off('request', listener);
+    expect(calls).toEqual([]);
+  }
+
+  /** 연결을 골라 Infra Collect 탭을 연다. */
+  async openConnectionInfraCollect(connectionName: RegExp): Promise<void> {
+    await humanClick(this.page.getByRole('tab', { name: /Connections/i }));
+    await humanClick(
+      this.page
+        .getByTestId('source-connection-list-table')
+        .getByRole('row', { name: connectionName })
+        .first(),
+    );
+    await humanClick(
+      this.page
+        .getByTestId('source-connection-detail')
+        .getByText('Infra Collect', { exact: true }),
+    );
+    await expect(this.page.getByTestId('collect-infra')).toBeVisible({
+      timeout: 30_000,
+    });
+  }
 }

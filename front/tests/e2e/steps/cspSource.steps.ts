@@ -96,6 +96,47 @@ Then('고른 VM 이 커넥션 목록에 보인다', async ({ page }) => {
   );
 });
 
+// 문구는 화면이 내보내는 사유 그대로가 아니라 핵심만 본다 — 문장을 다듬어도 깨지지 않게.
+const NO_SSH = /SSH access/;
+
+Then(
+  '그룹의 Collect Infra 와 Collect SW 에 마우스를 올리면 SSH 가 없다는 사유가 보인다',
+  async ({ page }) => {
+    const csp = new CspSourcePage(page);
+    await csp.openGroupDetailTab();
+    await csp.expectCollectReasonOnHover(
+      'source-group-collect-infra-trigger',
+      'source-group-collect-infra',
+      NO_SSH,
+    );
+    await csp.expectCollectReasonOnHover(
+      'source-group-collect-sw-trigger',
+      'source-group-collect-sw',
+      NO_SSH,
+    );
+  },
+);
+
+Then(
+  '잠긴 그룹 수집 버튼을 눌러도 수집 요청이 나가지 않는다',
+  async ({ page }) => {
+    await new CspSourcePage(page).expectGroupCollectSendsNothing();
+  },
+);
+
+Then(
+  '그 연결의 Collect Infra 에도 SSH 가 없다는 사유가 보인다',
+  async ({ page }) => {
+    const csp = new CspSourcePage(page);
+    await csp.openConnectionInfraCollect(new RegExp(`vm-${testVm()}`));
+    await csp.expectCollectReasonOnHover(
+      'collect-infra-trigger',
+      'collect-infra',
+      NO_SSH,
+    );
+  },
+);
+
 Then('만든 CSP 소스 서비스를 지운다', async ({ page }) => {
   const sources = new SourceServicesPage(page);
   await sources.selectGroup(groupName);
