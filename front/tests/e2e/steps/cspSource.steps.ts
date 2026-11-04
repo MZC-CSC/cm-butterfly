@@ -54,13 +54,13 @@ Then('목록에 클라우드 유형으로 보인다', async ({ page }) => {
 let pickedVm = '';
 
 When(
-  '그 서비스의 연결 추가에서 계정의 VM 을 탐색해 하나를 고른다',
+  '그 서비스의 연결 추가에서 계정의 VM 을 탐색해 시험용 VM 을 고른다',
   async ({ page }) => {
     await new SourceServicesPage(page).selectGroup(groupName);
     const csp = new CspSourcePage(page);
     await page.getByRole('tab', { name: /Connections/i }).click();
     await csp.openCspConnectionModal();
-    pickedVm = await csp.discoverAndPickFirstVm();
+    pickedVm = await csp.discoverAndPick(cspAccess().testVmId);
   },
 );
 

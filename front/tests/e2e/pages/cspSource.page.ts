@@ -125,15 +125,30 @@ export class CspSourcePage {
     ).toBeVisible({ timeout: 15_000 });
   }
 
-  /** 계정에 실제로 있는 VM 을 읽어 와 첫 행을 고른다. 고른 자원의 CSP ID 를 돌려준다. */
-  async discoverAndPickFirstVm(): Promise<string> {
+  /** 연결 추가 창에서 탐색할 자원 유형을 고른다(예: 'Object Storage'). */
+  async chooseResourceType(label: string): Promise<void> {
+    const dropdown = this.page.getByTestId('csp-connection-resource-type');
+    await humanClick(dropdown);
+    await humanClick(
+      dropdown.locator('.p-context-menu-item', { hasText: label }).first(),
+    );
+  }
+
+  /**
+   * 계정의 자원을 읽어 와 *지정한 시험용 자원* 만 고른다(VM 은 인스턴스 ID, 버킷은 이름).
+   * 첫 행을 고르면 계정에 있던 남의 작업 VM 이 등록된다 — 목록 순서는 우리가 정하지 않는다.
+   * 시험용 VM 이 목록에 없으면 다른 VM 으로 대신하지 않고 실패한다.
+   */
+  async discoverAndPick(resourceId: string): Promise<string> {
     await humanClick(this.page.getByTestId('csp-connection-discover'));
     await expect(this.resourceList).toBeVisible({ timeout: 120_000 });
-    const first = this.resourceList.locator('li').first();
-    const testid = (await first.getAttribute('data-testid')) ?? '';
-    await humanClick(first);
-    await expect(first).toHaveAttribute('data-selected', 'true');
-    return testid.replace('csp-connection-resource-', '');
+    const target = this.resourceList.getByTestId(
+      `csp-connection-resource-${resourceId}`,
+    );
+    await expect(target).toHaveCount(1, { timeout: 30_000 });
+    await humanClick(target);
+    await expect(target).toHaveAttribute('data-selected', 'true');
+    return resourceId;
   }
 
   async addPickedResources(): Promise<void> {
