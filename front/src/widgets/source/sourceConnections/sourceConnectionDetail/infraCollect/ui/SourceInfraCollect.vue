@@ -12,6 +12,9 @@ interface IProps {
   sourceGroupId: string | null;
   connectionId: string | null;
   metaViewerModalState: boolean;
+  // Set when this connection cannot be collected through the agent (a cloud VM
+  // registered without SSH access); the button is then disabled with this reason.
+  collectDisabledReason?: string;
 }
 
 const props = defineProps<IProps>();
@@ -43,6 +46,7 @@ onBeforeMount(() => {
 });
 
 function handleCollectInfra() {
+  if (props.collectDisabledReason) return;
   // Collect the infra (import-infra), then load its structured JSON form
   // (get-infra-info) for the viewer's left "Meta" pane.
   resCollectInfra
@@ -108,11 +112,15 @@ function handleCollectInfra() {
       </template>
       <template #extra="{ name }">
         <div v-if="name === 'collectInfraStatus'">
+          <span v-if="collectDisabledReason" class="collect-hint">{{
+            collectDisabledReason
+          }}</span>
           <p-button
             data-testid="collect-infra"
             style-type="tertiary"
             size="sm"
             :loading="resCollectInfra.isLoading.value"
+            :disabled="!!collectDisabledReason"
             @click="handleCollectInfra"
           >
             Collect Infra
@@ -123,4 +131,10 @@ function handleCollectInfra() {
   </div>
 </template>
 
-<style scoped lang="postcss"></style>
+<style scoped lang="postcss">
+.collect-hint {
+  margin-right: 0.5rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+</style>

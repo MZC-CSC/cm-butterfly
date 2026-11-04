@@ -57,17 +57,28 @@ const infraModel = ref<any>(null);
   A cloud source service can hold buckets and VMs without SSH access as well; for those
   there is nothing to collect this way - cm-honeybee's software import needs the agent,
   and its refined infra (what a source model is made from) is built from agent data, so
-  the result would be empty or wrong. On a cloud source service the two buttons are
-  therefore available only when at least one VM connection has SSH access.
+  the result would be empty or wrong. Run over a whole group, cm-honeybee 0.6.3 also adds
+  an empty node for every connection without the agent to the refined infra, and stops the
+  software import at the first connection that fails. On a cloud source service the group
+  buttons are therefore available only when every connection is a VM with SSH access;
+  otherwise each VM connection is collected from its own tabs.
 */
 const isCspService = computed(() =>
   isCspSourceGroup(
     sourceServiceStore.getServiceById(props.selectedServiceId)?.type,
   ),
 );
-const hasAgentTarget = ref(false);
+const connectionKinds = ref({ total: 0, agent: 0 });
 const agentCollectDisabled = computed(
-  () => isCspService.value && !hasAgentTarget.value,
+  () =>
+    isCspService.value &&
+    (connectionKinds.value.agent === 0 ||
+      connectionKinds.value.agent < connectionKinds.value.total),
+);
+const agentCollectHint = computed(() =>
+  connectionKinds.value.agent === 0
+    ? 'Needs VM connections with SSH access'
+    : 'Has connections without SSH: collect each VM connection',
 );
 
 // Software-related state
@@ -293,9 +304,12 @@ async function loadConnectionOutcomes() {
       pathParams: { sgId: props.selectedServiceId },
     });
     const list = data.responseData?.connection_info ?? [];
-    hasAgentTarget.value = list.some(
-      (c: any) => (c.resource_type || 'vm') === 'vm' && !!c.ip_address,
-    );
+    connectionKinds.value = {
+      total: list.length,
+      agent: list.filter(
+        (c: any) => (c.resource_type || 'vm') === 'vm' && !!c.ip_address,
+      ).length,
+    };
     sourceServiceStore.mappingConnectionOutcomes(
       props.selectedServiceId,
       list.map((c: any) => ({
@@ -498,7 +512,7 @@ function handleSoftwareModal() {
             class="collect-hint"
             data-testid="source-group-collect-hint"
             :class="{ hidden: !agentCollectDisabled }"
-            >Needs a VM connection with SSH access</span
+            >{{ agentCollectHint }}</span
           >
           <p-button
             data-testid="source-group-collect-infra"
@@ -512,8 +526,10 @@ function handleSoftwareModal() {
           </p-button>
         </div>
         <div v-else-if="name === 'viewSoftware'" class="collect-actions">
-          <span class="collect-hint" :class="{ hidden: !agentCollectDisabled }"
-            >Needs a VM connection with SSH access</span
+          <span
+            class="collect-hint"
+            :class="{ hidden: !agentCollectDisabled }"
+            >{{ agentCollectHint }}</span
           >
           <p-button
             data-testid="source-group-collect-sw"

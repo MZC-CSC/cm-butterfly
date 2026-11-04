@@ -12,6 +12,9 @@ interface IProps {
   sourceGroupId: string | null;
   connectionId: string | null;
   metaViewerModalState: boolean;
+  // Set when this connection cannot be collected through the agent (a cloud VM
+  // registered without SSH access); the button is then disabled with this reason.
+  collectDisabledReason?: string;
 }
 
 const props = defineProps<IProps>();
@@ -43,6 +46,7 @@ onBeforeMount(() => {
 });
 
 function handleClickCollectSW() {
+  if (props.collectDisabledReason) return;
   // Collect the software (import-software), then load its structured JSON form
   // (get-software-info) for the viewer's left "Meta" pane.
   resCollectSW
@@ -105,11 +109,15 @@ function handleClickCollectSW() {
       </template>
       <template #extra="{ name }">
         <div v-if="name === 'collectSwStatus'">
+          <span v-if="collectDisabledReason" class="collect-hint">{{
+            collectDisabledReason
+          }}</span>
           <p-button
             data-testid="collect-software"
             style-type="tertiary"
             size="sm"
             :loading="resCollectSW.isLoading.value"
+            :disabled="!!collectDisabledReason"
             @click="handleClickCollectSW"
           >
             Collect SW
@@ -120,4 +128,10 @@ function handleClickCollectSW() {
   </div>
 </template>
 
-<style scoped lang="postcss"></style>
+<style scoped lang="postcss">
+.collect-hint {
+  margin-right: 0.5rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+</style>

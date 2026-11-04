@@ -91,6 +91,15 @@ const serverConnectionTabs = [
 // A bucket has no host, port or credential of its own: its information tab shows the
 // bucket and the collect step instead of the server fields.
 const bucketConnectionTabs = [{ name: 'information', label: 'Information' }];
+// A cloud VM registered without SSH access has only its cloud metadata; the agent cannot
+// collect it, and cm-honeybee builds the refined infra from agent data only.
+const agentCollectDisabledReason = computed(() =>
+  isCspSelected.value &&
+  selectedConnection.value?.resource_type === 'vm' &&
+  !selectedConnection.value?.ip_address
+    ? 'Registered without SSH access'
+    : '',
+);
 const sourceConnectionDetailTabState = reactive({
   activeTab: 'information',
   tabs: computed(() =>
@@ -311,6 +320,7 @@ const data = computed(() => {
                       <SourceInfraCollect
                         :source-group-id="selectedServiceId"
                         :connection-id="selectedConnectionId"
+                        :collect-disabled-reason="agentCollectDisabledReason"
                         :meta-viewer-modal-state="
                           modalStates.addInfraMetaViewer.open
                         "
@@ -327,6 +337,7 @@ const data = computed(() => {
                       <SourceSoftwareCollect
                         :source-group-id="selectedServiceId"
                         :connection-id="selectedConnectionId"
+                        :collect-disabled-reason="agentCollectDisabledReason"
                         :meta-viewer-modal-state="
                           modalStates.addSoftwareMetaViewer.open
                         "
