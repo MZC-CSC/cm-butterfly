@@ -9,7 +9,7 @@ import {
   PTextarea,
   PSpinner,
 } from '@cloudforet-test/mirinae';
-import { computed, reactive } from 'vue';
+import { computed, onMounted, reactive } from 'vue';
 import { useDiscoverSourceGroupResources } from '@/entities/sourceService/api';
 import { useCreateConnectionInfo } from '@/entities/sourceConnection/api';
 import { cspConnectionName } from '@/entities/sourceConnection/model/cspConnection';
@@ -28,6 +28,8 @@ interface Props {
   sourceServiceId: string;
   providerName?: string;
   regionName?: string;
+  // Opened from Detail > Object Storage: start on buckets and read them right away.
+  initialResourceType?: CspResourceType;
 }
 const props = defineProps<Props>();
 const emit = defineEmits(['update:is-modal-opened', 'update:trigger']);
@@ -47,7 +49,7 @@ const resDiscover = useDiscoverSourceGroupResources(
 const resCreate = useCreateConnectionInfo(props.sourceServiceId, null);
 
 const state = reactive({
-  resourceType: 'vm' as CspResourceType,
+  resourceType: (props.initialResourceType ?? 'vm') as CspResourceType,
   items: [] as IDiscoveredResource[],
   selectedIds: [] as string[],
   discovered: false,
@@ -91,6 +93,10 @@ async function handleDiscover() {
     );
   }
 }
+
+onMounted(() => {
+  if (props.initialResourceType) handleDiscover();
+});
 
 function toggle(id: string) {
   const i = state.selectedIds.indexOf(id);

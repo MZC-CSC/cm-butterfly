@@ -75,22 +75,28 @@ export class ObjectStoragePage {
 
   // ── Source Services ▸ Detail ▸ Scan Buckets ──────────────────────────────
 
-  /** 그룹 상세에서 계정 버킷을 스캔해 지정한 버킷만 연결로 등록한다. 없으면 다른 버킷으로 대신하지 않는다. */
+  /**
+   * 그룹 상세의 Scan Buckets 로 연결 추가 창을 버킷 유형으로 열고, 지정한 버킷만 골라 등록한다.
+   * 없으면 다른 버킷으로 대신하지 않는다. 버킷은 그룹에 저장된 크레덴셜로 읽는다.
+   */
   async scanAndRegisterBucket(group: string, bucket: string): Promise<void> {
     const sources = new SourceServicesPage(this.page);
     await sources.goto();
     await sources.selectGroup(group);
     await humanClick(this.page.getByTestId('csp-bucket-scan-run'));
-    const list = this.page.getByTestId('csp-bucket-scan-list');
+    await expect(
+      this.page.getByTestId('csp-connection-modal-body'),
+    ).toBeVisible({ timeout: 15_000 });
+    const list = this.page.getByTestId('csp-connection-resource-list');
     await expect(list).toBeVisible({ timeout: 120_000 });
-    const row = list.getByTestId(`csp-bucket-scan-${bucket}`);
+    const row = list.getByTestId(`csp-connection-resource-${bucket}`);
     await expect(row).toHaveCount(1, { timeout: 30_000 });
-    await humanClick(row);
+    await humanClick(this.page.getByTestId(`csp-connection-pick-${bucket}`));
     await expect(row).toHaveAttribute('data-selected', 'true');
-    await humanClick(this.page.getByTestId('csp-bucket-scan-register'));
-    await expect(row).toHaveAttribute('data-registered', 'true', {
-      timeout: 60_000,
-    });
+    await humanClick(this.confirmButton('csp-connection-confirm'));
+    await expect(this.page.getByTestId('csp-connection-modal-body')).toBeHidden(
+      { timeout: 60_000 },
+    );
   }
 
   async expectBucketConnection(bucket: string): Promise<void> {

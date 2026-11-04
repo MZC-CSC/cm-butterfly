@@ -152,7 +152,16 @@ function handleGroupModal(value: boolean) {
   modalStates.addServiceGroup.open = value;
 }
 
+// Detail > Object Storage opens the same Add Cloud Resources window as Connections,
+// started on buckets.
+const cspInitialResourceType = ref<'object_storage' | undefined>(undefined);
+function openBucketScan() {
+  cspInitialResourceType.value = 'object_storage';
+  handleConnectionModal(true);
+}
+
 function handleConnectionModal(value: boolean) {
+  if (!value) cspInitialResourceType.value = undefined;
   modalStates.addSourceConnection.open = value;
   isCollapsed.value = value;
   isGnbToolboxShown.value = !value;
@@ -224,11 +233,7 @@ const data = computed(() => {
               "
             />
             <!-- A cloud source service also scans its account's buckets here. -->
-            <CspBucketScan
-              v-if="isCspSelected"
-              :source-service-id="selectedServiceId"
-              @update:trigger="modalStates.addSourceConnection.trigger = true"
-            />
+            <CspBucketScan v-if="isCspSelected" @open-scan="openBucketScan" />
           </template>
           <template #connections>
             <div class="tab-section-header">
@@ -339,6 +344,7 @@ const data = computed(() => {
         :source-service-id="selectedServiceId"
         :provider-name="selectedService?.providerName"
         :region-name="selectedService?.regionName"
+        :initial-resource-type="cspInitialResourceType"
         @update:is-modal-opened="handleConnectionModal"
         @update:trigger="modalStates.addSourceConnection.trigger = true"
       />
