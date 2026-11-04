@@ -3,16 +3,12 @@ import type {
   IArtifact,
   IBeetleResponse,
   IMigratedBucket,
-  IObjectStorageAccessRequest,
   IRecommendedObjectStorage,
-  IScannedBucket,
   ISourceObjectStorage,
   ObjectStorageSupport,
 } from '@/entities/objectStorage/model/types';
 import { OBJECT_STORAGE_SCHEMA } from '@/entities/objectStorage/model/types';
 
-const SCAN = 'cm-beetle/ScanObjectStorage';
-const INSPECT = 'cm-beetle/InspectObjectStorage';
 const SUPPORT = 'cm-beetle/GetObjectStorageSupport';
 const RECOMMEND = 'cm-beetle/RecommendObjectStorage';
 const MIGRATE = 'cm-beetle/MigrateObjectStorage';
@@ -48,19 +44,6 @@ async function call<T>(
     return wrapped.data as T;
   }
   return payload as T;
-}
-
-export function scanSourceBuckets(access: IObjectStorageAccessRequest) {
-  return call<IScannedBucket[]>(SCAN, { request: access });
-}
-
-export function inspectSourceBuckets(
-  access: IObjectStorageAccessRequest,
-  selectedBucketNames: string[],
-) {
-  return call<ISourceObjectStorage>(INSPECT, {
-    request: { ...access, selectedBucketNames },
-  });
 }
 
 export async function getObjectStorageSupport(): Promise<ObjectStorageSupport> {
@@ -133,21 +116,23 @@ export function listObjectStorageModels<T>(schemaType: string) {
   });
 }
 
+/** `sourceGroupId` records which source service the buckets were collected from. */
 export function saveSourceModel(
   name: string,
   description: string,
   payload: ISourceObjectStorage,
+  sourceGroupId?: string,
 ) {
-  return call<IArtifact<ISourceObjectStorage>>(CREATE_ARTIFACT, {
-    request: {
-      name,
-      description,
-      category: 'infra',
-      stage: 'source',
-      schemaType: OBJECT_STORAGE_SCHEMA.SOURCE,
-      payload,
-    },
-  });
+  const request: Record<string, any> = {
+    name,
+    description,
+    category: 'infra',
+    stage: 'source',
+    schemaType: OBJECT_STORAGE_SCHEMA.SOURCE,
+    payload,
+  };
+  if (sourceGroupId) request.sourceGroupId = sourceGroupId;
+  return call<IArtifact<ISourceObjectStorage>>(CREATE_ARTIFACT, { request });
 }
 
 /** `parentId` links the target model to the source model it was recommended from. */
@@ -170,12 +155,16 @@ export function saveTargetModel(
   });
 }
 
-export function updateTargetModel(
-  artifact: IArtifact<IRecommendedObjectStorage>,
+/** Renames a model; the payload and lineage are sent back unchanged. */
+export function updateObjectStorageModel<T>(
+  artifact: IArtifact<T>,
+  name: string,
+  description: string,
 ) {
-  return call<IArtifact<IRecommendedObjectStorage>>(UPDATE_ARTIFACT, {
-    pathParams: { id: artifact.id },
-    request: artifact,
+  const { id, createTime, updateTime, ...rest } = artifact as any;
+  return call<IArtifact<T>>(UPDATE_ARTIFACT, {
+    pathParams: { id },
+    request: { ...rest, name, description },
   });
 }
 

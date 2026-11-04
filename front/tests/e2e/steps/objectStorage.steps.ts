@@ -2,13 +2,18 @@ import { createBdd } from 'playwright-bdd';
 import { expect } from '@playwright/test';
 import { test } from '../support/fixtures';
 import { ObjectStoragePage } from '../pages/objectStorage.page';
-import { cspAccess } from '../support/cspAccess';
+import { CspSourcePage } from '../pages/cspSource.page';
+import { SourceServicesPage } from '../pages/sourceServices.page';
+import { cspAccess, testBucket } from '../support/cspAccess';
 import { uniqueName } from '../support/naming';
 
 const { Given, When, Then } = createBdd(test);
 
+// 이번 실행에서 만든 것. 시나리오 끝에서 지운다.
 const run = {
+  group: '',
   sourceModel: '',
+  sourceModelId: '',
   targetModel: '',
   bucketsBefore: [] as string[],
   created: [] as string[],
@@ -18,29 +23,45 @@ Given('오브젝트 스토리지 화면을 연다', async ({ page }) => {
   await new ObjectStoragePage(page).open();
 });
 
-Then('네 단계 탭이 보인다', async ({ page }) => {
-  await new ObjectStoragePage(page).expectSteps();
+Then('이행된 버킷 목록이 보인다', async ({ page }) => {
+  await new ObjectStoragePage(page).expectMigratedList();
 });
 
-When('소스 계정의 버킷을 스캔하면', async ({ page }) => {
-  const buckets = await new ObjectStoragePage(page).scan(cspAccess());
-  expect(buckets.length).toBeGreaterThan(0);
-});
-
-When(
-  '환경변수로 지정한 버킷을 골라 정밀 조회하고 소스 모델로 저장하면',
+Given(
+  '시험용 버킷을 커넥션으로 가진 클라우드 소스 서비스를 등록한다',
   async ({ page }) => {
-    const bucket = process.env.TEST_CSP_SOURCE_BUCKET;
-    if (!bucket)
-      throw new Error(
-        'TEST_CSP_SOURCE_BUCKET 이 없다 — 조회할 소스 버킷을 지정한다',
-      );
-    run.sourceModel = uniqueName('e2e-os-src');
-    const os = new ObjectStoragePage(page);
-    await os.pickBucket(bucket);
-    await os.inspectAndSaveSourceModel(run.sourceModel);
+    const access = cspAccess();
+    const bucket = testBucket();
+    run.group = uniqueName('e2e-os-csp');
+    const sources = new SourceServicesPage(page);
+    const csp = new CspSourcePage(page);
+    await sources.goto();
+    await csp.openCspRegistration();
+    await csp.selectProvider(access.provider);
+    await csp.fill(run.group, access);
+    await csp.register();
+    await csp.expectGroupShownAsCloud(run.group, access);
+    await sources.selectGroup(run.group);
+    await page.getByRole('tab', { name: /Connections/i }).click();
+    await csp.openCspConnectionModal();
+    await csp.chooseResourceType('Object Storage');
+    await csp.discoverAndPick(bucket);
+    await csp.addPickedResources();
   },
 );
+
+When('그 버킷 커넥션을 수집해 소스 모델로 저장하면', async ({ page }) => {
+  const os = new ObjectStoragePage(page);
+  run.sourceModel = uniqueName('e2e-os-src');
+  await os.collectBucket(run.group, testBucket());
+  await os.saveCollectedAsSourceModel(run.sourceModel);
+});
+
+Then('소스 모델 목록에 오브젝트 스토리지 유형으로 보인다', async ({ page }) => {
+  run.sourceModelId = await new ObjectStoragePage(
+    page,
+  ).expectObjectStorageModel('source', run.sourceModel);
+});
 
 When('같은 CSP·리전으로 추천받아 목표 모델로 저장하면', async ({ page }) => {
   const access = cspAccess();
@@ -53,17 +74,21 @@ When('같은 CSP·리전으로 추천받아 목표 모델로 저장하면', asyn
   );
 });
 
-Then('목표 모델이 소스 모델 산출물을 계보로 가리킨다', async ({ page }) => {
-  const lineage = await new ObjectStoragePage(page).targetModelLineage(
+Then('목표 모델이 그 소스 모델을 계보로 가리킨다', async ({ page }) => {
+  const artifact = await new ObjectStoragePage(page).targetModelArtifact(
     run.targetModel,
   );
-  expect(lineage).toMatch(/^art-/);
+  expect(artifact.lineage?.sourceModelId).toBe(run.sourceModelId);
+  expect(
+    artifact.payload?.targetObjectStorages?.map((b: any) => b.sourceBucketName),
+  ).toContain(testBucket());
 });
 
-When('목표 모델로 버킷을 만들면', async ({ page }) => {
+When('목표 모델에서 버킷을 만들면', async ({ page }) => {
   const os = new ObjectStoragePage(page);
+  await os.open();
   run.bucketsBefore = await os.migratedBucketIds();
-  const status = await os.createBuckets(
+  const status = await os.migrateFromTargetModel(
     run.targetModel,
     uniqueName('cmig').replace(/-/g, ''),
   );
@@ -83,8 +108,14 @@ Then('만든 버킷을 지우면 목록에서 사라진다', async ({ page }) =>
   for (const id of run.created) await os.deleteBucket(id);
 });
 
-Then('이번에 만든 소스·목표 모델을 지운다', async ({ page }) => {
+Then('이번에 만든 모델과 소스 서비스를 지운다', async ({ page }) => {
   const os = new ObjectStoragePage(page);
   if (run.targetModel) await os.deleteModel('target', run.targetModel);
   if (run.sourceModel) await os.deleteModel('source', run.sourceModel);
+  if (run.group) {
+    const sources = new SourceServicesPage(page);
+    await sources.goto();
+    await sources.selectGroup(run.group);
+    await sources.deleteSelectedGroup();
+  }
 });

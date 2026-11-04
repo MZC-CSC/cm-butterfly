@@ -15,6 +15,10 @@ export interface ISourceConnectionInfo {
   ssh_port: number;
   status: string;
   user: string;
+  // Set on connections of a CSP source group: which cloud resource the connection is.
+  resource_type?: string;
+  resource_id?: string;
+  zone?: string;
 }
 
 export interface ISourceInfraInfoResponse {

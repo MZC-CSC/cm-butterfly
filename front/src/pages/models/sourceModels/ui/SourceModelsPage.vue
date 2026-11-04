@@ -10,6 +10,10 @@ import { SimpleEditForm } from '@/widgets/layout';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 import { useSourceModelStore, useUpdateSourceModel } from '@/entities';
 import { GuidedStepBanner } from '@/features/guidedSetup';
+import RecommendedObjectStorageModel from '@/widgets/models/recommendedObjectStorageModel/ui/RecommendedObjectStorageModel.vue';
+import ObjectStorageModelView from '@/widgets/models/objectStorageModelView/ui/ObjectStorageModelView.vue';
+import { isObjectStorageModel } from '@/entities/objectStorage/model/asModel';
+import { updateObjectStorageModel } from '@/entities/objectStorage/api';
 
 const pageName = 'Source Models';
 
@@ -21,6 +25,8 @@ const resUpdateSourceModel = useUpdateSourceModel(null, null);
 const sourceModel = computed(() =>
   sourceModelStore.getSourceModelById(selectedSourceModelId.value),
 );
+const isObjectStorage = computed(() => isObjectStorageModel(sourceModel.value));
+
 const mainTabState = reactive({
   activeTab: 'details',
   tabs: [
@@ -72,6 +78,19 @@ function handleUpdateSourceModel(e) {
   modalState.editModelModal.open = false;
   modalState.editModelModal.context.name = e.name;
   modalState.editModelModal.context.description = e.description;
+  if (isObjectStorage.value) {
+    updateObjectStorageModel(
+      sourceModel.value?.objectStorage,
+      e.name,
+      e.description,
+    )
+      .then(() => {
+        showSuccessMessage('success', 'Successfully updated source model');
+        modalState.editModelModal.trigger = true;
+      })
+      .catch(err => showErrorMessage('error', err?.message ?? err));
+    return;
+  }
   console.log(sourceModel.value);
   const requestBody = Object.assign({}, sourceModel.value, {
     userModelName: e.name,
@@ -147,8 +166,13 @@ function handleUpdateSourceModel(e) {
       />
     </div>
     <div class="relative z-70">
+      <object-storage-model-view
+        v-if="modalState.customViewJsonModal.open && isObjectStorage"
+        :model="sourceModel"
+        @update:close-modal="handleJsonModal"
+      />
       <custom-view-source-model
-        v-if="modalState.customViewJsonModal.open"
+        v-else-if="modalState.customViewJsonModal.open"
         :source-model-name="sourceModelName"
         :source-model-id="selectedSourceModelId"
         @update:close-modal="handleJsonModal"
@@ -160,6 +184,14 @@ function handleUpdateSourceModel(e) {
           recommendedModelList === 'infra'
         "
         :source-model-name="sourceModelName"
+        :source-model-id="selectedSourceModelId"
+        @update:close-modal="handleRecommendedListModal"
+      />
+      <recommended-object-storage-model
+        v-if="
+          modalState.viewRecommendedListModal.open &&
+          recommendedModelList === 'objectStorage'
+        "
         :source-model-id="selectedSourceModelId"
         @update:close-modal="handleRecommendedListModal"
       />

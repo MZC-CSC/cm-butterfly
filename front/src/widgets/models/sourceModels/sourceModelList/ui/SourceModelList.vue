@@ -29,6 +29,18 @@ import {
   useGetSourceModelList,
 } from '@/entities';
 import { useDynamicTableHeight } from '@/shared/hooks/table/useDynamicTableHeight';
+import {
+  deleteObjectStorageModel,
+  listObjectStorageModels,
+} from '@/entities/objectStorage/api';
+import {
+  OBJECT_STORAGE_SCHEMA,
+  ISourceObjectStorage,
+} from '@/entities/objectStorage/model/types';
+import {
+  artifactToModelRow,
+  isObjectStorageModel,
+} from '@/entities/objectStorage/model/asModel';
 import { useToolboxTableHeight } from '@/shared/hooks/table/useToolboxTableHeight';
 
 interface IProps {
@@ -88,17 +100,35 @@ watch(
   },
 );
 
+// Bucket source models are kept by cm-beetle, not cm-damselfly. A failure to read them
+// is reported on its own and does not hide the cm-damselfly models.
+async function loadObjectStorageSourceModels() {
+  try {
+    const artifacts =
+      (await listObjectStorageModels<ISourceObjectStorage>(
+        OBJECT_STORAGE_SCHEMA.SOURCE,
+      )) ?? [];
+    return artifacts.map(a => artifactToModelRow(a));
+  } catch (e) {
+    showErrorMessage(
+      'error',
+      `Could not load the object storage models: ${(e as any)?.message ?? e}`,
+    );
+    return [];
+  }
+}
+
 function getTableList() {
   isDataLoaded.value = false;
-  resSourceList
-    .execute()
-    .then(res => {
+  Promise.all([resSourceList.execute(), loadObjectStorageSourceModels()])
+    .then(([res, objectStorageModels]) => {
       // cm-damselfly returns 200 with a null body when there are no models, not an empty array.
       // Guarding with `if (responseData)` therefore skipped the update and left the previous fetch's
       // rows on screen. Always write, coercing to [].
-      sourceModelStore.setSourceModel(
-        Array.isArray(res.data.responseData) ? res.data.responseData : [],
-      );
+      sourceModelStore.setSourceModel([
+        ...(Array.isArray(res.data.responseData) ? res.data.responseData : []),
+        ...(objectStorageModels as any[]),
+      ]);
       nextTick(() => {
         isDataLoaded.value = true;
         // Re-render the component after data loads
@@ -144,6 +174,8 @@ function addDeleteIconAtTable() {
     targetElement,
     'prepend',
   );
+  // The injected delete icon carries no attributes of its own; give it one for e2e.
+  instance.$el.setAttribute('data-testid', 'model-list-delete');
   return instance;
 }
 
@@ -169,12 +201,15 @@ function multiDelete() {
   const softwareModelIds: string[] = [];
   const cloudModelIds: string[] = [];
   const onPremModelIds: string[] = [];
+  const objectStorageModelIds: string[] = [];
 
   selectedModels.forEach(model => {
     const modelType = model?.modelType;
 
     // Classify based on modelType
-    if (modelType === 'SoftwareModel') {
+    if (isObjectStorageModel(model)) {
+      objectStorageModelIds.push(model.id);
+    } else if (modelType === 'SoftwareModel') {
       softwareModelIds.push(model.id);
       console.log(
         `🔧 [SourceModelList] Model ${model?.id} (${model?.name}) - classified as Software (modelType)`,
@@ -394,6 +429,14 @@ function multiDelete() {
     deletePromises.push(onPremDeletePromise);
   }
 
+  if (objectStorageModelIds.length > 0) {
+    deletePromises.push(
+      Promise.all(
+        objectStorageModelIds.map(id => deleteObjectStorageModel(id)),
+      ),
+    );
+  }
+
   console.log('⏳ [SourceModelList] Running delete API Promises...');
   Promise.all(deletePromises)
     .then(res => {
@@ -483,7 +526,11 @@ function handleDeleteConfirm() {
       :hide-body="true"
       :hide-header-close-button="true"
       @confirm="handleDeleteConfirm"
-    />
+    >
+      <template #confirm-button>
+        <span data-testid="model-list-delete-confirm">OK</span>
+      </template>
+    </p-button-modal>
   </div>
 </template>
 

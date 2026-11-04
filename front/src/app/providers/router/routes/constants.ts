@@ -50,6 +50,9 @@ export const WORKLOAD_OPERATIONS_ROUTE = {
       _NAME: MENU_ID.PMK_WLS,
     },
   },
+  OBJECT_STORAGES: {
+    _NAME: MENU_ID.OBJECT_STORAGES,
+  },
 };
 
 export const CLOUD_RESOURCES_ROUTE = {

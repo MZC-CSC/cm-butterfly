@@ -2,6 +2,7 @@
 import { PDefinitionTable } from '@cloudforet-test/mirinae';
 import { useTargetModelDetailModel } from '@/widgets/models/targetModels/targetModelDetail';
 import { onBeforeMount, watch, watchEffect, ref, computed } from 'vue';
+import { isObjectStorageModel } from '@/entities/objectStorage/model/asModel';
 
 interface iProps {
   selectedTargetModelId: string;
@@ -14,10 +15,18 @@ const emit = defineEmits([
   'update:target-model-name',
   'update:target-model-description',
   'update:workflow-edit-modal',
+  'update:migrate-object-storage-modal',
 ]);
 
 const { targetModelStore, setTargetModelId, initTable, tableModel } =
   useTargetModelDetailModel();
+
+// Bucket target models have no workflow task in cm-cicada; they are migrated directly.
+const isObjectStorage = computed(() =>
+  isObjectStorageModel(
+    targetModelStore.getTargetModelById(props.selectedTargetModelId),
+  ),
+);
 
 // Computed that decides whether this is a Software model
 const isSoftwareModel = computed(() => {
@@ -107,6 +116,14 @@ function handleJsonModal() {
   }
 }
 
+function handleNextStep() {
+  if (isObjectStorage.value) {
+    emit('update:migrate-object-storage-modal', true);
+    return;
+  }
+  handleOpenWorkflowEditor();
+}
+
 function handleOpenWorkflowEditor() {
   const targetModel = targetModelStore.getTargetModelById(
     props.selectedTargetModelId,
@@ -139,16 +156,20 @@ function handleOpenWorkflowEditor() {
           data-testid="target-detail-custom-view"
           @click="handleJsonModal"
         >
-          Custom & View Target Model
+          {{
+            isObjectStorage ? 'View Target Model' : 'Custom & View Target Model'
+          }}
         </p>
       </template>
       <template #data-workflowTool>
         <p
-          data-testid="target-make-workflow"
+          :data-testid="
+            isObjectStorage ? 'target-migrate-buckets' : 'target-make-workflow'
+          "
           class="link-button-text"
-          @click="handleOpenWorkflowEditor"
+          @click="handleNextStep"
         >
-          Make Workflow
+          {{ isObjectStorage ? 'Migrate Buckets' : 'Make Workflow' }}
         </p>
       </template>
     </p-definition-table>

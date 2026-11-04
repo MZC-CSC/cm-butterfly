@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watchEffect } from 'vue';
+import { computed, reactive, ref, watch, watchEffect } from 'vue';
 import { PButton, PButtonTab, PTab } from '@cloudforet-test/mirinae';
 import SourceServiceList from '@/widgets/source/sourceServices/sourceServiceList/ui/SourceServiceList.vue';
 import SourceServiceDetail from '@/widgets/source/sourceServices/sourceServiceDetail/ui/SourceServiceDetail.vue';
@@ -7,6 +7,7 @@ import SourceConnectionList from '@/widgets/source/sourceConnections/sourceConne
 import SourceInformation from '@/widgets/source/sourceConnections/sourceConnectionDetail/information/ui/SourceInformation.vue';
 import SourceInfraCollect from '@/widgets/source/sourceConnections/sourceConnectionDetail/infraCollect/ui/SourceInfraCollect.vue';
 import SourceSoftwareCollect from '@/widgets/source/sourceConnections/sourceConnectionDetail/softwareCollect/ui/SourceSoftwareCollect.vue';
+import SourceBucketCollect from '@/widgets/source/sourceConnections/sourceConnectionDetail/bucketCollect/ui/SourceBucketCollect.vue';
 import SourceConnectionModal from '@/widgets/source/sourceConnections/sourceConnectionModal/ui/SourceConnectionModal.vue';
 import { useSidebar } from '@/shared/libs/store/sidebar';
 import { storeToRefs } from 'pinia';
@@ -61,22 +62,31 @@ const mainTabState = reactive({
   ],
 });
 
+// A bucket connection has no servers to collect: it is collected and saved as a source
+// model from its own tab, and the infra/software tabs do not apply to it.
+const selectedConnection = computed(() =>
+  sourceConnectionStore.getConnectionById(selectedConnectionId.value),
+);
+const isBucketConnection = computed(
+  () => selectedConnection.value?.resource_type === 'object_storage',
+);
+const serverConnectionTabs = [
+  { name: 'information', label: 'Information' },
+  { name: 'infraCollect', label: 'Infra Collect' },
+  { name: 'softwareCollect', label: 'Software Collect' },
+];
+const bucketConnectionTabs = [
+  { name: 'information', label: 'Information' },
+  { name: 'bucketCollect', label: 'Bucket Collect' },
+];
 const sourceConnectionDetailTabState = reactive({
   activeTab: 'information',
-  tabs: [
-    {
-      name: 'information',
-      label: 'Information',
-    },
-    {
-      name: 'infraCollect',
-      label: 'Infra Collect',
-    },
-    {
-      name: 'softwareCollect',
-      label: 'Software Collect',
-    },
-  ],
+  tabs: computed(() =>
+    isBucketConnection.value ? bucketConnectionTabs : serverConnectionTabs,
+  ),
+});
+watch(isBucketConnection, () => {
+  sourceConnectionDetailTabState.activeTab = 'information';
 });
 
 // Setting trigger to true causes it to update.
@@ -255,6 +265,17 @@ const data = computed(() => {
                         @update:metaViewerModalState="
                           e => (modalStates.addInfraMetaViewer.open = e)
                         "
+                      />
+                    </div>
+                  </template>
+                  <template #bucketCollect>
+                    <div data-testid="source-connection-detail-bucket-collect">
+                      <SourceBucketCollect
+                        :source-group-id="selectedServiceId"
+                        :connection-id="selectedConnectionId"
+                        :bucket-name="selectedConnection?.resource_id ?? ''"
+                        :provider-name="selectedService?.providerName"
+                        :region-name="selectedService?.regionName"
                       />
                     </div>
                   </template>
