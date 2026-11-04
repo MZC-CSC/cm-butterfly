@@ -97,7 +97,7 @@ const agentCollectDisabledReason = computed(() =>
   isCspSelected.value &&
   selectedConnection.value?.resource_type === 'vm' &&
   !selectedConnection.value?.ip_address
-    ? 'Registered without SSH access'
+    ? 'Registered without SSH access. A cloud VM is collected through the agent only when SSH is given at registration; cm-honeybee does not let it be added later.'
     : '',
 );
 const sourceConnectionDetailTabState = reactive({

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisabledReason from '@/shared/ui/DisabledReason/DisabledReason.vue';
 import { PButton, PDefinitionTable, PStatus } from '@cloudforet-test/mirinae';
 import { onBeforeMount, watch } from 'vue';
 import { useSourceInfraCollectModel } from '@/widgets/source/sourceConnections/sourceConnectionDetail/infraCollect/model/sourceInfraCollectModel';
@@ -112,29 +113,25 @@ function handleCollectInfra() {
       </template>
       <template #extra="{ name }">
         <div v-if="name === 'collectInfraStatus'">
-          <span v-if="collectDisabledReason" class="collect-hint">{{
-            collectDisabledReason
-          }}</span>
-          <p-button
-            data-testid="collect-infra"
-            style-type="tertiary"
-            size="sm"
-            :loading="resCollectInfra.isLoading.value"
-            :disabled="!!collectDisabledReason"
-            @click="handleCollectInfra"
+          <disabled-reason
+            :reason="collectDisabledReason || ''"
+            testid="collect-infra-trigger"
           >
-            Collect Infra
-          </p-button>
+            <p-button
+              data-testid="collect-infra"
+              style-type="tertiary"
+              size="sm"
+              :loading="resCollectInfra.isLoading.value"
+              :disabled="!!collectDisabledReason"
+              @click="handleCollectInfra"
+            >
+              Collect Infra
+            </p-button>
+          </disabled-reason>
         </div>
       </template>
     </p-definition-table>
   </div>
 </template>
 
-<style scoped lang="postcss">
-.collect-hint {
-  margin-right: 0.5rem;
-  font-size: 0.75rem;
-  color: #6b7280;
-}
-</style>
+<style scoped lang="postcss"></style>

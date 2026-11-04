@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisabledReason from '@/shared/ui/DisabledReason/DisabledReason.vue';
 import { PButton, PDefinitionTable, PStatus } from '@cloudforet-test/mirinae';
 import { onBeforeMount, watch } from 'vue';
 import { useSourceSoftwareCollectModel } from '@/widgets/source/sourceConnections/sourceConnectionDetail/softwareCollect/model/sourceSoftwareCollectModel';
@@ -109,29 +110,25 @@ function handleClickCollectSW() {
       </template>
       <template #extra="{ name }">
         <div v-if="name === 'collectSwStatus'">
-          <span v-if="collectDisabledReason" class="collect-hint">{{
-            collectDisabledReason
-          }}</span>
-          <p-button
-            data-testid="collect-software"
-            style-type="tertiary"
-            size="sm"
-            :loading="resCollectSW.isLoading.value"
-            :disabled="!!collectDisabledReason"
-            @click="handleClickCollectSW"
+          <disabled-reason
+            :reason="collectDisabledReason || ''"
+            testid="collect-sw-trigger"
           >
-            Collect SW
-          </p-button>
+            <p-button
+              data-testid="collect-software"
+              style-type="tertiary"
+              size="sm"
+              :loading="resCollectSW.isLoading.value"
+              :disabled="!!collectDisabledReason"
+              @click="handleClickCollectSW"
+            >
+              Collect SW
+            </p-button>
+          </disabled-reason>
         </div>
       </template>
     </p-definition-table>
   </div>
 </template>
 
-<style scoped lang="postcss">
-.collect-hint {
-  margin-right: 0.5rem;
-  font-size: 0.75rem;
-  color: #6b7280;
-}
-</style>
+<style scoped lang="postcss"></style>

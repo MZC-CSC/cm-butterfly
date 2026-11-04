@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisabledReason from '@/shared/ui/DisabledReason/DisabledReason.vue';
 import { PDefinitionTable, PButton, PStatus } from '@cloudforet-test/mirinae';
 import {
   computed,
@@ -68,18 +69,38 @@ const isCspService = computed(() =>
     sourceServiceStore.getServiceById(props.selectedServiceId)?.type,
   ),
 );
-const connectionKinds = ref({ total: 0, agent: 0 });
-const agentCollectDisabled = computed(
-  () =>
-    isCspService.value &&
-    (connectionKinds.value.agent === 0 ||
-      connectionKinds.value.agent < connectionKinds.value.total),
-);
-const agentCollectHint = computed(() =>
-  connectionKinds.value.agent === 0
-    ? 'Needs VM connections with SSH access'
-    : 'Has connections without SSH: collect each VM connection',
-);
+const connectionKinds = ref({
+  vms: [] as string[],
+  sshVms: [] as string[],
+  others: 0,
+});
+const agentCollectDisabled = computed(() => {
+  if (!isCspService.value) return false;
+  const k = connectionKinds.value;
+  return (
+    k.sshVms.length === 0 || k.sshVms.length < k.vms.length || k.others > 0
+  );
+});
+// Shown on hover over the disabled buttons, so the reason is at hand.
+const agentCollectHint = computed(() => {
+  const k = connectionKinds.value;
+  if (k.sshVms.length === 0) {
+    return 'No VM connection with SSH access. A cloud VM is collected through the agent only when it is registered with SSH.';
+  }
+  const reasons: string[] = [];
+  const noSsh = k.vms.filter(v => !k.sshVms.includes(v));
+  if (noSsh.length) {
+    reasons.push(
+      `${noSsh.length} of ${k.vms.length} VM connections have no SSH access (${noSsh.join(', ')}).`,
+    );
+  }
+  if (k.others) {
+    reasons.push(
+      `${k.others} connection(s) are not servers (buckets and other resources).`,
+    );
+  }
+  return `${reasons.join(' ')} The group collect runs over every connection, so collect each VM connection from its Infra / Software Collect tab.`;
+});
 
 // Software-related state
 const softwareModel = ref<any>(null);
@@ -304,11 +325,11 @@ async function loadConnectionOutcomes() {
       pathParams: { sgId: props.selectedServiceId },
     });
     const list = data.responseData?.connection_info ?? [];
+    const vms = list.filter((c: any) => (c.resource_type || 'vm') === 'vm');
     connectionKinds.value = {
-      total: list.length,
-      agent: list.filter(
-        (c: any) => (c.resource_type || 'vm') === 'vm' && !!c.ip_address,
-      ).length,
+      vms: vms.map((c: any) => c.name),
+      sshVms: vms.filter((c: any) => !!c.ip_address).map((c: any) => c.name),
+      others: list.length - vms.length,
     };
     sourceServiceStore.mappingConnectionOutcomes(
       props.selectedServiceId,
@@ -508,39 +529,38 @@ function handleSoftwareModal() {
           </p-button>
         </div>
         <div v-else-if="name === 'viewInfra'" class="collect-actions">
-          <span
-            class="collect-hint"
-            data-testid="source-group-collect-hint"
-            :class="{ hidden: !agentCollectDisabled }"
-            >{{ agentCollectHint }}</span
+          <disabled-reason
+            :reason="agentCollectDisabled ? agentCollectHint : ''"
+            testid="source-group-collect-infra-trigger"
           >
-          <p-button
-            data-testid="source-group-collect-infra"
-            style-type="tertiary"
-            size="sm"
-            :disabled="agentCollectDisabled"
-            :loading="resGetInfraSourceGroup.isLoading.value"
-            @click="getSourceGroupInfras"
-          >
-            Collect Infra
-          </p-button>
+            <p-button
+              data-testid="source-group-collect-infra"
+              style-type="tertiary"
+              size="sm"
+              :disabled="agentCollectDisabled"
+              :loading="resGetInfraSourceGroup.isLoading.value"
+              @click="getSourceGroupInfras"
+            >
+              Collect Infra
+            </p-button>
+          </disabled-reason>
         </div>
         <div v-else-if="name === 'viewSoftware'" class="collect-actions">
-          <span
-            class="collect-hint"
-            :class="{ hidden: !agentCollectDisabled }"
-            >{{ agentCollectHint }}</span
+          <disabled-reason
+            :reason="agentCollectDisabled ? agentCollectHint : ''"
+            testid="source-group-collect-sw-trigger"
           >
-          <p-button
-            data-testid="source-group-collect-sw"
-            style-type="tertiary"
-            size="sm"
-            :disabled="agentCollectDisabled"
-            :loading="resCollectSWSourceGroup.isLoading.value"
-            @click="getSourceGroupSoftware"
-          >
-            Collect SW
-          </p-button>
+            <p-button
+              data-testid="source-group-collect-sw"
+              style-type="tertiary"
+              size="sm"
+              :disabled="agentCollectDisabled"
+              :loading="resCollectSWSourceGroup.isLoading.value"
+              @click="getSourceGroupSoftware"
+            >
+              Collect SW
+            </p-button>
+          </disabled-reason>
         </div>
       </template>
     </p-definition-table>
@@ -629,13 +649,6 @@ function handleSoftwareModal() {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-.collect-hint {
-  font-size: 0.75rem;
-  color: #6b7280;
-}
-.collect-hint.hidden {
-  display: none;
 }
 /*
   The explanation behind the status.
