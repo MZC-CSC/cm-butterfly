@@ -8,6 +8,7 @@ export const MENU_ID = Object.freeze({
   SOURCE_SERVICES: 'sourceservices',
   SOURCE_CONNECTIONS: 'sourceconnections',
   MODELS: 'models',
+  CLOUD_SOURCES: 'cloudsources',
   SOURCE_MODELS: 'sourcemodels',
   TARGET_MODELS: 'targetmodels',
   OBJECT_STORAGE_MODELS: 'objectstoragemodels',

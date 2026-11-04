@@ -5,11 +5,16 @@ import { useGetSourceServiceList } from '@/entities/sourceService/api';
 import {
   ISourceService,
   SourceServiceTableType,
+  isCspSourceGroup,
   sourceTypeLabel,
 } from '@/entities/sourceService/model/types';
 import { watch } from 'vue';
 
-export function useSourceServiceListModel() {
+/** Which source groups a list shows: on-premise (SSH) or cloud accounts (CSP). */
+export type SourceKind = 'onprem' | 'csp';
+
+// Read lazily: the list component declares its props after it sets up this model.
+export function useSourceServiceListModel(kind?: () => SourceKind | undefined) {
   const tableModel =
     useToolboxTableModel<Partial<Record<SourceServiceTableType, any>>>();
   const sourceServicesStore = useSourceServiceStore();
@@ -56,10 +61,16 @@ export function useSourceServiceListModel() {
     return organizedDatum;
   }
 
+  function ofKind(service: ISourceService) {
+    const k = kind?.();
+    if (!k) return true;
+    return (k === 'csp') === isCspSourceGroup(service.type);
+  }
+
   watch(services, nv => {
-    tableModel.tableState.items = nv.map(value =>
-      organizeSourceServiceTableItem(value),
-    );
+    tableModel.tableState.items = nv
+      .filter(ofKind)
+      .map(value => organizeSourceServiceTableItem(value));
   });
 
   return {

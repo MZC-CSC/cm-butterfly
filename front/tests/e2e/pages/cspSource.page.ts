@@ -38,8 +38,8 @@ export class CspSourcePage {
 
   /** 등록 모달을 열고 유형을 클라우드로 바꾼다. */
   async openCspRegistration(): Promise<void> {
+    // Cloud Sources 의 등록 창은 처음부터 클라우드 유형이다(유형 선택 없음).
     await humanClick(this.page.getByTestId('source-group-add'));
-    await humanClick(this.page.getByTestId('source-service-type-csp'));
     await expect(this.providerDropdown).toBeVisible({ timeout: 15_000 });
   }
 

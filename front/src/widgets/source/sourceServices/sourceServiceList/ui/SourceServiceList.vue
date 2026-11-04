@@ -32,7 +32,7 @@ const {
   sourceServicesStore,
   resSourceServiceList,
   initToolBoxTableModel,
-} = useSourceServiceListModel();
+} = useSourceServiceListModel(() => props.sourceKind);
 
 const { dynamicHeight, minHeight, maxHeight } = useDynamicTableHeight(
   computed(() => tableModel.tableState.items.length),
@@ -49,6 +49,7 @@ const tableKey = ref(0); // key used to force the component to re-render
 interface IProps {
   addModalState: boolean;
   trigger: boolean;
+  sourceKind?: 'onprem' | 'csp';
 }
 
 const props = defineProps<IProps>();

@@ -12,6 +12,7 @@ import SourceBucketCollect from '@/widgets/source/sourceConnections/sourceConnec
 import SourceConnectionModal from '@/widgets/source/sourceConnections/sourceConnectionModal/ui/SourceConnectionModal.vue';
 import { useSidebar } from '@/shared/libs/store/sidebar';
 import { storeToRefs } from 'pinia';
+import { useRoute } from 'vue-router/composables';
 import MetaViewer from '@/widgets/source/sourceConnections/sourceConnectionDetail/metaViewer/ui/MetaViewer.vue';
 import { useSourceInfraCollectModel } from '@/widgets/source/sourceConnections/sourceConnectionDetail/infraCollect/model/sourceInfraCollectModel';
 import EditSourceConnectionModal from '@/widgets/source/sourceConnections/sourceConnectionModal/ui/EditSourceConnectionModal.vue';
@@ -48,7 +49,17 @@ const isCspSelected = computed(() =>
 
 const { isCollapsed, isGnbToolboxShown } = storeToRefs(sidebar);
 
-const pageName = 'Source Services';
+// One page, two menus: Source Services (on-premise servers over SSH) and Cloud Sources
+// (cloud accounts read with their credential). The route says which.
+const route = useRoute();
+const sourceKind = computed<'onprem' | 'csp'>(() =>
+  route.meta?.sourceKind === 'csp' ? 'csp' : 'onprem',
+);
+// Layout classes keep the original name so existing styles apply to both menus.
+const pageClass = 'Source Services';
+const pageName = computed(() =>
+  sourceKind.value === 'csp' ? 'Cloud Sources' : 'Source Services',
+);
 
 const mainTabState = reactive({
   activeTab: 'detail',
@@ -197,19 +208,23 @@ const data = computed(() => {
 </script>
 
 <template>
-  <div :class="`${pageName}-page page`">
+  <div :class="`${pageClass}-page page`">
     <header
       v-if="!modalStates.addSourceConnection.open"
-      :class="`${pageName}-page-header`"
+      :class="`${pageClass}-page-header`"
     >
       <p data-testid="source-services-header">{{ pageName }}</p>
     </header>
     <!-- Three steps are done here: register the servers, collect from them, then save that as a source model. -->
-    <guided-step-banner step="source-service" />
-    <guided-step-banner step="collect" />
-    <guided-step-banner step="source-model" />
-    <section :class="`${pageName}-page-body`">
+    <!-- The guided steps walk through servers; they are not about cloud accounts. -->
+    <template v-if="sourceKind === 'onprem'">
+      <guided-step-banner step="source-service" />
+      <guided-step-banner step="collect" />
+      <guided-step-banner step="source-model" />
+    </template>
+    <section :class="`${pageClass}-page-body`">
       <SourceServiceList
+        :source-kind="sourceKind"
         :add-modal-state="modalStates.addServiceGroup.open"
         :trigger="modalStates.addServiceGroup.trigger"
         @selectRow="handleClickServiceId"
@@ -330,6 +345,7 @@ const data = computed(() => {
     </section>
     <div class="relative z-60">
       <add-source-service-modal
+        :fixed-type="sourceKind"
         v-if="modalStates.addServiceGroup.open && !isServiceEditBtnClicked"
         @update:isModalOpened="() => (modalStates.addServiceGroup.open = false)"
         @update:is-connection-modal-opened="handleNewConnectionModal"

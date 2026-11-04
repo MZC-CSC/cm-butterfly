@@ -24,6 +24,8 @@ import { spotlight } from '../support/spotlight';
 export class SourceServicesPage {
   /** ★ 화면 위치(URL) — 라우트 /main + source-computing/source-services */
   static readonly path = '/main/source-computing/source-services';
+  /** 클라우드 계정(CSP) 소스는 같은 화면을 쓰는 별도 메뉴 Cloud Sources 에 있다. */
+  static readonly cloudPath = '/main/source-computing/cloud-sources';
 
   constructor(private readonly page: Page) {}
 
@@ -275,6 +277,19 @@ export class SourceServicesPage {
   // ───────────────────────── 액션 ─────────────────────────
 
   /** 소스 서비스 화면으로 이동 */
+  async gotoCloud(): Promise<void> {
+    await openScreen(
+      this.page,
+      'cloudsources',
+      SourceServicesPage.cloudPath,
+      'source-group-list-table',
+    );
+    await expect(this.page.getByTestId('source-services-header')).toHaveText(
+      'Cloud Sources',
+      { timeout: 15_000 },
+    );
+  }
+
   async goto(): Promise<void> {
     await openScreen(
       this.page,

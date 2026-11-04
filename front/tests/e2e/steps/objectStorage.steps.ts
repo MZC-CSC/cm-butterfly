@@ -41,7 +41,7 @@ Given('시험용 계정으로 클라우드 소스 서비스를 등록한다', as
   run.group = uniqueName('e2e-os-csp');
   const sources = new SourceServicesPage(page);
   const csp = new CspSourcePage(page);
-  await sources.goto();
+  await sources.gotoCloud();
   await csp.openCspRegistration();
   await csp.selectProvider(access.provider);
   await csp.fill(run.group, access);
@@ -141,7 +141,7 @@ Then('이번에 만든 모델과 소스 서비스를 지운다', async ({ page }
   if (run.sourceModel) await os.deleteModel('source', run.sourceModel);
   if (run.group) {
     const sources = new SourceServicesPage(page);
-    await sources.goto();
+    await sources.gotoCloud();
     await sources.selectGroup(run.group);
     await sources.deleteSelectedGroup();
   }

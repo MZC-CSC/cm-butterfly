@@ -18,6 +18,8 @@ const { sourceServiceInfo } = storeToRefs(sourceServicesStore);
 
 interface Props {
   trigger?: boolean;
+  // Set by the menu the window is opened from; the type choice is then not shown.
+  fixedType?: 'onprem' | 'csp';
 }
 
 const props = defineProps<Props>();
@@ -41,7 +43,7 @@ const state = reactive({
 
 // On-premise groups are reached over SSH; a CSP group is the customer's cloud account,
 // read through its API with the credential entered here.
-const sourceType = ref<'onprem' | 'csp'>('onprem');
+const sourceType = ref<'onprem' | 'csp'>(props.fixedType ?? 'onprem');
 const cspRequest = ref<ICspSourceGroupRequest | null>(null);
 
 const sourceTypeOptions = [
@@ -198,7 +200,11 @@ const handleConnectionModal = (value: boolean) => {
       @close="handleCancel"
     >
       <template #body>
-        <div class="source-type" data-testid="source-service-type">
+        <div
+          v-if="!fixedType"
+          class="source-type"
+          data-testid="source-service-type"
+        >
           <span class="source-type-label">Source Type</span>
           <p-radio-group>
             <p-radio

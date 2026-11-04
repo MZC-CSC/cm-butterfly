@@ -81,7 +81,7 @@ export class ObjectStoragePage {
    */
   async scanAndRegisterBucket(group: string, bucket: string): Promise<void> {
     const sources = new SourceServicesPage(this.page);
-    await sources.goto();
+    await sources.gotoCloud();
     await sources.selectGroup(group);
     await humanClick(this.page.getByTestId('csp-bucket-scan-run'));
     await expect(

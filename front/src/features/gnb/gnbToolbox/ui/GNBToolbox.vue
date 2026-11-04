@@ -10,6 +10,8 @@ import { clone } from 'lodash';
 const sidebar = useSidebar();
 const route = useRoute();
 const dictionary = [
+  // Whole id: split by words, 'source' would match before 'sources'.
+  'cloudsources',
   'migration',
   'guide',
   'source',
@@ -40,6 +42,7 @@ const dictionary = [
 const breadcrumbDisplayRename: Record<string, string> = {
   mci: 'Infra',
   wls: 'Workloads',
+  cloudsources: 'Cloud Sources',
 };
 
 const { isCollapsed } = storeToRefs(sidebar);

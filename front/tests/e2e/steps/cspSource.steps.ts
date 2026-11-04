@@ -12,7 +12,7 @@ const { Given, When, Then } = createBdd(test);
 let groupName = '';
 
 Given('소스 서비스 등록 창에서 클라우드 유형을 고른다', async ({ page }) => {
-  await new SourceServicesPage(page).goto();
+  await new SourceServicesPage(page).gotoCloud();
   await new CspSourcePage(page).openCspRegistration();
 });
 
