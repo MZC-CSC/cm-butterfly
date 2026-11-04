@@ -9,6 +9,7 @@ import {
 } from '@cloudforet-test/mirinae';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useGetProviderList } from '@/entities/provider/api';
+import RegionSelect from '@/entities/provider/ui/RegionSelect.vue';
 import {
   getObjectStorageSupport,
   recommendObjectStorage,
@@ -39,14 +40,15 @@ const sourceBuckets = computed(
 );
 
 const resProviders = useGetProviderList();
+const support = ref<ObjectStorageSupport>({});
+// Providers with a registered target account that cb-tumblebug also lists as having
+// object storage. A provider outside that list cannot create a bucket.
 const providerItems = computed(() =>
-  (resProviders.data.value?.responseData?.output ?? []).map(p => ({
-    name: p,
-    label: p,
-  })),
+  (resProviders.data.value?.responseData?.output ?? [])
+    .filter(p => !!support.value[p])
+    .map(p => ({ name: p, label: p })),
 );
 
-const support = ref<ObjectStorageSupport>({});
 const target = reactive({ csp: '', region: '', modelName: '' });
 const recommended = ref<IRecommendedObjectStorage | null>(null);
 const state = reactive({ recommending: false, saving: false, saved: false });
@@ -70,14 +72,15 @@ onMounted(() => {
 });
 
 async function handleRecommend() {
-  if (!sourceArtifact.value) return;
+  // mirinae shows a disabled button by class only, so the guard is here.
+  if (!sourceArtifact.value || !target.csp || !target.region) return;
   state.recommending = true;
   recommended.value = null;
   try {
     recommended.value = await recommendObjectStorage(
       sourceArtifact.value.payload,
       target.csp,
-      target.region.trim(),
+      target.region,
     );
     if (!target.modelName) {
       target.modelName = `os-tgt-${target.csp}-${Date.now()
@@ -151,16 +154,16 @@ function handleClose() {
             />
           </p-field-group>
           <p-field-group label="Target Region" required>
-            <p-text-input
+            <region-select
               v-model="target.region"
-              data-testid="os-recommend-region"
-              placeholder="e.g. ap-northeast-2"
+              :provider="target.csp"
+              testid="os-recommend-region"
             />
           </p-field-group>
           <p-button
             style-type="secondary"
             icon-left="ic_search"
-            :disabled="!target.csp || !target.region.trim()"
+            :disabled="!target.csp || !target.region"
             :loading="state.recommending"
             data-testid="os-recommend-run"
             @click="handleRecommend"

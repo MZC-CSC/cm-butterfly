@@ -17,4 +17,12 @@ export const systemRoutes: RouteConfig[] = [
       menuId: MENU_ID.SERVICE_STATUS,
     },
   },
+  {
+    path: 'develop',
+    name: MENU_ID.DEVELOP,
+    component: () => import('@/pages/system/develop/ui/DevelopPage.vue'),
+    meta: {
+      menuId: MENU_ID.DEVELOP,
+    },
+  },
 ];

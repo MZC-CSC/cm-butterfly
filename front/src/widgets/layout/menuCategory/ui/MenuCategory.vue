@@ -32,6 +32,7 @@ const REACHABLE_MENU_IDS: string[] = [
   MENU_ID.WORKLOADS,
   MENU_ID.OBJECT_STORAGES,
   MENU_ID.SERVICE_STATUS,
+  MENU_ID.DEVELOP,
   // Cloud Credentials and APIs are withheld until credential management can be
   // offered safely - the reasoning is in api/conf/menu.yaml, where the menu tree
   // itself drops them. Kept here, commented, so restoring means putting back the

@@ -8,6 +8,7 @@ import {
 } from '@cloudforet-test/mirinae';
 import { computed, onMounted, reactive, watch } from 'vue';
 import { useGetCspInfo, useGetCspList } from '@/entities/sourceService/api';
+import RegionSelect from '@/entities/provider/ui/RegionSelect.vue';
 import {
   ICspCredentialField,
   ICspSourceGroupRequest,
@@ -70,7 +71,8 @@ async function handleProviderChange(provider: string) {
     state.values = Object.fromEntries(
       state.fields.map(field => [field.key, '']),
     );
-    if (!state.region) state.region = info?.default_region ?? '';
+    // honeybee's default region, kept only if the region list has it.
+    state.region = info?.default_region ?? '';
   } catch (e) {
     state.specError =
       (e as any)?.errorMsg?.value ??
@@ -177,11 +179,11 @@ watch(request, value => emit('update:value', value), { immediate: true });
       </p-field-group>
 
       <p-field-group label="Region" required>
-        <p-text-input
+        <region-select
           v-model="state.region"
-          data-testid="csp-source-region"
-          placeholder="e.g. ap-northeast-2"
-          :invalid="!state.region"
+          :provider="state.provider"
+          testid="csp-source-region"
+          :invalid="!!state.provider && !state.region"
         />
       </p-field-group>
     </p-pane-layout>

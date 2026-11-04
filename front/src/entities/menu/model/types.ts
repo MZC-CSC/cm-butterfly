@@ -27,6 +27,7 @@ export const MENU_ID = Object.freeze({
   // System — about the installation rather than a migration.
   SYSTEM: 'system',
   SERVICE_STATUS: 'servicestatus',
+  DEVELOP: 'develop',
 });
 
 export interface ICategory {

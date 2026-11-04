@@ -43,8 +43,19 @@ const state = reactive({
   reqId: '',
 });
 
+// The prefix becomes part of each bucket name, so it follows bucket naming. cm-beetle
+// rejects one that does not start with a letter or digit only after the request is sent.
+const SEED_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+const seedError = computed(() => {
+  const seed = state.nameSeed.trim();
+  if (!seed || SEED_PATTERN.test(seed)) return '';
+  return 'Use lowercase letters, digits and hyphens, starting with a letter or digit. It becomes part of the bucket name.';
+});
+
+// cm-beetle answers a rejected request with { success: false, error: "..." }.
 function errorText(e: unknown, fallback: string) {
   return (
+    (e as any)?.response?.data?.responseData?.error ||
     (e as any)?.response?.data?.responseData?.message ||
     (e as any)?.message ||
     fallback
@@ -80,7 +91,7 @@ async function pollRequest(reqId: string) {
 }
 
 async function handleMigrate() {
-  if (!artifact.value) return;
+  if (!artifact.value || seedError.value) return;
   state.running = true;
   state.status = 'Handling';
   state.message = '';
@@ -114,7 +125,7 @@ function goToObjectStorages() {
     :visible="true"
     header-title="Migrate Object Storage"
     size="md"
-    :disabled="state.running || state.status === 'Success'"
+    :disabled="state.running || state.status === 'Success' || !!seedError"
     :loading="state.running"
     @confirm="handleMigrate"
     @cancel="emit('update:close-modal', false)"
@@ -144,9 +155,17 @@ function goToObjectStorages() {
         <p-field-group label="Name prefix">
           <p-text-input
             v-model="state.nameSeed"
+            :invalid="!!seedError"
             data-testid="os-migrate-name-seed"
             placeholder="e.g. mig"
           />
+          <p
+            v-if="seedError"
+            class="seed-error"
+            data-testid="os-migrate-name-seed-error"
+          >
+            {{ seedError }}
+          </p>
         </p-field-group>
         <p
           class="status"
@@ -174,7 +193,9 @@ function goToObjectStorages() {
       </div>
     </template>
     <template #close-button>
-      <span>{{ i18n.t('COMPONENT.BUTTON_MODAL.CANCEL') }}</span>
+      <span data-testid="os-migrate-cancel">{{
+        i18n.t('COMPONENT.BUTTON_MODAL.CANCEL')
+      }}</span>
     </template>
     <template #confirm-button>
       <span data-testid="os-migrate-start">Create Buckets</span>
@@ -212,6 +233,11 @@ function goToObjectStorages() {
   color: #15803d;
 }
 .status[data-status='Error'] {
+  color: #dc2626;
+}
+.seed-error {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
   color: #dc2626;
 }
 .req {

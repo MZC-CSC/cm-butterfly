@@ -34,6 +34,7 @@ const dictionary = [
   'operations',
   'mci',
   'wls',
+  'develop',
 ];
 
 // tb-0.12.9 update (MCI→Infra) — keep the route name/menuId, only render the

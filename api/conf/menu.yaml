@@ -162,6 +162,15 @@ menus:
     isaction: "true"
     priority: 0
 
+  # Temporary tools for testing a sub-framework on its own (cm-beetle's object storage
+  # flow with typed-in keys). Last on purpose; nothing here is part of a migration.
+  - id: develop
+    parentid: system
+    displayname: Develop
+    restype: menu
+    isaction: "true"
+    priority: 1
+
   ################## step3 : menu : migrations > workloadoperations ################
   - id: workloads
     parentid: workloadoperations
@@ -170,8 +179,7 @@ menus:
     isaction: "false"
     priority: 0
 
-  # Buckets migrated into the target cloud (from Models > Object Storage Models), and
-  # cm-beetle's own direct flow kept for testing.
+  # Buckets migrated into the target cloud (from Models > Object Storage Models).
   - id: objectstorages
     parentid: workloadoperations
     displayname: Object Storages
