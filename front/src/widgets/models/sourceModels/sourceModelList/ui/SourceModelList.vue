@@ -7,14 +7,27 @@ import {
 } from '@cloudforet-test/mirinae';
 import { useSourceModelListModel } from '@/widgets/models/sourceModels/sourceModelList/model/sourceModelListModel';
 import TableLoadingSpinner from '@/shared/ui/LoadingSpinner/TableLoadingSpinner.vue';
-import { onBeforeMount, onMounted, reactive, watch, computed, ref, nextTick } from 'vue';
+import {
+  onBeforeMount,
+  onMounted,
+  reactive,
+  watch,
+  computed,
+  ref,
+  nextTick,
+} from 'vue';
 import {
   insertDynamicComponent,
   showErrorMessage,
   showSuccessMessage,
 } from '@/shared/utils';
 import DynamicTableIconButton from '@/shared/ui/Button/dynamicIconButton/DynamicTableIconButton.vue';
-import { useBulkDeleteSourceInfraModel, useBulkDeleteSourceCloudModel, useBulkDeleteSourceSoftwareModel, useGetSourceModelList } from '@/entities';
+import {
+  useBulkDeleteSourceInfraModel,
+  useBulkDeleteSourceCloudModel,
+  useBulkDeleteSourceSoftwareModel,
+  useGetSourceModelList,
+} from '@/entities';
 import { useDynamicTableHeight } from '@/shared/hooks/table/useDynamicTableHeight';
 import { useToolboxTableHeight } from '@/shared/hooks/table/useToolboxTableHeight';
 
@@ -32,7 +45,7 @@ const { dynamicHeight, minHeight, maxHeight } = useDynamicTableHeight(
   computed(() => tableModel.tableState.displayItems?.length ?? 0),
   computed(() => tableModel.tableOptions.pageSize),
   {
-    minTableHeight: 193,  // Default minimum height (based on 1 row)
+    minTableHeight: 193, // Default minimum height (based on 1 row)
   },
 );
 
@@ -57,10 +70,12 @@ onMounted(function () {
   getTableList();
 });
 
-watch(isDataLoaded, (nv) => {
+watch(isDataLoaded, nv => {
   if (nv && toolboxTableRef.value) {
     nextTick(() => {
-      addDeleteIconAtTable.call({ $refs: { toolboxTable: toolboxTableRef.value } });
+      addDeleteIconAtTable.call({
+        $refs: { toolboxTable: toolboxTableRef.value },
+      });
     });
   }
 });
@@ -107,14 +122,22 @@ function addDeleteIconAtTable() {
     {
       click: () => {
         console.log('🔘 [SourceModelList] Delete button clicked');
-        console.log('📊 [SourceModelList] Number of selected items:', tableModel.tableState.selectIndex.length);
-        console.log('📋 [SourceModelList] Selected indices:', tableModel.tableState.selectIndex);
+        console.log(
+          '📊 [SourceModelList] Number of selected items:',
+          tableModel.tableState.selectIndex.length,
+        );
+        console.log(
+          '📋 [SourceModelList] Selected indices:',
+          tableModel.tableState.selectIndex,
+        );
 
         if (tableModel.tableState.selectIndex.length > 0) {
           console.log('✅ [SourceModelList] Opening delete confirmation modal');
           modals.alertModalState.open = true;
         } else {
-          console.log('⚠️ [SourceModelList] No items selected, not opening the modal');
+          console.log(
+            '⚠️ [SourceModelList] No items selected, not opening the modal',
+          );
         }
       },
     },
@@ -149,40 +172,56 @@ function multiDelete() {
 
   selectedModels.forEach(model => {
     const modelType = model?.modelType;
-    
+
     // Classify based on modelType
     if (modelType === 'SoftwareModel') {
       softwareModelIds.push(model.id);
-      console.log(`🔧 [SourceModelList] Model ${model?.id} (${model?.name}) - classified as Software (modelType)`);
+      console.log(
+        `🔧 [SourceModelList] Model ${model?.id} (${model?.name}) - classified as Software (modelType)`,
+      );
     } else if (modelType === 'CloudModel') {
       cloudModelIds.push(model.id);
-      console.log(`☁️ [SourceModelList] Model ${model?.id} (${model?.name}) - classified as Cloud (modelType)`);
+      console.log(
+        `☁️ [SourceModelList] Model ${model?.id} (${model?.name}) - classified as Cloud (modelType)`,
+      );
     } else if (modelType === 'OnPremiseModel') {
       onPremModelIds.push(model.id);
-      console.log(`🏢 [SourceModelList] Model ${model?.id} (${model?.name}) - classified as OnPrem (modelType)`);
+      console.log(
+        `🏢 [SourceModelList] Model ${model?.id} (${model?.name}) - classified as OnPrem (modelType)`,
+      );
     } else {
       // Fall back to existing properties when modelType is missing
       const isSoftwareByMigrationType = model?.migrationType === 'Software';
       const isSoftwareByIsSoftwareModel = model?.isSoftwareModel;
-      const isSoftwareByName = model?.name?.toLowerCase().includes('sw') || false;
-      
-      const isSoftware = isSoftwareByMigrationType || isSoftwareByIsSoftwareModel || isSoftwareByName;
-      
+      const isSoftwareByName =
+        model?.name?.toLowerCase().includes('sw') || false;
+
+      const isSoftware =
+        isSoftwareByMigrationType ||
+        isSoftwareByIsSoftwareModel ||
+        isSoftwareByName;
+
       if (isSoftware) {
         softwareModelIds.push(model.id);
-        console.log(`🔧 [SourceModelList] Model ${model?.id} (${model?.name}) - classified as Software (fallback)`, {
-          migrationType: model?.migrationType,
-          isSoftwareModel: model?.isSoftwareModel,
-          nameContainsSw: isSoftwareByName
-        });
+        console.log(
+          `🔧 [SourceModelList] Model ${model?.id} (${model?.name}) - classified as Software (fallback)`,
+          {
+            migrationType: model?.migrationType,
+            isSoftwareModel: model?.isSoftwareModel,
+            nameContainsSw: isSoftwareByName,
+          },
+        );
       } else {
         // If not Software, classify as OnPrem (default)
         onPremModelIds.push(model.id);
-        console.log(`🏢 [SourceModelList] Model ${model?.id} (${model?.name}) - classified as OnPrem (fallback)`, {
-          migrationType: model?.migrationType,
-          isSoftwareModel: model?.isSoftwareModel,
-          nameContainsSw: isSoftwareByName
-        });
+        console.log(
+          `🏢 [SourceModelList] Model ${model?.id} (${model?.name}) - classified as OnPrem (fallback)`,
+          {
+            migrationType: model?.migrationType,
+            isSoftwareModel: model?.isSoftwareModel,
+            nameContainsSw: isSoftwareByName,
+          },
+        );
       }
     }
   });
@@ -193,113 +232,165 @@ function multiDelete() {
     onPremModelIds,
     softwareCount: softwareModelIds.length,
     cloudCount: cloudModelIds.length,
-    onPremCount: onPremModelIds.length
+    onPremCount: onPremModelIds.length,
   });
 
   const deletePromises = [];
 
   if (softwareModelIds.length > 0) {
-    console.log('🚀 [SourceModelList] Calling Software model delete API:', softwareModelIds);
-    const softwareDeletePromise = useBulkDeleteSourceSoftwareModel(softwareModelIds);
-    console.log('📡 [SourceModelList] Software delete Promise object:', softwareDeletePromise);
+    console.log(
+      '🚀 [SourceModelList] Calling Software model delete API:',
+      softwareModelIds,
+    );
+    const softwareDeletePromise =
+      useBulkDeleteSourceSoftwareModel(softwareModelIds);
+    console.log(
+      '📡 [SourceModelList] Software delete Promise object:',
+      softwareDeletePromise,
+    );
 
     // Log network request info before the Promise resolves
-    softwareDeletePromise.then(responses => {
-      console.log('🌐 [SourceModelList] Software delete network response:', responses);
-      responses.forEach((response, index) => {
-        console.log(`📊 [SourceModelList] Software delete response ${index + 1}:`, {
-          status: response.status,
-          statusText: response.statusText,
-          method: response.config?.method?.toUpperCase(),
-          url: response.config?.url,
-          baseURL: response.config?.baseURL,
-          fullURL: `${response.config?.baseURL}${response.config?.url}`,
-          data: response.data
+    softwareDeletePromise
+      .then(responses => {
+        console.log(
+          '🌐 [SourceModelList] Software delete network response:',
+          responses,
+        );
+        responses.forEach((response, index) => {
+          console.log(
+            `📊 [SourceModelList] Software delete response ${index + 1}:`,
+            {
+              status: response.status,
+              statusText: response.statusText,
+              method: response.config?.method?.toUpperCase(),
+              url: response.config?.url,
+              baseURL: response.config?.baseURL,
+              fullURL: `${response.config?.baseURL}${response.config?.url}`,
+              data: response.data,
+            },
+          );
         });
+      })
+      .catch(error => {
+        console.error(
+          '❌ [SourceModelList] Software delete network error:',
+          error,
+        );
+        if (error.config) {
+          console.log('🔍 [SourceModelList] Software delete request info:', {
+            method: error.config.method?.toUpperCase(),
+            url: error.config.url,
+            baseURL: error.config.baseURL,
+            fullURL: `${error.config.baseURL}${error.config.url}`,
+            data: error.config.data,
+          });
+        }
       });
-    }).catch(error => {
-      console.error('❌ [SourceModelList] Software delete network error:', error);
-      if (error.config) {
-        console.log('🔍 [SourceModelList] Software delete request info:', {
-          method: error.config.method?.toUpperCase(),
-          url: error.config.url,
-          baseURL: error.config.baseURL,
-          fullURL: `${error.config.baseURL}${error.config.url}`,
-          data: error.config.data
-        });
-      }
-    });
-    
+
     deletePromises.push(softwareDeletePromise);
   }
 
   if (cloudModelIds.length > 0) {
-    console.log('🚀 [SourceModelList] Calling Cloud model delete API (DeleteCloudModel):', cloudModelIds);
+    console.log(
+      '🚀 [SourceModelList] Calling Cloud model delete API (DeleteCloudModel):',
+      cloudModelIds,
+    );
     const cloudDeletePromise = useBulkDeleteSourceCloudModel(cloudModelIds);
-    console.log('📡 [SourceModelList] Cloud delete Promise object:', cloudDeletePromise);
+    console.log(
+      '📡 [SourceModelList] Cloud delete Promise object:',
+      cloudDeletePromise,
+    );
 
     // Log network request info before the Promise resolves
-    cloudDeletePromise.then(responses => {
-      console.log('🌐 [SourceModelList] Cloud delete network response:', responses);
-      responses.forEach((response, index) => {
-        console.log(`📊 [SourceModelList] Cloud delete response ${index + 1}:`, {
-          status: response.status,
-          statusText: response.statusText,
-          method: response.config?.method?.toUpperCase(),
-          url: response.config?.url,
-          baseURL: response.config?.baseURL,
-          fullURL: `${response.config?.baseURL}${response.config?.url}`,
-          data: response.data
+    cloudDeletePromise
+      .then(responses => {
+        console.log(
+          '🌐 [SourceModelList] Cloud delete network response:',
+          responses,
+        );
+        responses.forEach((response, index) => {
+          console.log(
+            `📊 [SourceModelList] Cloud delete response ${index + 1}:`,
+            {
+              status: response.status,
+              statusText: response.statusText,
+              method: response.config?.method?.toUpperCase(),
+              url: response.config?.url,
+              baseURL: response.config?.baseURL,
+              fullURL: `${response.config?.baseURL}${response.config?.url}`,
+              data: response.data,
+            },
+          );
         });
+      })
+      .catch(error => {
+        console.error(
+          '❌ [SourceModelList] Cloud delete network error:',
+          error,
+        );
+        if (error.config) {
+          console.log('🔍 [SourceModelList] Cloud delete request info:', {
+            method: error.config.method?.toUpperCase(),
+            url: error.config.url,
+            baseURL: error.config.baseURL,
+            fullURL: `${error.config.baseURL}${error.config.url}`,
+            data: error.config.data,
+          });
+        }
       });
-    }).catch(error => {
-      console.error('❌ [SourceModelList] Cloud delete network error:', error);
-      if (error.config) {
-        console.log('🔍 [SourceModelList] Cloud delete request info:', {
-          method: error.config.method?.toUpperCase(),
-          url: error.config.url,
-          baseURL: error.config.baseURL,
-          fullURL: `${error.config.baseURL}${error.config.url}`,
-          data: error.config.data
-        });
-      }
-    });
-    
+
     deletePromises.push(cloudDeletePromise);
   }
 
   if (onPremModelIds.length > 0) {
-    console.log('🚀 [SourceModelList] Calling OnPrem model delete API (DeleteOnPremModel):', onPremModelIds);
+    console.log(
+      '🚀 [SourceModelList] Calling OnPrem model delete API (DeleteOnPremModel):',
+      onPremModelIds,
+    );
     const onPremDeletePromise = useBulkDeleteSourceInfraModel(onPremModelIds);
-    console.log('📡 [SourceModelList] OnPrem delete Promise object:', onPremDeletePromise);
+    console.log(
+      '📡 [SourceModelList] OnPrem delete Promise object:',
+      onPremDeletePromise,
+    );
 
     // Log network request info before the Promise resolves
-    onPremDeletePromise.then(responses => {
-      console.log('🌐 [SourceModelList] OnPrem delete network response:', responses);
-      responses.forEach((response, index) => {
-        console.log(`📊 [SourceModelList] OnPrem delete response ${index + 1}:`, {
-          status: response.status,
-          statusText: response.statusText,
-          method: response.config?.method?.toUpperCase(),
-          url: response.config?.url,
-          baseURL: response.config?.baseURL,
-          fullURL: `${response.config?.baseURL}${response.config?.url}`,
-          data: response.data
+    onPremDeletePromise
+      .then(responses => {
+        console.log(
+          '🌐 [SourceModelList] OnPrem delete network response:',
+          responses,
+        );
+        responses.forEach((response, index) => {
+          console.log(
+            `📊 [SourceModelList] OnPrem delete response ${index + 1}:`,
+            {
+              status: response.status,
+              statusText: response.statusText,
+              method: response.config?.method?.toUpperCase(),
+              url: response.config?.url,
+              baseURL: response.config?.baseURL,
+              fullURL: `${response.config?.baseURL}${response.config?.url}`,
+              data: response.data,
+            },
+          );
         });
+      })
+      .catch(error => {
+        console.error(
+          '❌ [SourceModelList] OnPrem delete network error:',
+          error,
+        );
+        if (error.config) {
+          console.log('🔍 [SourceModelList] OnPrem delete request info:', {
+            method: error.config.method?.toUpperCase(),
+            url: error.config.url,
+            baseURL: error.config.baseURL,
+            fullURL: `${error.config.baseURL}${error.config.url}`,
+            data: error.config.data,
+          });
+        }
       });
-    }).catch(error => {
-      console.error('❌ [SourceModelList] OnPrem delete network error:', error);
-      if (error.config) {
-        console.log('🔍 [SourceModelList] OnPrem delete request info:', {
-          method: error.config.method?.toUpperCase(),
-          url: error.config.url,
-          baseURL: error.config.baseURL,
-          fullURL: `${error.config.baseURL}${error.config.url}`,
-          data: error.config.data
-        });
-      }
-    });
-    
+
     deletePromises.push(onPremDeletePromise);
   }
 
@@ -331,7 +422,9 @@ function handleSelectedIndex(selectedIndex: number) {
 }
 
 function handleDeleteConfirm() {
-  console.log('✅ [SourceModelList] Delete confirm button clicked - running delete');
+  console.log(
+    '✅ [SourceModelList] Delete confirm button clicked - running delete',
+  );
   multiDelete();
   modals.alertModalState.open = false;
   console.log('🔒 [SourceModelList] Closing delete confirmation modal');
@@ -348,7 +441,7 @@ function handleDeleteConfirm() {
           :height="height"
           message="Loading source models..."
         />
-        
+
         <!-- Show the table once loading is done -->
         <p-toolbox-table
           v-if="!resSourceList.isLoading.value"

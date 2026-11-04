@@ -66,7 +66,9 @@ onBeforeMount(() => {
 
 function handleJsonModal() {
   // Log output for debugging
-  const sourceModel = sourceModelStore.getSourceModelById(props.selectedSourceModelId);
+  const sourceModel = sourceModelStore.getSourceModelById(
+    props.selectedSourceModelId,
+  );
   // console.log('=== SourceModelDetail Debug Info ===');
   // console.log('selectedSourceModelId:', props.selectedSourceModelId);
   // console.log('sourceModel:', sourceModel);
@@ -76,14 +78,16 @@ function handleJsonModal() {
   // console.log('connection_info_list length:', sourceModel?.connection_info_list?.length);
   // console.log('Full sourceModel structure:', JSON.stringify(sourceModel, null, 2));
   // console.log('==================================');
-  
+
   emit('update:custom-view-json-modal', true);
   emit('update:source-model-name', sourceModelName.value);
 }
 
 function handleRecommendedList() {
-  const sourceModel = sourceModelStore.getSourceModelById(props.selectedSourceModelId);
-  
+  const sourceModel = sourceModelStore.getSourceModelById(
+    props.selectedSourceModelId,
+  );
+
   // Set the recommended model list based on modelType
   if (sourceModel?.modelType === 'SoftwareModel') {
     recommendedModelList.value = 'software';
@@ -91,17 +95,23 @@ function handleRecommendedList() {
     // CloudModel, OnPremiseModel, or the default
     recommendedModelList.value = 'infra';
   }
-  
+
   // Fallback logic for backward compatibility
-  if (sourceModel?.migrationType === 'Software' || sourceModel?.isSoftwareModel) {
+  if (
+    sourceModel?.migrationType === 'Software' ||
+    sourceModel?.isSoftwareModel
+  ) {
     recommendedModelList.value = 'software';
   }
-  
+
   // Temporary logic for testing: if the name contains 'sw', set it to software
-  if (sourceModel?.userModelName && sourceModel.userModelName.toLowerCase().includes('sw')) {
+  if (
+    sourceModel?.userModelName &&
+    sourceModel.userModelName.toLowerCase().includes('sw')
+  ) {
     recommendedModelList.value = 'software';
   }
-  
+
   emit('update:view-recommend-list-modal', true);
   emit('update:source-model-name', sourceModelName.value);
   emit('update:recommended-model-list', recommendedModelList.value);

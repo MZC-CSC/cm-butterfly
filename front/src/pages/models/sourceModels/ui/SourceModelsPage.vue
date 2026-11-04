@@ -155,13 +155,19 @@ function handleUpdateSourceModel(e) {
         @update:trigger="modalState.editModelModal.trigger = true"
       />
       <recommended-infra-model
-        v-if="modalState.viewRecommendedListModal.open && recommendedModelList === 'infra'"
+        v-if="
+          modalState.viewRecommendedListModal.open &&
+          recommendedModelList === 'infra'
+        "
         :source-model-name="sourceModelName"
         :source-model-id="selectedSourceModelId"
         @update:close-modal="handleRecommendedListModal"
       />
       <recommended-software-model
-        v-if="modalState.viewRecommendedListModal.open && recommendedModelList === 'software'"
+        v-if="
+          modalState.viewRecommendedListModal.open &&
+          recommendedModelList === 'software'
+        "
         :source-model-name="sourceModelName"
         :source-model-id="selectedSourceModelId"
         @update:close-modal="handleRecommendedListModal"
