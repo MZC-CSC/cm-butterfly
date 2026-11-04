@@ -2,10 +2,11 @@
 import { PButton, PDefinitionTable, PStatus } from '@cloudforet-test/mirinae';
 import { onBeforeMount, watch } from 'vue';
 import { useSourceInfraCollectModel } from '@/widgets/source/sourceConnections/sourceConnectionDetail/infraCollect/model/sourceInfraCollectModel';
-import { useCollectInfra, useGetInfraInfo } from '@/entities/sourceConnection/api';
-import { showErrorMessage,
-  toErrorMessage,
-} from '@/shared/utils';
+import {
+  useCollectInfra,
+  useGetInfraInfo,
+} from '@/entities/sourceConnection/api';
+import { showErrorMessage, toErrorMessage } from '@/shared/utils';
 
 interface IProps {
   sourceGroupId: string | null;
@@ -32,7 +33,7 @@ const resGetInfraInfo = useGetInfraInfo(null, null);
 
 watch(
   () => props.connectionId,
-  (newValue) => {
+  newValue => {
     setConnectionId(newValue);
   },
   { immediate: true },
@@ -74,7 +75,13 @@ function handleCollectInfra() {
       }
     })
     .catch(e => {
-      showErrorMessage('Error', toErrorMessage(e, 'Failed to load collected infrastructure information.'));
+      showErrorMessage(
+        'Error',
+        toErrorMessage(
+          e,
+          'Failed to load collected infrastructure information.',
+        ),
+      );
     });
 }
 </script>

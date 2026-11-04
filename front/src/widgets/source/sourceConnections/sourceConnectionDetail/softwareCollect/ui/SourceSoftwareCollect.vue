@@ -2,10 +2,11 @@
 import { PButton, PDefinitionTable, PStatus } from '@cloudforet-test/mirinae';
 import { onBeforeMount, watch } from 'vue';
 import { useSourceSoftwareCollectModel } from '@/widgets/source/sourceConnections/sourceConnectionDetail/softwareCollect/model/sourceSoftwareCollectModel';
-import { useCollectSW, useGetSoftwareInfo } from '@/entities/sourceConnection/api';
-import { showErrorMessage,
-  toErrorMessage,
-} from '@/shared/utils';
+import {
+  useCollectSW,
+  useGetSoftwareInfo,
+} from '@/entities/sourceConnection/api';
+import { showErrorMessage, toErrorMessage } from '@/shared/utils';
 
 interface IProps {
   sourceGroupId: string | null;
@@ -31,7 +32,7 @@ const resGetSoftwareInfo = useGetSoftwareInfo(null, null);
 
 watch(
   () => props.connectionId,
-  (newValue) => {
+  newValue => {
     setConnectionId(newValue);
   },
   { immediate: true },
@@ -74,7 +75,10 @@ function handleClickCollectSW() {
       }
     })
     .catch(e => {
-      showErrorMessage('Error', toErrorMessage(e, 'Failed to load collected software information.'));
+      showErrorMessage(
+        'Error',
+        toErrorMessage(e, 'Failed to load collected software information.'),
+      );
     });
 }
 </script>
