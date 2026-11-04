@@ -1,6 +1,7 @@
 import { Locator, Page, expect } from '@playwright/test';
 import { humanClick, humanFill } from '../support/humanize';
 import { SourceServicesPage } from './sourceServices.page';
+import { RegionSelectControl } from './regionSelect.page';
 
 /**
  * 오브젝트 스토리지(버킷) 마이그레이션.
@@ -41,6 +42,35 @@ export class ObjectStoragePage {
     await expect(this.page.getByTestId('os-migrated-table')).toBeVisible({
       timeout: 30_000,
     });
+  }
+
+  /** 이행된 버킷 화면에는 cm-beetle 직접 시험 단계가 섞여 있지 않다. */
+  async expectNoDirectFlow(): Promise<void> {
+    await expect(this.page.getByTestId('os-step-source')).toHaveCount(0);
+    await expect(this.page.getByTestId('os-source-scan')).toHaveCount(0);
+    await expect(
+      this.page.getByTestId('object-storages-page'),
+    ).not.toContainText('cm-beetle direct');
+  }
+
+  // ── System ▸ Develop (임시 시험 도구) ────────────────────────────────────
+
+  async openDevelop(): Promise<void> {
+    await humanClick(this.page.getByText('Develop', { exact: true }).first());
+    await expect(this.page.getByTestId('develop-header')).toBeVisible({
+      timeout: 30_000,
+    });
+  }
+
+  /** Develop 의 오브젝트 스토리지 직접 시험 탭 — 소스 스캔·추천·생성 세 단계. */
+  async expectDirectFlowTabs(): Promise<void> {
+    const page = this.page.getByTestId('develop-page');
+    await expect(page.getByRole('tab')).toHaveText([
+      /Source Buckets/,
+      /Target Recommendation/,
+      /Migration/,
+    ]);
+    await expect(this.page.getByTestId('os-source-scan')).toBeVisible();
   }
 
   async migratedBucketIds(): Promise<string[]> {
@@ -219,7 +249,9 @@ export class ObjectStoragePage {
         })
         .first(),
     );
-    await humanFill(this.input('os-recommend-region'), region);
+    await new RegionSelectControl(this.page, 'os-recommend-region').pick(
+      region,
+    );
     await humanClick(this.page.getByTestId('os-recommend-run'));
     await expect(this.page.getByTestId('os-recommend-table')).toBeVisible({
       timeout: 120_000,
@@ -271,6 +303,44 @@ export class ObjectStoragePage {
       );
     }
     return result;
+  }
+
+  /**
+   * 버킷 이름 규칙에 맞지 않는 접두어는 cm-beetle 로 보내기 전에 막는다. 미리내 버튼
+   * 비활성은 클래스뿐이라(§1.6) 눌러 보고 요청이 나가지 않는 것으로 판정한다.
+   */
+  async expectInvalidNameSeedBlocked(
+    targetModel: string,
+    nameSeed: string,
+  ): Promise<void> {
+    await this.openModels();
+    await this.openModelTab('Target');
+    await humanClick(this.page.getByTestId(`os-models-target-${targetModel}`));
+    await humanClick(this.page.getByTestId('os-models-target-migrate'));
+    await expect(this.page.getByTestId('os-migrate-body')).toBeVisible({
+      timeout: 15_000,
+    });
+    await humanFill(this.input('os-migrate-name-seed'), nameSeed);
+    await expect(
+      this.page.getByTestId('os-migrate-name-seed-error'),
+    ).toContainText('lowercase letters');
+    const calls: string[] = [];
+    const listener = (r: { url(): string; method(): string }) => {
+      if (r.method() === 'POST' && /MigrateObjectStorage/i.test(r.url()))
+        calls.push(r.url());
+    };
+    this.page.on('request', listener);
+    await this.confirmButton('os-migrate-start').click({ force: true });
+    await this.page.waitForTimeout(2_000);
+    this.page.off('request', listener);
+    expect(calls).toEqual([]);
+    await expect(
+      this.page.getByTestId('os-migrate-status'),
+    ).not.toHaveAttribute('data-status', /Handling|Error|Success/);
+    await humanClick(this.confirmButton('os-migrate-cancel'));
+    await expect(this.page.getByTestId('os-migrate-body')).toHaveCount(0, {
+      timeout: 15_000,
+    });
   }
 
   async deleteModel(kind: 'source' | 'target', name: string): Promise<void> {

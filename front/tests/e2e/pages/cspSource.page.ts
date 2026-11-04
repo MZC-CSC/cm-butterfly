@@ -1,6 +1,7 @@
 import { Locator, Page, expect } from '@playwright/test';
 import { humanClick, humanFill } from '../support/humanize';
 import type { CspAccess } from '../support/cspAccess';
+import { RegionSelectControl } from './regionSelect.page';
 
 /**
  * CSP 유형 소스 서비스 — 고객 클라우드 계정을 소스로 등록하고, 그 계정에 실제로 있는
@@ -30,6 +31,11 @@ export class CspSourcePage {
     return this.page.locator('button', {
       has: this.page.getByTestId('source-service-confirm'),
     });
+  }
+
+  /** 리전은 목록에서만 고른다(타이핑은 목록을 좁힐 뿐). */
+  get region(): RegionSelectControl {
+    return new RegionSelectControl(this.page, 'csp-source-region');
   }
 
   private get resourceList(): Locator {
@@ -92,10 +98,7 @@ export class CspSourcePage {
     }
     await humanFill(this.credentialInputs.nth(0), access.accessKey);
     await humanFill(this.credentialInputs.nth(1), access.secretKey);
-    await humanFill(
-      this.page.locator('input[data-testid="csp-source-region"]').first(),
-      access.region,
-    );
+    await this.region.pick(access.region);
   }
 
   async register(): Promise<void> {

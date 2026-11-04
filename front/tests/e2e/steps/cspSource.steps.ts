@@ -39,6 +39,28 @@ When('이름·인증·리전을 모두 채우면', async ({ page }) => {
   await new CspSourcePage(page).fill(groupName, cspAccess());
 });
 
+// 실제로 일어난 오입력(ap-northeast2)을 계정 리전에서 만든다 — 마지막 하이픈을 뺀다.
+function withoutLastHyphen(region: string): string {
+  const i = region.lastIndexOf('-');
+  return i < 0 ? `${region}x` : region.slice(0, i) + region.slice(i + 1);
+}
+
+Then(
+  '리전 이름의 하이픈을 하나 빼고 치면 고를 리전이 없다',
+  async ({ page }) => {
+    const typo = withoutLastHyphen(cspAccess().region);
+    expect(await new CspSourcePage(page).region.matchesFor(typo)).toEqual([]);
+  },
+);
+
+Then('계정 리전을 치면 그 리전이 남고 고를 수 있다', async ({ page }) => {
+  const { region } = cspAccess();
+  const control = new CspSourcePage(page).region;
+  expect(await control.matchesFor(region)).toContain(region);
+  await control.pick(region);
+  expect(await control.value()).toBe(region);
+});
+
 Then('등록 버튼이 열린다', async ({ page }) => {
   expect(await new CspSourcePage(page).isAddEnabled()).toBe(true);
 });

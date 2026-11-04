@@ -27,6 +27,33 @@ Then('이행된 버킷 목록이 보인다', async ({ page }) => {
   await new ObjectStoragePage(page).expectMigratedList();
 });
 
+Then('이행된 버킷 목록만 보이고 직접 시험 단계는 없다', async ({ page }) => {
+  const os = new ObjectStoragePage(page);
+  await os.expectMigratedList();
+  await os.expectNoDirectFlow();
+});
+
+When('System 의 Develop 화면을 열면', async ({ page }) => {
+  await new ObjectStoragePage(page).openDevelop();
+});
+
+Then(
+  '오브젝트 스토리지 직접 시험 단계 3개가 탭으로 보인다',
+  async ({ page }) => {
+    await new ObjectStoragePage(page).expectDirectFlowTabs();
+  },
+);
+
+Then(
+  '목표 모델의 버킷 만들기에서 버킷 이름 규칙에 맞지 않는 접두어는 요청 없이 막힌다',
+  async ({ page }) => {
+    await new ObjectStoragePage(page).expectInvalidNameSeedBlocked(
+      run.targetModel,
+      'Mig_01',
+    );
+  },
+);
+
 Given('시험용 계정으로 클라우드 소스 서비스를 등록한다', async ({ page }) => {
   // 이 스텝이 시나리오의 시작이다. 앞 시나리오가 남긴 이름이 정리 단계로 넘어가지 않게 비운다.
   Object.assign(run, {
