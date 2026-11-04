@@ -9,6 +9,7 @@ import {
   watchEffect,
 } from 'vue';
 import type { ISourceConnectionOutcome } from '@/entities/sourceService/model/types';
+import { isCspSourceGroup } from '@/entities/sourceService/model/types';
 import { useSourceServiceDetailModel } from '@/widgets/source/sourceServices/sourceServiceDetail/model/sourceServiceDetailModel';
 import {
   useGetInfraSourceGroup,
@@ -50,6 +51,24 @@ const getSourceConnectionList = useGetSourceConnectionList(null);
 const resGetInfraSourceGroup = useGetInfraSourceGroup(null);
 const resGetInfraInfoSourceGroup = useGetInfraInfoSourceGroup(null);
 const infraModel = ref<any>(null);
+
+/*
+  Collect Infra / Collect SW reach the servers through the cm-honeybee agent (SSH).
+  A cloud source service can hold buckets and VMs without SSH access as well; for those
+  there is nothing to collect this way - cm-honeybee's software import needs the agent,
+  and its refined infra (what a source model is made from) is built from agent data, so
+  the result would be empty or wrong. On a cloud source service the two buttons are
+  therefore available only when at least one VM connection has SSH access.
+*/
+const isCspService = computed(() =>
+  isCspSourceGroup(
+    sourceServiceStore.getServiceById(props.selectedServiceId)?.type,
+  ),
+);
+const hasAgentTarget = ref(false);
+const agentCollectDisabled = computed(
+  () => isCspService.value && !hasAgentTarget.value,
+);
 
 // Software-related state
 const softwareModel = ref<any>(null);
@@ -188,6 +207,7 @@ watchEffect(() => {
 });
 
 function getSourceGroupInfras() {
+  if (agentCollectDisabled.value) return;
   // Collect the infra (import-infra-source-group), then show its structured
   // JSON form (get-infra-info-source-group) in the viewer's left "Meta" pane.
   resGetInfraSourceGroup
@@ -223,6 +243,7 @@ function getSourceGroupInfras() {
 }
 
 function getSourceGroupSoftware() {
+  if (agentCollectDisabled.value) return;
   // Collect the software (import-software-source-group), then show its
   // structured JSON form (get-software-info-source-group) in the pane.
   resCollectSWSourceGroup
@@ -272,6 +293,9 @@ async function loadConnectionOutcomes() {
       pathParams: { sgId: props.selectedServiceId },
     });
     const list = data.responseData?.connection_info ?? [];
+    hasAgentTarget.value = list.some(
+      (c: any) => (c.resource_type || 'vm') === 'vm' && !!c.ip_address,
+    );
     sourceServiceStore.mappingConnectionOutcomes(
       props.selectedServiceId,
       list.map((c: any) => ({
@@ -469,22 +493,33 @@ function handleSoftwareModal() {
             Refresh
           </p-button>
         </div>
-        <div v-else-if="name === 'viewInfra'">
+        <div v-else-if="name === 'viewInfra'" class="collect-actions">
+          <span
+            class="collect-hint"
+            data-testid="source-group-collect-hint"
+            :class="{ hidden: !agentCollectDisabled }"
+            >Needs a VM connection with SSH access</span
+          >
           <p-button
             data-testid="source-group-collect-infra"
             style-type="tertiary"
             size="sm"
+            :disabled="agentCollectDisabled"
             :loading="resGetInfraSourceGroup.isLoading.value"
             @click="getSourceGroupInfras"
           >
             Collect Infra
           </p-button>
         </div>
-        <div v-else-if="name === 'viewSoftware'">
+        <div v-else-if="name === 'viewSoftware'" class="collect-actions">
+          <span class="collect-hint" :class="{ hidden: !agentCollectDisabled }"
+            >Needs a VM connection with SSH access</span
+          >
           <p-button
             data-testid="source-group-collect-sw"
             style-type="tertiary"
             size="sm"
+            :disabled="agentCollectDisabled"
             :loading="resCollectSWSourceGroup.isLoading.value"
             @click="getSourceGroupSoftware"
           >
@@ -574,6 +609,18 @@ function handleSoftwareModal() {
 </template>
 
 <style scoped lang="postcss">
+.collect-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.collect-hint {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+.collect-hint.hidden {
+  display: none;
+}
 /*
   The explanation behind the status.
 
