@@ -22,6 +22,14 @@ export const scenarioState: {
   nodeUserName?: string;
   /** List of the node's security group ids — the targets to open port 80 on */
   securityGroupIds?: string[];
+  /** 값 참조 실경로 시나리오가 쓰는 타깃 모델 이름 */
+  taskReferenceTargetModel?: string;
+  /** 팔레트에서 끌어다 놓은 컴포넌트 이름 */
+  taskReferenceDroppedComponent?: string;
+  /** Name of the workflow the task-value-reference scenarios are working on */
+  taskReferenceWorkflowName?: string;
+  /** Id of the workflow those scenarios created through the API, so it can be removed after */
+  taskReferenceSeededWorkflowId?: string;
   /** Last recommended spec (for verification) */
   lastRecommendedSpec?: string;
   /** Name of the software source model (SW collect → referenced by the SW recommend step) */

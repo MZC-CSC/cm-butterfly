@@ -292,3 +292,59 @@ function toShape(items: ITopologyItem[]): any[] {
         },
   );
 }
+
+/**
+ * Every task that runs before `taskName`, following the edges transitively.
+ *
+ * Only these can be referenced. The engine does **not** check this — it just
+ * asks whether a task of that name exists anywhere in the workflow
+ * (`isTaskExist`), so referencing a *later* task saves fine and then fails at
+ * run time with no XCom to pull. The console has to be the one that says no.
+ *
+ * Cycles cannot be drawn on the canvas, but the saved definition is not
+ * guaranteed to be acyclic, so the walk is guarded by a visited set.
+ */
+export function ancestorsOf(
+  taskGroups: Array<ITaskGroupResponse> | undefined,
+  taskName: string,
+): Set<string> {
+  const depsOf = new Map<string, string[]>();
+  (taskGroups ?? []).forEach(group =>
+    (group.tasks ?? []).forEach(task => {
+      depsOf.set(
+        task.name,
+        (task.dependencies ?? []).map((dep: any) => String(dep)),
+      );
+    }),
+  );
+
+  const ancestors = new Set<string>();
+  const walk = (name: string): void => {
+    (depsOf.get(name) ?? []).forEach(parent => {
+      if (parent === taskName || ancestors.has(parent)) return;
+      if (!depsOf.has(parent)) return; // edge to a task that is not there
+      ancestors.add(parent);
+      walk(parent);
+    });
+  };
+  walk(taskName);
+  return ancestors;
+}
+
+/**
+ * Ancestors in run order — the order the canvas draws them, so the picker can
+ * list "the one just before" first instead of in map order.
+ */
+export function orderedAncestorsOf(
+  taskGroups: Array<ITaskGroupResponse> | undefined,
+  taskName: string,
+): string[] {
+  const ancestors = ancestorsOf(taskGroups, taskName);
+  const order: string[] = [];
+  (taskGroups ?? []).forEach(group =>
+    (group.tasks ?? []).forEach(task => {
+      if (ancestors.has(task.name)) order.push(task.name);
+    }),
+  );
+  return order;
+}

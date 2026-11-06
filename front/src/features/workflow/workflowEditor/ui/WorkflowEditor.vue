@@ -9,7 +9,15 @@ import {
 } from '@cloudforet-test/mirinae';
 import { useWorkflowToolModel } from '@/features/workflow/workflowEditor/model/workflowEditorModel';
 import { useInputModel } from '@/shared/hooks/input/useInputModel';
-import { onBeforeMount, onMounted, reactive, ref, Ref, watch } from 'vue';
+import {
+  computed,
+  onBeforeMount,
+  onMounted,
+  reactive,
+  ref,
+  Ref,
+  watch,
+} from 'vue';
 import { Step } from '@/features/workflow/workflowEditor/model/types';
 import {
   ITargetModelResponse,
@@ -56,6 +64,7 @@ const emit = defineEmits([
   'update:close-modal',
   'update:trigger',
   'update:saved',
+  'open-json-editor',
 ]);
 
 const workflowToolModel = useWorkflowToolModel();
@@ -80,7 +89,36 @@ const trigger = reactive({ value: false });
  * In that case, instead of showing a blank screen, it records the reason and blocks saving —
  * because saving something it could not draw would change the execution order.
  */
+import BrokenReferenceNotice from './BrokenReferenceNotice.vue';
+import coercedFieldsStore from '@/features/sequential/designer/editor/store/coercedFieldsStore';
+import type { IBodyProblem } from '@/entities/workflow/lib/referenceValidation';
+import {
+  findBrokenReferences,
+  findBodyProblems,
+  canCoerceAll,
+  coerceValue,
+  type IBrokenReference,
+} from '@/entities/workflow/lib/referenceValidation';
 const isUneditable = ref(false);
+/**
+ * Values that read a task which does not run first. This editor cannot produce
+ * one — it only offers tasks that run before — but an imported definition can,
+ * and the engine takes it and fails at run time instead.
+ */
+const brokenReferences = ref<IBrokenReference[]>([]);
+const bodyProblems = ref<IBodyProblem[]>([]);
+/**
+ * Fields whose value was forced into the type its task asks for.
+ *
+ * Kept so the panel can mark them. A conversion the user did not type is still a
+ * change to their workflow — they should see which values it touched before saving.
+ */
+const canCoerceProblems = computed(() =>
+  canCoerceAll(bodyProblems.value, (task, field) =>
+    valueInSequence(task, field),
+  ),
+);
+const showBrokenReferences = ref(false);
 const loadWarnings = ref<string[]>([]);
 
 /**
@@ -860,6 +898,32 @@ function loadSequence() {
     // it to display would, on save, create dependencies that did not exist and silently change the workflow.
     isUneditable.value = loaded.representable === false;
     loadWarnings.value = loaded.warnings ?? [];
+    // Check what was loaded rather than trusting it: the engine accepts a
+    // reference to any task that exists by name, so a definition from an import
+    // or another tool can read a task that never ran.
+    coercedFieldsStore.clear();
+    brokenReferences.value = findBrokenReferences(
+      workflowData.value?.data?.task_groups ?? workflowData.value?.task_groups,
+    );
+    // ★ A body that cannot be read is a different kind of problem from a misdirected reference.
+    //   With a reference every field is there and one points the wrong way, so it can be fixed here.
+    //   An unreadable body has no fields at all; saving in that state overwrites the file with
+    //   whatever the screen failed to read.
+    bodyProblems.value = findBodyProblems(
+      workflowData.value?.data?.task_groups ?? workflowData.value?.task_groups,
+      componentName => {
+        // A component arrives in two shapes: the `spec` cm-cicada sends, and the copy moved into
+        // the `data` the screen uses. Either way it points to the same schema.
+        const component: any = (workflowToolModel.taskComponentList || []).find(
+          (candidate: any) => candidate?.name === componentName,
+        );
+        return (
+          component?.spec?.body_params_schema ?? component?.data?.body_params
+        );
+      },
+    );
+    showBrokenReferences.value =
+      brokenReferences.value.length > 0 || bodyProblems.value.length > 0;
     // When entering from a target model, inject the target model id into the lookup task and the literal
     // body into the migration task. Injected right after the sequence is built (before designer render),
     // so it is reflected as-is on save.
@@ -924,6 +988,11 @@ function injectTargetModelIntoSequence() {
       } else if (component === migrationComponent && literalBody) {
         // Put in the target model's literal value instead of a reference body (the right-hand table is filled with this value too).
         step.properties.model = { ...literalBody };
+        // The template this workflow came from fills this task from the lookup before it, so the
+        // step arrives carrying that reference. Injecting the literal value has to drop it too —
+        // otherwise the panel opens in whole-result mode and the values just injected are hidden
+        // behind it, and saving writes the reference back over them.
+        step.properties.referenceRequestBody = '';
       }
       if (step?.sequence) visit(step.sequence);
     }
@@ -1107,6 +1176,110 @@ function handleSaveCallback(designer: Designer | null) {
   }
 }
 
+/**
+ * Close the editor and send the user to fix it as JSON.
+ *
+ * An unreadable body cannot be fixed here: no fields can be drawn, so there is nothing to edit.
+ * Editing the text is the only way, so that is where the user is pointed.
+ */
+function leaveForJsonEditor() {
+  showBrokenReferences.value = false;
+  emit('update:close-modal', false);
+  emit('open-json-editor');
+}
+
+/** One body value in the sequence, addressed the way the problem list names it. */
+function stepByTaskName(taskName: string): any {
+  const walk = (steps: any[]): any => {
+    for (const step of steps ?? []) {
+      if (step?.name === taskName) return step;
+      const found =
+        walk(step?.sequence ?? []) ||
+        Object.values(step?.branches ?? {}).reduce(
+          (hit: any, branch: any) => hit || walk(branch),
+          null,
+        );
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(sequentialSequence.value as any[]);
+}
+
+function pathParts(field: string): string[] {
+  return field
+    .replace(/\[(\d+)\]/g, '.$1')
+    .split('.')
+    .filter(Boolean);
+}
+
+function valueInSequence(taskName: string, field: string): unknown {
+  let cursor: any = stepByTaskName(taskName)?.properties?.model;
+  for (const part of pathParts(field)) {
+    if (cursor === undefined || cursor === null) return undefined;
+    cursor = cursor[part];
+  }
+  return cursor;
+}
+
+/**
+ * Forces every mistyped value into the type its field asks for.
+ *
+ * Only offered when all of them can be converted without losing anything ("5" → 5,
+ * never "5abc" → 5). The fields are marked afterwards: the user did not type this
+ * change, so they should be able to find what it touched.
+ */
+function coerceBodyValues() {
+  const marked: Array<{ task: string; field: string }> = [];
+
+  bodyProblems.value.forEach(problem => {
+    const step = stepByTaskName(problem.task);
+    if (!step?.properties) return;
+
+    if (problem.kind === 'reference-quoting') {
+      // Leave the value alone and move only the quotes. What task and what item the reference
+      // points to does not change; only whether it is quoted when stored does.
+      const kept: string[] = Array.isArray(step.properties.rawBodyRefs)
+        ? step.properties.rawBodyRefs.filter(
+            (one: string) => one !== problem.field,
+          )
+        : [];
+      step.properties.rawBodyRefs =
+        problem.expected === 'string' ? kept : [...kept, problem.field];
+      marked.push({ task: problem.task, field: problem.field });
+      return;
+    }
+
+    if (problem.kind !== 'type' || !step.properties.model) return;
+    const parts = pathParts(problem.field);
+    let cursor: any = step.properties.model;
+    for (let i = 0; i < parts.length - 1; i += 1) {
+      cursor = cursor?.[parts[i]];
+      if (cursor === undefined || cursor === null) return;
+    }
+    const key = parts[parts.length - 1];
+    const converted = coerceValue(cursor?.[key], problem.expected);
+    if (converted === undefined) return;
+    cursor[key] = converted;
+    marked.push({ task: problem.task, field: problem.field });
+  });
+
+  // ★ The fix has to be handed to the designer, or it never reaches the save.
+  //
+  //   Saving reads `designer.getDefinition()`, and the designer keeps its own definition.
+  //   What was edited here is our sequence, so left as is only the screen changes, not the file.
+  //   Replacing the array reference makes SequentialDesigner's watch pass it on via
+  //   replaceDefinition (editing inside a step alone does not trip the watch, which is shallow).
+  sequentialSequence.value = [...sequentialSequence.value];
+
+  coercedFieldsStore.replace(marked);
+  bodyProblems.value = bodyProblems.value.filter(
+    one => one.kind === 'unreadable',
+  );
+  showBrokenReferences.value =
+    brokenReferences.value.length > 0 || bodyProblems.value.length > 0;
+}
+
 function handleCancel() {
   emit('update:close-modal', false);
   // emit('update:trigger');
@@ -1178,6 +1351,16 @@ function handleSelectTemplate(e) {
               How to run tasks in parallel
             </button>
           </header>
+          <BrokenReferenceNotice
+            v-if="showBrokenReferences"
+            :broken="brokenReferences"
+            :problems="bodyProblems"
+            @close="showBrokenReferences = false"
+            :can-coerce="canCoerceProblems"
+            @leave="handleCancel"
+            @open-json="leaveForJsonEditor"
+            @coerce="coerceBodyValues"
+          />
           <div
             v-if="loadWarnings.length"
             class="workflow-tool-notice mb-[12px]"

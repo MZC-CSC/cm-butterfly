@@ -131,6 +131,51 @@ watch(
   stroke: #6366f1;
 }
 
+/*
+  Picking a task to take a value from.
+
+  While the property panel is looking for a value, the tasks that run before the
+  edited one stay lit and everything else fades. Showing the ones that cannot be
+  picked, rather than hiding them, is what makes the rule legible: you see there
+  are other tasks and that these are the ones on offer.
+
+  Their names are drawn on top as well — task names are hard to read on the
+  canvas, and this is exactly the moment you need to tell them apart.
+  (Classes are applied by `sequentialDesignerModel` while picking is on.)
+*/
+.sqd-picking-a-task .sqd-step-task {
+  transition: opacity 0.12s ease-out;
+  opacity: 0.32;
+}
+
+.sqd-picking-a-task .sqd-step-task.sqd-pick-allowed {
+  opacity: 1;
+  cursor: copy;
+}
+
+.sqd-picking-a-task .sqd-step-task.sqd-pick-allowed rect {
+  stroke: #4b4ddb;
+  stroke-width: 2px;
+  stroke-dasharray: 4 3;
+}
+
+.sqd-picking-a-task .sqd-step-task.sqd-pick-over rect {
+  stroke-dasharray: none;
+  filter: drop-shadow(0 0 0 3px rgba(75, 77, 219, 0.35));
+}
+
+/* The name of a task that can be picked, drawn above its box. */
+.sqd-picking-a-task .sqd-step-task.sqd-pick-allowed::after {
+  content: attr(data-pick-name);
+}
+
+/* A field whose value points at a task that does not run first. Only an imported
+   definition can carry one, and it fails at run time, so it is called out here. */
+.sqd-step-task.sqd-reference-broken rect {
+  stroke: #d94a4a;
+  stroke-width: 2px;
+}
+
 /* A preference row in the global settings panel (gear icon) */
 .sqd-designer-setting {
   display: flex;

@@ -1,5 +1,4 @@
 import { insertDynamicComponent } from '@/shared/utils';
-import { getSequencePath } from '@/features/sequential/designer/editor/model/utils';
 import TaskComponentEditor from '@/features/sequential/designer/editor/ui/TaskComponentEditor.vue';
 import ContainerNameEditor from '@/features/sequential/designer/editor/ui/ContainerNameEditor.vue';
 import BashTaskEditor from '@/features/sequential/designer/editor/ui/BashTaskEditor.vue';
@@ -141,9 +140,12 @@ export function editorProviders() {
         console.log('=============================');
 
         // See where toolboxModel does the processing
+        // `definition` carries the whole task graph. The editor needs it to work
+        // out which tasks run before this one — those are the only ones whose
+        // result this task may reference (the engine does not check that).
         insertDynamicComponent(
           TaskEditorComponent,
-          { step },
+          { step, definition },
           {
             saveComponentName: e => {
               step.name = e;
@@ -203,9 +205,10 @@ export function editorProviders() {
         );
       }
 
-      const label = document.createElement('label');
-      label.innerText = getSequencePath(definition.sequence, step.id) ?? '';
-      editor.appendChild(label);
+      // The panel used to end with the designer's internal path ("MCI/sleep_for_1m_30s") and no
+      // explanation. The leading "MCI" is the *type* of the TaskGroup step and is used nowhere,
+      // and no API can look anything up by that path. Shown without a word, it read as a broken
+      // screen. What identifies the task (its component) is written under the name instead.
 
       if (isReadonly) return lockInputs(editor);
       return editor;
