@@ -24,7 +24,7 @@ interface IProps {
   targetType?: string;
   selectedType?: string;
   selectedMultiple?: boolean;
-  /** 캔버스에서 고른 태스크. 비어 있지 않으면 목록이 그 태스크로 좁혀져 있다. */
+  /** The task picked on the canvas. When not empty, the list is narrowed to that task. */
   focusTask?: string;
 }
 
@@ -88,8 +88,8 @@ const title = (): string =>
       />
     </label>
 
-    <!-- 캔버스에서 고른 것이 화면에 드러나야 한다. 목록이 그대로면 무엇이 골라졌는지
-         알 수 없고, 다른 태스크를 보려면 푸는 길도 있어야 한다. -->
+    <!-- What was picked on the canvas has to show. If the list stays the same nobody can tell
+         what was picked, and there must be a way back to see the other tasks. -->
     <p v-if="focusTask" class="rp-focus" data-testid="wf-ref-focus">
       Showing <strong>{{ focusTask }}</strong> — picked on the canvas.
       <button
@@ -110,9 +110,9 @@ const title = (): string =>
       >
         <div class="rp-group">
           <span class="rp-ord">{{ index + 1 }}</span>
-          <!-- 태스크 이름을 누르면 그 태스크의 결과 전체를 고른 것으로 본다.
-               아래 항목들이 하나씩 고르는 자리이므로, 그 머리인 이름을 누르는 것은
-               "이 태스크 전체"로 읽히는 것이 자연스럽다. -->
+          <!-- Clicking the task name picks that task's whole result.
+               The items below are picked one by one, so clicking their heading, the name,
+               naturally reads as "this whole task". -->
           <button
             v-if="source.hasSchema"
             type="button"
@@ -155,9 +155,9 @@ const title = (): string =>
           <span class="rp-name">{{ node.label }}</span>
           <span class="rp-type">{{ node.type }}</span>
           <span class="rp-ex">{{ node.example ?? '' }}</span>
-          <!-- 설명은 커서를 대면 바로 뜬다. 여기서 클릭은 *값을 고르는* 동작이라
-               설명 토글에 쓸 수 없고, 브라우저 기본 툴팁은 뜨기까지 한참 걸리는 데다
-               긴 설명이 한 줄로 늘어져 읽기 어렵다. -->
+          <!-- The description shows as soon as the cursor is over it. A click here *picks the value*,
+               so it cannot toggle the description, and the browser's own tooltip is slow to appear
+               and stretches a long description into one hard-to-read line. -->
           <span v-if="node.description" class="rp-desc">
             {{ node.description }}
           </span>
@@ -188,10 +188,10 @@ const title = (): string =>
         </span>
       </div>
 
-      <!-- 맞지 않는 값은 고를 수 없다.
-           경고만 하고 통과시키면 저장은 되고 실행할 때 죽는다 — 그 사이에 아무 신호가
-           없어서, 워크플로우를 짜는 사람은 다 된 줄 안다. 엔진이 형변환을 지원하게 되면
-           그때 다시 경고로 낮춘다. -->
+      <!-- A value of the wrong type cannot be picked.
+           Warning and letting it through means it saves and then dies at run time, with no signal
+           in between, so whoever builds the workflow thinks it is done. Once the engine supports
+           type conversion, this goes back down to a warning. -->
       <p
         v-if="typeVerdict === 'mismatch'"
         class="rp-warn"
@@ -253,8 +253,8 @@ const title = (): string =>
 </template>
 
 <style scoped>
-/* 결과 전체는 성격이 다르다 — 한 항목이 아니라 그 태스크 전부다.
-   같은 모양으로 두면 아래 항목들과 구분되지 않아 그냥 지나친다. */
+/* The whole result is a different kind of thing: not one item but the entire task.
+   Styled the same, it blends in with the items below and gets passed over. */
 .rp-node.whole {
   background: #f5f3ff;
   border-left: 3px solid #7c6cf0;
@@ -267,7 +267,7 @@ const title = (): string =>
   background: #ede9fe;
 }
 
-/* 태스크 이름도 고를 수 있다는 표시. */
+/* Shows that the task name can be picked too. */
 .rp-task-pick {
   background: none;
   border: none;
@@ -284,7 +284,7 @@ const title = (): string =>
   color: #4c3fd0;
 }
 
-/* 값 설명 — 커서를 대면 바로 뜨는 레이어. */
+/* Value description: a layer that shows as soon as the cursor is over it. */
 .rp-node {
   position: relative;
 }

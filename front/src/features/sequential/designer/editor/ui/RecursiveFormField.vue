@@ -38,8 +38,8 @@
         @click.stop="fieldSchema.description && toggleHelp()"
       >
         {{ fieldName }}<span v-if="isRequired" class="required-mark">*</span>
-        <!-- 사용자가 적은 값이 아니라 로딩할 때 형식을 맞춰 바꾼 값이다. 저장하기 전에
-             한 번 보라는 표시다. -->
+        <!-- Not what the user typed but a value converted to the right type on load. The mark
+             asks for one look before saving. -->
         <span
           v-if="wasCoerced"
           class="field-coerced-mark"
@@ -48,9 +48,9 @@
           >check this</span
         >
         <span v-if="fieldSchema.description" class="field-help-mark">?</span>
-        <!-- 설명은 레이어로 띄운다. 브라우저 기본 title 은 뜨기까지 한참 걸리고, 줄바꿈도
-             길이 제한도 우리가 손댈 수 없다. 커서가 물음표로 바뀌고 밑줄까지 생기는데
-             눌러도 아무 일이 없으면, 사람은 안 되는 것으로 읽는다. -->
+        <!-- The description opens as a layer. The browser's own title is slow to appear, and we
+             control neither its line breaks nor its length. When the cursor turns into a question
+             mark and an underline appears but clicking does nothing, people read it as broken. -->
         <span v-if="showHelp" class="field-help-layer" @click.stop>
           {{ fieldSchema.description }}
         </span>
@@ -140,8 +140,8 @@
           </label>
         </div>
         <div class="header-actions">
-          <!-- 배열 전체를 앞선 태스크의 결과로 받을 수 있다. 그 자리에는 입력 상자가 없어
-               개별 칸처럼 왼쪽에 버튼을 둘 자리가 없으므로, 항목을 더하는 버튼 옆에 둔다. -->
+          <!-- A whole array can be taken from an earlier task's result. There is no input box here,
+               so no room for a button on the left as on a single field; it sits next to the add-item button. -->
           <button
             v-if="!reference && canBind"
             type="button"
@@ -178,7 +178,7 @@
         </div>
       </div>
 
-      <!-- 참조가 걸리면 항목 대신 참조를 보여준다. 실행할 때 목록 전체가 이 자리에 온다. -->
+      <!-- With a reference set, show the reference instead of the items. At run time the whole list lands here. -->
       <TaskReferenceValue
         v-if="reference"
         :task="reference.task"
@@ -328,8 +328,8 @@
           </label>
         </div>
         <div class="header-actions">
-          <!-- 이 덩어리 전체를 앞선 태스크의 결과로 받는다. 안의 칸을 하나씩 채우는 대신
-               한 번에 넘길 때 쓴다 — 마이그레이션 계열이 그런 모양이다. -->
+          <!-- Take this whole object from an earlier task's result. Used to pass it at once instead
+               of filling the fields inside one by one; the migration tasks are shaped that way. -->
           <button
             v-if="!reference && canBind"
             type="button"
@@ -416,15 +416,15 @@ import {
 import TaskReferenceValue from './TaskReferenceValue.vue';
 
 /**
- * 지금 열려 있는 설명 하나. 컴포넌트 밖에 두는 이유는 위 toggleHelp 주석에 있다.
+ * The one description open right now. Why it lives outside the component is in the toggleHelp comment.
  */
 const openHelpKey = ref<string>('');
 
 if (typeof window !== 'undefined') {
-  // 바깥을 누르면 닫는다.
+  // A click outside closes it.
   //
-  // ★ 레이블 클릭에 .stop 이 필요하다. 없으면 여는 그 클릭이 여기까지 올라와 곧바로 닫아,
-  //   눌러도 아무 일이 없는 것처럼 보인다.
+  // ★ The label click needs .stop. Without it the very click that opens it bubbles up here and
+  //   closes it at once, so clicking looks like it does nothing.
   window.addEventListener('click', () => {
     openHelpKey.value = '';
   });
@@ -519,11 +519,11 @@ export default defineComponent({
     );
 
     /**
-     * 설명 레이어를 여닫는다. **한 번에 하나만** 열린다.
+     * Open or close the description layer. **Only one** is open at a time.
      *
-     * 여러 개가 동시에 열려 있으면 어느 것이 무엇의 설명인지 알 수 없다. 다른 칸을 누르면
-     * 앞엣것이 닫히도록 열린 칸을 모듈 하나에 기억해 둔다 — 각 컴포넌트가 자기 것만 알면
-     * 서로를 닫을 수가 없다.
+     * With several open at once nobody can tell which describes what. The open field is remembered
+     * in one module so clicking another field closes the previous one; if each component only knew
+     * its own, they could not close each other.
      */
     const showHelp = computed(() => openHelpKey.value === helpKey.value);
     const helpKey = computed(
@@ -577,10 +577,10 @@ export default defineComponent({
      * position picks a different toggle as soon as the form gains a field. The path names which
      * one it opens, the same way the leaf inputs are named.
      */
-    // ★ 셋 다 `wf-toggle-` 하나로 간다. develop 이 그렇게 쓰고 있고, 여기서 갈라 놓으면
-    //   같은 화면을 보는 e2e 가 브랜치마다 다른 이름을 찾게 된다 — 실제로 충돌했다.
-    //   경로가 이미 어느 쪽인지 말해 주므로(배열이면서 객체인 칸은 없다) 접두어를 나눌
-    //   이유도 없다. 항목은 뒤에 `[i]` 가 붙어 저절로 갈린다.
+    // ★ All three use the single `wf-toggle-` prefix. develop already does, and splitting it here
+    //   would make e2e on the same screen look for different names per branch; that did collide.
+    //   The path already says which one it is (no field is both an array and an object), so there
+    //   is no reason to split the prefix. Items are told apart by the trailing `[i]`.
     const arrayToggleTestId = computed(
       () =>
         `wf-toggle-${props.indexPath || props.currentPath || props.fieldName}`,
@@ -1098,14 +1098,14 @@ export default defineComponent({
 }
 
 .simple-field {
-  /* 참조 버튼 · 레이블 · 값. 버튼이 늘 첫 칸을 차지해야 값 칸의 왼쪽 선이 흔들리지 않는다 —
-     버튼이 없는 칸(참조가 이미 걸렸거나 가져올 곳이 없는 경우)에서도 폭을 비워 둔다. */
+  /* Reference button, label, value. The button always takes the first column so the left edge of
+     the value column stays put; fields without a button (reference already set, or nothing to take
+     from) keep that width empty too. */
   display: grid;
-  /* 레이블 칸을 *이름 길이에 맞춰* 잡는다.
-     %로 고정했더니 중첩으로 들어갈수록 칸이 좁아져 acceleratorCount 같은 이름이
-     "acceleratorCo / unt" 처럼 **단어 중간에서** 잘렸다. max-content 면 이름이 한
-     줄에 들어갈 만큼만 가져가고, 입력 칸은 최소 140px 를 지킨다 — 이름이 정말 길면
-     그때서야 레이블이 접힌다. */
+  /* Size the label column *to the name's length*.
+     A fixed % narrowed the column with each level of nesting, and names like acceleratorCount
+     broke **mid-word** as "acceleratorCo / unt". With max-content the label takes just enough for
+     one line and the input keeps at least 140px; only a really long name wraps. */
   grid-template-columns: 22px minmax(120px, max-content) minmax(140px, 1fr);
   gap: 0.5rem;
   align-items: center;
@@ -1115,12 +1115,12 @@ export default defineComponent({
   grid-column: 1;
 }
 
-/* 버튼이 없을 때 레이블이 첫 칸으로 당겨지지 않게 자리를 지킨다. */
+/* Hold the position so the label is not pulled into the first column when there is no button. */
 .simple-field > .field-label {
   grid-column: 2;
 }
 
-/* 값 자리는 늘 셋째 칸이다 — 입력 상자든, 참조 표시든. */
+/* The value always sits in the third column, whether an input box or a reference. */
 .simple-field > .field-input,
 .simple-field > .field-textarea,
 .simple-field > .field-checkbox,
@@ -1136,14 +1136,14 @@ export default defineComponent({
   font-size: 0.875rem;
   text-align: right;
   padding-right: 0.5rem;
-  /* 단어 중간에서 자르지 않는다. 자리가 정말 모자랄 때만 접힌다. */
+  /* Do not break mid-word. Wrap only when there is really no room. */
   word-break: normal;
   overflow-wrap: break-word;
 }
 
 .field-coerced-mark {
-  /* 사용자가 적은 것이 아니라 우리가 맞춘 것이다. 저장하기 전에 한 번 보라는 뜻이라
-     눈에 띄는 색으로 둔다 — 참조를 다시 고르면 사라진다. */
+  /* Not what the user typed but what we adjusted. It asks for one look before saving, so it gets
+     a color that stands out. Picking the reference again clears it. */
   margin-left: 6px;
   padding: 1px 6px;
   border-radius: 999px;
@@ -1165,7 +1165,7 @@ export default defineComponent({
   text-decoration: underline dotted;
 }
 
-/* 눌러 볼 것이 있다는 표시. 커서만 바꾸면 무엇을 누르라는 것인지 알 수 없다. */
+/* Shows there is something to click. Changing only the cursor does not say what to click. */
 .field-help-mark {
   display: inline-block;
   margin-left: 0.25rem;
@@ -1186,7 +1186,7 @@ export default defineComponent({
   color: #fff;
 }
 
-/* 레이어라 줄바꿈도 길이도 우리가 정한다. */
+/* As a layer, we decide its line breaks and its length. */
 .field-help-layer {
   position: absolute;
   z-index: 40;

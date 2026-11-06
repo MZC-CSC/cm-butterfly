@@ -905,14 +905,15 @@ function loadSequence() {
     brokenReferences.value = findBrokenReferences(
       workflowData.value?.data?.task_groups ?? workflowData.value?.task_groups,
     );
-    // ★ 읽히지 않는 본문은 참조가 어긋난 것과 성격이 다르다. 참조는 칸이 다 있고 하나가
-    //   엉뚱한 곳을 가리키는 것이라 여기서 고칠 수 있지만, 못 읽는 본문은 칸 자체가 없다 —
-    //   그 상태로 저장하면 화면이 읽어 내지 못한 것을 파일에 덮어쓴다.
+    // ★ A body that cannot be read is a different kind of problem from a misdirected reference.
+    //   With a reference every field is there and one points the wrong way, so it can be fixed here.
+    //   An unreadable body has no fields at all; saving in that state overwrites the file with
+    //   whatever the screen failed to read.
     bodyProblems.value = findBodyProblems(
       workflowData.value?.data?.task_groups ?? workflowData.value?.task_groups,
       componentName => {
-        // 컴포넌트는 두 모양으로 들어온다 — cm-cicada 가 준 `spec` 과, 화면이 쓰는
-        // `data` 로 옮겨 담은 것. 어느 쪽으로 들어왔든 같은 스키마를 가리킨다.
+        // A component arrives in two shapes: the `spec` cm-cicada sends, and the copy moved into
+        // the `data` the screen uses. Either way it points to the same schema.
         const component: any = (workflowToolModel.taskComponentList || []).find(
           (candidate: any) => candidate?.name === componentName,
         );
@@ -1176,10 +1177,10 @@ function handleSaveCallback(designer: Designer | null) {
 }
 
 /**
- * 편집기를 닫고 JSON 으로 고치러 보낸다.
+ * Close the editor and send the user to fix it as JSON.
  *
- * 못 읽는 본문은 여기서 고칠 방법이 없다 — 칸을 그릴 수가 없으니 손댈 자리가 없다. 글자로
- * 고치는 것이 유일한 길이라 그쪽으로 안내한다.
+ * An unreadable body cannot be fixed here: no fields can be drawn, so there is nothing to edit.
+ * Editing the text is the only way, so that is where the user is pointed.
  */
 function leaveForJsonEditor() {
   showBrokenReferences.value = false;
@@ -1236,8 +1237,8 @@ function coerceBodyValues() {
     if (!step?.properties) return;
 
     if (problem.kind === 'reference-quoting') {
-      // 값은 그대로 두고 인용부호만 옮긴다. 참조가 어느 태스크의 무엇을 가리키는지는
-      // 바뀌지 않고, 저장될 때 따옴표가 붙느냐 마느냐만 달라진다.
+      // Leave the value alone and move only the quotes. What task and what item the reference
+      // points to does not change; only whether it is quoted when stored does.
       const kept: string[] = Array.isArray(step.properties.rawBodyRefs)
         ? step.properties.rawBodyRefs.filter(
             (one: string) => one !== problem.field,
@@ -1263,12 +1264,12 @@ function coerceBodyValues() {
     marked.push({ task: problem.task, field: problem.field });
   });
 
-  // ★ 고친 것을 디자이너에게 건네야 저장에 반영된다.
+  // ★ The fix has to be handed to the designer, or it never reaches the save.
   //
-  //   저장은 `designer.getDefinition()` 을 읽는데, 디자이너는 자기 정의를 따로 들고 있다.
-  //   여기서 손댄 것은 우리 쪽 sequence 라 그대로 두면 화면만 바뀌고 파일은 그대로다.
-  //   배열 참조를 바꾸면 SequentialDesigner 의 watch 가 replaceDefinition 으로 넘겨 준다
-  //   (스텝 안쪽을 고친 것만으로는 watch 가 얕아서 걸리지 않는다).
+  //   Saving reads `designer.getDefinition()`, and the designer keeps its own definition.
+  //   What was edited here is our sequence, so left as is only the screen changes, not the file.
+  //   Replacing the array reference makes SequentialDesigner's watch pass it on via
+  //   replaceDefinition (editing inside a step alone does not trip the watch, which is shallow).
   sequentialSequence.value = [...sequentialSequence.value];
 
   coercedFieldsStore.replace(marked);

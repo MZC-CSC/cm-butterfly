@@ -356,11 +356,11 @@ export function useSequentialDesignerModel(refs: any) {
     // gone before a click handler ever ran. The follow-up events are swallowed
     // too, or the library still gets its click afterwards.
     /**
-     * 삼켜야 하는 것은 *캔버스* 위의 눌림뿐이다.
+     * Only presses on the *canvas* should be swallowed.
      *
-     * ★ root 는 캔버스만이 아니라 속성 패널(sqd-smart-editor)과 툴박스까지 담고 있다.
-     *   여기서 무조건 삼키면 고르는 동안 패널의 버튼이 하나도 눌리지 않는다 — 그만두기도,
-     *   라디오도, 창의 Cancel 도. 실제로 그렇게 되어 Esc 말고는 빠져나갈 길이 없었다.
+     * ★ root holds not just the canvas but the property panel (sqd-smart-editor) and the toolbox.
+     *   Swallowing everything here leaves no panel button working while picking: not the stop
+     *   button, not the radios, not the dialog's Cancel. That did happen, and Esc was the only way out.
      */
     const onCanvas = (event: Event): boolean => {
       const target = event.target as Element | null;

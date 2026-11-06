@@ -25,8 +25,8 @@
           @blur="getComponentNameOnBlur"
           placeholder="Enter task name"
         />
-        <!-- 이름은 사용자가 바꾸지만 컴포넌트는 그대로다. 어떤 칸이 나오는지, 무엇을
-             돌려주는지가 전부 여기서 갈리므로 이름 옆에 밝혀 둔다. -->
+        <!-- The user can rename the task, but the component stays the same. Which fields appear and
+             what it returns are all decided by it, so it is shown next to the name. -->
         <p class="component-kind" data-testid="wf-task-component">
           <span class="component-kind-label">Component</span>
           <code>{{ getCurrentTaskComponentName() }}</code>
@@ -95,15 +95,15 @@
              common case; taking it from an earlier task replaces the body with a
              single reference, so there are no fields left to draw.
 
-             ★ 두 갈래뿐이다. 예전에는 "결과 전체" 와 "앞선 태스크에서 가져오기" 를 따로
-               두었는데, 고르는 창에서 왼쪽 태스크 이름을 누르면 결과 전체, 오른쪽 값을
-               누르면 그 하위 경로가 되므로 둘은 같은 일의 두 입구였다. 나뉘어 있으면
-               무엇이 다른지 설명할 길이 없다. -->
+             ★ There are only two choices. "Whole result" and "Take from an earlier task" used to
+               be separate, but in the picker clicking a task name on the left gives the whole result
+               and clicking a value on the right gives that sub-path, so they were two doors to the
+               same thing. Kept apart, there was no way to explain how they differ. -->
         <div class="ref-source-bar">
           <label class="ref-source-option">
-            <!-- v-model 만으로는 부족하다. 이미 선택된 라디오를 다시 누르면 값이 바뀌지
-                 않아 아무 이벤트도 나지 않는데, 사용자는 "이쪽으로 되돌려 달라"는 뜻으로
-                 누른다. 고르는 중이었다면 그 클릭으로 멈춰야 한다. -->
+            <!-- v-model alone is not enough. Clicking a radio that is already selected changes no
+                 value, so no event fires, yet the user clicks it to mean "take me back to this".
+                 If picking was under way, that click has to stop it. -->
             <input
               v-model="bodySource"
               type="radio"
@@ -113,7 +113,7 @@
               @click="setBodySourceFields()"
             />
             <span>Fill in fields</span>
-            <!-- 브라우저 기본 title 은 뜨기까지 한참 걸린다. 직접 그린다. -->
+            <!-- The browser's own title is slow to appear, so it is drawn here. -->
             <span class="ref-source-help" role="tooltip">
               Fill in <b>{{ getComponentNameValue() || 'this task' }}</b
               >'s own fields, in the order and shape its request body asks for.
@@ -146,8 +146,8 @@
               </template>
             </span>
           </label>
-          <!-- 고르는 중에는 그만둘 길이 화면에 있어야 한다. 캔버스만 밝고 창이 없을 때는
-               Esc 말고는 나올 방법이 없었다 — 그것을 아는 사람만 빠져나올 수 있다. -->
+          <!-- While picking, a way to stop has to be on screen. With only the canvas lit and no
+               dialog, Esc was the only way out, and only people who knew that could get out. -->
           <button
             v-if="isPickingOnCanvas"
             type="button"
@@ -276,8 +276,8 @@
         </div>
       </div>
 
-      <!-- 본문이 없는 컴포넌트도 있다(메일 트리거처럼 HTTP 호출이 아닌 것). 지금까지는
-           아무것도 그리지 않아 "왜 이 태스크만 없지" 로 남았다. 없다는 것을 말해 준다. -->
+      <!-- Some components have no body (those that are not HTTP calls, such as the mail trigger).
+           Nothing used to be drawn, which left "why is only this task empty". Say there is none. -->
       <p v-else class="no-body-note" data-testid="wf-no-body-params">
         This task sends no request body, so there is nothing to fill in or take
         from an earlier task.
@@ -658,8 +658,8 @@ export default defineComponent({
     /**
      * Fields whose value was forced into the type the task asks for, on load.
      *
-     * 사용자가 직접 고친 값이 아니므로 어느 칸이 손댔는지 보여야 한다 — 저장하기 전에
-     * 한 번 눈으로 확인할 자리를 주는 것이다.
+     * The user did not change these, so which fields were touched has to show. It gives a place
+     * to check them by eye once before saving.
      */
     const coercedPaths = computed<string[]>(() =>
       coercedFieldsStore
@@ -703,33 +703,32 @@ export default defineComponent({
       );
     };
 
-    /** "결과 전체" 를 골라 두고 아직 무엇을 넘길지 정하지 않은 상태. */
+    /** "Whole result" is chosen but what to pass is not decided yet. */
     const pendingWholeBody = ref(false);
 
     const stopPickingOnCanvas = (): void => referencePickingStore.stop();
 
-    /** 캔버스가 고르기 상태인가 — 그만둘 버튼을 보일지 정한다. */
+    /** Whether the canvas is in picking mode. Decides whether to show the stop button. */
     const isPickingOnCanvas = computed(
       () => referencePickingStore.isPicking.value,
     );
 
     /**
-     * 값 고르기를 그만둔다 — 창도 닫고 캔버스 강조도 끈다.
+     * Stop picking a value: close the dialog and turn off the canvas highlight.
      *
-     * 창만 닫으면 캔버스가 계속 고르기 상태로 남아, 태스크를 하나 고르기 전에는
-     * 빠져나갈 길이 없어진다.
+     * Closing only the dialog leaves the canvas in picking mode, with no way out until a task is picked.
      */
     const cancelReference = (): void => {
       taskReference.close();
       stopPickingOnCanvas();
-      // 정하지 않고 그만뒀으면 고르기 전 상태로 되돌린다.
+      // If stopped without deciding, go back to the state before picking.
       if (pendingWholeBody.value) {
         pendingWholeBody.value = false;
         if (!wholeBodyRef.value) setBodySourceFields();
       }
     };
 
-    /** 고르는 중에 Esc 를 누르면 그만둔다 — 창이 열려 있든 캔버스만 밝든. */
+    /** Esc while picking stops it, whether the dialog is open or only the canvas is lit. */
     const onEscape = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return;
       if (!taskReference.isOpen.value && !referencePickingStore.isPicking.value)
@@ -778,7 +777,7 @@ export default defineComponent({
      * schema decides, because the schema is what the receiving API asks for.
      */
     const rememberQuoting = (path: string, fieldType?: string): void => {
-      // 사용자가 이 칸을 직접 정했으니 "확인해 달라" 는 표시는 거둔다.
+      // The user set this field directly, so drop the "please check" mark.
       coercedFieldsStore.release(step.value?.name || '', path);
       const properties = step.value.properties as any;
       const kept: string[] = Array.isArray(properties.rawBodyRefs)
@@ -832,12 +831,12 @@ export default defineComponent({
       // the picker fill that slot and leave the body in field mode — a different screen from the
       // one this option is supposed to show.
       taskReference.open('', undefined);
-      // 캔버스도 함께 밝힌다. 어느 태스크의 결과를 넘길지 고르는 일이므로, 목록에서 찾는
-      // 것과 캔버스에서 짚는 것이 같은 자리에서 되어야 한다 — 두 경로가 달라 보이면
-      // 캔버스에서 고를 수 있다는 것을 모른다.
+      // Light up the canvas too. This picks which task's result to pass, so finding it in the list
+      // and pointing at it on the canvas must work from the same place. If the two looked different,
+      // nobody would know the canvas can be used.
       startPickingOnCanvas('', undefined);
-      // 고르다 그만두면 이 선택도 없던 일이 되어야 한다. 무엇을 넘길지 정하지 않은 채
-      // "결과 전체" 에 표시만 남으면, 화면은 그 모드인데 넘길 것이 없는 상태가 된다.
+      // Stopping mid-pick has to undo this choice too. If only the "Whole result" mark remained with
+      // nothing decided, the screen would be in that mode with nothing to pass.
       pendingWholeBody.value = true;
     };
 
@@ -853,12 +852,12 @@ export default defineComponent({
     };
 
     /**
-     * 지금 어느 쪽인가 — 칸마다 채우기인가, 결과 전체인가.
+     * Which one is active now: filling fields, or the whole result.
      *
-     * ★ `:checked` 로 묶으면 안 된다. 사용자가 라디오를 누르면 DOM 은 이미 바뀌어 있는데,
-     *   되돌리려 할 때 묶인 값이 그대로면 Vue 는 다시 그릴 것이 없다고 보고 넘어간다.
-     *   그러면 취소했는데 표시만 "결과 전체" 로 남는다. v-model 은 상태를 단일 출처로
-     *   두어 그런 어긋남이 생기지 않는다.
+     * ★ Do not bind it with `:checked`. When the user clicks a radio the DOM has already changed,
+     *   and when reverting, if the bound value is unchanged Vue sees nothing to redraw and moves on.
+     *   The mark then stays on "Whole result" after a cancel. v-model keeps the state as the single
+     *   source, so that mismatch cannot happen.
      */
     const bodySource = computed<string>({
       get: () =>
@@ -2433,9 +2432,9 @@ export default defineComponent({
 }
 
 .json-editor-container {
-  /* 높이를 고정하지 않는다. 예전에는 min-height: 400px 이라 칸이 하나뿐인 태스크
-     (time 하나만 받는 sleep 등)에서도 400px 를 잡아, 빈 여백만 길고 패널에 스크롤이
-     생겼다. 내용만큼만 차지하게 둔다. */
+  /* No fixed height. It used to be min-height: 400px, so even a task with one field (such as sleep,
+     which takes only time) took 400px, leaving a long empty gap and a scrollbar on the panel.
+     It takes only as much as its content. */
   @apply bg-white;
   padding: 0;
 }
@@ -2627,8 +2626,8 @@ export default defineComponent({
 }
 
 .ref-source-bar {
-  /* 아래 칸들과 성격이 다르다 — 값이 아니라 *본문이 어디서 오는가* 를 정한다.
-     경계선과 옅은 바탕으로 갈라 두지 않으면 첫 번째 칸처럼 읽힌다. */
+  /* This is a different kind of thing from the fields below: it decides *where the body comes from*,
+     not a value. Without a border and a light background it reads like the first field. */
   display: flex;
   align-items: center;
   gap: 14px;
@@ -2648,8 +2647,8 @@ export default defineComponent({
   color: #3d4655;
   cursor: pointer;
 }
-/* 무엇을 고르는 것인지 호버로 알려 준다. 레이어로 그리는 이유는 브라우저 기본
-   툴팁이 한참 뒤에야 뜨기 때문이다 — 고르기 전에 읽혀야 소용이 있다. */
+/* A hover explains what is being chosen. It is drawn as a layer because the browser's own tooltip
+   appears only much later, and it is useful only if read before choosing. */
 .ref-source-help {
   position: absolute;
   top: calc(100% + 7px);
@@ -2678,7 +2677,7 @@ export default defineComponent({
   color: #a6aebc;
   cursor: not-allowed;
 }
-/* 고르기 쪽 옵션은 아이콘을 달아 눈에 띄게 둔다 — 값을 어디서 가져올지 정하는 자리다. */
+/* The picking option gets an icon so it stands out; this is where the value's source is chosen. */
 .ref-source-option .ref-pick-icon {
   color: #4b4ddb;
 }
@@ -2743,11 +2742,11 @@ export default defineComponent({
   color: #3d4655;
   cursor: pointer;
 }
-/* 넘어가는 값 표.
+/* Table of the values passed on.
  *
- * 값 이름과 예시는 얼마든지 길어질 수 있다. 그대로 두면 표가 칸을 밀어내 패널 밖으로
- * 나가고, 가로 스크롤이 패널 전체에 걸려 오른쪽 열이 잘린 채 보인다. 폭을 고정하고
- * 넘치는 것은 칸 안에서 자르거나 접는다. */
+ * Value names and examples can get arbitrarily long. Left alone, the table pushes its columns out of
+ * the panel, the horizontal scroll covers the whole panel, and the right column shows cut off.
+ * Widths are fixed and overflow is cut or wrapped inside the cell. */
 .ref-whole {
   max-width: 100%;
   overflow-x: auto;

@@ -197,12 +197,12 @@ function fits(found: string, expected: string): boolean {
   if (found === expected) return true;
   if (expected === 'number' && found === 'integer') return true;
   if (expected === 'integer' && found === 'number') return true;
-  // ★ null 은 틀린 값이 아니라 *설정하지 않았다* 는 뜻이다.
+  // ★ null is not a wrong value; it means *left unset*.
   //
-  //   이 API 들은 비워 둔 항목을 null 로 돌려주고, 받는 쪽은 기본값으로 처리한다. 추천이
-  //   돌려준 인프라 모델이 그대로 그렇게 생겼다 — 인프라 마이그레이션에서 k8s 관련 항목이
-  //   전부 null 인 것은 정상이다. 그것을 결함으로 세면 *추천으로 만든 워크플로우가 하나도
-  //   빠짐없이 걸린다.* 실제로 복제 후 편집이 그렇게 막혔다.
+  //   These APIs return null for items left empty, and the receiving side applies its default.
+  //   The infra model a recommendation returns looks exactly like that: in an infra migration
+  //   every k8s item is null, and that is normal. Counting it as a fault would flag *every
+  //   workflow built from a recommendation, without exception.* Clone & Edit was blocked that way.
   if (found === 'null') return true;
   return false;
 }
@@ -344,7 +344,7 @@ export function canCoerceAll(
     one => one.kind === 'type' || one.kind === 'reference-quoting',
   );
   if (!fixable.length) return false;
-  // 참조는 인용부호만 옮기면 된다 — 값은 건드리지 않으니 잃을 것이 없다.
+  // A reference only needs its quotes moved. The value is not touched, so nothing can be lost.
   return fixable.every(
     one =>
       one.kind === 'reference-quoting' ||

@@ -154,10 +154,10 @@ export function useTaskReference(
   const targetField = ref<string>('');
 
   /**
-   * 캔버스에서 고른 태스크. 값 목록을 그 태스크로 좁히는 데 쓴다.
+   * The task picked on the canvas. Used to narrow the value list to that task.
    *
-   * 좁히지 않으면 캔버스에서 고른 것이 화면에 아무 영향을 주지 않는다 — 목록이 그대로라
-   * 무엇이 골라졌는지 알 수 없고, 다시 목록에서 찾아야 한다.
+   * Without narrowing, picking on the canvas has no visible effect: the list stays the same, so
+   * nobody can tell what was picked, and it has to be found in the list again.
    */
   const focusTask = ref<string>('');
   const targetType = ref<string | undefined>(undefined);
@@ -248,13 +248,13 @@ export function useTaskReference(
   );
 
   /**
-   * 저장될 값. **모드에 따라 형태가 다르다.**
+   * The value to be stored. **Its shape depends on the mode.**
    *
-   * 본문 전체를 넘길 때는 `<task>` 또는 `<task>.<path>` 를 그대로 쓴다. 칸을 채울 때만
-   * `${...}` 로 감싼다 — 감싼 형태는 본문 안의 한 자리를 바꾸는 문법이라, 본문 자체를
-   * 대신할 때 쓰면 엔진이 그것을 리터럴 문자열로 읽는다.
+   * When the whole body is passed, `<task>` or `<task>.<path>` is written as is. Only when filling a
+   * field is it wrapped in `${...}`. The wrapped form is syntax for replacing one spot inside a body;
+   * used in place of the body itself, the engine reads it as a literal string.
    *
-   * 미리보기가 실제 저장값과 다르면 사용자는 저장하고 나서야 다른 것이 들어간 것을 안다.
+   * If the preview differs from what is actually stored, the user finds out only after saving.
    */
   const preview = computed(() => {
     if (!selectedTask.value || !selectedPath.value) return '';
@@ -303,8 +303,8 @@ export function useTaskReference(
   const pickTask = (task: string): boolean => {
     if (!ancestors.value.includes(task)) return false;
     selectedTask.value = task;
-    // 고른 그 순간 *그 태스크의 결과 전체*가 정해진다. 그래야 캔버스에서 태스크를 고르는
-    // 행위가 그 자체로 뜻을 갖는다 — 더 좁히고 싶으면 열린 목록에서 항목을 고르면 된다.
+    // The moment it is picked, *that task's whole result* is selected. That way picking a task on
+    // the canvas means something by itself. To narrow further, pick an item from the opened list.
     selectedPath.value = '$';
     focusTask.value = task;
     isPicking.value = false;
@@ -312,16 +312,16 @@ export function useTaskReference(
     return true;
   };
 
-  /** 좁혀 둔 것을 풀고 앞선 태스크 전부를 다시 보여 준다. */
+  /** Clear the narrowing and show every earlier task again. */
   const showAllTasks = (): void => {
     focusTask.value = '';
   };
 
   /**
-   * 열린 목록에서 값을 고른다.
+   * Pick a value from the opened list.
    *
-   * 캔버스에서 고르는 pickTask 와 다르다 — 이쪽은 목록을 좁히지 않는다. 이미 목록을 보고
-   * 있는데 고르는 순간 다른 태스크가 사라지면, 옆 태스크와 견주어 보던 흐름이 끊긴다.
+   * Unlike pickTask on the canvas, this does not narrow the list. If the other tasks vanished the
+   * moment a value was picked while browsing the list, comparing against the next task would break off.
    */
   const selectValue = (task: string, path: string): void => {
     if (!ancestors.value.includes(task)) return;

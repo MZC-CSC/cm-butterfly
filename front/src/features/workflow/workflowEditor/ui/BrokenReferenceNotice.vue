@@ -51,10 +51,10 @@ const mistyped = computed(() =>
   allProblems.value.filter(one => one.kind === 'type'),
 );
 /**
- * 참조가 그 칸이 요구하는 타입에 맞지 않는 모양으로 적혀 있는 것들.
+ * References written in a shape that does not fit the type their field takes.
  *
- * 값이 무엇으로 올지는 여기서 알 수 없지만, *어떻게 적혔는지*는 알 수 있다. 엔진은 본문에
- * 글자로 끼워 넣으므로, 문자열이 아닌 칸의 참조는 따옴표 없이 있어야 한다.
+ * What value will arrive cannot be known here, but *how it was written* can. The engine splices the
+ * reference into the body as text, so a reference in a non-string field must have no quotes.
  */
 const misquoted = computed(() =>
   allProblems.value.filter(one => one.kind === 'reference-quoting'),
@@ -233,18 +233,18 @@ const emit = defineEmits(['close', 'leave', 'open-json', 'coerce']);
             Fix it as JSON
           </button>
         </template>
-        <!-- ★ 경우마다 할 수 있는 일이 다르다.
-             본문을 읽지 못하면 여기서 고칠 자리가 없으니 나갈 길만 준다.
-             형식이 어긋난 것은 여기서 바로잡을 수 있으니 그 버튼을 더한다. "OK" 는 두지
-             않는다 — 무엇을 승낙한다는 뜻인지 알 수 없고, 그대로 두면 실행할 때 거절당한다.
-             참조가 엉뚱한 곳을 가리키는 것뿐이라면 이야기가 다르다. 칸은 다 있고 여기서
-             고치면 되므로, 알림을 닫고 이어서 손보는 것이 맞다. -->
-        <!-- ★ 여기서 막다른 길을 만들면 안 된다.
-             값의 형식이 어긋난 것은 *알림* 이지 편집을 막을 일이 아니다. 저장을 막지 않는
-             것이 이 화면의 설계이고(위 머리말), 무엇보다 고칠 수 없는 경우가 있다 —
-             덩어리 값은 만들어 낼 수 없으므로 "바로잡기" 가 나오지 않는다. 그때 나가기만
-             남으면 그 워크플로우는 화면에서 손댈 수 없게 된다. 이어서 편집하는 길을 늘
-             열어 둔다. -->
+        <!-- ★ What can be done differs by case.
+             If the body cannot be read there is nothing to fix here, so only the ways out are offered.
+             A type mismatch can be put right here, so that button is added. There is no "OK": it is
+             unclear what it would accept, and left as is the task is refused at run time.
+             A reference that only points the wrong way is different. Every field is there and it can
+             be fixed here, so the right move is to close the notice and keep editing. -->
+        <!-- ★ This must not become a dead end.
+             A value of the wrong type is a *notice*, not a reason to block editing. Not blocking the
+             save is how this screen is designed (header above), and above all some cases cannot be
+             fixed: a structured value cannot be made up, so "Put them right" does not appear. If only
+             the ways out remained then, that workflow could not be touched from the screen. The way
+             to keep editing is always left open. -->
         <template v-else-if="mistyped.length || misquoted.length">
           <p v-if="canCoerce" class="broken-ref-hint">
             These can be put right here. The fields are marked afterwards so you

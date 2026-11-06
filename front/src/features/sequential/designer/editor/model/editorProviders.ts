@@ -205,10 +205,10 @@ export function editorProviders() {
         );
       }
 
-      // 패널 끝에 디자이너 내부 경로("MCI/sleep_for_1m_30s")를 아무 설명 없이 붙이던
-      // 자리다. 앞쪽 "MCI" 는 TaskGroup 스텝의 *타입* 이라 어디에도 쓰이지 않고, 이
-      // 경로로 조회할 수 있는 API 도 없다. 설명도 없이 떠 있어 화면이 깨진 것으로
-      // 읽혔다. 태스크를 식별하는 데 필요한 것(컴포넌트)은 이름 아래에 적는다.
+      // The panel used to end with the designer's internal path ("MCI/sleep_for_1m_30s") and no
+      // explanation. The leading "MCI" is the *type* of the TaskGroup step and is used nowhere,
+      // and no API can look anything up by that path. Shown without a word, it read as a broken
+      // screen. What identifies the task (its component) is written under the name instead.
 
       if (isReadonly) return lockInputs(editor);
       return editor;

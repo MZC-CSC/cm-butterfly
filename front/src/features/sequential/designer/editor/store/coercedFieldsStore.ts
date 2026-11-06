@@ -1,17 +1,17 @@
 /**
  * Which body values were forced into the type their task asks for.
  *
- * ★ 왜 저장소인가 — 이 사실은 워크플로우를 *열 때* 정해지는데, 보여줄 곳은 태스크를 눌러야
- *   열리는 속성 패널이다. 그 패널은 디자이너 라이브러리가 자기 스텝 객체로 띄우므로, 열 때
- *   손에 쥐고 있던 스텝에 표식을 남겨도 패널까지 오지 않는다 — 라이브러리가 정의를 복제한다.
- *   그래서 스텝을 거치지 않고 이름으로 주고받는다. 옆에 있는 referencePickingStore 와 같은
- *   이유, 같은 모양이다.
+ * ★ Why a store: this is decided when the workflow is *opened*, but it is shown in the property
+ *   panel, which opens only when a task is clicked. The designer library opens that panel from its
+ *   own step object, so a mark left on the step held at open time never reaches the panel (the
+ *   library copies the definition). So it is passed by name, not through the step. Same reason and
+ *   same shape as referencePickingStore next to it.
  */
 
 import { computed, ref } from 'vue';
 
 class CoercedFieldsStore {
-  /** `<task> <field>` — 태스크 이름과 칸 경로. */
+  /** `<task> <field>`: the task name and the field path. */
   private marked = ref<string[]>([]);
 
   private key(task: string, field: string): string {
@@ -22,12 +22,12 @@ class CoercedFieldsStore {
     return computed(() => this.marked.value);
   }
 
-  /** 이 워크플로우를 열며 바꾼 것들로 갈아 끼운다. */
+  /** Replace with what was changed while opening this workflow. */
   replace(entries: Array<{ task: string; field: string }>): void {
     this.marked.value = entries.map(one => this.key(one.task, one.field));
   }
 
-  /** 이 태스크에서 바뀐 칸들. 패널이 이것만 본다. */
+  /** Fields changed in this task. The panel looks only at these. */
   fieldsOf(task: string): string[] {
     const prefix = `${task} `;
     return this.marked.value
@@ -36,17 +36,17 @@ class CoercedFieldsStore {
   }
 
   /**
-   * 사용자가 그 칸을 직접 손댔으면 표시를 거둔다.
+   * Drop the mark once the user has edited that field.
    *
-   * 표시의 뜻이 "우리가 맞춰 놨으니 확인해 달라" 이므로, 확인하고 고친 뒤에도 남아 있으면
-   * 무엇이 남은 일인지 알 수 없게 된다.
+   * The mark means "we adjusted this, please check it". If it stays after the user has checked
+   * and fixed it, nobody can tell what is still left to do.
    */
   release(task: string, field: string): void {
     const key = this.key(task, field);
     this.marked.value = this.marked.value.filter(one => one !== key);
   }
 
-  /** 다른 워크플로우를 열 때 남아 있으면 엉뚱한 칸이 표시된다. */
+  /** If left over when another workflow opens, the wrong fields get marked. */
   clear(): void {
     this.marked.value = [];
   }
