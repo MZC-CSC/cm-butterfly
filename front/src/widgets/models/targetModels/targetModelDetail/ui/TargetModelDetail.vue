@@ -126,7 +126,7 @@ function handleOpenWorkflowEditor() {
 </script>
 
 <template>
-  <div>
+  <div data-testid="target-model-detail">
     <p-definition-table
       :fields="tableModel.tableState.fields"
       :data="tableModel.tableState.data"

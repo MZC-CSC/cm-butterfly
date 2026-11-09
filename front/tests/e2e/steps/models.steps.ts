@@ -1,7 +1,7 @@
 import { createBdd } from 'playwright-bdd';
 import { test, expect } from '../support/fixtures';
 import { ModelsPage, isSpecWithinClass } from '../pages/models.page';
-import { sourceServer, targetSpec } from '../fixtures/test-data';
+import { targetSpec } from '../fixtures/test-data';
 import { uniqueName } from '../support/naming';
 import { scenarioState } from '../support/world';
 
@@ -66,6 +66,67 @@ Given('{string} 소스 모델을 선택한다', async ({ page }, name: string) =
   await models.selectModel(uniqueName(name));
   scenarioState.sourceModelName = uniqueName(name);
 });
+
+/**
+ * "{string} 계획 모델을 선택한다" — select an infra planning model; the recommendation steps run on it.
+ * A source model is the read-only record of the collection, so recommendation starts from here.
+ */
+Given('{string} 계획 모델을 선택한다', async ({ page }, name: string) => {
+  const models = new ModelsPage(page);
+  await models.gotoSourceModels();
+  await models.selectModel(uniqueName(name));
+  scenarioState.planningModelName = uniqueName(name);
+});
+
+/**
+ * "그 소스 모델을 {string} 계획 모델로 저장한다" — save the source model just saved from the collection
+ * (scenarioState.sourceModelName) as it is, as a planning model derived from it. This is the step
+ * between collecting and recommending when nothing is to be changed.
+ */
+Given(
+  '그 소스 모델을 {string} 계획 모델로 저장한다',
+  async ({ page }, name: string) => {
+    expect(
+      scenarioState.sourceModelName,
+      '계획 모델로 저장할 소스 모델이 없다 - 앞에서 소스 모델을 저장해야 한다',
+    ).toBeTruthy();
+    const models = new ModelsPage(page);
+    await models.gotoSourceModels();
+    await models.selectModel(scenarioState.sourceModelName!);
+    await models.saveAsSourceModel(uniqueName(name));
+    scenarioState.planningModelName = uniqueName(name);
+  },
+);
+
+/** "{string} 소스 모델은 조회만 할 수 있다" — no recommend link, no Edit; a note points to planning. */
+Then(
+  '{string} 소스 모델은 조회만 할 수 있다',
+  async ({ page }, name: string) => {
+    const models = new ModelsPage(page);
+    await models.gotoSourceModels();
+    await models.expectSourceModelReadOnly(uniqueName(name));
+  },
+);
+
+/** "{string} 계획 모델에서는 추천을 받을 수 있다" */
+Then(
+  '{string} 계획 모델에서는 추천을 받을 수 있다',
+  async ({ page }, name: string) => {
+    const models = new ModelsPage(page);
+    await models.gotoSourceModels();
+    await models.expectPlanningModelRecommendable(uniqueName(name));
+  },
+);
+
+/** The planning model the recommendation runs on - recorded by an earlier step, never guessed. */
+function planningModelForRecommend(): string {
+  const name = scenarioState.planningModelName;
+  expect(
+    name,
+    '추천할 계획 모델이 없다 - 소스 모델을 계획 모델로 저장하거나 계획 모델을 선택해야 한다',
+  ).toBeTruthy();
+  return name!;
+}
 
 // ───────────────────────────────────────────────────────────────────────
 // Save source (on-prem) model (unit + migration reuse)
@@ -166,7 +227,7 @@ When(
 /**
  * ★ Migration reuse step —
  * "만약 타깃 인프라를 {string} 저비용으로 추천받아 타깃 모델로 저장하면"
- * Runs a low-cost recommendation for the currently selected/saved source model and saves the
+ * Runs a low-cost recommendation for the planning model in play and saves the
  * lowest-cost candidate as a target model.
  * The {string} is a human-readable label (e.g. "small급 저비용"); the actual CSP/Region/class come
  * from test-data.targetSpec.
@@ -175,11 +236,9 @@ When(
   '타깃 인프라를 {string} 저비용으로 추천받아 타깃 모델로 저장하면',
   async ({ page }, _label: string) => {
     const models = new ModelsPage(page);
-    // Select the infra source model (OnPremiseModel) saved from the collection result, then enter the recommendation modal
+    // Select the infra planning model saved from the collected source model, then enter the recommendation modal
     await models.gotoSourceModels();
-    await models.selectModel(
-      scenarioState.sourceModelName ?? uniqueName(sourceServer.name),
-    );
+    await models.selectModel(planningModelForRecommend());
     await models.openRecommend();
     await models.selectProvider(targetSpec.csp);
     await models.selectRegion(targetSpec.region);
@@ -222,9 +281,7 @@ When(
   async ({ page }) => {
     const models = new ModelsPage(page);
     await models.gotoSourceModels();
-    await models.selectModel(
-      scenarioState.sourceModelName ?? uniqueName(sourceServer.name),
-    );
+    await models.selectModel(planningModelForRecommend());
     await models.openRecommend();
     await models.selectProvider(targetSpec.csp);
     await models.selectRegion(targetSpec.region);
@@ -261,12 +318,12 @@ let lastRecommendQuery: Record<string, string> = {};
 let lastMatchRateHelp = '';
 
 /**
- * Any *infra* source model will do here — these scenarios check how the recommendation
+ * Any *infra* planning model will do here — these scenarios check how the recommendation
  * *condition input* behaves, not what the recommendation returns, so they don't need the model
  * @seed creates. It has to be an infra one: a software source model's detail opens the software
  * recommendation page instead of the recommend modal.
  */
-Given('아무 소스 모델이나 선택한다', async ({ page }) => {
+Given('아무 계획 모델이나 선택한다', async ({ page }) => {
   await new ModelsPage(page).selectFirstInfraModel();
 });
 
@@ -489,16 +546,17 @@ Then(
 );
 
 // ───────────────────────────────────────────────────────────────────────
-// Custom model — saving a source model with only the title changed makes it a custom model
+// Custom model — saving an edited source model makes it a planning model derived from that source
 // ───────────────────────────────────────────────────────────────────────
 
 /**
  * "{string} 소스 모델을 {string} 커스텀 모델로 저장하면"
  *
- * In the source model detail's "Custom & View Source Model", review the collected on-prem info and
- * save it with only the name changed. What's saved this way is a custom model (same procedure for
- * both infra and software).
- * Subsequent recommendations run against this custom model, so record it in global state.
+ * In the source model detail's "View & Save as Planning Model", review the collected on-prem info and
+ * save it with only the name changed. An infra model saved this way is a planning model whose parent is
+ * the selected source (cm-damselfly source -> planning). A software model stays a source model, since
+ * cm-damselfly takes a software planning model in the target structure.
+ * Subsequent recommendations run against this planning model, so record it in global state.
  */
 When(
   '{string} 소스 모델을 {string} 커스텀 모델로 저장하면',
@@ -507,6 +565,32 @@ When(
     await models.gotoSourceModels();
     await models.selectModel(uniqueName(sourceName));
     await models.saveAsSourceModel(uniqueName(customName));
-    scenarioState.sourceModelName = uniqueName(customName);
+    scenarioState.planningModelName = uniqueName(customName);
+  },
+);
+
+/** "{string} 모델의 단계는 {string} 이다" — the Stage cell of the source model detail. */
+Then(
+  '{string} 모델의 단계는 {string} 이다',
+  async ({ page }, name: string, stage: string) => {
+    const models = new ModelsPage(page);
+    await models.gotoSourceModels();
+    await models.expectSourceDetailStage(uniqueName(name), stage);
+  },
+);
+
+/**
+ * "{string} 모델은 {string} 소스 모델에서 파생된 계획 모델이다"
+ *
+ * Checked on the result: the detail must say Planning *and* name the source as its parent. Either
+ * alone passes for the wrong reason - a copy saved as a new source model also shows up in the list.
+ */
+Then(
+  '{string} 모델은 {string} 소스 모델에서 파생된 계획 모델이다',
+  async ({ page }, name: string, sourceName: string) => {
+    const models = new ModelsPage(page);
+    await models.gotoSourceModels();
+    await models.expectSourceDetailStage(uniqueName(name), 'Planning');
+    await models.expectDerivedFrom(uniqueName(name), uniqueName(sourceName));
   },
 );

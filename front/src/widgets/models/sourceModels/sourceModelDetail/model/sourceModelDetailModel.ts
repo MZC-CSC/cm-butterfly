@@ -1,6 +1,7 @@
 import { useSourceModelStore, SourceModelTableType } from '@/entities';
 import { useDefinitionTableModel } from '@/shared/hooks/table/definitionTable/useDefinitionTableModel';
 import { ref, watch } from 'vue';
+import { MODEL_STAGE_LABEL } from '@/entities/migrationModel';
 
 export function useSourceModelDetailModel() {
   const sourceModelStore = useSourceModelStore();
@@ -20,7 +21,9 @@ export function useSourceModelDetailModel() {
       { label: 'ID', name: 'id' },
       { label: 'Description', name: 'description' },
       { label: 'Migration Type', name: 'migrationType' },
-      { label: 'Custom', name: 'custom' },
+      { label: 'Stage', name: 'stage' },
+      { label: 'Derived From (Source Model)', name: 'parentSourceModel' },
+      { label: 'Source Group', name: 'sourceGroup' },
       { label: 'Model Type', name: 'modelType' },
       { label: 'Created Date Time', name: 'createdDateTime' },
       { label: 'Updated Date Time', name: 'updatedDateTime' },
@@ -33,6 +36,12 @@ export function useSourceModelDetailModel() {
     ];
   }
 
+  function parentName(id: string | undefined) {
+    if (!id) return '';
+    const parent = sourceModelStore.getSourceModelById(id);
+    return parent ? `${parent.userModelName} (${id})` : id;
+  }
+
   function setDefineTableData(sourceModelId: string) {
     const sourceModel = sourceModelStore.getSourceModelById(sourceModelId);
     let data: Partial<Record<SourceModelTableType, any>> = {};
@@ -42,8 +51,17 @@ export function useSourceModelDetailModel() {
         name: sourceModel.userModelName,
         id: sourceModel.id,
         description: sourceModel.description,
-        migrationType: sourceModel['migrationType'] || sourceModel.modelType || '',
-        custom: sourceModel['custom'],
+        migrationType:
+          sourceModel['migrationType'] || sourceModel.modelType || '',
+        stage: sourceModel.modelStage
+          ? MODEL_STAGE_LABEL[sourceModel.modelStage]
+          : '',
+        // Only a planning model has a parent; a source model is the origin.
+        parentSourceModel:
+          sourceModel.modelStage === 'planning'
+            ? parentName(sourceModel.lineage?.sourceModelId)
+            : '',
+        sourceGroup: sourceModel.lineage?.sourceGroupId ?? '',
         modelType: sourceModel.modelType || 'Unknown',
         createdDateTime: sourceModel.createTime,
         updatedDateTime: sourceModel.updateTime,

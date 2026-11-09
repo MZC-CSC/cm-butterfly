@@ -4,12 +4,13 @@ import { EnhancedJsonEditor } from '@/shared/ui/EnhancedJsonEditor';
 import { CreateForm } from '@/widgets/layout';
 import { SimpleEditForm } from '@/widgets/layout';
 import { reactive, ref, watch, computed } from 'vue';
+import { ITargetModelResponse, useTargetModelStore } from '@/entities';
 import {
-  createTargetModel,
-  createTargetSoftwareModel,
-  ITargetModelResponse,
-  useTargetModelStore,
-} from '@/entities';
+  createInfraModel,
+  createSoftwareModel,
+  describeModelError,
+  siblingTargetLineageOf,
+} from '@/entities/migrationModel';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 import { useAuth } from '@/features/auth/model/useAuth.ts';
 
@@ -37,8 +38,6 @@ const modalState = reactive({
 const auth = useAuth();
 const targetModelStore = useTargetModelStore();
 const targetModel = ref<ITargetModelResponse | undefined>(undefined);
-const resCreateTargetModel = createTargetModel(null);
-const resCreateTargetSoftwareModel = createTargetSoftwareModel(null);
 const cloudInfraModelCode = ref<string>('');
 
 // Use migration data if present, otherwise fall back to the existing target model
@@ -144,11 +143,13 @@ function handleCreateSoftwareTargetModel(e) {
     return;
   }
 
-  resCreateTargetSoftwareModel
-    .execute({
-      request: requestBody,
-    })
-    .then(res => {
+  // A new target model keeps the upstream lineage (source group, source and planning model) of the
+  // target it was edited from. cm-damselfly has no target-to-target parent.
+  createSoftwareModel('target', {
+    ...requestBody,
+    ...(targetModel.value ? siblingTargetLineageOf(targetModel.value) : {}),
+  })
+    .then(() => {
       showSuccessMessage(
         'success',
         'Successfully created software target model',
@@ -158,8 +159,8 @@ function handleCreateSoftwareTargetModel(e) {
       emit('update:trigger', false);
       emit('update:close-target-model-detail');
     })
-    .catch(e => {
-      showErrorMessage('error', e.errorMsg);
+    .catch(err => {
+      showErrorMessage('error', describeModelError(err).message);
     });
 }
 
@@ -173,7 +174,6 @@ function handleCreateInfraTargetModel(e) {
       csp: targetModel.value?.csp ?? '',
       description: e.description,
       isInitUserModel: false,
-      isTargetModel: true,
       region: targetModel.value?.region ?? '',
       userId: auth.getUser().id,
       userModelName: e.name,
@@ -188,19 +188,19 @@ function handleCreateInfraTargetModel(e) {
     return;
   }
 
-  resCreateTargetModel
-    .execute({
-      request: requestBody,
-    })
-    .then(res => {
+  createInfraModel('cloud', 'target', {
+    ...requestBody,
+    ...(targetModel.value ? siblingTargetLineageOf(targetModel.value) : {}),
+  })
+    .then(() => {
       showSuccessMessage('success', 'Successfully created infra target model');
       modalState.open = false;
       emit('update:close-modal', false);
       emit('update:trigger', false);
       emit('update:close-target-model-detail');
     })
-    .catch(e => {
-      showErrorMessage('error', e.errorMsg);
+    .catch(err => {
+      showErrorMessage('error', describeModelError(err).message);
     });
 }
 

@@ -151,11 +151,11 @@ export const GUIDED_STEPS: GuidedStep[] = [
     id: 'target-model',
     title: 'Create Target Model',
     detail: [
-      'A target model is generated from a source model, on the Source Models screen.',
-      'Adjust the values you want and save it as a custom model.',
+      'On the Source Models screen, open the source model and save it as a planning model, changing any values you want.',
+      'A target model is generated from that planning model. The source model itself stays as collected.',
     ],
     standing: () =>
-      'There is a source model to work from. Open it on the Source Models screen, generate a target model from it, and adjust the values you want.',
+      'There is a source model to work from. Open it on the Source Models screen, save it as a planning model, and generate a target model from the planning model.',
     completion:
       'This step is complete once you have saved at least one target model.',
     progress: f => plural(f.targetModels, 'target model'),

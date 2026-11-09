@@ -6,7 +6,8 @@ import { SimpleEditForm } from '@/widgets/layout';
 import { CustomViewTargetModel } from '@/widgets/models/targetModels';
 import { reactive, ref, computed } from 'vue';
 import WorkflowEditor from '@/features/workflow/workflowEditor/ui/WorkflowEditor.vue';
-import { useTargetModelStore, useUpdateTargetModel } from '@/entities';
+import { useTargetModelStore } from '@/entities';
+import { describeModelError, updateModelInfo } from '@/entities/migrationModel';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 import { useRouter } from 'vue-router/composables';
 import { WORKFLOW_MANAGEMENT_ROUTE } from '@/app/providers/router/routes/constants';
@@ -40,7 +41,6 @@ const selectedTargetModelId = ref<string>('');
 const selectedTargetModelName = ref<string>('');
 const targetModelName = ref<string>('');
 const targetModelDescription = ref<string>('');
-const resUpdateTargetModel = useUpdateTargetModel(null, null);
 const targetModelStore = useTargetModelStore();
 
 // Add computed property for targetModel
@@ -132,23 +132,17 @@ function handleUpdateTargetModel(e) {
   modalStates.editModelModal.context.name = e.name;
   modalStates.editModelModal.context.description = e.description;
 
-  const requestBody = Object.assign({}, targetModel, {
+  if (!targetModel) return;
+  updateModelInfo(targetModel, {
     userModelName: e.name,
     description: e.description,
-  });
-
-  resUpdateTargetModel
-    .execute({
-      pathParams: { id: selectedTargetModelId.value },
-      request: requestBody,
-    })
-    .then(res => {
+  })
+    .then(() => {
       showSuccessMessage('success', 'Successfully updated target model');
       modalStates.editModelModal.trigger = true;
-      // targetmodellist update trigger goes here
     })
-    .catch(e => {
-      showErrorMessage('error', e.errorMsg);
+    .catch(err => {
+      showErrorMessage('error', describeModelError(err).message);
     });
 }
 </script>

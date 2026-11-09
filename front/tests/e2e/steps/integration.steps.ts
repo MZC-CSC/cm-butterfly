@@ -306,9 +306,12 @@ When(
     // starts from the source model's own detail, so go there and open the model first.
     await models.gotoSourceModels();
 
-    await models.selectModel(
-      scenarioState.sourceModelName ?? uniqueName(modelName),
-    );
+    // Recommendation runs on a planning model (a source model is read-only); an earlier step records it.
+    expect(
+      scenarioState.planningModelName,
+      '추천할 계획 모델이 없다 - 소스 모델을 계획 모델로 저장해야 한다',
+    ).toBeTruthy();
+    await models.selectModel(scenarioState.planningModelName!);
     await models.openRecommend();
     await models.selectProvider(csp);
     await models.selectRegion(region);
@@ -409,7 +412,8 @@ When('{string} 커스텀 모델로 저장하면', async ({ page }, name: string)
     saved,
     descriptions.sourceModel5555,
   );
-  scenarioState.sourceModelName = saved;
+  // An edited infra source model is saved as a planning model derived from it.
+  scenarioState.planningModelName = saved;
 });
 
 When('{string} 커스텀 타깃 모델로 저장하면', async ({ page }, name: string) => {

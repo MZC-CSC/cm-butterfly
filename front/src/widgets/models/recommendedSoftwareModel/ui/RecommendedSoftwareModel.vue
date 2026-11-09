@@ -5,7 +5,11 @@ import { computed, onMounted, ref, reactive, watch, nextTick } from 'vue';
 import { useRecommendedSoftwareModel } from '@/widgets/models/recommendedSoftwareModel/model/useRecommendedSoftwareModel';
 import { useSourceModelStore } from '@/entities';
 import { EnhancedJsonEditor } from '@/shared/ui/EnhancedJsonEditor';
-import { createTargetSoftwareModel } from '@/entities/targetModels/api';
+import {
+  createSoftwareModel,
+  describeModelError,
+  targetLineageFrom,
+} from '@/entities/migrationModel';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 import { useAuthStore } from '@/shared/libs/store/auth';
 
@@ -20,7 +24,6 @@ const emit = defineEmits(['update:close-modal']);
 const recommendSoftwareModel = useRecommendedSoftwareModel();
 const sourceModelStore = useSourceModelStore();
 const authStore = useAuthStore();
-const resCreateTargetSoftwareModel = createTargetSoftwareModel(null);
 
 // Editor refs
 const sourceEditorRef = ref<any>(null);
@@ -210,11 +213,15 @@ function handleCreateTargetModel(e) {
     userModelName: e.name,
   };
 
-  resCreateTargetSoftwareModel
-    .execute({
-      request: requestBody,
-    })
-    .then(res => {
+  if (!sourceModel.value) {
+    showErrorMessage('error', 'The source model is not loaded');
+    return;
+  }
+  createSoftwareModel('target', {
+    ...requestBody,
+    ...targetLineageFrom(sourceModel.value),
+  })
+    .then(() => {
       showSuccessMessage(
         'success',
         'Successfully created software target model',
@@ -222,8 +229,8 @@ function handleCreateTargetModel(e) {
       saveTargetModelModal.open = false;
       emit('update:close-modal', false);
     })
-    .catch(e => {
-      showErrorMessage('error', e.errorMsg);
+    .catch(err => {
+      showErrorMessage('error', describeModelError(err).message);
     });
 }
 </script>

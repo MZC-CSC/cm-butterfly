@@ -6,11 +6,17 @@ import { SimpleEditForm } from '@/widgets/layout';
 import { ref, computed } from 'vue';
 import { AxiosResponse } from 'axios';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
-import { useCreateOnpremmodel, useCreateSourceSoftwareModel } from '@/entities';
+import {
+  createInfraModel,
+  createSoftwareModel,
+  describeModelError,
+} from '@/entities/migrationModel';
 import JsonViewer from '@/features/sourceServices/jsonViewer/ui/JsonViewer.vue';
-import { useGetInfraInfoRefined, useGetSoftwareInfoRefined } from '@/entities/sourceConnection/api';
+import {
+  useGetInfraInfoRefined,
+  useGetSoftwareInfoRefined,
+} from '@/entities/sourceConnection/api';
 import { useAuth } from '@/features/auth/model/useAuth.ts';
-
 
 interface iProps {
   collectData: string | undefined;
@@ -30,10 +36,11 @@ const isSaveModal = ref<boolean>(false);
 const convertedData = ref();
 
 const auth = useAuth();
-const createOnpremmodel = useCreateOnpremmodel(null);
-const createSourceSoftwareModel = useCreateSourceSoftwareModel(null);
 const getInfraInfoRefined = useGetInfraInfoRefined(props.sgId, props.connId);
-const getSoftwareInfoRefined = useGetSoftwareInfoRefined(props.sgId, props.connId);
+const getSoftwareInfoRefined = useGetSoftwareInfoRefined(
+  props.sgId,
+  props.connId,
+);
 
 // pick the appropriate conversion function based on the data type
 const getConvertFunction = computed(() => {
@@ -63,52 +70,57 @@ const handleSave = () => {
 
 const handleMetaViewer = e => {
   isSaveModal.value = false;
-  
-  // for the Software type, call CreateSourceSoftwareModel
+
+  // Software: a source-stage software model (CreateSoftwareModel)
   if (props.dataType === 'software') {
-    console.log('MetaViewer Creating Source Software Model with data:', convertedData.value);
-    
+    console.log(
+      'MetaViewer Creating Source Software Model with data:',
+      convertedData.value,
+    );
+
     // extract the sourceSoftwareModel property from the API response
-    const sourceSoftwareModelData = convertedData.value?.sourceSoftwareModel || convertedData.value;
-    console.log('MetaViewer Extracted sourceSoftwareModel data:', sourceSoftwareModelData);
-    
-    createSourceSoftwareModel
-      .execute({
-        request: {
-          description: e.description,
-          isInitUserModel: true,
-          sourceSoftwareModel: sourceSoftwareModelData,
-          userId: auth.getUser().id,
-          userModelName: e.name,
-          userModelVersion: 'v0.1',
-        },
-      })
+    const sourceSoftwareModelData =
+      convertedData.value?.sourceSoftwareModel || convertedData.value;
+    console.log(
+      'MetaViewer Extracted sourceSoftwareModel data:',
+      sourceSoftwareModelData,
+    );
+
+    createSoftwareModel('source', {
+      // The collected source group is where the migration lineage starts.
+      lineage: { sourceGroupId: props.sgId },
+      description: e.description,
+      isInitUserModel: true,
+      sourceSoftwareModel: sourceSoftwareModelData,
+      userId: auth.getUser().id,
+      userModelName: e.name,
+      userModelVersion: 'v0.1',
+    })
       .then(res => {
         showSuccessMessage('success', 'create Software Model');
       })
       .catch(e => {
-        showErrorMessage('error', e.errorMsg);
+        showErrorMessage('error', describeModelError(e).message);
       });
   } else {
-    // for the Infra type, call the existing CreateOnpremmodel
-    createOnpremmodel
-      .execute({
-        request: {
-          ...convertedData.value,
-          description: e.description,
-          userModelName: e.name,
-          isInitUserModel: true,
-          userModelVersion: 'v0.1',
-        },
-      })
+    // Infra: a source-stage on-premise model (CreateInfraModel)
+    createInfraModel('onprem', 'source', {
+      lineage: { sourceGroupId: props.sgId },
+      userId: auth.getUser().id,
+      ...convertedData.value,
+      description: e.description,
+      userModelName: e.name,
+      isInitUserModel: true,
+      userModelVersion: 'v0.1',
+    })
       .then(res => {
         showSuccessMessage('success', 'create Model');
       })
       .catch(e => {
-        showErrorMessage('error', e.errorMsg);
+        showErrorMessage('error', describeModelError(e).message);
       });
   }
-  
+
   emit('update:is-meta-viewer-opened');
 };
 
@@ -151,7 +163,10 @@ function handleConvertSoftware(): (
           :form-data="collectData"
           :convertedJSON="convertedData"
           :promiseFunc="getConvertFunction"
-          :loading="getInfraInfoRefined.isLoading.value || getSoftwareInfoRefined.isLoading.value"
+          :loading="
+            getInfraInfoRefined.isLoading.value ||
+            getSoftwareInfoRefined.isLoading.value
+          "
         />
       </template>
       <template #buttons>

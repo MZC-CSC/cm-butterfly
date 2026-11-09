@@ -11,7 +11,12 @@ import { TargetModelNameSave } from '@/features/models';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { SimpleEditForm } from '@/widgets/layout';
 import { useRecommendedInfraModel } from '@/widgets/models/recommendedInfraModel/model/useRecommendedInfraModel';
-import { createTargetModel } from '@/entities';
+import {
+  beetleLineageOf,
+  createInfraModel,
+  describeModelError,
+  targetLineageFrom,
+} from '@/entities/migrationModel';
 import {
   getRecommendCost,
   useGetRecommendModelListBySourceModel,
@@ -66,7 +71,6 @@ const description = ref<string>('');
 const resGetProviderList = useGetProviderList();
 const resGetRegionList = useGetRegionList(null);
 
-const resCreateTargetModel = createTargetModel(null);
 const resGetRecommendCost = getRecommendCost(null);
 
 const provider = reactive({
@@ -238,6 +242,7 @@ async function getRecommendModelList() {
       region.selected,
       candidateLimit.value,
       minimumMatchRateParam,
+      targetSourceModel.value ? beetleLineageOf(targetSourceModel.value) : null,
     );
 
     const res = await getRecommendCandidates.execute();
@@ -505,26 +510,31 @@ function handleSave(e: { name: string; description: string }) {
       console.warn('Selected VM has empty specId, using default values');
     }
 
-    resCreateTargetModel
-      .execute({
-        request: {
-          cloudInfraModel: cloudInfraModel as any, // pass the unprocessed data
-          csp: csp,
-          description: description.value,
-          isInitUserModel: true,
-          isTargetModel: true,
-          region: region,
-          userModelName: modelName.value,
-          userModelVersion: '1',
-          zone: '',
-          userId: auth.getUser().id,
-        },
-      })
-      .then(res => {
+    if (!targetSourceModel.value) {
+      showErrorMessage('error', 'The source model is not loaded');
+      return;
+    }
+    // The target is derived from the planning model the recommendation was run on: that model is its
+    // parent, and cm-damselfly fills the source group and source model from it.
+    createInfraModel('cloud', 'target', {
+      cloudInfraModel: cloudInfraModel as any, // pass the unprocessed data
+      csp: csp,
+      description: description.value,
+      isInitUserModel: true,
+      region: region,
+      userModelName: modelName.value,
+      userModelVersion: '1',
+      zone: '',
+      userId: auth.getUser().id,
+      ...targetLineageFrom(targetSourceModel.value),
+    })
+      .then(() => {
         modalState.targetModal = false;
         modalState.checkModal = true;
       })
-      .catch();
+      .catch(err => {
+        showErrorMessage('error', describeModelError(err).message);
+      });
   } catch (e: any) {
     showErrorMessage('error', e?.message || 'An error occurred');
   }
@@ -759,7 +769,10 @@ function handleSave(e: { name: string; description: string }) {
               <span v-html="formatEmptyValue(item.spec)" />
             </template>
             <template #col-image-format="{ item }">
-              <span data-testid="recommend-image" v-html="formatEmptyValue(item.image)" />
+              <span
+                data-testid="recommend-image"
+                v-html="formatEmptyValue(item.image)"
+              />
             </template>
             <!--
               OS and Architecture carry an identifier so a test can read the cell itself.
@@ -776,7 +789,9 @@ function handleSave(e: { name: string; description: string }) {
               <span data-testid="recommend-os">{{ item.os }}</span>
             </template>
             <template #col-architecture-format="{ item }">
-              <span data-testid="recommend-architecture">{{ item.architecture }}</span>
+              <span data-testid="recommend-architecture">{{
+                item.architecture
+              }}</span>
             </template>
           </p-toolbox-table>
         </div>

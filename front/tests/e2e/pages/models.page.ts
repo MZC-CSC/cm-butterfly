@@ -12,8 +12,8 @@ import { openScreen } from '../support/navigate';
  *   → When the screen changes, only this file needs fixing, and the Korean scenarios stay as they are.
  *
  * Screens covered (cm-damselfly models + cm-beetle recommendation):
- *   - source model list/detail  /main/models/source-models  (GetModels · CreateOnPremModel/UpdateOnPremModel)
- *   - target model list/detail  /main/models/target-models  (GetModels · CreateCloudModel)
+ *   - source model list/detail  /main/models/source-models  (GetModels · CreateInfraModel/UpdateInfraModel)
+ *   - target model list/detail  /main/models/target-models  (GetModels · CreateInfraModel)
  *   - recommend (modal)     RecommendVmInfraCandidates · Updateandgetestimatecost · GetProviderList/GetRegions
  *
  * ★ Cost protection: from the recommendation results, pick the *cheapest candidate* (lowest estimated monthly cost), and if needed verify the spec class (nano/small)
@@ -83,7 +83,10 @@ export class ModelsPage {
     return this.listPagination.expectRowSomewhere(this.modelRow(name), name);
   }
 
-  /** Source model detail — "Custom & View Source Model" (entry to edit/save on-prem info) */
+  /**
+   * Source model detail — "View & Save as Planning Model" on a source model, "Custom & View Planning
+   * Model" on a planning model (entry to edit/save on-prem info; saving always creates a planning model)
+   */
   private get customViewSourceLink(): Locator {
     return this.page.getByTestId('source-detail-custom-view');
   }
@@ -91,6 +94,16 @@ export class ModelsPage {
   /** Source model detail — "View Recommended List" (entry to the recommend modal) */
   private get viewRecommendLink(): Locator {
     return this.page.getByTestId('source-detail-view-recommend');
+  }
+
+  /** Wrapper of the recommend link; carries why it is disabled (`data-disabled-reason`, empty when enabled) */
+  private get recommendReason(): Locator {
+    return this.page.getByTestId('source-detail-recommend-reason');
+  }
+
+  /** Detail header "Edit" (name/description) — offered on a planning model only */
+  private get detailEditButton(): Locator {
+    return this.page.getByTestId('source-detail-edit');
   }
 
   /** The SAVE button in the modal (CreateForm) — the save of Custom & View */
@@ -275,10 +288,16 @@ export class ModelsPage {
    * detail itself renders can say that.
    */
   private detailNameFor(name: string): Locator {
-    return this.page
-      .locator('.model-detail, [data-testid$="-detail"], .p-pane-layout')
-      .filter({ hasText: name })
-      .first();
+    return (
+      this.page
+        // Only the detail panel itself: a page-wide container also holds the list, whose rows carry the
+        // name too, so it would "prove" the detail follows a row it does not (2026-11-09).
+        .locator(
+          '[data-testid="source-model-detail"], [data-testid="target-model-detail"]',
+        )
+        .filter({ hasText: name })
+        .first()
+    );
   }
 
   /** Select the first model in the list (e.g. the latest source right after collection) */
@@ -298,14 +317,19 @@ export class ModelsPage {
    * (a full-page software recommendation). Taking whatever row is first lands on the software
    * screen when a software source happens to sort first, and the modal never appears.
    */
+  /**
+   * Select the first infra *planning* model. Recommendation starts from a planning model - a source
+   * model only offers to be saved as one - so a source row would leave the recommend link missing.
+   */
   async selectFirstInfraModel(): Promise<string> {
     const row = this.listTable
       .locator('tbody tr')
       .filter({ hasText: 'OnPremiseModel' })
+      .filter({ hasText: 'Planning' })
       .first();
     await expect(
       row,
-      '인프라 소스 모델(OnPremiseModel) 행이 목록에 없다',
+      '인프라 계획 모델(OnPremiseModel · Planning) 행이 목록에 없다',
     ).toBeVisible({
       timeout: 15_000,
     });
@@ -314,13 +338,61 @@ export class ModelsPage {
     return name;
   }
 
+  /**
+   * A source model is read-only: the recommend link is shown but disabled, and hovering it explains
+   * that a planning model is needed. There is no Edit button.
+   *
+   * mirinae-style disabling is a class, not the `disabled` attribute, so isEnabled() would always
+   * say "enabled" (DESIGN-MIRINAE §1.6). Judged by the class, the reason the wrapper exposes, and
+   * the tooltip actually raised with the mouse.
+   */
+  async expectSourceModelReadOnly(name: string): Promise<void> {
+    await this.selectModel(name);
+    await expect(this.viewRecommendLink).toHaveClass(
+      /link-button-text--disabled/,
+      { timeout: 15_000 },
+    );
+    await expect(this.recommendReason).toHaveAttribute(
+      'data-disabled-reason',
+      /planning model/,
+    );
+    await this.page.mouse.move(0, 0);
+    await this.viewRecommendLink.hover();
+    await expect(
+      // A tooltip raised earlier stays hidden in the DOM - look only at the one showing now.
+      this.page.locator(
+        '.p-tooltip.disabled-reason-tooltip[aria-hidden="false"]',
+      ),
+    ).toContainText('planning model', { timeout: 10_000 });
+    await this.page.mouse.move(0, 0);
+    // Clicking a disabled link opens nothing.
+    await this.viewRecommendLink.click();
+    await expect(this.recommendModal).toHaveCount(0);
+    await expect(this.detailEditButton).toHaveCount(0);
+  }
+
+  /** A planning model offers recommendation and editing its name/description. */
+  async expectPlanningModelRecommendable(name: string): Promise<void> {
+    await this.selectModel(name);
+    await expect(this.viewRecommendLink).toBeVisible({ timeout: 15_000 });
+    await expect(this.viewRecommendLink).not.toHaveClass(
+      /link-button-text--disabled/,
+    );
+    await expect(this.recommendReason).toHaveAttribute(
+      'data-disabled-reason',
+      '',
+    );
+    await expect(this.detailEditButton).toBeVisible();
+  }
+
   // ───────────────────────────────────────────────────────────────────
-  // Save source (on-prem) model — CustomViewSourceModel (CreateOnPremModel)
+  // Save an edited source model — CustomViewSourceModel (CreateInfraModel, stage planning)
   // ───────────────────────────────────────────────────────────────────
 
   /**
-   * From the detail of an already-selected source model, open "Custom & View Source Model" and
-   * save the collected on-prem info as a source model with the given name.
+   * From the detail of an already-selected source model, open "View & Save as Planning Model" and
+   * save it under the given name. An infra model saved this way is a planning model derived from the
+   * selected one (cm-damselfly source -> planning).
    */
   async saveAsSourceModel(name: string): Promise<void> {
     await humanClick(this.customViewSourceLink);
@@ -329,8 +401,26 @@ export class ModelsPage {
     await humanClick(this.modelNameConfirmButton);
   }
 
+  /** The selected source/planning model's stage, as the detail shows it (Source | Planning). */
+  async expectSourceDetailStage(name: string, stage: string): Promise<void> {
+    await this.selectModel(name);
+    await expect(this.page.getByTestId('source-detail-stage')).toHaveText(
+      stage,
+      { timeout: 15_000 },
+    );
+  }
+
+  /** The selected planning model's parent - the source model it was derived from. */
+  async expectDerivedFrom(name: string, sourceName: string): Promise<void> {
+    await this.selectModel(name);
+    await expect(this.page.getByTestId('source-detail-parent')).toContainText(
+      sourceName,
+      { timeout: 15_000 },
+    );
+  }
+
   // ───────────────────────────────────────────────────────────────────
-  // Recommend → save target model (RecommendVmInfraCandidates + CreateCloudModel)
+  // Recommend → save target model (RecommendVmInfraCandidates + CreateInfraModel, stage target)
   // ───────────────────────────────────────────────────────────────────
 
   /** Open the recommend modal from the selected source model's detail */

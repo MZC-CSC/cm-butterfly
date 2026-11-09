@@ -1,3 +1,4 @@
+import { IMigrationLineage, ModelStage } from '@/entities/migrationModel';
 export interface ITargetModel {
   id: string;
   name: string;
@@ -57,8 +58,11 @@ export interface ITargetModelResponse {
   id: string;
   isCloudModel: boolean;
   isInitUserModel: boolean;
-  isTargetModel: boolean;
   migrationType?: string; // Add migrationType field
+  // cm-damselfly unified APIs: OnPremiseModel | CloudModel | SoftwareModel
+  modelType?: string;
+  modelStage?: ModelStage;
+  lineage?: IMigrationLineage;
   region: string;
   targetSoftwareModel?: any; // Add targetSoftwareModel field for software models
   updateTime: string;

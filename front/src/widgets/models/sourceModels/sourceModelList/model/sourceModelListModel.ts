@@ -6,6 +6,7 @@ import {
 } from '@/entities';
 import { watch } from 'vue';
 import { formatDate } from '@/shared/utils';
+import { MODEL_STAGE_LABEL } from '@/entities/migrationModel';
 
 export function useSourceModelListModel() {
   const tableModel =
@@ -19,7 +20,7 @@ export function useSourceModelListModel() {
       { name: 'id', label: 'ID' },
       { name: 'description', label: 'Description' },
       { name: 'migrationType', label: 'Migration Type' },
-      { name: 'custom', label: 'Custom' },
+      { name: 'stage', label: 'Stage' },
       { name: 'createdDateTime', label: 'Created Date Time' },
       { name: 'updatedDateTime', label: 'Updated Date Time' },
     ];
@@ -32,7 +33,7 @@ export function useSourceModelListModel() {
           { name: 'name', label: 'Name' },
           { name: 'description', label: 'Description' },
           { name: 'migrationType', label: 'Migration Type' },
-          { name: 'custom', label: 'Custom' },
+          { name: 'stage', label: 'Stage' },
           { name: 'createdDateTime', label: 'Created Date Time' },
           { name: 'updatedDateTime', label: 'Updated Date Time' },
         ],
@@ -46,8 +47,12 @@ export function useSourceModelListModel() {
       name: sourceModel.userModelName,
       id: sourceModel.id,
       description: sourceModel.description,
-      migrationType: sourceModel['migrationType'] || sourceModel.modelType || '',
-      custom: sourceModel.isInitUserModel ? 'Basic' : 'Custom',
+      migrationType:
+        sourceModel['migrationType'] || sourceModel.modelType || '',
+      // A planning model is a source model the user has edited (formerly shown as "Custom").
+      stage: sourceModel.modelStage
+        ? MODEL_STAGE_LABEL[sourceModel.modelStage]
+        : '',
       modelType: sourceModel.modelType || 'Unknown',
       createdDateTime: formatDate(sourceModel.createTime),
       updatedDateTime: formatDate(sourceModel.updateTime),

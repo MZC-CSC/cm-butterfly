@@ -10,6 +10,9 @@ export const scenarioState: {
   /** Name of the source model currently in play (recorded by the source-model/custom-model save steps → referenced by the recommend step).
    *  Kept here rather than as a module-local variable because different step files need to see the same value. */
   sourceModelName?: string;
+  /** Name of the infra planning model the recommendation runs on (recorded by the planning/custom save
+   *  steps and the planning-model select step). A source model cannot be recommended from. */
+  planningModelName?: string;
   /** Name of the created target infra (MCI) */
   infraName?: string;
   /** ID of the created infra (within nsId) */

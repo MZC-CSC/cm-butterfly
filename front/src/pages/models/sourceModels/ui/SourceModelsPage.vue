@@ -8,7 +8,12 @@ import { RecommendedSoftwareModel } from '@/widgets/models/recommendedSoftwareMo
 import { computed, reactive, ref } from 'vue';
 import { SimpleEditForm } from '@/widgets/layout';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
-import { useSourceModelStore, useUpdateSourceModel } from '@/entities';
+import { useSourceModelStore } from '@/entities';
+import {
+  describeModelError,
+  modelStageOf,
+  updateModelInfo,
+} from '@/entities/migrationModel';
 import { GuidedStepBanner } from '@/features/guidedSetup';
 
 const pageName = 'Source Models';
@@ -17,10 +22,18 @@ const selectedSourceModelId = ref<string>('');
 const sourceModelName = ref<string>('');
 const recommendedModelList = ref<string>('infra'); // added: recommended model list type
 const sourceModelStore = useSourceModelStore();
-const resUpdateSourceModel = useUpdateSourceModel(null, null);
 const sourceModel = computed(() =>
   sourceModelStore.getSourceModelById(selectedSourceModelId.value),
 );
+// A source model is the read-only record of what was collected; only planning models are edited.
+const isPlanningModel = computed(() => {
+  if (!sourceModel.value) return false;
+  try {
+    return modelStageOf(sourceModel.value) === 'planning';
+  } catch {
+    return false;
+  }
+});
 const mainTabState = reactive({
   activeTab: 'details',
   tabs: [
@@ -72,22 +85,17 @@ function handleUpdateSourceModel(e) {
   modalState.editModelModal.open = false;
   modalState.editModelModal.context.name = e.name;
   modalState.editModelModal.context.description = e.description;
-  console.log(sourceModel.value);
-  const requestBody = Object.assign({}, sourceModel.value, {
+  if (!sourceModel.value) return;
+  updateModelInfo(sourceModel.value, {
     userModelName: e.name,
     description: e.description,
-  });
-  resUpdateSourceModel
-    .execute({
-      pathParams: { id: selectedSourceModelId.value },
-      request: requestBody,
-    })
-    .then(res => {
-      showSuccessMessage('success', 'Successfully updated target model');
+  })
+    .then(() => {
+      showSuccessMessage('success', 'Successfully updated planning model');
       modalState.editModelModal.trigger = true;
     })
-    .catch(e => {
-      showErrorMessage('error', e.errorMsg);
+    .catch(err => {
+      showErrorMessage('error', describeModelError(err).message);
     });
 }
 </script>
@@ -112,8 +120,16 @@ function handleUpdateSourceModel(e) {
         <p-tab v-model="mainTabState.activeTab" :tabs="mainTabState.tabs">
           <template #details>
             <div class="tab-section-header">
-              <p>Source Model Information</p>
+              <p>
+                {{
+                  isPlanningModel
+                    ? 'Planning Model Information'
+                    : 'Source Model Information'
+                }}
+              </p>
               <p-button
+                v-if="isPlanningModel"
+                data-testid="source-detail-edit"
                 style-type="tertiary"
                 icon-left="ic_edit"
                 @click="modalState.editModelModal.open = true"

@@ -22,12 +22,8 @@ import {
   ref,
   nextTick,
 } from 'vue';
-import {
-  useGetTargetModelList,
-  useBulkDeleteTargetModel,
-  useBulkDeleteTargetSoftwareModel,
-  useBulkDeleteTargetOnPremModel,
-} from '@/entities';
+import { useGetTargetModelList } from '@/entities';
+import { deleteModels, formatDeleteFailures } from '@/entities/migrationModel';
 import { useDynamicTableHeight } from '@/shared/hooks/table/useDynamicTableHeight';
 import { useToolboxTableHeight } from '@/shared/hooks/table/useToolboxTableHeight';
 
@@ -149,265 +145,27 @@ function handleSelectedIndex(selectedIndex: number) {
  * Delete selected target models
  */
 function multiDelete() {
-  console.log('🗑️ [TargetModelList] multiDelete start');
+  const selectedModels = tableModel.tableState.selectIndex.map(
+    index => tableModel.tableState.displayItems[index].originalData,
+  );
 
-  const selectedData = tableModel.tableState.selectIndex.map(index => {
-    return tableModel.tableState.displayItems[index].id;
-  });
-  console.log('📋 [TargetModelList] selected data ID list:', selectedData);
-
-  // Check if any selected models are software models
-  const selectedModels = tableModel.tableState.selectIndex.map(index => {
-    return tableModel.tableState.displayItems[index];
-  });
-  console.log('🔍 [TargetModelList] selected model details:', selectedModels);
-
-  // Classify each model into exactly one category
-  const softwareModelIds: string[] = [];
-  const cloudModelIds: string[] = [];
-  const onPremModelIds: string[] = [];
-
-  selectedModels.forEach(model => {
-    const modelType = model?.modelType;
-
-    // Classify based on modelType
-    if (modelType === 'SoftwareModel') {
-      softwareModelIds.push(model.id);
-      console.log(
-        `🔧 [TargetModelList] model ${model?.id} (${model?.name}) - Software classification (modelType)`,
-      );
-    } else if (modelType === 'CloudModel') {
-      cloudModelIds.push(model.id);
-      console.log(
-        `☁️ [TargetModelList] model ${model?.id} (${model?.name}) - Cloud classification (modelType)`,
-      );
-    } else if (modelType === 'OnPremiseModel') {
-      onPremModelIds.push(model.id);
-      console.log(
-        `🏢 [TargetModelList] model ${model?.id} (${model?.name}) - OnPrem classification (modelType)`,
-      );
-    } else {
-      // Fall back to legacy properties when modelType is missing
-      const isSoftwareByTargetSoftwareModel = model?.targetSoftwareModel;
-      const isSoftwareByMigrationType = model?.migrationType === 'software';
-      const isSoftwareByName =
-        model?.name?.toLowerCase().includes('sw') || false;
-
-      const isSoftware =
-        isSoftwareByTargetSoftwareModel ||
-        isSoftwareByMigrationType ||
-        isSoftwareByName;
-
-      if (isSoftware) {
-        softwareModelIds.push(model.id);
-        console.log(
-          `🔧 [TargetModelList] model ${model?.id} (${model?.name}) - Software classification (fallback)`,
-          {
-            targetSoftwareModel: model?.targetSoftwareModel,
-            migrationType: model?.migrationType,
-            nameContainsSw: isSoftwareByName,
-          },
-        );
-      } else {
-        // If not Software, classify as Cloud (default)
-        cloudModelIds.push(model.id);
-        console.log(
-          `☁️ [TargetModelList] model ${model?.id} (${model?.name}) - Cloud classification (fallback)`,
-          {
-            targetSoftwareModel: model?.targetSoftwareModel,
-            migrationType: model?.migrationType,
-            nameContainsSw: isSoftwareByName,
-          },
-        );
-      }
-    }
-  });
-
-  console.log('📊 [TargetModelList] classification result:', {
-    softwareModelIds,
-    cloudModelIds,
-    onPremModelIds,
-    softwareCount: softwareModelIds.length,
-    cloudCount: cloudModelIds.length,
-    onPremCount: onPremModelIds.length,
-  });
-
-  const deletePromises = [];
-
-  if (softwareModelIds.length > 0) {
-    console.log(
-      '🚀 [TargetModelList] Software model delete API call:',
-      softwareModelIds,
-    );
-    const softwareDeletePromise =
-      useBulkDeleteTargetSoftwareModel(softwareModelIds);
-    console.log(
-      '📡 [TargetModelList] Software delete Promise object:',
-      softwareDeletePromise,
-    );
-
-    // Log network request info before running the Promise
-    softwareDeletePromise
-      .then(responses => {
-        console.log(
-          '🌐 [TargetModelList] Software delete network response:',
-          responses,
-        );
-        responses.forEach((response, index) => {
-          console.log(
-            `📊 [TargetModelList] Software delete response ${index + 1}:`,
-            {
-              status: response.status,
-              statusText: response.statusText,
-              method: response.config?.method?.toUpperCase(),
-              url: response.config?.url,
-              baseURL: response.config?.baseURL,
-              fullURL: `${response.config?.baseURL}${response.config?.url}`,
-              data: response.data,
-            },
-          );
-        });
-      })
-      .catch(error => {
-        console.error(
-          '❌ [TargetModelList] Software delete network error:',
-          error,
-        );
-        if (error.config) {
-          console.log('🔍 [TargetModelList] Software delete request info:', {
-            method: error.config.method?.toUpperCase(),
-            url: error.config.url,
-            baseURL: error.config.baseURL,
-            fullURL: `${error.config.baseURL}${error.config.url}`,
-            data: error.config.data,
-          });
-        }
-      });
-
-    deletePromises.push(softwareDeletePromise);
-  }
-
-  if (cloudModelIds.length > 0) {
-    console.log(
-      '🚀 [TargetModelList] Cloud model delete API call (DeleteCloudModel):',
-      cloudModelIds,
-    );
-    const cloudDeletePromise = useBulkDeleteTargetModel(cloudModelIds);
-    console.log(
-      '📡 [TargetModelList] Cloud delete Promise object:',
-      cloudDeletePromise,
-    );
-
-    // Log network request info before running the Promise
-    cloudDeletePromise
-      .then(responses => {
-        console.log(
-          '🌐 [TargetModelList] Cloud delete network response:',
-          responses,
-        );
-        responses.forEach((response, index) => {
-          console.log(
-            `📊 [TargetModelList] Cloud delete response ${index + 1}:`,
-            {
-              status: response.status,
-              statusText: response.statusText,
-              method: response.config?.method?.toUpperCase(),
-              url: response.config?.url,
-              baseURL: response.config?.baseURL,
-              fullURL: `${response.config?.baseURL}${response.config?.url}`,
-              data: response.data,
-            },
-          );
-        });
-      })
-      .catch(error => {
-        console.error(
-          '❌ [TargetModelList] Cloud delete network error:',
-          error,
-        );
-        if (error.config) {
-          console.log('🔍 [TargetModelList] Cloud delete request info:', {
-            method: error.config.method?.toUpperCase(),
-            url: error.config.url,
-            baseURL: error.config.baseURL,
-            fullURL: `${error.config.baseURL}${error.config.url}`,
-            data: error.config.data,
-          });
-        }
-      });
-
-    deletePromises.push(cloudDeletePromise);
-  }
-
-  if (onPremModelIds.length > 0) {
-    console.log(
-      '🚀 [TargetModelList] OnPrem model delete API call (DeleteOnPremModel):',
-      onPremModelIds,
-    );
-    const onPremDeletePromise = useBulkDeleteTargetOnPremModel(onPremModelIds);
-    console.log(
-      '📡 [TargetModelList] OnPrem delete Promise object:',
-      onPremDeletePromise,
-    );
-
-    // Log network request info before running the Promise
-    onPremDeletePromise
-      .then(responses => {
-        console.log(
-          '🌐 [TargetModelList] OnPrem delete network response:',
-          responses,
-        );
-        responses.forEach((response, index) => {
-          console.log(
-            `📊 [TargetModelList] OnPrem delete response ${index + 1}:`,
-            {
-              status: response.status,
-              statusText: response.statusText,
-              method: response.config?.method?.toUpperCase(),
-              url: response.config?.url,
-              baseURL: response.config?.baseURL,
-              fullURL: `${response.config?.baseURL}${response.config?.url}`,
-              data: response.data,
-            },
-          );
-        });
-      })
-      .catch(error => {
-        console.error(
-          '❌ [TargetModelList] OnPrem delete network error:',
-          error,
-        );
-        if (error.config) {
-          console.log('🔍 [TargetModelList] OnPrem delete request info:', {
-            method: error.config.method?.toUpperCase(),
-            url: error.config.url,
-            baseURL: error.config.baseURL,
-            fullURL: `${error.config.baseURL}${error.config.url}`,
-            data: error.config.data,
-          });
-        }
-      });
-
-    deletePromises.push(onPremDeletePromise);
-  }
-
-  console.log('⏳ [TargetModelList] delete API Promises running...');
-  Promise.all(deletePromises)
-    .then(res => {
-      console.log('✅ [TargetModelList] delete succeeded:', res);
+  // DeleteInfraModel covers on-premise and cloud models alike; software models are deleted by stage.
+  // A model other models were derived from is refused (409) and reported, never force-deleted.
+  deleteModels(selectedModels)
+    .then(failures => {
       handleRefreshTable();
       tableModel.tableState.selectIndex = [];
-      showSuccessMessage('success', 'Delete Success');
+      if (failures.length === 0) {
+        showSuccessMessage('success', 'Delete Success');
+      } else {
+        showErrorMessage('Error', formatDeleteFailures(failures));
+      }
     })
     .catch(err => {
-      console.error('❌ [TargetModelList] delete failed:', err);
-      showErrorMessage('Error', err);
+      showErrorMessage('Error', err?.message ?? String(err));
     });
 }
 
-/**
- * Refresh table data
- */
 function handleRefreshTable() {
   getTableList();
 }

@@ -4,12 +4,15 @@ import { CreateForm } from '@/widgets/layout';
 import { i18n } from '@/app/i18n';
 import { SimpleEditForm } from '@/widgets/layout';
 import { reactive, ref, watch, computed } from 'vue';
+import { ISourceModelResponse, useSourceModelStore } from '@/entities';
 import {
-  ISourceModelResponse,
-  useCreateOnpremmodel,
-  useSourceModelStore,
-} from '@/entities';
-import { useCreateSourceSoftwareModel } from '@/entities/sourceModels/api';
+  createInfraModel,
+  createSoftwareModel,
+  describeModelError,
+  modelCategoryOf,
+  modelStageOf,
+  planningLineageFrom,
+} from '@/entities/migrationModel';
 import { EnhancedJsonEditor } from '@/shared/ui/EnhancedJsonEditor';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 import { useAuth } from '@/features/auth/model/useAuth.ts';
@@ -33,31 +36,40 @@ const modalState = reactive({
 const auth = useAuth();
 const sourceModelStore = useSourceModelStore();
 const targetModel = ref<ISourceModelResponse | undefined>(undefined);
-const resCreateSourceModel = useCreateOnpremmodel(null);
-const resCreateSoftwareModel = useCreateSourceSoftwareModel(null);
 const serverCode = ref<string>('');
 
-// Distinguish Software/Infra by the migrationType or isSoftwareModel value
+// cm-damselfly's modelType decides the category; the model name or migrationType is not used.
 const isSoftwareModel = computed(() => {
-  // If targetModel has an isSoftwareModel property, prefer it
-  if (targetModel.value?.isSoftwareModel !== undefined) {
-    return targetModel.value.isSoftwareModel;
+  if (!targetModel.value) return false;
+  try {
+    return modelCategoryOf(targetModel.value) === 'software';
+  } catch {
+    return false;
   }
-
-  // If isSoftwareModel is absent, decide by migrationType
-  if (!targetModel.value?.migrationType) return false;
-  return targetModel.value.migrationType.toLowerCase().startsWith('sw');
 });
 
-// Set the modal title dynamically
+const isPlanningModel = computed(() => {
+  if (!targetModel.value) return false;
+  try {
+    return modelStageOf(targetModel.value) === 'planning';
+  } catch {
+    return false;
+  }
+});
+
+// A source model is read-only: what is edited here is always saved as a new model, never over it.
 const modalTitle = computed(() => {
-  const baseTitle = 'Custom & View Source Model';
-  if (isSoftwareModel.value) {
-    return `${baseTitle} - Software`;
-  } else {
-    return `${baseTitle} - Infra`;
-  }
+  const kind = isSoftwareModel.value ? 'Software' : 'Infra';
+  return isPlanningModel.value
+    ? `Custom & View Planning Model - ${kind}`
+    : `Custom & View Source Model - ${kind}`;
 });
+
+const saveFormTitle = computed(() =>
+  isSoftwareModel.value
+    ? 'Save new custom Source model'
+    : 'Save as a new Planning model',
+);
 
 watch(
   () => props.sourceModelId,
@@ -153,11 +165,15 @@ function handleSaveModal(e) {
 
     console.log('Software request body:', softwareRequestBody);
 
-    resCreateSoftwareModel
-      .execute({
-        request: softwareRequestBody,
-      })
-      .then(res => {
+    // cm-damselfly takes a software planning model in the *target* structure (targetSoftwareModel),
+    // so an edited source software model cannot become one. Until that flow is settled it stays a
+    // source model that keeps the source group of the original.
+    const sourceGroupId = targetModel.value?.lineage?.sourceGroupId;
+    createSoftwareModel('source', {
+      ...softwareRequestBody,
+      ...(sourceGroupId ? { lineage: { sourceGroupId } } : {}),
+    })
+      .then(() => {
         showSuccessMessage(
           'success',
           'Successfully created software source model',
@@ -166,8 +182,8 @@ function handleSaveModal(e) {
         emit('update:trigger');
         modalState.open = false;
       })
-      .catch(e => {
-        showErrorMessage('error', e.errorMsg);
+      .catch(err => {
+        showErrorMessage('error', describeModelError(err).message);
       });
   } else {
     // Save the Infra model (existing logic)
@@ -181,34 +197,39 @@ function handleSaveModal(e) {
       userModelName: e.name,
       isInitUserModel: false,
       userModelVersion: targetModel.value?.userModelVersion || 'v0.1',
+      // Only the nodes are edited here. Everything else is carried over as stored: rebuilding it
+      // (e.g. defaulting the network lists to []) breaks once the model shape moves on - imdl
+      // v0.1.20 takes ipv4Networks/ipv6Networks as objects and rejects arrays.
       onpremiseInfraModel: {
+        ...targetModel.value.onpremiseInfraModel,
         nodes: JSON.parse(serverCode.value),
-        network: {
-          ipv4Networks:
-            targetModel.value.onpremiseInfraModel.network?.ipv4Networks || [],
-          ipv6Networks:
-            targetModel.value.onpremiseInfraModel.network?.ipv6Networks || [],
-        },
       },
     };
 
     console.log('Infra request body:', infraRequestBody);
 
-    resCreateSourceModel
-      .execute({
-        request: infraRequestBody,
-      })
-      .then(res => {
-        showSuccessMessage(
-          'success',
-          'Successfully created infra source model',
-        );
+    // An edited source model is saved as a planning model derived from it (source -> planning).
+    // Editing a planning model again gives another planning model under the same source.
+    let lineageReq;
+    try {
+      lineageReq = planningLineageFrom(targetModel.value);
+    } catch (err: any) {
+      showErrorMessage('error', err.message);
+      return;
+    }
+    createInfraModel('onprem', 'planning', {
+      ...infraRequestBody,
+      ...lineageReq,
+      userId: auth.getUser().id,
+    })
+      .then(() => {
+        showSuccessMessage('success', 'Successfully created planning model');
         emit('update:close-modal', false);
         emit('update:trigger');
         modalState.open = false;
       })
-      .catch(e => {
-        showErrorMessage('error', e.errorMsg);
+      .catch(err => {
+        showErrorMessage('error', describeModelError(err).message);
       });
   }
 }
@@ -258,7 +279,7 @@ function handleCodeUpdate(value: string) {
     </create-form>
     <simple-edit-form
       v-if="modalState.open"
-      header-title="Save new custom Source model"
+      :header-title="saveFormTitle"
       name=""
       name-label="Model Name"
       name-placeholder="Model Name"

@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { PDefinitionTable } from '@cloudforet-test/mirinae';
 import { useSourceModelDetailModel } from '@/widgets/models/sourceModels';
-import { onBeforeMount, ref, watch, watchEffect } from 'vue';
+import { computed, onBeforeMount, ref, watch, watchEffect } from 'vue';
+import {
+  canRecommendFrom,
+  modelCategoryOf,
+  modelStageOf,
+  ModelStage,
+} from '@/entities/migrationModel';
+import { showErrorMessage } from '@/shared/utils';
+import DisabledReason from '@/shared/ui/DisabledReason/DisabledReason.vue';
 
 interface iProps {
   selectedSourceModelId: string;
@@ -23,6 +31,57 @@ const { sourceModelStore, setSourceModelId, initTable, tableModel } =
 const sourceModelName = ref<string | undefined>('');
 const sourceModelDescription = ref<string | undefined>('');
 const recommendedModelList = ref<string>('infra'); // Initialize as a string
+
+const selectedModel = computed(() =>
+  sourceModelStore.getSourceModelById(props.selectedSourceModelId),
+);
+
+/** null while the model is not loaded or carries no stage; the links are then not offered. */
+const stage = computed<ModelStage | null>(() => {
+  if (!selectedModel.value) return null;
+  try {
+    return modelStageOf(selectedModel.value);
+  } catch {
+    return null;
+  }
+});
+
+/**
+ * A source model is read-only: opening it shows what was collected, and saving creates a planning
+ * model. Recommendation starts from a planning model (canRecommendFrom has the software exception).
+ */
+/** Shown on hover over the disabled recommend link; empty when it is enabled. */
+const recommendDisabledReason = computed(() =>
+  selectedModel.value && !recommendable.value ? RECOMMEND_DISABLED_REASON : '',
+);
+
+const customViewLabel = computed(() => {
+  if (stage.value === 'planning') return 'Custom & View Planning Model';
+  let software = false;
+  try {
+    software =
+      !!selectedModel.value &&
+      modelCategoryOf(selectedModel.value) === 'software';
+  } catch {
+    software = false;
+  }
+  // A software model has no planning stage in the console yet (canRecommendFrom).
+  return software
+    ? 'Custom & View Source Model'
+    : 'View & Save as Planning Model';
+});
+
+const RECOMMEND_DISABLED_REASON =
+  'A source model keeps what was collected and is read-only. Open it with "View & Save as Planning Model", save it as a planning model, and get recommendations from that planning model.';
+
+const recommendable = computed(() => {
+  if (!selectedModel.value) return false;
+  try {
+    return canRecommendFrom(selectedModel.value);
+  } catch {
+    return false;
+  }
+});
 
 watchEffect(() => {
   sourceModelName.value = sourceModelStore.getSourceModelById(
@@ -88,28 +147,14 @@ function handleRecommendedList() {
     props.selectedSourceModelId,
   );
 
-  // Set the recommended model list based on modelType
-  if (sourceModel?.modelType === 'SoftwareModel') {
-    recommendedModelList.value = 'software';
-  } else {
-    // CloudModel, OnPremiseModel, or the default
-    recommendedModelList.value = 'infra';
-  }
-
-  // Fallback logic for backward compatibility
-  if (
-    sourceModel?.migrationType === 'Software' ||
-    sourceModel?.isSoftwareModel
-  ) {
-    recommendedModelList.value = 'software';
-  }
-
-  // Temporary logic for testing: if the name contains 'sw', set it to software
-  if (
-    sourceModel?.userModelName &&
-    sourceModel.userModelName.toLowerCase().includes('sw')
-  ) {
-    recommendedModelList.value = 'software';
+  if (!sourceModel || !recommendable.value) return;
+  // cm-damselfly's modelType decides it (OnPremiseModel | CloudModel | SoftwareModel).
+  try {
+    recommendedModelList.value =
+      modelCategoryOf(sourceModel) === 'software' ? 'software' : 'infra';
+  } catch (e: any) {
+    showErrorMessage('error', e.message);
+    return;
   }
 
   emit('update:view-recommend-list-modal', true);
@@ -119,7 +164,7 @@ function handleRecommendedList() {
 </script>
 
 <template>
-  <div>
+  <div data-testid="source-model-detail">
     <p-definition-table
       :fields="tableModel.tableState.fields"
       :data="tableModel.tableState.data"
@@ -133,20 +178,45 @@ function handleRecommendedList() {
           data-testid="source-detail-custom-view"
           @click="handleJsonModal"
         >
-          Custom & View Source Model
+          {{ customViewLabel }}
         </p>
         <!-- <p-button style-type="transparent" @click="handleJsonModal">
         </p-button> -->
       </template>
+      <!-- Always render the element: an empty slot makes PDefinitionTable fall back to its default (DESIGN-MIRINAE). -->
+      <template #data-stage="{ data }">
+        <span data-testid="source-detail-stage">{{ data }}</span>
+      </template>
+      <template #data-parentSourceModel="{ data }">
+        <span data-testid="source-detail-parent">{{ data }}</span>
+      </template>
       <template #data-recommendModel>
-        <p
-          class="link-button-text"
-          data-testid="source-detail-view-recommend"
-          @click="handleRecommendedList"
+        <!-- Kept visible but disabled on a source model; hovering explains why (DisabledReason). -->
+        <disabled-reason
+          :reason="recommendDisabledReason"
+          testid="source-detail-recommend-reason"
         >
-          View Recommended List
-        </p>
+          <p
+            :class="[
+              'link-button-text',
+              { 'link-button-text--disabled': !recommendable },
+            ]"
+            :aria-disabled="!recommendable"
+            data-testid="source-detail-view-recommend"
+            @click="handleRecommendedList"
+          >
+            View Recommended List
+          </p>
+        </disabled-reason>
       </template>
     </p-definition-table>
   </div>
 </template>
+
+<style scoped lang="postcss">
+.link-button-text--disabled,
+.link-button-text--disabled:hover {
+  @apply text-gray-400;
+  cursor: not-allowed;
+}
+</style>

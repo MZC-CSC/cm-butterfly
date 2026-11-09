@@ -1,3 +1,4 @@
+import { IMigrationLineage } from '@/entities/migrationModel';
 import { ISourceModelResponse } from '@/entities';
 import {
   IAxiosResponse,
@@ -64,6 +65,7 @@ export function useGetRecommendModelCandidates(
   region: string | null,
   limit?: number | null,
   minMatchRate?: number | string | null,
+  lineage?: IMigrationLineage | null,
 ) {
   // Build query parameters - convert all to strings (backend's map[string]string)
   const queryParams: Record<string, string> = {};
@@ -81,6 +83,8 @@ export function useGetRecommendModelCandidates(
         region: region,
       },
       onpremiseInfraModel: sourceModelInfo,
+      // Optional in cm-beetle; it carries the source/planning model this recommendation is made from.
+      ...(lineage && Object.keys(lineage).length > 0 ? { lineage } : {}),
     },
     queryParams: queryParams, // include queryParams in the body
   };
