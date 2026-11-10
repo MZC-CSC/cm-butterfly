@@ -76,6 +76,8 @@ const resConnections = useGetSourceConnectionList(null);
 const groups = ref<IGroupItem[]>([]);
 const buckets = ref<IBucketRow[]>([]);
 const state = reactive({
+  // Off: large buckets are collected quickly, without size and object count.
+  countObjects: true,
   groupId: '',
   loadingBuckets: false,
   collecting: false,
@@ -193,7 +195,7 @@ async function collectRow(row: IBucketRow) {
   row.message = '';
   row.bucket = null;
   try {
-    await collectBucket(state.groupId, row.connectionId);
+    await collectBucket(state.groupId, row.connectionId, state.countObjects);
     const refined = await getRefinedBucket(state.groupId, row.connectionId);
     const bucket = refined.sourceObjectStorages.find(
       b => b.bucketName === row.bucketName,
@@ -230,13 +232,20 @@ async function handleCollect() {
 async function handleSave() {
   if (!canSave.value || !selectedGroup.value) return;
   state.saving = true;
-  // The cloud cm-honeybee reports for the buckets; the source service's own as the fallback
-  // only when the refined answer carries none.
-  const sourceCloud = collectedBuckets.value.find(b => b.sourceCloud)
-    ?.sourceCloud ?? {
-    csp: selectedGroup.value.provider,
-    region: selectedGroup.value.region,
-  };
+  // cm-honeybee fills sourceCloud from the source service (provider and region) for every
+  // cloud source service, so it is the same for all buckets of the group. When it is missing
+  // the answer is wrong; it is reported, not filled in here.
+  const sourceCloud = collectedBuckets.value.find(
+    b => b.sourceCloud,
+  )?.sourceCloud;
+  if (!sourceCloud) {
+    state.saving = false;
+    showErrorMessage(
+      'failed',
+      'The source service did not report the source cloud (provider and region) of the buckets.',
+    );
+    return;
+  }
   const sourceObjectStorageModel: ISourceObjectStorage = {
     description: state.description,
     sourceCloud,
@@ -375,6 +384,14 @@ function onOff(value?: boolean) {
             >
               Collect Selected
             </p-button>
+            <label class="count-option">
+              <input
+                v-model="state.countObjects"
+                type="checkbox"
+                data-testid="os-source-create-count-objects"
+              />
+              Count objects and size
+            </label>
             <span class="note" data-testid="os-source-create-count">
               {{ collectedBuckets.length }} of
               {{ selectedBuckets.length }} selected bucket(s) collected.
@@ -450,5 +467,11 @@ function onOff(value?: boolean) {
 }
 .status--failed {
   color: #dc2626;
+}
+.count-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
 }
 </style>

@@ -138,8 +138,21 @@ export function listBucketObjects(nsId: string, osId: string) {
   return call<any>(LIST_OBJECTS, { pathParams: { nsId, osId } });
 }
 
-export function deleteMigratedBucket(nsId: string, osId: string) {
-  return call<any>(DELETE, { pathParams: { nsId, osId } });
+/**
+ * cm-beetle's delete options (0.6.4): none deletes only an empty bucket; `empty` empties it
+ * first; `force` deletes it with its contents; `reconcile` forgets the bucket without calling
+ * the cloud (for one already gone from the cloud).
+ */
+export type BucketDeleteOption = '' | 'empty' | 'force' | 'reconcile';
+
+export function deleteMigratedBucket(
+  nsId: string,
+  osId: string,
+  option: BucketDeleteOption = '',
+) {
+  const body: Record<string, any> = { pathParams: { nsId, osId } };
+  if (option) body.queryParams = { option };
+  return call<any>(DELETE, body);
 }
 
 /**
@@ -147,9 +160,16 @@ export function deleteMigratedBucket(nsId: string, osId: string) {
  * the source account with the credential kept on the source service and stores its settings
  * (versioning, encryption, size, object count, tags; 0.6.4+).
  */
-export async function collectBucket(sgId: string, connId: string) {
+export async function collectBucket(
+  sgId: string,
+  connId: string,
+  countObjects = true,
+) {
+  // count_objects (cm-honeybee 0.6.4, default true) lists every object to report the bucket's
+  // size and object count; off, a large bucket is collected quickly without those two values.
   const res = await axiosInstance.post(COLLECT_BUCKET, {
     pathParams: { sgId, connId },
+    queryParams: { count_objects: String(countObjects) },
   });
   return res.data?.responseData;
 }
