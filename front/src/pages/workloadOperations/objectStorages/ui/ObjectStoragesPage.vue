@@ -1,7 +1,14 @@
 <script setup lang="ts">
-import { PButton, PButtonModal, PTextInput } from '@cloudforet-test/mirinae';
+import {
+  PButton,
+  PButtonModal,
+  PRadio,
+  PRadioGroup,
+  PTextInput,
+} from '@cloudforet-test/mirinae';
 import { onMounted, reactive, ref } from 'vue';
 import {
+  BucketDeleteOption,
   deleteMigratedBucket,
   listBucketObjects,
   listMigratedBuckets,
@@ -48,8 +55,27 @@ const migratedState = reactive({
   objectsLoading: false,
   deleteTarget: '',
   deleteConfirm: '',
+  deleteOption: '' as BucketDeleteOption,
   deleting: false,
 });
+
+// cm-beetle's delete options. A plain delete fails on a bucket that is not empty.
+const DELETE_OPTIONS: { value: BucketDeleteOption; label: string }[] = [
+  { value: '', label: 'Delete only if empty' },
+  { value: 'empty', label: 'Empty the bucket, then delete' },
+  { value: 'force', label: 'Force delete with its contents' },
+  {
+    value: 'reconcile',
+    label:
+      'Remove from this list only (the bucket is already gone from the cloud)',
+  },
+];
+
+function openDelete(osId: string) {
+  migratedState.deleteTarget = osId;
+  migratedState.deleteConfirm = '';
+  migratedState.deleteOption = '';
+}
 
 async function loadMigrated() {
   migratedState.loading = true;
@@ -79,7 +105,11 @@ async function handleShowObjects(osId: string) {
 async function handleDeleteBucket() {
   migratedState.deleting = true;
   try {
-    await deleteMigratedBucket(nsId, migratedState.deleteTarget);
+    await deleteMigratedBucket(
+      nsId,
+      migratedState.deleteTarget,
+      migratedState.deleteOption,
+    );
     showSuccessMessage('success', 'Bucket deleted');
     migratedState.deleteTarget = '';
     migratedState.deleteConfirm = '';
@@ -151,7 +181,7 @@ onMounted(loadMigrated);
                 type="button"
                 class="link danger"
                 :data-testid="`os-migrated-delete-${b.id}`"
-                @click="migratedState.deleteTarget = b.id"
+                @click="openDelete(b.id)"
               >
                 Delete
               </button>
@@ -197,6 +227,22 @@ onMounted(loadMigrated);
         <p class="hint">
           This deletes the bucket in the target cloud. Type its ID to confirm.
         </p>
+        <p-radio-group
+          class="delete-options"
+          direction="vertical"
+          data-testid="os-migrated-delete-option"
+          :data-value="migratedState.deleteOption"
+        >
+          <p-radio
+            v-for="o in DELETE_OPTIONS"
+            :key="o.value || 'none'"
+            v-model="migratedState.deleteOption"
+            :value="o.value"
+            :data-testid="`os-migrated-delete-option-${o.value || 'none'}`"
+          >
+            <span>{{ o.label }}</span>
+          </p-radio>
+        </p-radio-group>
         <p-text-input
           v-model="migratedState.deleteConfirm"
           data-testid="os-migrated-delete-confirm-input"
@@ -223,6 +269,12 @@ onMounted(loadMigrated);
 .hint {
   font-size: 0.875rem;
   color: #6b7280;
+}
+.delete-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
 }
 .step {
   display: flex;

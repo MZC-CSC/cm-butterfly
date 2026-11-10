@@ -97,10 +97,27 @@ export class ObjectStoragePage {
     );
   }
 
+  /**
+   * 이행된 버킷을 지운다. 삭제 창에서 cm-beetle 삭제 옵션을 고르게 되어 있고, 여기서는 "비우고 삭제"(empty)를
+   * 골라 그 옵션이 실제 요청에 실리는지까지 본다(미리내 라디오는 선택 상태를 표준 속성으로 드러내지 않아
+   * 요청 본문으로 판정한다 — DESIGN-MIRINAE §2.3).
+   */
   async deleteBucket(osId: string): Promise<void> {
     await humanClick(this.page.getByTestId(`os-migrated-delete-${osId}`));
+    await humanClick(this.page.getByTestId('os-migrated-delete-option-empty'));
+    await expect(
+      this.page.getByTestId('os-migrated-delete-option'),
+    ).toHaveAttribute('data-value', 'empty');
     await humanFill(this.input('os-migrated-delete-confirm-input'), osId);
+    const request = this.page.waitForRequest(
+      r => /DeleteObjectStorage/i.test(r.url()) && r.method() === 'POST',
+      { timeout: 30_000 },
+    );
     await humanClick(this.confirmButton('os-migrated-delete-confirm'));
+    expect(
+      (await request).postData() ?? '',
+      '삭제 옵션이 요청에 실리지 않았다',
+    ).toContain('"option":"empty"');
     await expect(this.page.getByTestId(`os-migrated-${osId}`)).toHaveCount(0, {
       timeout: 120_000,
     });

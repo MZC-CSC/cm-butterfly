@@ -2,8 +2,7 @@
 import { PButton, PStatus } from '@cloudforet-test/mirinae';
 import { computed, reactive, watch } from 'vue';
 import { useRouter } from 'vue-router/composables';
-import { useCollectInfra } from '@/entities/sourceConnection/api';
-import { getRefinedBucket } from '@/entities/objectStorage/api';
+import { collectBucket, getRefinedBucket } from '@/entities/objectStorage/api';
 import type {
   ISourceBucket,
   ISourceObjectStorage,
@@ -37,7 +36,6 @@ interface IProps {
 const props = defineProps<IProps>();
 
 const router = useRouter();
-const resCollect = useCollectInfra({ sgId: null, connId: null });
 
 const state = reactive({
   status: '' as '' | 'success' | 'failed',
@@ -47,6 +45,9 @@ const state = reactive({
   savedModelName: '',
   bucket: null as ISourceBucket | null,
   sourceCloud: undefined as ISourceObjectStorage['sourceCloud'],
+  // Off: a large bucket is collected quickly, without size and object count.
+  countObjects: true,
+  collecting: false,
 });
 
 // A different connection starts from nothing collected.
@@ -73,12 +74,24 @@ function refinedErrorText(e: any, fallback: string) {
 }
 
 async function handleCollect() {
+  if (state.collecting) return;
+  state.collecting = true;
+  try {
+    await collectOnce();
+  } finally {
+    state.collecting = false;
+  }
+}
+
+async function collectOnce() {
   state.message = '';
   state.bucket = null;
   try {
-    await resCollect.execute({
-      pathParams: { sgId: props.sourceGroupId, connId: props.connectionId },
-    });
+    await collectBucket(
+      props.sourceGroupId,
+      props.connectionId,
+      state.countObjects,
+    );
   } catch (e) {
     state.status = 'failed';
     state.message = toErrorMessage(e, 'Could not collect the bucket.');
@@ -146,11 +159,19 @@ function goToModels() {
           data-testid="bucket-collect-run"
           style-type="tertiary"
           size="sm"
-          :loading="resCollect.isLoading.value"
+          :loading="state.collecting"
           @click="handleCollect"
         >
           Collect Object Storage
         </p-button>
+        <label class="count-option">
+          <input
+            v-model="state.countObjects"
+            type="checkbox"
+            data-testid="bucket-collect-count-objects"
+          />
+          Count objects and size
+        </label>
       </dd>
       <dt>Collected At</dt>
       <dd>{{ state.collectedAt || '-' }}</dd>
@@ -238,6 +259,13 @@ function goToModels() {
 .rows dt {
   font-weight: 700;
   background: #f9fafb;
+}
+.count-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
 }
 .with-action {
   display: flex;
