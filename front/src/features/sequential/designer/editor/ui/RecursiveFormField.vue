@@ -2,50 +2,117 @@
   <div class="form-field" :class="`depth-${depth}`">
     <!-- String, Number, Boolean - Simple Input -->
     <div v-if="isSimpleType" class="simple-field">
+      <!-- Pull a value out of a previous task. Dragging it onto the canvas lights up
+           the tasks that may be picked; clicking opens the same picker. -->
+      <button
+        v-if="!reference && canBind"
+        type="button"
+        class="btn-ref-add"
+        draggable="true"
+        :data-testid="`wf-field-ref-add-${referenceKey}`"
+        title="Take a value from an earlier task"
+        @click="$emit('reference', referenceKey, fieldSchema.type)"
+        @dragstart="$emit('ref-drag-start', referenceKey, fieldSchema.type)"
+        @dragend="$emit('ref-drag-end')"
+      >
+        <svg viewBox="0 0 16 16" class="ref-add-icon" aria-hidden="true">
+          <circle
+            cx="8"
+            cy="8"
+            r="3.2"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          />
+          <path
+            d="M8 1v2.4M8 12.6V15M1 8h2.4M12.6 8H15"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
       <label
         class="field-label"
         :class="{ 'has-tooltip': fieldSchema.description }"
-        :title="fieldSchema.description || ''"
+        @click.stop="fieldSchema.description && toggleHelp()"
       >
         {{ fieldName }}<span v-if="isRequired" class="required-mark">*</span>
+        <!-- Not what the user typed but a value converted to the right type on load. The mark
+             asks for one look before saving. -->
+        <span
+          v-if="wasCoerced"
+          class="field-coerced-mark"
+          :data-testid="`wf-field-coerced-${referenceKey}`"
+          title="This was put right when the workflow was opened. Look it over before saving — press the reference button to change what it points at."
+          >check this</span
+        >
+        <span v-if="fieldSchema.description" class="field-help-mark">?</span>
+        <!-- The description opens as a layer. The browser's own title is slow to appear, and we
+             control neither its line breaks nor its length. When the cursor turns into a question
+             mark and an underline appears but clicking does nothing, people read it as broken. -->
+        <span v-if="showHelp" class="field-help-layer" @click.stop>
+          {{ fieldSchema.description }}
+        </span>
       </label>
+      <!-- Filled from a previous task: rendered as a reference, not editable text. A
+           `${task.path}` reference is ordinary JSON text, so left in an input a user
+           edits it by accident and it breaks with nothing to say so. -->
+      <TaskReferenceValue
+        v-if="reference"
+        :task="reference.task"
+        :path="reference.path"
+        :field="referenceKey"
+        :multiple="reference.multiple"
+        @edit="$emit('reference', referenceKey, fieldSchema.type)"
+        @clear="$emit('reference-clear', referenceKey)"
+      />
       <textarea
-        v-if="fieldSchema.type === 'string' && shouldUseTextarea"
+        v-if="!reference && fieldSchema.type === 'string' && shouldUseTextarea"
         :data-testid="fieldTestId"
         :value="fieldValue || ''"
-        @input="handleInput($event)"
-        class="field-textarea"
+        :class="['field-textarea', { 'field-invalid': isInvalid }]"
         :placeholder="`Enter ${fieldName}`"
         rows="6"
-      ></textarea>
+        @input="handleInput($event)"
+      />
       <input
-        v-else-if="fieldSchema.type === 'string'"
+        v-else-if="!reference && fieldSchema.type === 'string'"
         :data-testid="fieldTestId"
         type="text"
         :value="fieldValue || ''"
-        @input="handleInput($event)"
-        class="field-input"
+        :class="['field-input', { 'field-invalid': isInvalid }]"
         :placeholder="`Enter ${fieldName}`"
+        @input="handleInput($event)"
       />
       <input
         v-else-if="
-          fieldSchema.type === 'number' || fieldSchema.type === 'integer'
+          !reference &&
+          (fieldSchema.type === 'number' || fieldSchema.type === 'integer')
         "
         :data-testid="fieldTestId"
         type="number"
         :value="fieldValue || 0"
-        @input="handleInput($event)"
-        class="field-input"
+        :class="['field-input', { 'field-invalid': isInvalid }]"
         :placeholder="`Enter ${fieldName}`"
+        @input="handleInput($event)"
       />
       <input
-        v-else-if="fieldSchema.type === 'boolean'"
+        v-else-if="!reference && fieldSchema.type === 'boolean'"
         :data-testid="fieldTestId"
         type="checkbox"
         :checked="!!fieldValue"
-        @change="handleInput($event)"
         class="field-checkbox"
+        @change="handleInput($event)"
       />
+      <p
+        v-if="isInvalid"
+        class="field-invalid-note"
+        :data-testid="`wf-field-ref-invalid-${referenceKey}`"
+      >
+        This reads a task that does not run first, so it will fail when the
+        workflow runs.
+      </p>
     </div>
 
     <!-- Array Type -->
@@ -53,9 +120,10 @@
       <div class="array-header">
         <div class="header-left">
           <button
+            v-if="!reference"
             :data-testid="arrayToggleTestId"
-            @click="toggleArrayCollapse"
             class="btn-collapse"
+            @click="toggleArrayCollapse"
           >
             {{ isArrayCollapsed ? '▶' : '▼' }}
           </button>
@@ -66,21 +134,62 @@
           >
             {{ fieldName
             }}<span v-if="isRequired" class="required-mark">*</span>
-            <span class="field-type">({{ arrayValue.length }} items)</span>
+            <span v-if="!reference" class="field-type"
+              >({{ arrayValue.length }} items)</span
+            >
           </label>
         </div>
         <div class="header-actions">
+          <!-- A whole array can be taken from an earlier task's result. There is no input box here,
+               so no room for a button on the left as on a single field; it sits next to the add-item button. -->
           <button
+            v-if="!reference && canBind"
+            type="button"
+            class="btn-ref-add"
+            :data-testid="`wf-field-ref-add-${referenceKey}`"
+            title="Take this whole list from an earlier task"
+            @click="$emit('reference', referenceKey, 'array')"
+          >
+            <svg viewBox="0 0 16 16" class="ref-add-icon" aria-hidden="true">
+              <circle
+                cx="8"
+                cy="8"
+                r="3.2"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              />
+              <path
+                d="M8 1v2.4M8 12.6V15M1 8h2.4M12.6 8H15"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+          <button
+            v-if="!reference"
             :data-testid="arrayAddTestId"
-            @click="addArrayItem"
             class="btn-add-item"
+            @click="addArrayItem"
           >
             + Add entity
           </button>
         </div>
       </div>
 
-      <div v-if="!isArrayCollapsed" class="array-items">
+      <!-- With a reference set, show the reference instead of the items. At run time the whole list lands here. -->
+      <TaskReferenceValue
+        v-if="reference"
+        :task="reference.task"
+        :path="reference.path"
+        :field="referenceKey"
+        :multiple="reference.multiple"
+        @edit="$emit('reference', referenceKey, 'array')"
+        @clear="$emit('reference-clear', referenceKey)"
+      />
+
+      <div v-if="!reference && !isArrayCollapsed" class="array-items">
         <!-- String Array -->
         <div v-if="isStringArray" class="string-array">
           <div
@@ -92,14 +201,14 @@
               :data-testid="arrayItemTestId(index)"
               type="text"
               :value="item"
-              @input="updateArrayItem(index, $event)"
-              class="field-input"
+              :class="['field-input', { 'field-invalid': isInvalid }]"
               :placeholder="`Item ${index + 1}`"
+              @input="updateArrayItem(index, $event)"
             />
             <button
               :data-testid="arrayRemoveTestId(index)"
-              @click="removeArrayItem(index)"
               class="btn-remove-item"
+              @click="removeArrayItem(index)"
             >
               ×
             </button>
@@ -118,29 +227,27 @@
           >
             <div
               class="item-header"
-              @click="toggleItemCollapse(index)"
               style="cursor: pointer"
+              @click="toggleItemCollapse(index)"
             >
               <div class="item-header-left">
                 <button
                   :data-testid="arrayItemToggleTestId(index)"
-                  @click.stop="toggleItemCollapse(index)"
                   class="btn-item-collapse"
+                  @click.stop="toggleItemCollapse(index)"
                 >
                   {{ isItemCollapsed(index) ? '▶' : '▼' }}
                 </button>
                 <span class="item-title">Item {{ index + 1 }}</span>
                 <span v-if="isItemCollapsed(index)" class="item-prop-count">
-                  ({{
-                    Object.keys(fieldSchema.items.properties || {}).length
-                  }}
+                  ({{ Object.keys(fieldSchema.items.properties || {}).length }}
                   properties)
                 </span>
               </div>
               <button
                 :data-testid="arrayRemoveTestId(index)"
-                @click.stop="removeArrayItem(index)"
                 class="btn-remove-item"
+                @click.stop="removeArrayItem(index)"
               >
                 × Remove
               </button>
@@ -158,17 +265,23 @@
                 :task-name="taskName"
                 :current-path="`${currentPath}[]`"
                 :index-path="childIndexPath(String(propName), index)"
+                :references="references"
+                :invalid-paths="invalidPaths"
+                :coerced-paths="coercedPaths"
+                :can-bind="canBind"
+                :depth="depth + 1"
                 @update="
                   updateObjectArrayItemProperty(index, String(propName), $event)
                 "
-                :depth="depth + 1"
+                @reference="(k, t) => $emit('reference', k, t)"
+                @reference-clear="k => $emit('reference-clear', k)"
+                @ref-drag-start="(k, t) => $emit('ref-drag-start', k, t)"
+                @ref-drag-end="$emit('ref-drag-end')"
               />
             </div>
             <div v-else class="item-collapsed-indicator">
               <span class="item-collapsed-text">
-                {{
-                  Object.keys(fieldSchema.items.properties || {}).length
-                }}
+                {{ Object.keys(fieldSchema.items.properties || {}).length }}
                 properties (collapsed)
               </span>
             </div>
@@ -180,7 +293,7 @@
         </div>
       </div>
 
-      <div v-else class="collapsed-indicator">
+      <div v-else-if="!reference" class="collapsed-indicator">
         <span class="collapsed-text"
           >{{ arrayValue.length }} items (collapsed)</span
         >
@@ -192,9 +305,10 @@
       <div class="object-header">
         <div class="header-left">
           <button
+            v-if="!reference"
             :data-testid="objectToggleTestId"
-            @click="toggleObjectCollapse"
             class="btn-collapse"
+            @click="toggleObjectCollapse"
           >
             {{ isObjectCollapsed ? '▶' : '▼' }}
           </button>
@@ -205,7 +319,7 @@
           >
             {{ fieldName
             }}<span v-if="isRequired" class="required-mark">*</span>
-            <span class="field-type"
+            <span v-if="!reference" class="field-type"
               >({{
                 Object.keys(fieldSchema.properties || {}).length
               }}
@@ -213,9 +327,49 @@
             >
           </label>
         </div>
+        <div class="header-actions">
+          <!-- Take this whole object from an earlier task's result. Used to pass it at once instead
+               of filling the fields inside one by one; the migration tasks are shaped that way. -->
+          <button
+            v-if="!reference && canBind"
+            type="button"
+            class="btn-ref-add"
+            :data-testid="`wf-field-ref-add-${referenceKey}`"
+            title="Take this whole object from an earlier task"
+            @click="$emit('reference', referenceKey, 'object')"
+          >
+            <svg viewBox="0 0 16 16" class="ref-add-icon" aria-hidden="true">
+              <circle
+                cx="8"
+                cy="8"
+                r="3.2"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              />
+              <path
+                d="M8 1v2.4M8 12.6V15M1 8h2.4M12.6 8H15"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
+
+      <TaskReferenceValue
+        v-if="reference"
+        :task="reference.task"
+        :path="reference.path"
+        :field="referenceKey"
+        :multiple="reference.multiple"
+        @edit="$emit('reference', referenceKey, 'object')"
+        @clear="$emit('reference-clear', referenceKey)"
+      />
+
       <div
-        v-if="!isObjectCollapsed"
+        v-if="!reference && !isObjectCollapsed"
         class="object-properties"
         :class="{ 'depth-0-object': depth === 0 }"
       >
@@ -231,8 +385,16 @@
           :task-name="taskName"
           :current-path="computedChildPath(propName)"
           :index-path="childIndexPath(String(propName))"
-          @update="updateObjectProperty(String(propName), $event)"
+          :references="references"
+          :invalid-paths="invalidPaths"
+          :coerced-paths="coercedPaths"
+          :can-bind="canBind"
           :depth="depth + 1"
+          @update="updateObjectProperty(String(propName), $event)"
+          @reference="(k, t) => $emit('reference', k, t)"
+          @reference-clear="k => $emit('reference-clear', k)"
+          @ref-drag-start="(k, t) => $emit('ref-drag-start', k, t)"
+          @ref-drag-end="$emit('ref-drag-end')"
         />
       </div>
       <div v-else class="collapsed-indicator">
@@ -251,9 +413,29 @@ import {
   getPropertyOrder,
   sortPropertiesByOrder,
 } from '../config/taskPropertyOrderConfig';
+import TaskReferenceValue from './TaskReferenceValue.vue';
+
+/**
+ * The one description open right now. Why it lives outside the component is in the toggleHelp comment.
+ */
+const openHelpKey = ref<string>('');
+
+if (typeof window !== 'undefined') {
+  // A click outside closes it.
+  //
+  // ★ The label click needs .stop. Without it the very click that opens it bubbles up here and
+  //   closes it at once, so clicking looks like it does nothing.
+  window.addEventListener('click', () => {
+    openHelpKey.value = '';
+  });
+  window.addEventListener('keydown', event => {
+    if (event.key === 'Escape') openHelpKey.value = '';
+  });
+}
 
 export default defineComponent({
   name: 'RecursiveFormField',
+  components: { TaskReferenceValue },
   props: {
     fieldName: {
       type: String,
@@ -297,8 +479,35 @@ export default defineComponent({
       type: String,
       default: '',
     },
+    // Fields bound to a previous task's output, keyed by the same path the test ids
+    // use. Threaded down the recursion so any depth can render a reference.
+    references: {
+      type: Object,
+      default: () => ({}),
+    },
+    // Paths whose reference points at a task that does not run first.
+    invalidPaths: {
+      type: Array,
+      default: () => [],
+    },
+    /** Paths whose value was converted on load, so the user can look them over. */
+    coercedPaths: {
+      type: Array,
+      default: () => [],
+    },
+    // False when this task has nothing before it, so there is nothing to pull from.
+    canBind: {
+      type: Boolean,
+      default: false,
+    },
   },
-  emits: ['update'],
+  emits: [
+    'update',
+    'reference',
+    'reference-clear',
+    'ref-drag-start',
+    'ref-drag-end',
+  ],
   setup(props, { emit }) {
     // Every leaf input gets a stable id built from its path in the schema, e.g.
     // `wf-field-body_params.targetInfra.name`. The label text is the only other thing that identifies
@@ -307,6 +516,42 @@ export default defineComponent({
     const fieldTestId = computed(
       () =>
         `wf-field-${props.indexPath || props.currentPath || props.fieldName}`,
+    );
+
+    /**
+     * Open or close the description layer. **Only one** is open at a time.
+     *
+     * With several open at once nobody can tell which describes what. The open field is remembered
+     * in one module so clicking another field closes the previous one; if each component only knew
+     * its own, they could not close each other.
+     */
+    const showHelp = computed(() => openHelpKey.value === helpKey.value);
+    const helpKey = computed(
+      () => `${props.indexPath || props.currentPath || props.fieldName}`,
+    );
+    const toggleHelp = (): void => {
+      openHelpKey.value = showHelp.value ? '' : helpKey.value;
+    };
+
+    /** Key this field is known by in the reference map — the same path the test ids use. */
+    const referenceKey = computed(
+      () => props.indexPath || props.currentPath || props.fieldName,
+    );
+
+    /** The reference on this field, if any. */
+    const reference = computed(
+      () =>
+        (props.references as Record<string, any>)[referenceKey.value] || null,
+    );
+
+    /** True when this field's value was forced into shape rather than typed. */
+    const wasCoerced = computed(() =>
+      (props.coercedPaths as string[]).includes(referenceKey.value),
+    );
+
+    /** True when this field references a task that does not run before this one. */
+    const isInvalid = computed(() =>
+      (props.invalidPaths as string[]).includes(referenceKey.value),
     );
 
     /** Child path for the test id, keeping the array index so siblings do not collide. */
@@ -325,13 +570,17 @@ export default defineComponent({
         `wf-array-add-${props.indexPath || props.currentPath || props.fieldName}`,
     );
 
-    /*
-      The toggles that open a field, named by the path they open.
-
-      Without these a walkthrough has to open every collapsed row in turn to reach one field -
-      two hundred clicks, and on a recording that is all the viewer sees. Named, it opens the
-      handful of ancestors on the way to what it came for.
-    */
+    /**
+     * The toggles that open and close a nested field.
+     *
+     * They all read the same from the outside — a triangle — so a test that reaches for one by
+     * position picks a different toggle as soon as the form gains a field. The path names which
+     * one it opens, the same way the leaf inputs are named.
+     */
+    // ★ All three use the single `wf-toggle-` prefix. develop already does, and splitting it here
+    //   would make e2e on the same screen look for different names per branch; that did collide.
+    //   The path already says which one it is (no field is both an array and an object), so there
+    //   is no reason to split the prefix. Items are told apart by the trailing `[i]`.
     const arrayToggleTestId = computed(
       () =>
         `wf-toggle-${props.indexPath || props.currentPath || props.fieldName}`,
@@ -736,13 +985,19 @@ export default defineComponent({
 
     return {
       fieldTestId,
+      showHelp,
+      toggleHelp,
+      referenceKey,
+      reference,
+      isInvalid,
+      wasCoerced,
       childIndexPath,
       arrayItemTestId,
       arrayAddTestId,
-      arrayRemoveTestId,
       arrayToggleTestId,
       objectToggleTestId,
       arrayItemToggleTestId,
+      arrayRemoveTestId,
       isSimpleType,
       isStringArray,
       arrayValue,
@@ -843,10 +1098,35 @@ export default defineComponent({
 }
 
 .simple-field {
+  /* Reference button, label, value. The button always takes the first column so the left edge of
+     the value column stays put; fields without a button (reference already set, or nothing to take
+     from) keep that width empty too. */
   display: grid;
-  grid-template-columns: minmax(100px, 20%) 1fr;
+  /* Size the label column *to the name's length*.
+     A fixed % narrowed the column with each level of nesting, and names like acceleratorCount
+     broke **mid-word** as "acceleratorCo / unt". With max-content the label takes just enough for
+     one line and the input keeps at least 140px; only a really long name wraps. */
+  grid-template-columns: 22px minmax(120px, max-content) minmax(140px, 1fr);
   gap: 0.5rem;
   align-items: center;
+}
+
+.simple-field > .btn-ref-add {
+  grid-column: 1;
+}
+
+/* Hold the position so the label is not pulled into the first column when there is no button. */
+.simple-field > .field-label {
+  grid-column: 2;
+}
+
+/* The value always sits in the third column, whether an input box or a reference. */
+.simple-field > .field-input,
+.simple-field > .field-textarea,
+.simple-field > .field-checkbox,
+.simple-field > .field-select,
+.simple-field > .task-ref-row {
+  grid-column: 3;
 }
 
 .field-label {
@@ -856,17 +1136,76 @@ export default defineComponent({
   font-size: 0.875rem;
   text-align: right;
   padding-right: 0.5rem;
-  word-break: break-word;
+  /* Do not break mid-word. Wrap only when there is really no room. */
+  word-break: normal;
   overflow-wrap: break-word;
 }
 
+.field-coerced-mark {
+  /* Not what the user typed but what we adjusted. It asks for one look before saving, so it gets
+     a color that stands out. Picking the reference again clears it. */
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+
 .field-label.has-tooltip {
-  cursor: help;
+  cursor: pointer;
+  position: relative;
 }
 
 .field-label.has-tooltip:hover {
   color: #1f2937;
   text-decoration: underline dotted;
+}
+
+/* Shows there is something to click. Changing only the cursor does not say what to click. */
+.field-help-mark {
+  display: inline-block;
+  margin-left: 0.25rem;
+  width: 13px;
+  height: 13px;
+  line-height: 13px;
+  text-align: center;
+  border-radius: 50%;
+  background: #e5e9f0;
+  color: #5b6474;
+  font-size: 9px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.field-label.has-tooltip:hover .field-help-mark {
+  background: #4f46e5;
+  color: #fff;
+}
+
+/* As a layer, we decide its line breaks and its length. */
+.field-help-layer {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 200px;
+  max-width: 320px;
+  padding: 8px 10px;
+  background: #ffffff;
+  border: 1px solid #dfe3ea;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
+  color: #374151;
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  text-decoration: none;
+  cursor: default;
 }
 
 .required-mark {
@@ -1192,5 +1531,44 @@ export default defineComponent({
 .depth-4 .field-input {
   font-size: 0.813rem;
   padding: 0.375rem 0.5rem;
+}
+
+/* --- value reference --- */
+.btn-ref-add {
+  flex: none;
+  border: 1px solid #c6c7f5;
+  background: #eeeefc;
+  color: #4b4ddb;
+  border-radius: 5px;
+  padding: 3px 5px;
+  cursor: grab;
+  line-height: 0;
+}
+.btn-ref-add:hover {
+  background: #e2e2fa;
+}
+.btn-ref-add:active {
+  cursor: grabbing;
+}
+.btn-ref-add:focus-visible {
+  outline: 2px solid #4b4ddb;
+  outline-offset: 1px;
+}
+.ref-add-icon {
+  width: 13px;
+  height: 13px;
+}
+
+/* A reference pointing at a task that does not run first. Left alone it saves
+   fine and then fails at run time, so it has to be visible here. */
+.field-invalid {
+  background: #fdecec;
+  border-color: #d94a4a;
+}
+.field-invalid-note {
+  margin: 3px 0 0;
+  font-size: 11px;
+  color: #b02a2a;
+  line-height: 1.5;
 }
 </style>

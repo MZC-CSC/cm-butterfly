@@ -14,6 +14,7 @@ import getRandomId from '@/shared/utils/uuid';
 import { toolboxSteps } from '@/features/sequential/designer/toolbox/model/toolboxSteps';
 import {
   parseRequestBody,
+  parseRequestBodyTemplate,
   isReferenceRequestBody,
 } from '@/shared/utils/stringToObject';
 import { ITaskComponentInfoResponse } from '@/features/sequential/designer/toolbox/model/api';
@@ -290,13 +291,22 @@ export function useWorkflowToolModel() {
 
     let model: any;
     let fixedModel: fixedModel;
+    /** Body fields whose reference was stored without quotes, so saving rewrites it the same way. */
+    let rawBodyRefs: string[] = [];
 
     if (customModel !== null) {
       model = customModel;
       fixedModel = { path_params: {}, query_params: {} };
     } else {
-      // http: keep the existing request_body → model flow
-      model = parseRequestBody(requestBody);
+      // http: keep the existing request_body → model flow.
+      //
+      // The stored body is a *template*, not JSON — a reference into anything but a
+      // string field sits there unquoted (see buildRequestBodyTemplate). Read it with
+      // the reader that knows that, or those bodies come back as "the whole body is a
+      // reference" and the fields vanish.
+      const template = parseRequestBodyTemplate(requestBody);
+      model = template ? template.model : parseRequestBody(requestBody);
+      if (template?.rawPaths.length) rawBodyRefs = template.rawPaths;
 
       // Base64 decode content field for cicada_task_run_script
       if (task.task_component === 'cicada_task_run_script' && model.content) {
@@ -311,6 +321,7 @@ export function useWorkflowToolModel() {
       originalData: task,
       fixedModel,
       taskType,
+      rawBodyRefs,
     };
 
     // If request_body was a cm-cicada runtime reference (and fell back to a skeleton in
@@ -393,6 +404,7 @@ export function useWorkflowToolModel() {
           taskType,
           modelToSend,
           step.properties.fixedModel,
+          step.properties.rawBodyRefs,
         );
       }
 

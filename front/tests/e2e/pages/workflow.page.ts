@@ -648,7 +648,7 @@ export class WorkflowPage {
    * body parameter input. Targeted by schema path — e.g. `targetInfra.name`, `targetCloud.csp`.
    * (The testid is assigned in the form `wf-field-body_params.{path}`.)
    */
-  private bodyField(path: string): Locator {
+  private bodyParam(path: string): Locator {
     return this.page.getByTestId(`wf-field-body_params.${path}`);
   }
 
@@ -662,7 +662,7 @@ export class WorkflowPage {
         ? this.pathParam(key)
         : kind === 'query'
           ? this.queryParam(key)
-          : this.bodyField(key);
+          : this.bodyParam(key);
     await expect(field).toBeVisible({ timeout: 15_000 });
     return field.inputValue();
   }
@@ -678,7 +678,7 @@ export class WorkflowPage {
         ? this.pathParam(key)
         : kind === 'query'
           ? this.queryParam(key)
-          : this.bodyField(key);
+          : this.bodyParam(key);
     await expect(field).toBeVisible({ timeout: 15_000 });
     await humanFill(field, value);
     // Give the input time to reflect into the model (input event → parent state update).
@@ -715,7 +715,7 @@ export class WorkflowPage {
    *   않는다"로 보이니 원인이 엉뚱한 곳(접힘·가려짐)으로 짚인다. 실제로 그렇게 두 번 헤맸다.
    *   여기를 지나는 길은 트랙3(복제 후 편집)뿐이라 그동안 드러나지 않았다. (2026-08-01)
    */
-  private bodyField(path: string): Locator {
+  bodyField(path: string): Locator {
     return this.page.locator(`[data-testid="${path}"]`);
   }
 
@@ -803,7 +803,7 @@ export class WorkflowPage {
     );
 
     if (found) {
-      const field = this.bodyField(found.path);
+      const field = this.bodyParam(found.path);
       const value = found.value;
       {
         const parts = value.split('+');
@@ -864,7 +864,7 @@ export class WorkflowPage {
     );
 
     if (found) {
-      const field = this.bodyField(found.path);
+      const field = this.bodyParam(found.path);
       const value = found.value.trim();
 
       await field.scrollIntoViewIfNeeded().catch(() => {});
@@ -1724,5 +1724,261 @@ export class WorkflowPage {
     expect(text, 'base64 원본이 그대로 노출되면 안 된다').not.toContain(
       base64Prefix,
     );
+  }
+
+  /**
+   * Open the editor for the workflow whose detail panel is showing.
+   *
+   * A workflow that uses something the designer cannot draw opens a confirm first, offering the JSON
+   * view instead. We are editing on the canvas, so that would mean the workflow under test is the
+   * wrong one — say so rather than quietly taking the other door.
+   */
+  async openEditorFromDetail(): Promise<void> {
+    await humanClick(this.page.getByTestId('workflow-viewer-edit-btn'));
+    const unsupported = this.page.getByTestId(
+      'workflow-unsupported-edit-confirm',
+    );
+    if (await unsupported.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      throw new Error(
+        '이 워크플로우는 디자이너로 열 수 없다고 나온다 — 캔버스 검증 대상이 아니다',
+      );
+    }
+    await expect(this.designer).toBeVisible({ timeout: 20_000 });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Taking a value from a task that runs earlier
+  //
+  // A field can be filled from an earlier task's result instead of being typed
+  // in. What is stored is a reference; the value arrives when the workflow runs.
+  // Only tasks that run before the one being edited may be picked — the engine
+  // accepts a reference to any task by name, so this is the console's job.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /** Where the body comes from: filled in field by field, or one earlier result. */
+  get bodySourceFields(): Locator {
+    return this.page.getByTestId('wf-body-source-fields');
+  }
+
+  /**
+   * 앞선 태스크에서 가져오기.
+   *
+   * 이 하나가 곧 고르기 시작이다 — 고르면 캔버스가 밝아지고 목록 창이 함께 열린다.
+   * 예전에는 "결과 전체" 라디오와 "가져오기" 버튼이 따로 있었으나 같은 일의 두 입구였다.
+   */
+  get bodySourceWhole(): Locator {
+    return this.page.getByTestId('wf-body-source-whole');
+  }
+
+  get pickOnCanvas(): Locator {
+    return this.bodySourceWhole;
+  }
+
+  /** The plain input for a body field, addressed by its schema path. */
+  bodyParamInput(path: string): Locator {
+    return this.page.getByTestId(`wf-field-body_params.${path}`);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Dragging a component out of the palette
+  //
+  // A workflow can also be built by hand — drag a component from the Toolbox onto the canvas. That
+  // is a different path into the same editor from "make a workflow from a target model", and the
+  // task that lands this way carries no values at all, so what the panel shows is decided entirely
+  // by the component's schema.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /** One component in the Toolbox, by the name printed on it. */
+  paletteItem(component: string): Locator {
+    return this.page
+      .locator('.sqd-toolbox-item, [class*="toolbox"] [class*="item"]')
+      .filter({ hasText: component })
+      .first();
+  }
+
+  /**
+   * Drag a component from the palette onto the canvas.
+   *
+   * The library binds its own pointer handlers, so a synthesised drag event does not reach it —
+   * the move has to be made with real pointer steps. Fewer than a few intermediate moves and the
+   * library reads it as a click rather than a drag.
+   */
+  async dragFromPalette(component: string, dropOn?: string): Promise<void> {
+    const item = this.paletteItem(component);
+    await expect(item, `팔레트에 "${component}" 가 없다`).toBeVisible({
+      timeout: 15_000,
+    });
+    const target = dropOn
+      ? this.designer
+          .locator('.sqd-step-task')
+          .filter({ hasText: dropOn })
+          .last()
+      : this.designer.locator('.sqd-step-task').last();
+    await expect(target).toBeVisible({ timeout: 15_000 });
+
+    const from = await item.boundingBox();
+    const to = await target.boundingBox();
+    if (!from || !to)
+      throw new Error('팔레트 항목이나 놓을 자리를 찾지 못했다');
+
+    await this.page.mouse.move(
+      from.x + from.width / 2,
+      from.y + from.height / 2,
+    );
+    await this.page.mouse.down();
+    for (let step = 1; step <= 12; step += 1) {
+      await this.page.mouse.move(
+        from.x + ((to.x + to.width / 2 - from.x) * step) / 12,
+        from.y + ((to.y + to.height - from.y) * step) / 12,
+        { steps: 2 },
+      );
+    }
+    await this.page.mouse.up();
+    await this.page.waitForTimeout(600);
+  }
+
+  /** Said in place of the button when nothing runs before this task. */
+  get noEarlierTaskNote(): Locator {
+    return this.page.getByTestId('wf-ref-none-available');
+  }
+
+  /** The value list. */
+  get referencePicker(): Locator {
+    return this.page.getByTestId('wf-ref-popover');
+  }
+
+  /** Button on a field that opens the value list for it. */
+  referenceAdd(fieldPath: string): Locator {
+    return this.page.getByTestId(`wf-field-ref-add-body_params.${fieldPath}`);
+  }
+
+  /** A field already filled from an earlier task. */
+  referenceValue(fieldPath: string): Locator {
+    return this.page.getByTestId(`wf-field-ref-body_params.${fieldPath}`);
+  }
+
+  referenceClear(fieldPath: string): Locator {
+    return this.page.getByTestId(`wf-field-ref-clear-body_params.${fieldPath}`);
+  }
+
+  /** Tasks lit up on the canvas while a value is being chosen. */
+  get pickableTasks(): Locator {
+    return this.page.locator('.sqd-step-task.sqd-pick-allowed');
+  }
+
+  /**
+   * Start choosing, then take the value from a task on the canvas.
+   *
+   * Pressing rather than dragging: both end in the same place, and a press is
+   * what someone reaches for when dragging is awkward.
+   */
+  async pickTaskOnCanvas(taskName: string): Promise<void> {
+    await humanClick(this.pickOnCanvas);
+    await expect(this.pickableTasks.first()).toBeVisible({ timeout: 10_000 });
+    const target = this.pickableTasks.filter({ hasText: taskName }).last();
+    await humanClick(target);
+    await expect(this.referencePicker).toBeVisible({ timeout: 10_000 });
+  }
+
+  /** Names of the tasks that can be picked right now. */
+  async pickableTaskNames(): Promise<string[]> {
+    return this.pickableTasks.evaluateAll(nodes =>
+      nodes.map(node => node.getAttribute('data-pick-name') ?? ''),
+    );
+  }
+
+  /** Narrow the value list. It searches across every earlier task at once. */
+  async searchReferenceValue(term: string): Promise<void> {
+    await this.page.getByTestId('wf-ref-search').fill(term);
+  }
+
+  /** Choose one value out of an earlier task's result. */
+  async chooseReferenceValue(taskName: string, path: string): Promise<void> {
+    await humanClick(this.page.getByTestId(`wf-ref-node-${taskName}-${path}`));
+  }
+
+  /** What will be stored once this is applied. */
+  async referencePreview(): Promise<string> {
+    return (await this.page.getByTestId('wf-ref-preview').innerText()).trim();
+  }
+
+  /** Whether the chosen value fits the field it is going into. */
+  async referenceTypeCheck(): Promise<string> {
+    return (await this.page.getByTestId('wf-ref-typecheck').innerText()).trim();
+  }
+
+  async applyReference(): Promise<void> {
+    await humanClick(this.page.getByTestId('wf-ref-apply'));
+    await expect(this.referencePicker).toBeHidden({ timeout: 10_000 });
+  }
+
+  async cancelReference(): Promise<void> {
+    await humanClick(this.page.getByTestId('wf-ref-cancel'));
+  }
+
+  /** One earlier task's block inside the value list. */
+  referenceSource(taskName: string): Locator {
+    return this.page.getByTestId(`wf-ref-source-${taskName}`);
+  }
+
+  /** Said instead of values when a task does not describe what it returns. */
+  referenceNoSchema(taskName: string): Locator {
+    return this.page.getByTestId(`wf-ref-no-schema-${taskName}`);
+  }
+
+  /** Values still on screen after a search. */
+  async visibleReferenceValueLabels(): Promise<string[]> {
+    return this.referencePicker
+      .locator('[data-testid^="wf-ref-node-"] .rp-name')
+      .evaluateAll(nodes => nodes.map(node => node.textContent?.trim() ?? ''));
+  }
+
+  /** Typing a path in by hand, for anything the list does not cover. */
+  async enterReferenceByHand(taskName: string, path: string): Promise<void> {
+    await humanClick(this.referencePicker.locator('.rp-manual > summary'));
+    await this.page.getByTestId('wf-ref-manual-task').fill(taskName);
+    await this.page.getByTestId('wf-ref-path-input').fill(path);
+  }
+
+  /** The whole body coming from one earlier task. */
+  get wholeBodyReference(): Locator {
+    return this.page.getByTestId('wf-ref-whole');
+  }
+
+  /** What that task will actually be sent. */
+  get wholeBodyRows(): Locator {
+    return this.page.locator('[data-testid^="wf-ref-whole-row-"]');
+  }
+
+  /** Note in the panel counting fields that point at a task running later. */
+  get invalidReferenceSummary(): Locator {
+    return this.page.getByTestId('wf-ref-invalid-summary');
+  }
+
+  /** A field marked red because it points at a task that does not run first. */
+  invalidReferenceField(fieldPath: string): Locator {
+    return this.page.getByTestId(
+      `wf-field-ref-invalid-body_params.${fieldPath}`,
+    );
+  }
+
+  /**
+   * One line of the notice: which task, which field.
+   *
+   * The notice names the field as it sits in the body — no `body_params.` in front, unlike the field
+   * itself on the panel, which is addressed by its place in the form.
+   */
+  brokenReferenceRow(taskName: string, fieldPath: string): Locator {
+    return this.page.getByTestId(`wf-broken-ref-row-${taskName}-${fieldPath}`);
+  }
+
+  /** Shown when a workflow reads a task that does not run first. */
+  get brokenReferenceNotice(): Locator {
+    return this.page.getByTestId('wf-broken-ref-notice');
+  }
+
+  async dismissBrokenReferenceNotice(): Promise<void> {
+    await humanClick(this.page.getByTestId('wf-broken-ref-close'));
+    await expect(this.brokenReferenceNotice).toBeHidden({ timeout: 10_000 });
   }
 }
