@@ -89,15 +89,23 @@ export class ServiceStatusPage {
     );
   }
 
-  /** 확인 시각이 바뀌는지 본다 — 눌렀는데 아무 일도 없으면 그대로다. */
+  /**
+   * 확인 시각이 바뀌는지 본다 — 눌렀는데 아무 일도 없으면 그대로다.
+   *
+   * ★ 확인 시각은 초 단위다. 화면을 연 직후의 자동 확인과 같은 1초 안에 누르면 시각이 같아
+   *   바뀌지 않은 것처럼 보인다(2026-11-10 v0.7 시험에서 두 번 그렇게 실패했다). 그래서 바뀔
+   *   때까지 다시 누른다 — 눌러도 끝내 그대로면 그때는 정말 아무 일도 없는 것이다.
+   */
   async recheckAndExpectFreshTimestamp(): Promise<void> {
     const before = (await this.summary.innerText()).trim();
-    await humanClick(this.recheckButton);
-    await expect
-      .poll(async () => (await this.summary.innerText()).trim(), {
-        timeout: 30_000,
-      })
-      .not.toBe(before);
+    await expect(async () => {
+      await humanClick(this.recheckButton);
+      await expect
+        .poll(async () => (await this.summary.innerText()).trim(), {
+          timeout: 5_000,
+        })
+        .not.toBe(before);
+    }).toPass({ timeout: 30_000 });
   }
 
   async recheck(): Promise<void> {
