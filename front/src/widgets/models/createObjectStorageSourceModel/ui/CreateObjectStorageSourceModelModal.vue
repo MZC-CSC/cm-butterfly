@@ -13,22 +13,28 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useGetSourceServiceList } from '@/entities/sourceService/api';
 import { isCspSourceGroup } from '@/entities/sourceService/model/types';
 import { useGetSourceConnectionList } from '@/entities/sourceConnection/api';
-import { saveSourceModel } from '@/entities/objectStorage/api';
+import { collectBucket, getRefinedBucket } from '@/entities/objectStorage/api';
 import type {
-  IArtifact,
   ISourceBucket,
   ISourceObjectStorage,
 } from '@/entities/objectStorage/model/types';
+import {
+  createObjectStorageModel,
+  describeModelError,
+} from '@/entities/migrationModel';
+import { useAuth } from '@/features/auth/model/useAuth.ts';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
+import { formatBytes } from '@/widgets/models/objectStorageBuckets/model/format';
 
 /**
- * Builds an object storage source model from buckets registered in a cloud source
- * service (cm-honeybee). The source account's credential stays with cm-honeybee; the
- * console only picks the bucket connections it already has.
+ * Builds an object storage source model from buckets registered in a cloud source service.
  *
- * cm-honeybee 0.6.3 looks a bucket up but does not collect its settings (versioning,
- * CORS, encryption, access), so they are confirmed here before the model is saved.
- * The recommendation keeps or turns off each setting depending on the target cloud.
+ * The buckets are not described by hand: each picked bucket connection is collected by
+ * cm-honeybee with the credential kept on the source service, and its refined answer
+ * (versioning, encryption, size, object count, tags) becomes the bucket of the model. A bucket
+ * that cannot be collected stays failed with cm-honeybee's message and is not saved with
+ * guessed settings. The model is stored in cm-damselfly as a source model of the source service
+ * it came from; edits are made later on a planning model.
  */
 interface IProps {
   // Opened from a bucket connection: that source service and bucket start selected.
@@ -44,14 +50,19 @@ interface IGroupItem {
   provider: string;
   region: string;
 }
-interface IBucketRow extends ISourceBucket {
+type CollectStatus = '' | 'collecting' | 'collected' | 'failed';
+interface IBucketRow {
+  connectionId: string;
   connectionName: string;
-  manual: boolean;
+  bucketName: string;
   selected: boolean;
-  corsOrigins: string;
-  corsMethods: string;
+  status: CollectStatus;
+  message: string;
+  bucket: ISourceBucket | null;
+  sourceCloud: ISourceObjectStorage['sourceCloud'] | null;
 }
 
+const auth = useAuth();
 const resGroups = useGetSourceServiceList();
 const resConnections = useGetSourceConnectionList(null);
 
@@ -60,28 +71,39 @@ const buckets = ref<IBucketRow[]>([]);
 const state = reactive({
   groupId: '',
   loadingBuckets: false,
+  collecting: false,
   name: '',
   description: '',
   saving: false,
-  // Kept for the disabled manual entry; enabled once cm-honeybee verifies a typed-in bucket.
-  manualName: '',
 });
-
-const accessItems = [
-  { name: '', label: '-' },
-  { name: 'frequent', label: 'frequent' },
-  { name: 'infrequent', label: 'infrequent' },
-  { name: 'archive', label: 'archive' },
-];
 
 const selectedGroup = computed(
   () => groups.value.find(g => g.name === state.groupId) ?? null,
 );
 const selectedBuckets = computed(() => buckets.value.filter(b => b.selected));
+const collectedBuckets = computed(() =>
+  selectedBuckets.value.filter(b => b.status === 'collected'),
+);
+// Every picked bucket has to be collected; a failed one is unpicked or collected again.
 const canSave = computed(
   () =>
-    !!state.name.trim() && selectedBuckets.value.length > 0 && !state.saving,
+    !!state.name.trim() &&
+    selectedBuckets.value.length > 0 &&
+    collectedBuckets.value.length === selectedBuckets.value.length &&
+    !state.collecting &&
+    !state.saving,
 );
+
+function errorText(e: unknown, fallback: string) {
+  const body = (e as any)?.response?.data?.responseData;
+  return (
+    body?.error ||
+    body?.message ||
+    (e as any)?.response?.data?.status?.message ||
+    (e as any)?.message ||
+    fallback
+  );
+}
 
 onMounted(async () => {
   try {
@@ -100,7 +122,10 @@ onMounted(async () => {
     if (props.initialGroupId) {
       await selectGroup(props.initialGroupId);
       const row = buckets.value.find(b => b.bucketName === props.initialBucket);
-      if (row) row.selected = true;
+      if (row) {
+        row.selected = true;
+        await handleCollect();
+      }
     }
   } catch (e) {
     showErrorMessage(
@@ -122,8 +147,14 @@ async function selectGroup(id: string) {
     buckets.value = connections
       .filter((c: any) => c.resource_type === 'object_storage')
       .map((c: any) => ({
-        ...newRow(c.resource_id, false),
+        connectionId: c.id,
         connectionName: c.name,
+        bucketName: c.resource_id,
+        selected: false,
+        status: '' as CollectStatus,
+        message: '',
+        bucket: null,
+        sourceCloud: null,
       }));
     if (!state.name && selectedGroup.value) {
       state.name = `os-src-${selectedGroup.value.provider}-${Date.now()
@@ -140,78 +171,82 @@ async function selectGroup(id: string) {
   }
 }
 
-function newRow(bucketName: string, manual: boolean): IBucketRow {
-  return {
-    bucketName,
-    connectionName: '',
-    manual,
-    selected: manual,
-    versioningEnabled: false,
-    corsEnabled: false,
-    encryptionEnabled: false,
-    isPublic: false,
-    accessFrequency: '',
-    corsOrigins: '*',
-    corsMethods: 'GET',
-  };
-}
-
-function splitList(value: string) {
-  return value
-    .split(',')
-    .map(v => v.trim())
-    .filter(Boolean);
-}
-
-function toSourceBucket(row: IBucketRow): ISourceBucket {
-  const bucket: ISourceBucket = {
-    bucketName: row.bucketName,
-    versioningEnabled: row.versioningEnabled,
-    corsEnabled: row.corsEnabled,
-    encryptionEnabled: row.encryptionEnabled,
-    isPublic: row.isPublic,
-  };
-  if (row.accessFrequency) bucket.accessFrequency = row.accessFrequency;
-  if (row.corsEnabled) {
-    bucket.corsRule = [
-      {
-        allowedOrigin: splitList(row.corsOrigins),
-        allowedMethod: splitList(row.corsMethods),
-      },
-    ];
+async function collectRow(row: IBucketRow) {
+  row.status = 'collecting';
+  row.message = '';
+  row.bucket = null;
+  try {
+    await collectBucket(state.groupId, row.connectionId);
+    const refined = await getRefinedBucket(state.groupId, row.connectionId);
+    const bucket = refined.sourceObjectStorages.find(
+      b => b.bucketName === row.bucketName,
+    );
+    if (!bucket) {
+      throw new Error(
+        `The source service did not return bucket ${row.bucketName}.`,
+      );
+    }
+    row.bucket = bucket;
+    row.sourceCloud = refined.sourceCloud ?? null;
+    row.status = 'collected';
+  } catch (e) {
+    row.status = 'failed';
+    row.message = errorText(e, 'Could not collect the bucket.');
   }
-  return bucket;
+}
+
+async function handleCollect() {
+  // mirinae shows a disabled button by class only, so the guard is here.
+  if (state.collecting || !selectedBuckets.value.length) return;
+  state.collecting = true;
+  try {
+    await Promise.all(
+      selectedBuckets.value
+        .filter(b => b.status !== 'collected')
+        .map(collectRow),
+    );
+  } finally {
+    state.collecting = false;
+  }
 }
 
 async function handleSave() {
-  if (!selectedGroup.value) return;
+  if (!canSave.value || !selectedGroup.value) return;
   state.saving = true;
-  const payload: ISourceObjectStorage = {
+  // The cloud cm-honeybee reports for the buckets; the source service's own as the fallback
+  // only when the refined answer carries none.
+  const sourceCloud = collectedBuckets.value.find(b => b.sourceCloud)
+    ?.sourceCloud ?? {
+    csp: selectedGroup.value.provider,
+    region: selectedGroup.value.region,
+  };
+  const sourceObjectStorageModel: ISourceObjectStorage = {
     description: state.description,
-    sourceCloud: {
-      csp: selectedGroup.value.provider,
-      region: selectedGroup.value.region,
-    },
-    sourceObjectStorages: selectedBuckets.value.map(toSourceBucket),
+    sourceCloud,
+    sourceObjectStorages: collectedBuckets.value.map(b => b.bucket!),
   };
   try {
-    const saved: IArtifact<ISourceObjectStorage> = await saveSourceModel(
-      state.name.trim(),
-      state.description,
-      payload,
-      selectedGroup.value.name,
-    );
+    const res = await createObjectStorageModel('source', {
+      userModelName: state.name.trim(),
+      description: state.description,
+      userId: auth.getUser().id,
+      userModelVersion: 'v0.1',
+      isInitUserModel: true,
+      lineage: { sourceGroupId: selectedGroup.value.name },
+      sourceObjectStorageModel,
+    });
     showSuccessMessage('success', 'Source model saved');
-    emit('saved', saved);
+    emit('saved', res.data?.responseData);
     emit('update:close-modal', false);
   } catch (e) {
-    showErrorMessage(
-      'failed',
-      (e as any)?.message || 'Could not save the source model.',
-    );
+    showErrorMessage('failed', describeModelError(e).message);
   } finally {
     state.saving = false;
   }
+}
+
+function onOff(value?: boolean) {
+  return value ? 'on' : 'off';
 }
 </script>
 
@@ -230,8 +265,9 @@ async function handleSave() {
       <div class="os-create" data-testid="os-source-create-body">
         <p class="note">
           Pick a cloud source service and the buckets registered in it (Source
-          Services &gt; Connections). The account credential stays with the
-          source service.
+          Services &gt; Connections), then collect them. The source service
+          reads each bucket's settings from the source account with its own
+          credential.
         </p>
         <p-field-group label="Source Service" required>
           <p-select-dropdown
@@ -253,113 +289,77 @@ async function handleSave() {
           data-testid="os-source-create-empty"
         >
           This source service has no bucket connections. Add them in Source
-          Services (Detail &gt; Scan Buckets, or Connections &gt; Add / Edit),
-          or enter a bucket below.
+          Services (Detail &gt; Scan Buckets, or Connections &gt; Add / Edit).
         </p>
-        <table
-          v-else-if="buckets.length"
-          class="table"
-          data-testid="os-source-create-buckets"
-        >
-          <thead>
-            <tr>
-              <th />
-              <th>Bucket</th>
-              <th>Versioning</th>
-              <th>Encryption</th>
-              <th>Public</th>
-              <th>Access</th>
-              <th>CORS (origins / methods)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="b in buckets"
-              :key="b.bucketName"
-              :data-testid="`os-source-create-bucket-${b.bucketName}`"
-              :data-selected="b.selected"
+        <template v-else-if="buckets.length">
+          <table class="table" data-testid="os-source-create-buckets">
+            <thead>
+              <tr>
+                <th />
+                <th>Bucket</th>
+                <th>Collect</th>
+                <th>Versioning</th>
+                <th>Encryption</th>
+                <th>Size</th>
+                <th>Objects</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="b in buckets"
+                :key="b.connectionId"
+                :data-testid="`os-source-create-bucket-${b.bucketName}`"
+                :data-selected="b.selected"
+                :data-status="b.status"
+              >
+                <td>
+                  <input
+                    v-model="b.selected"
+                    type="checkbox"
+                    :data-testid="`os-source-create-pick-${b.bucketName}`"
+                  />
+                </td>
+                <td>{{ b.bucketName }}</td>
+                <td
+                  :data-testid="`os-source-create-status-${b.bucketName}`"
+                  :data-status="b.status"
+                  :class="['status', `status--${b.status || 'none'}`]"
+                >
+                  <p-spinner v-if="b.status === 'collecting'" size="sm" />
+                  <span v-else-if="b.status === 'collected'">Collected</span>
+                  <span v-else-if="b.status === 'failed'" :title="b.message">
+                    Failed: {{ b.message }}
+                  </span>
+                  <span v-else>-</span>
+                </td>
+                <td :data-testid="`os-source-create-versioning-${b.bucketName}`">
+                  {{ b.bucket ? onOff(b.bucket.versioningEnabled) : '-' }}
+                </td>
+                <td>{{ b.bucket ? onOff(b.bucket.encryptionEnabled) : '-' }}</td>
+                <td>
+                  {{ b.bucket ? formatBytes(b.bucket.totalSizeBytes) : '-' }}
+                </td>
+                <td>{{ b.bucket ? b.bucket.objectCount ?? '-' : '-' }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="row">
+            <p-button
+              style-type="secondary"
+              icon-left="ic_refresh"
+              :disabled="!selectedBuckets.length || state.collecting"
+              :loading="state.collecting"
+              data-testid="os-source-create-collect"
+              @click="handleCollect"
             >
-              <td>
-                <input
-                  v-model="b.selected"
-                  type="checkbox"
-                  :data-testid="`os-source-create-pick-${b.bucketName}`"
-                />
-              </td>
-              <td>
-                {{ b.bucketName }}
-                <span v-if="b.manual" class="tag">entered</span>
-              </td>
-              <td>
-                <input
-                  v-model="b.versioningEnabled"
-                  type="checkbox"
-                  :data-testid="`os-source-create-versioning-${b.bucketName}`"
-                />
-              </td>
-              <td>
-                <input v-model="b.encryptionEnabled" type="checkbox" />
-              </td>
-              <td><input v-model="b.isPublic" type="checkbox" /></td>
-              <td>
-                <select v-model="b.accessFrequency" class="native-select">
-                  <option
-                    v-for="a in accessItems"
-                    :key="a.name"
-                    :value="a.name"
-                  >
-                    {{ a.label }}
-                  </option>
-                </select>
-              </td>
-              <td class="cors">
-                <input v-model="b.corsEnabled" type="checkbox" />
-                <input
-                  v-model="b.corsOrigins"
-                  class="native-input"
-                  :disabled="!b.corsEnabled"
-                />
-                <input
-                  v-model="b.corsMethods"
-                  class="native-input"
-                  :disabled="!b.corsEnabled"
-                />
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <div v-if="state.groupId" class="manual-row">
-          <p-field-group label="Add a bucket that is not listed">
-            <p-text-input
-              v-model="state.manualName"
-              disabled
-              placeholder="bucket name"
-              data-testid="os-source-create-manual-name"
-            />
-          </p-field-group>
-          <p-button
-            style-type="tertiary"
-            icon-left="ic_plus"
-            disabled
-            data-testid="os-source-create-manual-add"
-          >
-            Add
-          </p-button>
-        </div>
-        <p
-          v-if="state.groupId"
-          class="note"
-          data-testid="os-source-create-manual-note"
-        >
-          A source model is made from buckets registered in the source service.
-          Entering a bucket by hand is not available yet, because cm-honeybee
-          does not check that a typed-in bucket exists.
-        </p>
-        <p v-if="buckets.length" class="note">
-          The source service does not collect these settings yet. Set them as
-          the source bucket has them; the recommendation turns off what the
-          target cloud does not support.
-        </p>
+              Collect Selected
+            </p-button>
+            <span class="note" data-testid="os-source-create-count">
+              {{ collectedBuckets.length }} of
+              {{ selectedBuckets.length }} selected bucket(s) collected.
+            </span>
+          </div>
+        </template>
         <p-field-group label="Model Name" required>
           <p-text-input
             v-model="state.name"
@@ -372,9 +372,6 @@ async function handleSave() {
             data-testid="os-source-create-description"
           />
         </p-field-group>
-        <p class="note" data-testid="os-source-create-count">
-          {{ selectedBuckets.length }} bucket(s) selected.
-        </p>
       </div>
     </template>
     <template #close-button>
@@ -399,21 +396,10 @@ async function handleSave() {
   font-size: 0.875rem;
   color: #6b7280;
 }
-.manual-row {
+.row {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 0.75rem;
-}
-.manual-row :deep(.p-field-group) {
-  margin-bottom: 0;
-}
-.tag {
-  margin-left: 0.375rem;
-  padding: 0 0.375rem;
-  font-size: 0.75rem;
-  color: #6b7280;
-  border: 1px solid #d1d5db;
-  border-radius: 0.25rem;
 }
 .loading {
   display: flex;
@@ -438,23 +424,10 @@ async function handleSave() {
 .table tbody tr[data-selected='true'] {
   background: #e8f0fe;
 }
-.cors {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
+.status--collected {
+  color: #15803d;
 }
-.native-input,
-.native-select {
-  border: 1px solid #d1d5db;
-  border-radius: 0.25rem;
-  padding: 0.125rem 0.375rem;
-  font-size: 0.8125rem;
-}
-.native-input {
-  width: 6rem;
-}
-.native-input:disabled {
-  background: #f3f4f6;
-  color: #9ca3af;
+.status--failed {
+  color: #dc2626;
 }
 </style>

@@ -11,7 +11,6 @@ export const MENU_ID = Object.freeze({
   CLOUD_SOURCES: 'cloudsources',
   SOURCE_MODELS: 'sourcemodels',
   TARGET_MODELS: 'targetmodels',
-  OBJECT_STORAGE_MODELS: 'objectstoragemodels',
   WORKFLOW_MANAGEMENT: 'workflowmanagement',
   WORKFLOWS: 'workflows',
   WORKFLOW_TEMPLATES: 'workflowtemplates',

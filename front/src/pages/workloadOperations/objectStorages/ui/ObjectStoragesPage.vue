@@ -12,7 +12,7 @@ import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 
 /**
  * Buckets migrated into the target cloud from an object storage target model
- * (Models > Object Storage Models > Target > Migrate Buckets). The objects inside a bucket
+ * (Models > Target Models > an object storage target model > Migrate Buckets). The objects inside a bucket
  * are a data migration (cm-centipede) and are not moved here. cm-beetle's own direct flow,
  * kept for testing, is under System > Develop.
  */

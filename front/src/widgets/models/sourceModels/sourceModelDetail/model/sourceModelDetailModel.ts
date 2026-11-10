@@ -1,7 +1,10 @@
 import { useSourceModelStore, SourceModelTableType } from '@/entities';
 import { useDefinitionTableModel } from '@/shared/hooks/table/definitionTable/useDefinitionTableModel';
 import { ref, watch } from 'vue';
-import { MODEL_STAGE_LABEL } from '@/entities/migrationModel';
+import {
+  MODEL_STAGE_LABEL,
+  migrationTypeLabelOf,
+} from '@/entities/migrationModel';
 
 export function useSourceModelDetailModel() {
   const sourceModelStore = useSourceModelStore();
@@ -52,7 +55,7 @@ export function useSourceModelDetailModel() {
         id: sourceModel.id,
         description: sourceModel.description,
         migrationType:
-          sourceModel['migrationType'] || sourceModel.modelType || '',
+          sourceModel['migrationType'] || migrationTypeLabelOf(sourceModel),
         stage: sourceModel.modelStage
           ? MODEL_STAGE_LABEL[sourceModel.modelStage]
           : '',

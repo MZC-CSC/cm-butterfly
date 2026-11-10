@@ -111,16 +111,6 @@ menus:
     isaction: "true"
     priority: 2
 
-  # Object storage source/target models. cm-damselfly has no object storage model yet,
-  # so these are kept in cm-beetle's artifact store and shown in their own menu; they
-  # move into Source/Target Models once cm-damselfly keeps them.
-  - id: objectstoragemodels
-    parentid: models
-    displayname: Object Storage Models
-    restype: menu
-    isaction: "true"
-    priority: 3
-
   ################## step3 : menu : migrations > workflowmanagement ################
   - id: workflows
     parentid: workflowmanagement
@@ -179,7 +169,7 @@ menus:
     isaction: "false"
     priority: 0
 
-  # Buckets migrated into the target cloud (from Models > Object Storage Models).
+  # Buckets migrated into the target cloud (from Models > Target Models > Migrate Buckets).
   - id: objectstorages
     parentid: workloadoperations
     displayname: Object Storages

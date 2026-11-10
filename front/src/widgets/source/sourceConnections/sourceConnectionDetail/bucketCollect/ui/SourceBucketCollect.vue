@@ -3,8 +3,11 @@ import { PButton, PStatus } from '@cloudforet-test/mirinae';
 import { computed, reactive, watch } from 'vue';
 import { useRouter } from 'vue-router/composables';
 import { useCollectInfra } from '@/entities/sourceConnection/api';
+import { getRefinedBucket } from '@/entities/objectStorage/api';
+import type { ISourceBucket } from '@/entities/objectStorage/model/types';
 import { MODEL_ROUTE } from '@/app/providers/router/routes/constants';
 import CreateObjectStorageSourceModelModal from '@/widgets/models/createObjectStorageSourceModel/ui/CreateObjectStorageSourceModelModal.vue';
+import { formatBytes } from '@/widgets/models/objectStorageBuckets/model/format';
 import { formatDate, showErrorMessage, toErrorMessage } from '@/shared/utils';
 
 /**
@@ -12,13 +15,11 @@ import { formatDate, showErrorMessage, toErrorMessage } from '@/shared/utils';
  * port or credential of its own (the credential stays on the source service), so this
  * shows the bucket and its collect step in place of the server fields.
  *
- * Collect Object Storage asks cm-honeybee to look the bucket up in the source account
- * (import-infra runs the CSP lookup for every resource type), which confirms it exists.
- * Save as Source Model then opens the source model window with this bucket chosen, the
- * same window Models > Object Storage Models uses for several buckets.
- *
- * cm-honeybee 0.6.3 does not collect the bucket's settings and reads the stored lookup
- * back empty (cm-honeybee#82), so only whether the bucket was found is shown.
+ * Collect Object Storage asks cm-honeybee to read the bucket from the source account
+ * (import-infra runs the CSP lookup for every resource type), and the refined answer shows
+ * what was collected: versioning, encryption, size and object count (cm-honeybee 0.6.4+).
+ * Save as Source Model then opens the source model window with this bucket chosen, the same
+ * window Models > Source Models uses for several buckets.
  */
 interface IProps {
   sourceGroupId: string;
@@ -40,6 +41,7 @@ const state = reactive({
   collectedAt: '',
   saveOpen: false,
   savedModelName: '',
+  bucket: null as ISourceBucket | null,
 });
 
 // A different connection starts from nothing collected.
@@ -50,37 +52,68 @@ watch(
     state.message = '';
     state.collectedAt = '';
     state.savedModelName = '';
+    state.bucket = null;
   },
 );
 
 const statusView = computed(() => {
-  if (state.status === 'success')
-    return { theme: 'green', text: 'Found in the source account' };
+  if (state.status === 'success') return { theme: 'green', text: 'Collected' };
   if (state.status === 'failed') return { theme: 'red', text: 'Failed' };
   return { theme: 'gray', text: 'Not collected' };
 });
 
+function refinedErrorText(e: any, fallback: string) {
+  const body = e?.response?.data?.responseData;
+  return body?.error || body?.message || toErrorMessage(e, fallback);
+}
+
 async function handleCollect() {
   state.message = '';
+  state.bucket = null;
   try {
     await resCollect.execute({
       pathParams: { sgId: props.sourceGroupId, connId: props.connectionId },
     });
+  } catch (e) {
+    state.status = 'failed';
+    state.message = toErrorMessage(e, 'Could not collect the bucket.');
+    showErrorMessage('Error', state.message);
+    return;
+  }
+  // Collected only when the refined answer has this bucket; nothing is filled in otherwise.
+  try {
+    const refined = await getRefinedBucket(
+      props.sourceGroupId,
+      props.connectionId,
+    );
+    const bucket = refined.sourceObjectStorages.find(
+      b => b.bucketName === props.bucketName,
+    );
+    if (!bucket) {
+      throw new Error(
+        `The source service did not return bucket ${props.bucketName}.`,
+      );
+    }
+    state.bucket = bucket;
     state.status = 'success';
     state.collectedAt = formatDate(new Date().toISOString());
   } catch (e) {
     state.status = 'failed';
-    state.message = toErrorMessage(e, 'Could not find the bucket.');
+    state.message = refinedErrorText(e, 'Could not read the collected bucket.');
     showErrorMessage('Error', state.message);
   }
 }
 
+function onOff(value?: boolean) {
+  return value ? 'on' : 'off';
+}
+
 function onSaved(model: any) {
-  state.savedModelName = model?.name ?? '';
+  state.savedModelName = model?.userModelName ?? '';
 }
 
 function goToModels() {
-  router.push({ name: MODEL_ROUTE.OBJECT_STORAGE_MODELS._NAME });
+  router.push({ name: MODEL_ROUTE.SOURCE_MODELS._NAME });
 }
 </script>
 
@@ -114,6 +147,24 @@ function goToModels() {
       </dd>
       <dt>Collected At</dt>
       <dd>{{ state.collectedAt || '-' }}</dd>
+      <dt>Versioning</dt>
+      <dd data-testid="bucket-collect-versioning">
+        {{ state.bucket ? onOff(state.bucket.versioningEnabled) : '-' }}
+      </dd>
+      <dt>Encryption</dt>
+      <dd data-testid="bucket-collect-encryption">
+        {{ state.bucket ? onOff(state.bucket.encryptionEnabled) : '-' }}
+      </dd>
+      <dt>Size / Objects</dt>
+      <dd data-testid="bucket-collect-size">
+        {{
+          state.bucket
+            ? `${formatBytes(state.bucket.totalSizeBytes)} / ${
+                state.bucket.objectCount ?? '-'
+              }`
+            : '-'
+        }}
+      </dd>
       <dt>Source Model</dt>
       <dd class="with-action">
         <span data-testid="bucket-collect-saved">
@@ -125,7 +176,7 @@ function goToModels() {
               data-testid="bucket-collect-go-models"
               @click="goToModels"
             >
-              Object Storage Models
+              Source Models
             </button>
           </template>
           <template v-else>-</template>

@@ -6,7 +6,10 @@ import {
 } from '@/entities';
 import { watch } from 'vue';
 import { formatDate } from '@/shared/utils';
-import { MODEL_STAGE_LABEL } from '@/entities/migrationModel';
+import {
+  MODEL_STAGE_LABEL,
+  migrationTypeLabelOf,
+} from '@/entities/migrationModel';
 
 export function useSourceModelListModel() {
   const tableModel =
@@ -48,7 +51,7 @@ export function useSourceModelListModel() {
       id: sourceModel.id,
       description: sourceModel.description,
       migrationType:
-        sourceModel['migrationType'] || sourceModel.modelType || '',
+        sourceModel['migrationType'] || migrationTypeLabelOf(sourceModel),
       // A planning model is a source model the user has edited (formerly shown as "Custom").
       stage: sourceModel.modelStage
         ? MODEL_STAGE_LABEL[sourceModel.modelStage]

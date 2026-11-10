@@ -7,7 +7,15 @@ import { CustomViewTargetModel } from '@/widgets/models/targetModels';
 import { reactive, ref, computed } from 'vue';
 import WorkflowEditor from '@/features/workflow/workflowEditor/ui/WorkflowEditor.vue';
 import { useTargetModelStore } from '@/entities';
-import { describeModelError, updateModelInfo } from '@/entities/migrationModel';
+import {
+  describeModelError,
+  isObjectStorageModel,
+  updateModelInfo,
+} from '@/entities/migrationModel';
+import type { IObjectStorageModel } from '@/entities/objectStorage/model/types';
+import MigrateObjectStorageModal from '@/widgets/models/migrateObjectStorage/ui/MigrateObjectStorageModal.vue';
+import CustomViewObjectStorageModel from '@/widgets/models/customViewObjectStorageModel/ui/CustomViewObjectStorageModel.vue';
+import { ObjectStorageBuckets } from '@/widgets/models/objectStorageBuckets';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 import { useRouter } from 'vue-router/composables';
 import { WORKFLOW_MANAGEMENT_ROUTE } from '@/app/providers/router/routes/constants';
@@ -80,6 +88,19 @@ const targetModelForWorkflow = computed(() => {
   return model;
 });
 
+// Object storage target models share this list; they are migrated by creating their buckets.
+const selectedTargetModel = computed(() =>
+  targetModelStore.getTargetModelById(selectedTargetModelId.value),
+);
+const isObjectStorage = computed(
+  () =>
+    !!selectedTargetModel.value &&
+    isObjectStorageModel(selectedTargetModel.value),
+);
+const objectStorageModel = computed(
+  () => selectedTargetModel.value as unknown as IObjectStorageModel,
+);
+
 const migrationTypeForWorkflow = computed(() => {
   const model = targetModelForWorkflow.value;
   if (model?.modelType) {
@@ -114,6 +135,9 @@ const modalStates = reactive({
     open: false,
   },
   workflowEditorModal: {
+    open: false,
+  },
+  migrateBucketsModal: {
     open: false,
   },
 });
@@ -185,6 +209,13 @@ function handleUpdateTargetModel(e) {
               @update:workflow-edit-modal="
                 e => (modalStates.workflowEditorModal.open = e)
               "
+              @update:migrate-buckets-modal="
+                e => (modalStates.migrateBucketsModal.open = e)
+              "
+            />
+            <object-storage-buckets
+              v-if="isObjectStorage"
+              :model="objectStorageModel"
             />
           </template>
         </p-tab>
@@ -207,8 +238,14 @@ function handleUpdateTargetModel(e) {
       />
     </div>
     <div class="relative z-70">
+      <custom-view-object-storage-model
+        v-if="modalStates.customViewJsonModal.open && isObjectStorage"
+        :model="objectStorageModel"
+        @update:close-modal="modalStates.customViewJsonModal.open = false"
+        @update:trigger="modalStates.editModelModal.trigger = true"
+      />
       <custom-view-target-model
-        v-if="modalStates.customViewJsonModal.open"
+        v-if="modalStates.customViewJsonModal.open && !isObjectStorage"
         :selected-target-id="selectedTargetModelId"
         :selected-target-name="selectedTargetModelName"
         @update:close-modal="modalStates.customViewJsonModal.open = false"
@@ -230,6 +267,11 @@ function handleUpdateTargetModel(e) {
         :recommended-model="targetModelForWorkflow"
         @update:close-modal="modalStates.workflowEditorModal.open = false"
         @update:saved="handleSavedWorkflow"
+      />
+      <migrate-object-storage-modal
+        v-if="modalStates.migrateBucketsModal.open && isObjectStorage"
+        :target="objectStorageModel"
+        @update:close-modal="modalStates.migrateBucketsModal.open = false"
       />
     </div>
   </div>

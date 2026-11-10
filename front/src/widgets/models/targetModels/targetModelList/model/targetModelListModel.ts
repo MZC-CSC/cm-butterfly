@@ -3,6 +3,7 @@ import { ITargetModelResponse } from '@/entities';
 import { useTargetModelStore, TargetModelTableType } from '@/entities';
 import { watch } from 'vue';
 import { formatDate } from '@/shared/utils';
+import { migrationTypeLabelOf } from '@/entities/migrationModel';
 
 export function useTargetModelListModel() {
   const tableModel =
@@ -44,7 +45,8 @@ export function useTargetModelListModel() {
       name: targetModel.userModelName,
       id: targetModel.id,
       description: targetModel.description,
-      migrationType: targetModel['migrationType'] || targetModel.modelType || '',
+      migrationType:
+        targetModel['migrationType'] || migrationTypeLabelOf(targetModel),
       custom: targetModel.isInitUserModel ? 'Basic' : 'Custom',
       modelType: targetModel.modelType || 'Unknown',
       createdDateTime: formatDate(targetModel.createTime),

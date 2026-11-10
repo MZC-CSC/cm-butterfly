@@ -22,6 +22,7 @@ export type TargetModelTableType =
   | 'updatedDateTime'
   | 'modelType'
   | 'customAndViewJSON'
+  | 'parentPlanningModel'
   | 'workflowTool';
 
 interface Vm {

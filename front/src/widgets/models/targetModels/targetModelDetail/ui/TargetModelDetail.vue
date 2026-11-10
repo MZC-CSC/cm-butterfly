@@ -2,6 +2,7 @@
 import { PDefinitionTable } from '@cloudforet-test/mirinae';
 import { useTargetModelDetailModel } from '@/widgets/models/targetModels/targetModelDetail';
 import { onBeforeMount, watch, watchEffect, ref, computed } from 'vue';
+import { isObjectStorageModel } from '@/entities/migrationModel';
 
 interface iProps {
   selectedTargetModelId: string;
@@ -14,10 +15,19 @@ const emit = defineEmits([
   'update:target-model-name',
   'update:target-model-description',
   'update:workflow-edit-modal',
+  'update:migrate-buckets-modal',
 ]);
 
 const { targetModelStore, setTargetModelId, initTable, tableModel } =
   useTargetModelDetailModel();
+
+// An object storage target model is migrated by creating its buckets, not by a workflow.
+const isObjectStorage = computed(() => {
+  const targetModel = targetModelStore.getTargetModelById(
+    props.selectedTargetModelId,
+  );
+  return !!targetModel && isObjectStorageModel(targetModel);
+});
 
 // Computed that decides whether this is a Software model
 const isSoftwareModel = computed(() => {
@@ -142,8 +152,21 @@ function handleOpenWorkflowEditor() {
           Custom & View Target Model
         </p>
       </template>
+      <!-- Always render the element: an empty slot makes PDefinitionTable fall back to its default (DESIGN-MIRINAE). -->
+      <template #data-parentPlanningModel="{ data }">
+        <span data-testid="target-detail-parent">{{ data }}</span>
+      </template>
       <template #data-workflowTool>
         <p
+          v-if="isObjectStorage"
+          data-testid="target-migrate-buckets"
+          class="link-button-text"
+          @click="emit('update:migrate-buckets-modal', true)"
+        >
+          Migrate Buckets
+        </p>
+        <p
+          v-else
           data-testid="target-make-workflow"
           class="link-button-text"
           @click="handleOpenWorkflowEditor"
