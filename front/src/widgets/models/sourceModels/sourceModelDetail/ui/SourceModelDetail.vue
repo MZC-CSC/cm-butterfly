@@ -148,10 +148,10 @@ function handleRecommendedList() {
   );
 
   if (!sourceModel || !recommendable.value) return;
-  // cm-damselfly's modelType decides it (OnPremiseModel | CloudModel | SoftwareModel).
+  // cm-damselfly's modelType decides it (OnPremiseModel | CloudModel | SoftwareModel |
+  // objectStorageModel); the category names the recommendation window to open.
   try {
-    recommendedModelList.value =
-      modelCategoryOf(sourceModel) === 'software' ? 'software' : 'infra';
+    recommendedModelList.value = modelCategoryOf(sourceModel);
   } catch (e: any) {
     showErrorMessage('error', e.message);
     return;
@@ -164,7 +164,11 @@ function handleRecommendedList() {
 </script>
 
 <template>
-  <div data-testid="source-model-detail">
+  <div
+    data-testid="source-model-detail"
+    :data-model-id="selectedSourceModelId"
+    :data-stage="stage ?? ''"
+  >
     <p-definition-table
       :fields="tableModel.tableState.fields"
       :data="tableModel.tableState.data"

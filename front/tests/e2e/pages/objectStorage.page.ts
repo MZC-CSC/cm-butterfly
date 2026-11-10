@@ -2,14 +2,17 @@ import { Locator, Page, expect } from '@playwright/test';
 import { humanClick, humanFill } from '../support/humanize';
 import { SourceServicesPage } from './sourceServices.page';
 import { RegionSelectControl } from './regionSelect.page';
+import { ModelsPage } from './models.page';
 
 /**
  * 오브젝트 스토리지(버킷) 마이그레이션.
  *
  *   Source Services ▸ (클라우드 소스) Detail ▸ Scan Buckets → 버킷을 커넥션으로 등록
- *   → Models ▸ Object Storage Models ▸ Source ▸ Create Source Model (등록된 버킷 선택·속성 확인)
- *   → Recommend Target → 목표 모델 저장 (Target 탭)
- *   → Migrate Buckets → Workload Operations ▸ Object Storages 에서 조회·삭제
+ *   → Models ▸ Source Models ▸ Create Object Storage Source Model (버킷 선택 → 수집 → 저장)
+ *   → View & Save as Planning Model (계획 모델) → View Recommended List → 목표 모델 저장
+ *   → Models ▸ Target Models ▸ Migrate Buckets → Workload Operations ▸ Object Storages 에서 조회·삭제
+ *
+ * 모델은 cm-damselfly 에 인프라 모델과 같은 규칙(소스 → 계획 → 목표, 계보)으로 저장된다.
  *
  * 표는 미리내 표가 아니라 일반 표이고, 선택은 행의 `data-selected` 로 드러난다.
  * 판정은 화면이 드러내는 결과로 한다 — 이행 상태는 `data-status`, 계보는 행의
@@ -136,30 +139,24 @@ export class ObjectStoragePage {
     ).toContainText(bucket, { timeout: 30_000 });
   }
 
-  // ── Models ▸ Object Storage Models ───────────────────────────────────────
+  // ── Models ▸ Source Models / Target Models (오브젝트 스토리지 모델) ──────────
+  //
+  // 오브젝트 스토리지 모델은 cm-damselfly 에 인프라·SW 모델과 함께 저장되고 같은 목록에 나온다.
+  // 목록 선택·계획 모델 저장·단계/부모 확인은 ModelsPage 를 그대로 쓴다.
 
-  async openModels(): Promise<void> {
-    await humanClick(
-      this.page.getByText('Object Storage Models', { exact: true }).first(),
-    );
-    await expect(this.page.getByTestId('os-models-header')).toBeVisible({
-      timeout: 30_000,
-    });
-  }
-
-  private async openModelTab(name: 'Source' | 'Target'): Promise<void> {
-    await humanClick(this.page.getByRole('tab', { name, exact: true }));
-  }
-
-  /** 등록된 버킷으로 소스 모델을 만든다. 원본 버킷은 버전 관리가 켜져 있어 그 값을 넣는다. 모델 ID 를 돌려준다. */
+  /**
+   * Source Models 의 Create Object Storage Source Model 창에서 그룹과 버킷을 골라 수집하고 저장한다.
+   * 버킷 설정은 손으로 넣지 않는다 — 소스 서비스가 계정에서 읽어 온 값이 들어간다.
+   * 저장된 모델의 ID 를 돌려준다.
+   */
   async createSourceModel(
     group: string,
     bucket: string,
     name: string,
   ): Promise<string> {
-    await this.openModels();
-    await this.openModelTab('Source');
-    await humanClick(this.page.getByTestId('os-models-source-create'));
+    const models = new ModelsPage(this.page);
+    await models.gotoSourceModels();
+    await humanClick(this.page.getByTestId('os-source-create-open'));
     await expect(this.page.getByTestId('os-source-create-body')).toBeVisible({
       timeout: 15_000,
     });
@@ -173,26 +170,51 @@ export class ObjectStoragePage {
     const row = this.page.getByTestId(`os-source-create-bucket-${bucket}`);
     await expect(row).toBeVisible({ timeout: 30_000 });
     await humanClick(this.page.getByTestId(`os-source-create-pick-${bucket}`));
-    await humanClick(
-      this.page.getByTestId(`os-source-create-versioning-${bucket}`),
-    );
     await expect(row).toHaveAttribute('data-selected', 'true');
+    await humanClick(this.page.getByTestId('os-source-create-collect'));
+    await expect(row).toHaveAttribute('data-status', 'collected', {
+      timeout: 120_000,
+    });
     await humanFill(this.input('os-source-create-name'), name);
     await humanClick(this.confirmButton('os-source-create-save'));
     await expect(this.page.getByTestId('os-source-create-body')).toHaveCount(
       0,
       { timeout: 30_000 },
     );
-    const listed = this.page.getByTestId(`os-models-source-${name}`);
-    await expect(listed).toBeVisible({ timeout: 30_000 });
-    return (await listed.getAttribute('data-id')) ?? '';
+    return this.selectedModelId(name);
   }
 
-  /** 연결 목록에서 그 버킷 연결을 열고 Information 의 Collect → Save as Source Model 로 저장한다. */
-  async collectAndSaveFromConnection(
-    bucket: string,
+  /** 목록에서 그 모델을 골라 상세가 가리키는 모델 ID 를 읽는다. */
+  async selectedModelId(name: string): Promise<string> {
+    const models = new ModelsPage(this.page);
+    await models.selectModel(name);
+    const detail = this.page.getByTestId('source-model-detail');
+    await expect(detail).toContainText(name, { timeout: 15_000 });
+    return (await detail.getAttribute('data-model-id')) ?? '';
+  }
+
+  /**
+   * 소스·계획 모델 상세 아래 버킷 표에 그 버킷이 *수집한 값*으로 들어 있다.
+   * 수집하지 않은 값은 '-' 로 남으므로, 버저닝이 on/off 이고 크기가 채워졌는지로 판정한다.
+   */
+  async expectCollectedBucketInModel(
     name: string,
+    bucket: string,
   ): Promise<void> {
+    const models = new ModelsPage(this.page);
+    await models.gotoSourceModels();
+    await models.selectModel(name);
+    const row = this.page
+      .getByTestId('os-model-buckets')
+      .getByTestId(`os-model-bucket-${bucket}`);
+    await expect(row).toBeVisible({ timeout: 15_000 });
+    const cells = await row.locator('td').allInnerTexts();
+    expect(cells[1], '버저닝이 수집되지 않았다').toMatch(/^(on|off)$/);
+    expect(cells[5], '크기가 수집되지 않았다').not.toBe('-');
+  }
+
+  /** 연결 목록에서 그 버킷 연결을 열고 Information 의 Collect 를 누른다. 수집한 설정이 그 자리에 보인다. */
+  async collectFromConnection(bucket: string): Promise<void> {
     await this.expectBucketConnection(bucket);
     await humanClick(
       this.page
@@ -208,10 +230,30 @@ export class ObjectStoragePage {
     await expect(
       this.page.getByTestId('bucket-collect-status'),
     ).toHaveAttribute('data-status', 'success', { timeout: 120_000 });
+  }
+
+  async expectCollectedSettingsShown(): Promise<void> {
+    await expect(this.page.getByTestId('bucket-collect-versioning')).toHaveText(
+      /^\s*(on|off)\s*$/,
+    );
+    await expect(this.page.getByTestId('bucket-collect-size')).not.toHaveText(
+      /^\s*-\s*$/,
+    );
+  }
+
+  /** 수집이 끝난 버킷 연결에서 Save as Source Model 로 저장한다. 창은 그 버킷을 골라 수집한 채로 열린다. */
+  async saveSourceModelFromConnection(
+    bucket: string,
+    name: string,
+  ): Promise<void> {
     await humanClick(this.page.getByTestId('bucket-collect-save-model'));
-    await expect(
-      this.page.getByTestId(`os-source-create-bucket-${bucket}`),
-    ).toHaveAttribute('data-selected', 'true', { timeout: 30_000 });
+    const row = this.page.getByTestId(`os-source-create-bucket-${bucket}`);
+    await expect(row).toHaveAttribute('data-selected', 'true', {
+      timeout: 30_000,
+    });
+    await expect(row).toHaveAttribute('data-status', 'collected', {
+      timeout: 120_000,
+    });
     await humanFill(this.input('os-source-create-name'), name);
     await humanClick(this.confirmButton('os-source-create-save'));
     await expect(this.page.getByTestId('bucket-collect-saved')).toContainText(
@@ -220,23 +262,17 @@ export class ObjectStoragePage {
     );
   }
 
-  async expectSourceModelBucket(name: string, bucket: string): Promise<void> {
-    await humanClick(this.page.getByTestId(`os-models-source-${name}`));
-    await expect(
-      this.page.getByTestId('os-models-source-detail'),
-    ).toContainText(bucket);
-  }
-
+  /** 계획 모델 상세의 View Recommended List 로 추천 창을 열고, 같은 CSP·리전으로 추천받아 목표 모델로 저장한다. */
   async recommendAndSaveTargetModel(
-    sourceModel: string,
+    planningModel: string,
     provider: string,
     region: string,
     targetModel: string,
   ): Promise<void> {
-    await this.openModels();
-    await this.openModelTab('Source');
-    await humanClick(this.page.getByTestId(`os-models-source-${sourceModel}`));
-    await humanClick(this.page.getByTestId('os-models-source-recommend'));
+    const models = new ModelsPage(this.page);
+    await models.gotoSourceModels();
+    await models.selectModel(planningModel);
+    await humanClick(this.page.getByTestId('source-detail-view-recommend'));
     await expect(this.page.getByTestId('os-recommend-body')).toBeVisible({
       timeout: 15_000,
     });
@@ -268,13 +304,24 @@ export class ObjectStoragePage {
     });
   }
 
-  /** 목표 모델 행이 가리키는 소스 모델 ID (계보). */
-  async targetModelSourceId(targetModel: string): Promise<string> {
-    await this.openModels();
-    await this.openModelTab('Target');
-    const row = this.page.getByTestId(`os-models-target-${targetModel}`);
-    await expect(row).toBeVisible({ timeout: 30_000 });
-    return (await row.getAttribute('data-source-model-id')) ?? '';
+  /** 목표 모델 상세가 가리키는 계획 모델 ID (계보). */
+  async targetModelPlanningId(targetModel: string): Promise<string> {
+    const models = new ModelsPage(this.page);
+    await models.gotoTargetModels();
+    await models.selectModel(targetModel);
+    const parent = this.page.getByTestId('target-detail-parent');
+    await expect(parent).toBeVisible({ timeout: 15_000 });
+    return (await parent.innerText()).trim();
+  }
+
+  private async openMigrate(targetModel: string): Promise<void> {
+    const models = new ModelsPage(this.page);
+    await models.gotoTargetModels();
+    await models.selectModel(targetModel);
+    await humanClick(this.page.getByTestId('target-migrate-buckets'));
+    await expect(this.page.getByTestId('os-migrate-body')).toBeVisible({
+      timeout: 15_000,
+    });
   }
 
   /** 목표 모델에서 Migrate Buckets 로 버킷을 만들고 Success/Error 가 정해질 때까지 지켜본다. */
@@ -282,13 +329,7 @@ export class ObjectStoragePage {
     targetModel: string,
     nameSeed: string,
   ): Promise<string> {
-    await this.openModels();
-    await this.openModelTab('Target');
-    await humanClick(this.page.getByTestId(`os-models-target-${targetModel}`));
-    await humanClick(this.page.getByTestId('os-models-target-migrate'));
-    await expect(this.page.getByTestId('os-migrate-body')).toBeVisible({
-      timeout: 15_000,
-    });
+    await this.openMigrate(targetModel);
     await humanFill(this.input('os-migrate-name-seed'), nameSeed);
     await humanClick(this.confirmButton('os-migrate-start'));
     const status = this.page.getByTestId('os-migrate-status');
@@ -313,13 +354,7 @@ export class ObjectStoragePage {
     targetModel: string,
     nameSeed: string,
   ): Promise<void> {
-    await this.openModels();
-    await this.openModelTab('Target');
-    await humanClick(this.page.getByTestId(`os-models-target-${targetModel}`));
-    await humanClick(this.page.getByTestId('os-models-target-migrate'));
-    await expect(this.page.getByTestId('os-migrate-body')).toBeVisible({
-      timeout: 15_000,
-    });
+    await this.openMigrate(targetModel);
     await humanFill(this.input('os-migrate-name-seed'), nameSeed);
     await expect(
       this.page.getByTestId('os-migrate-name-seed-error'),
@@ -343,14 +378,19 @@ export class ObjectStoragePage {
     });
   }
 
+  /**
+   * 모델 목록에서 그 모델을 골라 삭제한다. 다른 모델이 계보로 가리키는 모델은 cm-damselfly 가
+   * 거절하므로 목표 → 계획 → 소스 순서로 지운다.
+   */
   async deleteModel(kind: 'source' | 'target', name: string): Promise<void> {
-    await this.openModels();
-    await this.openModelTab(kind === 'source' ? 'Source' : 'Target');
-    const row = this.page.getByTestId(`os-models-${kind}-${name}`);
-    await expect(row).toBeVisible({ timeout: 30_000 });
-    await humanClick(row);
-    await humanClick(this.page.getByTestId(`os-models-${kind}-delete`));
-    await humanClick(this.confirmButton('os-models-delete-confirm'));
-    await expect(row).toHaveCount(0, { timeout: 30_000 });
+    const models = new ModelsPage(this.page);
+    if (kind === 'source') await models.gotoSourceModels();
+    else await models.gotoTargetModels();
+    await models.selectModel(name);
+    await humanClick(this.page.getByTestId('model-list-delete'));
+    await humanClick(this.confirmButton('model-list-delete-confirm'));
+    await expect(
+      this.page.getByTestId('model-list-table').getByRole('row', { name }),
+    ).toHaveCount(0, { timeout: 30_000 });
   }
 }

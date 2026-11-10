@@ -79,7 +79,7 @@ services:
       latest: https://raw.githubusercontent.com/cloud-barista/cb-tumblebug/main/src/interface/rest/docs/swagger.json
       release: https://raw.githubusercontent.com/cloud-barista/cb-tumblebug/{release}/src/interface/rest/docs/swagger.json
   cm-ant:
-    version: 0.6.0(0.6.0)
+    version: 0.6.1(0.6.0)
     baseurl: http://cm-ant:8880/ant
     auth:
       type: none
@@ -87,7 +87,7 @@ services:
       latest: https://raw.githubusercontent.com/cloud-barista/cm-ant/main/api/swagger.json
       release: https://raw.githubusercontent.com/cloud-barista/cm-ant/{release}/api/swagger.json
   cm-beetle:
-    version: 0.6.3(latest)
+    version: 0.6.4(latest)
     baseurl: http://cm-beetle:8056/beetle
     auth:
       type: basic
@@ -100,14 +100,14 @@ services:
   cm-butterfly-api:
     # No public swagger source is registered for this service, so the version is
     # kept in step with the image tag in conf/docker/docker-compose.yaml by hand.
-    version: 0.6.0
+    version: edge
     #baseurl: http://localhost:4000
     baseurl: http://cm-butterfly-api:4000
     auth:
       type: none
       
   cm-cicada:
-    version: 0.6.1(latest)
+    version: 0.6.2(latest)
     baseurl: http://cm-cicada:8083/cicada
     auth:
       type: none
@@ -116,7 +116,7 @@ services:
       release: https://raw.githubusercontent.com/cloud-barista/cm-cicada/{release}/pkg/api/rest/docs/swagger.json
 
   cm-honeybee:
-    version: 0.6.3(latest)
+    version: 0.6.4(latest)
     baseurl: http://cm-honeybee:8081/honeybee
     auth:
       type: none
@@ -149,7 +149,7 @@ services:
   #    release: https://raw.githubusercontent.com/cloud-barista/cm-honeybee/{release}/agent/pkg/api/rest/docs/swagger.json
 
   cm-grasshopper:
-    version: 0.6.0(latest)
+    version: 0.6.1(latest)
     baseurl: http://cm-grasshopper:8084/grasshopper
     auth:
       type: none
@@ -158,7 +158,7 @@ services:
       release: https://raw.githubusercontent.com/cloud-barista/cm-grasshopper/{release}/pkg/api/rest/docs/swagger.json
 
   cm-damselfly:
-    version: 0.6.4(latest)
+    version: 0.6.5(latest)
     baseurl: http://cm-damselfly:8088/damselfly
     auth: # cm-damselfly checks these only when DAMSELFLY_API_AUTH_ENABLED=true; otherwise they are ignored.
       type: basic
@@ -2912,7 +2912,7 @@ serviceActions:
     GenerateMigrationReport:
       method: post
       resourcePath: /report/migration/ns/{nsId}/infra/{infraId}
-      description: "Generate a comprehensive migration report comparing source infrastructure with target cloud VMs, including resource mappings, network/security analysis, cost summary, and recommendations in Markdown or HTML format"
+      description: "Generate a comprehensive migration report comparing source infrastructure with target cloud VMs, including resource mappings, network/security analysis, cost summary, and recommendations in Markdown, HTML, or JSON format"
     GenerateSourceInfraSummary:
       method: post
       resourcePath: /summary/source
@@ -3060,7 +3060,7 @@ serviceActions:
     MigrateData:
       method: post
       resourcePath: /migration/data
-      description: "By default this API runs synchronously and returns the migration result directly.\n\n[Async Operation (opt-in)]\n1. Send header `Prefer: respond-async` → Receive 202 Accepted with reqId\n2. Poll GET /request/{reqId} to check status\n3. Status flow: Handling → Success / Error\n* Only the \"respond-async\" preference token is recognized; other tokens (e.g. wait=N) are ignored.\n* If too many async jobs are already running, this returns 503 instead of 202; retry after the `Retry-After` seconds.\n\n[Endpoint Requirements]\n* Both source and destination must be remote endpoints (SSH or object storage)\n* Local filesystem access is not allowed for security reasons\n\n[Transfer Options]\n* Strategy: auto (default), direct, relay\n* SSH: Supports PrivateKey content or PrivateKeyPath\n\n[Encryption Support]\n* To encrypt sensitive fields, first call GET /migration/data/encryptionKey\n* Encrypted requests include `encryptionKeyId` field\n* Server automatically detects and decrypts encrypted requests\n\n[Examples]\n* Test results: https://github.com/cloud-barista/cm-beetle/blob/main/docs/test-results-data-migration.md\n"
+      description: "By default this API runs synchronously and returns the migration result directly.\n\n[Async Operation (opt-in)]\n1. Send header `Prefer: respond-async` → Receive 202 Accepted with reqId\n2. Poll GET /request/{reqId} to check status\n3. Status flow: Handling → Success / Error\n* Only the \"respond-async\" preference token is recognized; other tokens (e.g. wait=N) are ignored.\n* If too many async jobs are already running, this returns 503 instead of 202; retry after the `Retry-After` seconds.\n\n[Endpoint Requirements]\n* Both source and destination must be remote endpoints (SSH or object storage)\n* Local filesystem access is not allowed for security reasons\n\n[Transfer Options]\n* Strategy: auto (default), direct, relay, ssh-agent-fwd-push, ssh-agent-fwd-pull\n* SSH: Supports PrivateKey content or PrivateKeyPath\n\n[Encryption Support]\n* To encrypt sensitive fields, first call GET /migration/data/encryptionKey\n* Encrypted requests include `encryptionKeyId` field\n* Server automatically detects and decrypts encrypted requests\n\n[Examples]\n* Test results: https://github.com/cloud-barista/cm-beetle/blob/main/docs/test-results-data-migration.md\n"
     MigrateInfra:
       method: post
       resourcePath: /migration/ns/{nsId}/infra
@@ -3399,6 +3399,22 @@ serviceActions:
       resourcePath: /workflow/{wfId}
       description: "Update the workflow content."
   cm-damselfly:
+    ConvertInfraModel:
+      method: get
+      resourcePath: /infra-model/{id}/convert
+      description: "Get a stored infra migration user model converted to the struct of the cm-beetle/imdl tagged version given by 'modelVersion'. The stored model is not changed.\nOnly the conversion to the same or a newer version is allowed. A cloud model cannot be converted to a version older than v0.1.2, and a model whose stored version is not a cm-beetle/imdl tag cannot be converted.\nThe response has the fields of 'GET /infra-model/{id}', with the model version and 'onpremiseInfraModel' (or 'cloudInfraModel') converted, and 'conversion' added: 'originVersion' (the stored version), 'currentVersion' (the version of the returned model), 'converted' (false if the stored version is already the requested version), 'droppedFields' (the paths of the fields removed because the requested version does not have them) and 'warnings' (what could not be converted as it was).\nThe values are not changed by the conversion unless a field's structure requires it. e.g. the disk sizes are kept as they are although their unit was changed from GiB to GB in the comments of v0.1.11."
+    ConvertObjectStorageModel:
+      method: get
+      resourcePath: /object-storage-model/{id}/convert
+      description: "Get a stored object storage migration user model converted to the struct of the cm-beetle/imdl tagged version given by 'objectStorageModelVersion'. The stored model is not changed.\nOnly the conversion to the same or a newer version is allowed, and a model whose stored version is not a cm-beetle/imdl tag with the object storage model (v0.1.3 or later) cannot be converted.\nThe response has the fields of 'GET /object-storage-model/{id}', with 'objectStorageModelVersion' and 'sourceObjectStorageModel' (or 'targetObjectStorageModel') converted, and 'conversion' added: 'originVersion' (the stored version), 'currentVersion' (the version of the returned model), 'converted' (false if the stored version is already the requested version), 'droppedFields' (the paths of the fields removed because the requested version does not have them) and 'warnings' (what could not be converted as it was).\n[Migrations] v0.1.6: 'nameSeed' of 'targetObjectStorageModel' was removed (reported in 'droppedFields', and in 'warnings' if it has a value). v0.1.11: 'sourceObjectStorageModel', which described a single bucket, is converted to a group of buckets: the bucket fields are moved into 'sourceObjectStorages[0]'.\nIf a field of the stored model has a value which does not match the type of that field in the requested version, the model is not converted (400)."
+    ConvertRDBMSModel:
+      method: get
+      resourcePath: /rdbms-model/{id}/convert
+      description: "Get a stored RDBMS migration user model converted to the struct of the cm-beetle/imdl tagged version given by 'rdbmsModelVersion'. The stored model is not changed.\nOnly the conversion to the same or a newer version is allowed, and a model whose stored version is not a cm-beetle/imdl tag with the RDBMS model (v0.1.13 or later) cannot be converted.\nThe response has the fields of 'GET /rdbms-model/{id}', with 'rdbmsModelVersion' and 'sourceRDBMSModel' (or 'targetRDBMSModel') converted, and 'conversion' added: 'originVersion' (the stored version), 'currentVersion' (the version of the returned model), 'converted' (false if the stored version is already the requested version), 'droppedFields' (the paths of the fields removed because the requested version does not have them) and 'warnings' (what could not be converted as it was).\n[Migrations] v0.1.14: the instances of 'sourceRDBMSModel' were restructured into 'dbNode' and 'dbEngine' ('vcpu', 'memoryMb' and 'storageSizeGb' are converted as estimates and reported in 'warnings'). v0.1.18: 'characterSet' of the target databases is converted to 'charset'.\nIf a field of the stored model has a value which does not match the type of that field in the requested version, the model is not converted (400)."
+    ConvertSoftwareModel:
+      method: get
+      resourcePath: /software-model/{id}/convert
+      description: "Get a stored software migration user model converted to the struct of the cm-grasshopper/smdl tagged version given by 'modelVersion'. The stored model is not changed.\nOnly the conversion to the same or a newer version is allowed, and a model whose stored version is not a cm-grasshopper/smdl tag cannot be converted.\nThe response has the fields of 'GET /software-model/{id}', with 'softwareModelVersion' and 'sourceSoftwareModel' (or 'targetSoftwareModel') converted, and 'conversion' added: 'originVersion' (the stored version), 'currentVersion' (the version of the returned model), 'converted' (false if the stored version is already the requested version), 'droppedFields' (the paths of the fields removed because the requested version does not have them) and 'warnings' (what could not be converted as it was).\nIf a field of the stored model has a value which does not match the type of that field in the requested version (e.g. the free-form 'resources' of Kubernetes before v0.1.4), the model is not converted (400)."
     CreateCloudModel:
       method: post
       resourcePath: /cloudmodel
@@ -3406,11 +3422,19 @@ serviceActions:
     CreateInfraModel:
       method: post
       resourcePath: /infra-model
-      description: "Create a new infra migration user model. Use 'modelType' to select on-premise or cloud, and 'modelStage' to select the stage (source, planning or target) of the model.\nThe 'onpremiseInfraModel' (or 'cloudInfraModel') is validated against the 'OnpremInfra' (or 'RecommendedInfra') struct of the cm-beetle/imdl tagged version given by 'onpremModelVersion' (or 'cloudModelVersion'), and is stored in that struct's form.\n(The body schema below shows the struct of the cm-beetle/imdl version built into cm-damselfly. To see the struct of another version, choose 'imdl/{version}/doc.json' in 'Select a definition' at the top of Swagger UI.)\n[Lineage] 'parentId' is the ID of the infra model this model is derived from, which must be in the previous stage (source → planning → target): a source model for a planning model, and a planning model for a target model. The upstream fields of 'lineage' are derived from the parent.\n'lineage' can also be given explicitly (e.g. 'sourceGroupId'). The field of the model's own stage (e.g. 'planningModelId' of a planning model) is set to the ID of the created model by the server."
+      description: "Create a new infra migration user model. Use 'modelType' to select on-premise or cloud, and 'modelStage' to select the stage (source, planning or target) of the model.\nThe 'onpremiseInfraModel' (or 'cloudInfraModel') is validated against the 'OnpremInfra' (or 'RecommendedInfra') struct of the cm-beetle/imdl tagged version given by 'modelVersion', and is stored in that struct's form.\nThe former query parameters 'onpremModelVersion' and 'cloudModelVersion' are no longer accepted (400 Bad Request). Use 'modelVersion' instead.\n(The body schema below shows the struct of the cm-beetle/imdl version built into cm-damselfly. To see the struct of another version, choose 'imdl/{version}/doc.json' in 'Select a definition' at the top of Swagger UI.)\n[Lineage] 'parentId' is the ID of the infra model this model is derived from, which must be in the previous stage (source → planning → target): a source model for a planning model, and a planning model for a target model. The upstream fields of 'lineage' are derived from the parent.\n'lineage' can also be given explicitly (e.g. 'sourceGroupId'). The field of the model's own stage (e.g. 'planningModelId' of a planning model) is set to the ID of the created model by the server."
+    CreateObjectStorageModel:
+      method: post
+      resourcePath: /object-storage-model
+      description: "Create a new object storage migration user model. Use 'modelStage' to select the stage (source, planning or target) of the model.\nProvide 'sourceObjectStorageModel' for a source or planning model (modelStage=source or planning), or 'targetObjectStorageModel' for a target model (modelStage=target).\nThe 'sourceObjectStorageModel' (or 'targetObjectStorageModel') is validated against the 'SourceObjectStorage' (or 'RecommendedObjectStorage') struct of the cm-beetle/imdl tagged version given by 'objectStorageModelVersion', and is stored in that struct's form.\n'nodeId' is an optional identifier of the node the model is associated with.\n[Lineage] 'parentId' is the ID of the object storage model this model is derived from, which must be in the previous stage (source → planning → target): a source model for a planning model, and a planning model for a target model. The upstream fields of 'lineage' are derived from the parent.\n'lineage' can also be given explicitly (e.g. 'sourceGroupId'). The field of the model's own stage (e.g. 'planningModelId' of a planning model) is set to the ID of the created model by the server.\n(The body schema below shows the struct of the cm-beetle/imdl version built into cm-damselfly. To see the struct of another version, choose 'imdl/{version}/doc.json' in 'Select a definition' at the top of Swagger UI.)"
     CreateOnPremModel:
       method: post
       resourcePath: /onpremmodel
       description: "Create a new on-premise model with the given information."
+    CreateRDBMSModel:
+      method: post
+      resourcePath: /rdbms-model
+      description: "Create a new RDBMS migration user model. Use 'modelStage' to select the stage (source, planning or target) of the model.\nProvide 'sourceRDBMSModel' for a source or planning model (modelStage=source or planning), or 'targetRDBMSModel' for a target model (modelStage=target).\nThe 'sourceRDBMSModel' (or 'targetRDBMSModel') is validated against the 'SourceRDBMS' (or 'RecommendedRDBMS') struct of the cm-beetle/imdl tagged version given by 'rdbmsModelVersion', and is stored in that struct's form.\n'nodeId' is an optional identifier of the node the model is associated with.\n[Lineage] 'parentId' is the ID of the RDBMS model this model is derived from, which must be in the previous stage (source → planning → target): a source model for a planning model, and a planning model for a target model. The upstream fields of 'lineage' are derived from the parent.\n'lineage' can also be given explicitly (e.g. 'sourceGroupId'). The field of the model's own stage (e.g. 'planningModelId' of a planning model) is set to the ID of the created model by the server.\n(The body schema below shows the struct of the cm-beetle/imdl version built into cm-damselfly. To see the struct of another version, choose 'imdl/{version}/doc.json' in 'Select a definition' at the top of Swagger UI.)"
     CreateSoftwareModel:
       method: post
       resourcePath: /software-model
@@ -3431,10 +3455,18 @@ serviceActions:
       method: delete
       resourcePath: /infra-model/{id}
       description: "Delete a specific infra migration user model by ID. Works for both on-premise and cloud models without requiring the caller to specify the model type.\nIf the model is referred to by the lineage of other models, it is not deleted (409 Conflict with the referring models in 'list') unless 'force' is true."
+    DeleteObjectStorageModel:
+      method: delete
+      resourcePath: /object-storage-model/{id}
+      description: "Delete a specific object storage migration user model by ID. Use 'modelStage' to specify the stage (source, planning or target) of the model.\nIf the model is referred to by the lineage of other models, it is not deleted (409 Conflict with the referring models in 'list') unless 'force' is true."
     DeleteOnPremModel:
       method: delete
       resourcePath: /onpremmodel/{id}
       description: "Delete a on-premise model with the given information."
+    DeleteRDBMSModel:
+      method: delete
+      resourcePath: /rdbms-model/{id}
+      description: "Delete a specific RDBMS migration user model by ID. Use 'modelStage' to specify the stage (source, planning or target) of the model.\nIf the model is referred to by the lineage of other models, it is not deleted (409 Conflict with the referring models in 'list') unless 'force' is true."
     DeleteSoftwareModel:
       method: delete
       resourcePath: /software-model/{id}
@@ -3466,11 +3498,19 @@ serviceActions:
     GetModels:
       method: get
       resourcePath: /model
-      description: "Get a list of migration user models of both categories (infra and software).\nUse 'modelStage' to select the stage (source, planning or target) of the models, and 'category' to select the category. If omitted, the models of all stages (or both categories) are returned.\nThe models can be further filtered by their 'lineage' (e.g. 'sourceGroupId' to get all the models derived from a source group)."
+      description: "Get a list of migration user models of all categories (infra, software, rdbms and objectStorage).\nUse 'modelStage' to select the stage (source, planning or target) of the models, and 'category' to select the category. If omitted, the models of all stages (or all categories) are returned.\nThe models can be further filtered by their 'lineage' (e.g. 'sourceGroupId' to get all the models derived from a source group)."
     GetModelsVersions:
       method: get
       resourcePath: /model/version
-      description: "Get all tagged versions (in ascending order) of the migration models. 'onpremModelVersion' and 'cloudModelVersion' are the 'imdl/vX.Y.Z' tags of cm-beetle, and 'softwareModelVersion' is the 'smdl/vX.Y.Z' tags of cm-grasshopper."
+      description: "Get all tagged versions (in ascending order) of the migration models. 'onpremModelVersion' and 'cloudModelVersion' are the 'imdl/vX.Y.Z' tags of cm-beetle, 'softwareModelVersion' is the 'smdl/vX.Y.Z' tags of cm-grasshopper, 'rdbmsModelVersion' is the 'imdl/vX.Y.Z' tags of cm-beetle which have the RDBMS model (v0.1.13 or later), and 'objectStorageModelVersion' is the 'imdl/vX.Y.Z' tags of cm-beetle which have the object storage model (v0.1.3 or later)."
+    GetObjectStorageModel:
+      method: get
+      resourcePath: /object-storage-model/{id}
+      description: "Get a specific object storage migration user model by ID. Use 'modelStage' to specify the stage (source, planning or target) of the model.\nThe 'lineage' of the model refers to its upstream models and itself."
+    GetObjectStorageModels:
+      method: get
+      resourcePath: /object-storage-model
+      description: "Get a list of object storage migration user models. Use 'modelStage' to select the stage (source, planning or target) of the models.\nThe models can be further filtered by their 'lineage' (e.g. 'sourceModelId' to find the models derived from a source model)."
     GetOnPremModel:
       method: get
       resourcePath: /onpremmodel/{id}
@@ -3479,6 +3519,14 @@ serviceActions:
       method: get
       resourcePath: /onpremmodel
       description: "Get a list of on-premise models."
+    GetRDBMSModel:
+      method: get
+      resourcePath: /rdbms-model/{id}
+      description: "Get a specific RDBMS migration user model by ID. Use 'modelStage' to specify the stage (source, planning or target) of the model.\nThe 'lineage' of the model refers to its upstream models and itself."
+    GetRDBMSModels:
+      method: get
+      resourcePath: /rdbms-model
+      description: "Get a list of RDBMS migration user models. Use 'modelStage' to select the stage (source, planning or target) of the models.\nThe models can be further filtered by their 'lineage' (e.g. 'sourceModelId' to find the models derived from a source model)."
     GetSoftwareModel:
       method: get
       resourcePath: /software-model/{id}
@@ -3519,10 +3567,18 @@ serviceActions:
       method: put
       resourcePath: /infra-model/{id}
       description: "Update a specific infra migration user model by ID. Use 'modelType' to specify whether it is an on-premise or cloud model.\nThe model stage is changed to 'modelStage' if it is given, and is preserved otherwise.\nThe model version is preserved, and 'onpremiseInfraModel' (or 'cloudInfraModel') is validated against the struct of that cm-beetle/imdl tagged version.\n[Lineage] The stored 'lineage' is preserved if neither 'lineage' nor 'parentId' is given. If 'lineage' is given, it replaces the stored one. If 'parentId' is given, the upstream fields are derived from that model in the previous stage (source → planning → target).\nThe stage cannot be changed while the model is referred to by the lineage of other models (409 Conflict with the referring models in 'list')."
+    UpdateObjectStorageModel:
+      method: put
+      resourcePath: /object-storage-model/{id}
+      description: "Update a specific object storage migration user model by ID.\nThe model stage is changed to 'modelStage' if it is given, and is preserved otherwise.\nProvide 'sourceObjectStorageModel' if the (resulting) stage is source or planning, or 'targetObjectStorageModel' if it is target.\n'createTime' and 'objectStorageModelVersion' of the stored model are preserved, and 'sourceObjectStorageModel' (or 'targetObjectStorageModel') is validated against the struct of that cm-beetle/imdl tagged version.\n[Lineage] The stored 'lineage' is preserved if neither 'lineage' nor 'parentId' is given. If 'lineage' is given, it replaces the stored one. If 'parentId' is given, the upstream fields are derived from that object storage model in the previous stage (source → planning → target).\nThe stage cannot be changed while the model is referred to by the lineage of other models (409 Conflict with the referring models in 'list')."
     UpdateOnPremModel:
       method: put
       resourcePath: /onpremmodel/{id}
       description: "Update a on-premise model with the given information."
+    UpdateRDBMSModel:
+      method: put
+      resourcePath: /rdbms-model/{id}
+      description: "Update a specific RDBMS migration user model by ID.\nThe model stage is changed to 'modelStage' if it is given, and is preserved otherwise.\nProvide 'sourceRDBMSModel' if the (resulting) stage is source or planning, or 'targetRDBMSModel' if it is target.\n'createTime' and 'rdbmsModelVersion' of the stored model are preserved, and 'sourceRDBMSModel' (or 'targetRDBMSModel') is validated against the struct of that cm-beetle/imdl tagged version.\n[Lineage] The stored 'lineage' is preserved if neither 'lineage' nor 'parentId' is given. If 'lineage' is given, it replaces the stored one. If 'parentId' is given, the upstream fields are derived from that RDBMS model in the previous stage (source → planning → target).\nThe stage cannot be changed while the model is referred to by the lineage of other models (409 Conflict with the referring models in 'list')."
     UpdateSoftwareModel:
       method: put
       resourcePath: /software-model/{id}
@@ -3584,6 +3640,14 @@ serviceActions:
       method: get
       resourcePath: /readyz
       description: "Check Grasshopper is ready"
+    K8s-Candidates:
+      method: post
+      resourcePath: /k8s/candidates
+      description: "Read the kubernetes inventory cm-honeybee collected for a connection and list the namespaces, resource kinds and storage classes that can be picked for /k8s/migrate."
+    K8s-Migrate:
+      method: post
+      resourcePath: /k8s/migrate
+      description: "Install Velero on both clusters and run the migration as a single asynchronous job. Leave out the install block when Velero is already installed. Poll the returned job id through /job/status/{jobId}."
     List-Job-Status:
       method: get
       resourcePath: /job/status
@@ -3644,7 +3708,7 @@ serviceActions:
     Discover-Source-Group-Resources:
       method: get
       resourcePath: /source_group/{sgId}/discover
-      description: "Lists VMs / K8s clusters / object-storage buckets / network load balancers reachable through the CSP connection bound to this SourceGroup. Used by the UI to populate ConnectionInfo selection."
+      description: "Lists VMs / K8s clusters / object-storage buckets / network load balancers / managed databases reachable through the CSP connection bound to this SourceGroup. Used by the UI to populate ConnectionInfo selection."
     Get-Benchmark-Info:
       method: get
       resourcePath: /bench/{connId}
@@ -3665,10 +3729,50 @@ serviceActions:
       method: get
       resourcePath: /source_group/{sgId}/connection_info/{connId}/data
       description: "Get the data information of the connection information."
+    Get-Data-Info-Refined:
+      method: get
+      resourcePath: /source_group/{sgId}/connection_info/{connId}/data/refined
+      description: "Get the bucket of a CSP object-storage connection in the source model cm-beetle recommends a target bucket from. The values are those collected by import/infra."
     Get-Data-Info-Source-Group:
       method: get
       resourcePath: /source_group/{sgId}/data
       description: "Get the data information for all connections in the source group."
+    Get-Data-Info-Source-Group-Refined:
+      method: get
+      resourcePath: /source_group/{sgId}/data/refined
+      description: "Get every collected bucket of the source group's CSP object-storage connections in the source model cm-beetle recommends target buckets from. Connections without a collected bucket are left out."
+    Get-Db-Info:
+      method: get
+      resourcePath: /source_group/{sgId}/connection_info/{connId}/db
+      description: "Get the database information of the connection information."
+    Get-Db-Info-Refined:
+      method: get
+      resourcePath: /source_group/{sgId}/connection_info/{connId}/db/refined
+      description: "Get the refined database information of the connection information."
+    Get-Db-Info-Source-Group:
+      method: get
+      resourcePath: /source_group/{sgId}/db
+      description: "Get the database information for all connections in the source group."
+    Get-Db-Info-Source-Group-Refined:
+      method: get
+      resourcePath: /source_group/{sgId}/db/refined
+      description: "Get the refined database information for all connections in the source group."
+    Get-Fs-Info:
+      method: get
+      resourcePath: /source_group/{sgId}/connection_info/{connId}/fs
+      description: "Get the filesystem information of the connection information."
+    Get-Fs-Info-Refined:
+      method: get
+      resourcePath: /source_group/{sgId}/connection_info/{connId}/fs/refined
+      description: "Get the refined filesystem information of the connection information."
+    Get-Fs-Info-Source-Group:
+      method: get
+      resourcePath: /source_group/{sgId}/fs
+      description: "Get the filesystem information for all connections in the source group."
+    Get-Fs-Info-Source-Group-Refined:
+      method: get
+      resourcePath: /source_group/{sgId}/fs/refined
+      description: "Get the refined filesystem information for all connections in the source group."
     Get-Helm-Info:
       method: get
       resourcePath: /source_group/{sgId}/connection_info/{connId}/helm
@@ -3701,6 +3805,38 @@ serviceActions:
       method: get
       resourcePath: /source_group/{sgId}/kubernetes
       description: "Get the kubernetes information for all connections in the source group."
+    Get-Object-Storage-Info:
+      method: get
+      resourcePath: /source_group/{sgId}/connection_info/{connId}/objectstorage
+      description: "Get the object storage information of the connection information."
+    Get-Object-Storage-Info-Refined:
+      method: get
+      resourcePath: /source_group/{sgId}/connection_info/{connId}/objectstorage/refined
+      description: "Get the refined object storage information of the connection information."
+    Get-Object-Storage-Info-Source-Group:
+      method: get
+      resourcePath: /source_group/{sgId}/objectstorage
+      description: "Get the object storage information for all connections in the source group."
+    Get-Object-Storage-Info-Source-Group-Refined:
+      method: get
+      resourcePath: /source_group/{sgId}/objectstorage/refined
+      description: "Get the refined object storage information for all connections in the source group."
+    Get-Rdbms-Info:
+      method: get
+      resourcePath: /source_group/{sgId}/connection_info/{connId}/rdbms
+      description: "Get the database information of the connection information. A CSP managed database (resource_type rdbms) gives what the CSP driver reported; a VM gives the databases installed on it."
+    Get-Rdbms-Info-Refined:
+      method: get
+      resourcePath: /source_group/{sgId}/connection_info/{connId}/rdbms/refined
+      description: "Get the refined database information of the connection information, in the source model cm-beetle recommends from. A value the source did not report is left empty for cm-beetle to fill in."
+    Get-Rdbms-Info-Source-Group:
+      method: get
+      resourcePath: /source_group/{sgId}/rdbms
+      description: "Get the database information for all connections in the source group. Connections that cannot hold a database or have not been collected are skipped."
+    Get-Rdbms-Info-Source-Group-Refined:
+      method: get
+      resourcePath: /source_group/{sgId}/rdbms/refined
+      description: "Get the refined database information for all connections in the source group, in the source model cm-beetle recommends from. Connections that cannot hold a database or have not been collected are skipped."
     Get-Software-Info:
       method: get
       resourcePath: /source_group/{sgId}/connection_info/{connId}/software
@@ -3733,6 +3869,22 @@ serviceActions:
       method: post
       resourcePath: /source_group/{sgId}/import/data
       description: "Import data information for all connections in the source group."
+    Import-Db:
+      method: post
+      resourcePath: /source_group/{sgId}/connection_info/{connId}/import/db
+      description: "Import the database information of the connection information. With no db_name on the connection, every user database on the server is inspected."
+    Import-Db-Source-Group:
+      method: post
+      resourcePath: /source_group/{sgId}/import/db
+      description: "Import database information for all connections in the source group. Each connection is inspected at its own db_name and db_pg_schema."
+    Import-Fs:
+      method: post
+      resourcePath: /source_group/{sgId}/connection_info/{connId}/import/fs
+      description: "Import the filesystem information of the connection information. The path inspected is the connection's fs_scan_path."
+    Import-Fs-Source-Group:
+      method: post
+      resourcePath: /source_group/{sgId}/import/fs
+      description: "Import filesystem information for all connections in the source group. Each connection is inspected at its own fs_scan_path."
     Import-Helm:
       method: post
       resourcePath: /source_group/{sgId}/connection_info/{connId}/import/helm
@@ -3757,6 +3909,14 @@ serviceActions:
       method: post
       resourcePath: /source_group/{sgId}/import/kubernetes
       description: "Import kubernetes information for all connections in the source group."
+    Import-Object-Storage:
+      method: post
+      resourcePath: /source_group/{sgId}/connection_info/{connId}/import/objectstorage
+      description: "Import the object storage information of the connection information. The bucket and prefix inspected are the connection's os_scan_bucket and os_scan_prefix."
+    Import-Object-Storage-Source-Group:
+      method: post
+      resourcePath: /source_group/{sgId}/import/objectstorage
+      description: "Import object storage information for all connections in the source group. Each connection is inspected at its own os_scan_bucket and os_scan_prefix."
     Import-Software:
       method: post
       resourcePath: /source_group/{sgId}/connection_info/{connId}/import/software
@@ -3772,7 +3932,7 @@ serviceActions:
     List-Csp:
       method: get
       resourcePath: /csp
-      description: "Return the list of CSPs supported by the connected cb-spider."
+      description: "Return the list of CSPs supported by the linked cb-spider drivers."
     List-Source-Group:
       method: get
       resourcePath: /source_group

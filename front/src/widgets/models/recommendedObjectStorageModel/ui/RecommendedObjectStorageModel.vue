@@ -13,30 +13,42 @@ import RegionSelect from '@/entities/provider/ui/RegionSelect.vue';
 import {
   getObjectStorageSupport,
   recommendObjectStorage,
-  saveTargetModel,
 } from '@/entities/objectStorage/api';
 import type {
-  IArtifact,
+  IObjectStorageModel,
   IRecommendedObjectStorage,
-  ISourceObjectStorage,
   ObjectStorageSupport,
 } from '@/entities/objectStorage/model/types';
+import {
+  createObjectStorageModel,
+  describeModelError,
+  targetLineageFrom,
+} from '@/entities/migrationModel';
+import { useAuth } from '@/features/auth/model/useAuth.ts';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 
 /**
- * Recommends target buckets for an object storage source model and saves the result as a
- * target model (cm-beetle RecommendObjectStorage, then an artifact whose parent is the
- * source model). Same place in the flow as the infra and software recommendations.
+ * Recommends target buckets for an object storage planning model (cm-beetle
+ * RecommendObjectStorage) and saves the result in cm-damselfly as a target model whose parent
+ * is that planning model. Same place in the flow as the infra recommendation: a source model is
+ * read-only and recommendations start from a planning model.
+ *
+ * cm-beetle takes only the bucket list for an object storage recommendation, with no lineage,
+ * so the lineage is kept by cm-damselfly alone.
  */
 interface IProps {
-  source: IArtifact<ISourceObjectStorage>;
+  source: IObjectStorageModel;
 }
 const props = defineProps<IProps>();
 const emit = defineEmits(['update:close-modal', 'saved']);
 
-const sourceArtifact = computed(() => props.source);
+const auth = useAuth();
+const sourceModel = computed(() => props.source);
+const sourceStorage = computed(
+  () => sourceModel.value?.sourceObjectStorageModel,
+);
 const sourceBuckets = computed(
-  () => sourceArtifact.value?.payload?.sourceObjectStorages ?? [],
+  () => sourceStorage.value?.sourceObjectStorages ?? [],
 );
 
 const resProviders = useGetProviderList();
@@ -73,12 +85,12 @@ onMounted(() => {
 
 async function handleRecommend() {
   // mirinae shows a disabled button by class only, so the guard is here.
-  if (!sourceArtifact.value || !target.csp || !target.region) return;
+  if (!sourceStorage.value || !target.csp || !target.region) return;
   state.recommending = true;
   recommended.value = null;
   try {
     recommended.value = await recommendObjectStorage(
-      sourceArtifact.value.payload,
+      sourceStorage.value,
       target.csp,
       target.region,
     );
@@ -95,23 +107,30 @@ async function handleRecommend() {
 }
 
 async function handleSave() {
-  if (!recommended.value || !sourceArtifact.value) return;
+  if (!recommended.value || !sourceModel.value) return;
+  let lineageReq;
+  try {
+    lineageReq = targetLineageFrom(sourceModel.value);
+  } catch (e: any) {
+    showErrorMessage('failed', e.message);
+    return;
+  }
   state.saving = true;
   try {
-    const saved = await saveTargetModel(
-      target.modelName.trim(),
-      recommended.value.description ?? '',
-      recommended.value,
-      sourceArtifact.value.id,
-    );
+    const res = await createObjectStorageModel('target', {
+      userModelName: target.modelName.trim(),
+      description: recommended.value.description ?? '',
+      userId: auth.getUser().id,
+      userModelVersion: 'v0.1',
+      isInitUserModel: false,
+      targetObjectStorageModel: recommended.value,
+      ...lineageReq,
+    });
     state.saved = true;
     showSuccessMessage('success', 'Target model saved');
-    emit('saved', saved);
+    emit('saved', res.data?.responseData);
   } catch (e) {
-    showErrorMessage(
-      'failed',
-      errorText(e, 'Could not save the target model.'),
-    );
+    showErrorMessage('failed', describeModelError(e).message);
   } finally {
     state.saving = false;
   }
@@ -136,10 +155,10 @@ function handleClose() {
     <template #body>
       <div class="os-recommend" data-testid="os-recommend-body">
         <p class="note">
-          Source model: <b>{{ sourceArtifact?.name }}</b> ({{
-            sourceArtifact?.payload?.sourceCloud?.csp
+          Planning model: <b>{{ sourceModel?.userModelName }}</b> ({{
+            sourceStorage?.sourceCloud?.csp
           }}
-          / {{ sourceArtifact?.payload?.sourceCloud?.region }}) ·
+          / {{ sourceStorage?.sourceCloud?.region }}) ·
           {{ sourceBuckets.length }} bucket(s)
         </p>
         <div class="form-row">
@@ -239,7 +258,7 @@ function handleClose() {
           <p class="saved" data-testid="os-recommend-saved">
             {{
               state.saved
-                ? 'Saved. The target model is listed on the Target tab.'
+                ? 'Saved. The target model is listed on Target Models.'
                 : ''
             }}
           </p>

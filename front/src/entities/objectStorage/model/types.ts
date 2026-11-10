@@ -106,9 +106,8 @@ export type ObjectStorageSupport = Record<
 >;
 
 /**
- * cm-beetle artifact envelope. Object storage models have no home in cm-damselfly, so the
- * source and target models are kept in cm-beetle's artifact store (0.6.3+), the same place
- * cm-beetle's own console keeps them.
+ * cm-beetle artifact envelope. Only System > Develop (the cm-beetle direct test) keeps its
+ * models here; the console's object storage models live in cm-damselfly (IObjectStorageModel).
  */
 export interface IArtifact<T> {
   id: string;
@@ -135,3 +134,35 @@ export const OBJECT_STORAGE_SCHEMA = {
   SOURCE: 'SourceObjectStorage',
   TARGET: 'RecommendedObjectStorage',
 } as const;
+
+/**
+ * An object storage model as cm-damselfly keeps it (0.6.5+). A source or planning model holds
+ * `sourceObjectStorageModel`, a target model `targetObjectStorageModel`. The stage and lineage
+ * follow the same rules as the infra models (source -> planning -> target).
+ */
+export interface IObjectStorageModel {
+  id: string;
+  userModelName: string;
+  description?: string;
+  userId?: string;
+  userModelVersion?: string;
+  isInitUserModel?: boolean;
+  modelType?: string;
+  modelStage?: 'source' | 'planning' | 'target';
+  objectStorageModelVersion?: string;
+  lineage?: {
+    sourceGroupId?: string;
+    sourceModelId?: string;
+    planningModelId?: string;
+    targetModelId?: string;
+  };
+  sourceObjectStorageModel?: ISourceObjectStorage;
+  targetObjectStorageModel?: IRecommendedObjectStorage;
+  createTime?: string;
+  updateTime?: string;
+}
+
+/** cm-honeybee's refined answer for a collected bucket connection (0.6.4+). */
+export interface IRefinedBucketInfo {
+  sourceObjectStorageModel?: ISourceObjectStorage;
+}

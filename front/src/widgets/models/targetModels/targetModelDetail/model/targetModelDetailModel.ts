@@ -2,6 +2,10 @@ import { useTargetModelStore, TargetModelTableType } from '@/entities';
 import { useDefinitionTableModel } from '@/shared/hooks/table/definitionTable/useDefinitionTableModel';
 import { ref, watch } from 'vue';
 import { formatDate } from '@/shared/utils';
+import {
+  isObjectStorageModel,
+  migrationTypeLabelOf,
+} from '@/entities/migrationModel';
 
 export function useTargetModelDetailModel() {
   const targetModelStore = useTargetModelStore();
@@ -22,6 +26,7 @@ export function useTargetModelDetailModel() {
       { label: 'Description', name: 'description' },
       { label: 'Migration Type', name: 'migrationType' },
       { label: 'Custom', name: 'custom' },
+      { label: 'Derived From (Planning Model)', name: 'parentPlanningModel' },
       { label: 'Model Type', name: 'modelType' },
       { label: 'Created Date Time', name: 'createdDateTime' },
       { label: 'Updated Date Time', name: 'updatedDateTime' },
@@ -34,6 +39,17 @@ export function useTargetModelDetailModel() {
     ];
   }
 
+  /**
+   * An object storage target model has no workflow: cm-cicada has no bucket task, so its buckets
+   * are created from the model directly. The same row then reads as that step.
+   */
+  function setNextStepLabel(objectStorage: boolean) {
+    const field = tableModel.tableState.fields.find(
+      f => f.name === 'workflowTool',
+    );
+    if (field) field.label = objectStorage ? 'Bucket Migration' : 'Workflow Tool';
+  }
+
   function setDefineTableData(targetModelId: string) {
     const targetModel = targetModelStore.getTargetModelById(targetModelId);
     let data: Partial<Record<TargetModelTableType | 'originalData', any>> = {};
@@ -43,8 +59,11 @@ export function useTargetModelDetailModel() {
         name: targetModel.userModelName,
         id: targetModel.id,
         description: targetModel.description,
-        migrationType: targetModel['migrationType'] || targetModel.modelType || '',
+        migrationType:
+          targetModel['migrationType'] || migrationTypeLabelOf(targetModel),
         custom: targetModel.isInitUserModel ? 'Basic' : 'Custom',
+        // The planning model this target was recommended from (cm-damselfly lineage).
+        parentPlanningModel: targetModel.lineage?.planningModelId ?? '',
         modelType: targetModel.modelType || 'Unknown',
         createdDateTime: formatDate(targetModel.createTime),
         updatedDateTime: formatDate(targetModel.updateTime),
@@ -59,6 +78,8 @@ export function useTargetModelDetailModel() {
   function loadTargetModelData(targetModelId: string | null | undefined) {
     tableModel.tableState.loading = true;
     if (targetModelId) {
+      const model = targetModelStore.getTargetModelById(targetModelId);
+      setNextStepLabel(!!model && isObjectStorageModel(model));
       tableModel.tableState.data = setDefineTableData(targetModelId);
     }
     tableModel.tableState.loading = false;

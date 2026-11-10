@@ -5,6 +5,7 @@ import type {
   IMigratedBucket,
   IObjectStorageAccessRequest,
   IRecommendedObjectStorage,
+  IRefinedBucketInfo,
   IScannedBucket,
   ISourceObjectStorage,
   ObjectStorageSupport,
@@ -24,6 +25,8 @@ const LIST_ARTIFACTS = 'cm-beetle/ListArtifacts';
 const CREATE_ARTIFACT = 'cm-beetle/CreateArtifact';
 const UPDATE_ARTIFACT = 'cm-beetle/UpdateArtifact';
 const DELETE_ARTIFACT = 'cm-beetle/DeleteArtifact';
+const COLLECT_BUCKET = 'cm-honeybee/import-infra';
+const GET_BUCKET_REFINED = 'cm-honeybee/get-data-info-refined';
 
 /**
  * Every call goes through the console's proxy, which answers
@@ -129,6 +132,42 @@ export function deleteMigratedBucket(nsId: string, osId: string) {
   return call<any>(DELETE, { pathParams: { nsId, osId } });
 }
 
+/**
+ * Collects a bucket connection of a cloud source service. cm-honeybee looks the bucket up in
+ * the source account with the credential kept on the source service and stores its settings
+ * (versioning, encryption, size, object count, tags; 0.6.4+).
+ */
+export async function collectBucket(sgId: string, connId: string) {
+  const res = await axiosInstance.post(COLLECT_BUCKET, {
+    pathParams: { sgId, connId },
+  });
+  return res.data?.responseData;
+}
+
+/**
+ * The collected bucket in the shape of a source model (`sourceObjectStorageModel`), which is
+ * what cm-damselfly stores. cm-honeybee answers an error when nothing was collected for the
+ * connection; it is passed on, not replaced with defaults.
+ */
+export async function getRefinedBucket(
+  sgId: string,
+  connId: string,
+): Promise<ISourceObjectStorage> {
+  const res = await axiosInstance.post(GET_BUCKET_REFINED, {
+    pathParams: { sgId, connId },
+  });
+  const body = (res.data?.responseData ?? {}) as IRefinedBucketInfo & {
+    error?: string;
+  };
+  if (body.error) throw new Error(body.error);
+  const model = body.sourceObjectStorageModel;
+  if (!model || !Array.isArray(model.sourceObjectStorages)) {
+    throw new Error('The source service returned no bucket information.');
+  }
+  return model;
+}
+
+// The artifact functions below serve System > Develop only (the cm-beetle direct test).
 export function listObjectStorageModels<T>(schemaType: string) {
   return call<IArtifact<T>[]>(LIST_ARTIFACTS, {
     queryParams: { schemaType },

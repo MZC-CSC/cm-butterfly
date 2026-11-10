@@ -1,6 +1,6 @@
 /**
  * Migration user models stored in cm-damselfly, handled through its unified APIs
- * (`/infra-model`, `/software-model`, `/model`).
+ * (`/infra-model`, `/software-model`, `/object-storage-model`, `/model`).
  *
  * A model belongs to one of three stages - source -> planning -> target - and the models derived
  * from one another are linked by `lineage`. On create/update, `parentId` names the model of the
@@ -13,7 +13,7 @@
 import { axiosInstance } from '@/shared/libs/api/instance';
 
 export type ModelStage = 'source' | 'planning' | 'target';
-export type ModelCategory = 'infra' | 'software';
+export type ModelCategory = 'infra' | 'software' | 'objectStorage';
 export type InfraModelType = 'onprem' | 'cloud';
 
 export interface IMigrationLineage {
@@ -26,7 +26,7 @@ export interface IMigrationLineage {
 /** The stored-model fields this module relies on. */
 export interface IStoredMigrationModel {
   id: string;
-  modelType?: string; // OnPremiseModel | CloudModel | SoftwareModel
+  modelType?: string; // OnPremiseModel | CloudModel | SoftwareModel | objectStorageModel
   modelStage?: ModelStage;
   lineage?: IMigrationLineage;
 }
@@ -42,6 +42,20 @@ const DELETE_INFRA_MODEL = 'cm-damselfly/DeleteInfraModel';
 const CREATE_SOFTWARE_MODEL = 'cm-damselfly/CreateSoftwareModel';
 const UPDATE_SOFTWARE_MODEL = 'cm-damselfly/UpdateSoftwareModel';
 const DELETE_SOFTWARE_MODEL = 'cm-damselfly/DeleteSoftwareModel';
+const CREATE_OBJECT_STORAGE_MODEL = 'cm-damselfly/CreateObjectStorageModel';
+const UPDATE_OBJECT_STORAGE_MODEL = 'cm-damselfly/UpdateObjectStorageModel';
+const DELETE_OBJECT_STORAGE_MODEL = 'cm-damselfly/DeleteObjectStorageModel';
+
+/**
+ * cm-damselfly's modelType values. The object storage one starts in lowercase, unlike the
+ * others; it is matched as cm-damselfly writes it.
+ */
+const MODEL_TYPE = {
+  ONPREM: 'OnPremiseModel',
+  CLOUD: 'CloudModel',
+  SOFTWARE: 'SoftwareModel',
+  OBJECT_STORAGE: 'objectStorageModel',
+} as const;
 
 export const MODEL_STAGE_LABEL: Record<ModelStage, string> = {
   source: 'Source',
@@ -52,16 +66,41 @@ export const MODEL_STAGE_LABEL: Record<ModelStage, string> = {
 /** Category from cm-damselfly's `modelType`. Anything else is an error, not a guess. */
 export function modelCategoryOf(model: IStoredMigrationModel): ModelCategory {
   switch (model.modelType) {
-    case 'SoftwareModel':
+    case MODEL_TYPE.SOFTWARE:
       return 'software';
-    case 'OnPremiseModel':
-    case 'CloudModel':
+    case MODEL_TYPE.ONPREM:
+    case MODEL_TYPE.CLOUD:
       return 'infra';
+    case MODEL_TYPE.OBJECT_STORAGE:
+      return 'objectStorage';
     default:
       throw new Error(
         `Model ${model.id} has an unknown model type '${model.modelType ?? ''}'`,
       );
   }
+}
+
+/**
+ * Whether the console has screens for this model. cm-damselfly's GetModels returns every
+ * category when none is asked for, including RDBMS models, which the console does not handle
+ * yet; those are left out of the model lists instead of breaking them.
+ */
+export function isConsoleModel(model: IStoredMigrationModel): boolean {
+  try {
+    modelCategoryOf(model);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function isObjectStorageModel(model: IStoredMigrationModel): boolean {
+  return model.modelType === MODEL_TYPE.OBJECT_STORAGE;
+}
+
+/** Shown in the Migration Type column; cm-damselfly's raw modelType for the others. */
+export function migrationTypeLabelOf(model: IStoredMigrationModel): string {
+  return isObjectStorageModel(model) ? 'ObjectStorageModel' : model.modelType ?? '';
 }
 
 export function infraModelTypeOf(model: IStoredMigrationModel): InfraModelType {
@@ -214,6 +253,27 @@ export function updateSoftwareModel(id: string, body: Record<string, any>) {
 }
 
 /**
+ * Object storage models: `sourceObjectStorageModel` for a source or planning model,
+ * `targetObjectStorageModel` for a target model (cm-beetle imdl storage-model structs).
+ */
+export function createObjectStorageModel(
+  modelStage: ModelStage,
+  body: Record<string, any>,
+) {
+  return axiosInstance.post(CREATE_OBJECT_STORAGE_MODEL, {
+    queryParams: { modelStage },
+    request: body,
+  });
+}
+
+export function updateObjectStorageModel(id: string, body: Record<string, any>) {
+  return axiosInstance.post(UPDATE_OBJECT_STORAGE_MODEL, {
+    pathParams: { id },
+    request: body,
+  });
+}
+
+/**
  * The editable body of a stored model, for PUT. Only the fields of the create/update request
  * are sent, so that the stored record's server-side fields (stage, version, times) are not
  * pushed back. Lineage is left out: cm-damselfly keeps the stored lineage when neither
@@ -232,6 +292,17 @@ export function updateBodyOf(
           'nodeId',
           'sourceSoftwareModel',
           'targetSoftwareModel',
+          'userId',
+          'userModelName',
+          'userModelVersion',
+        ]
+      : category === 'objectStorage'
+      ? [
+          'description',
+          'isInitUserModel',
+          'nodeId',
+          'sourceObjectStorageModel',
+          'targetObjectStorageModel',
           'userId',
           'userModelName',
           'userModelVersion',
@@ -262,12 +333,20 @@ export function updateModelInfo(
 ) {
   const stored = model as IStoredMigrationModel;
   const body = updateBodyOf(model, changes);
-  return modelCategoryOf(stored) === 'software'
-    ? updateSoftwareModel(stored.id, body)
-    : updateInfraModel(stored.id, infraModelTypeOf(stored), body);
+  const category = modelCategoryOf(stored);
+  if (category === 'software') return updateSoftwareModel(stored.id, body);
+  if (category === 'objectStorage')
+    return updateObjectStorageModel(stored.id, body);
+  return updateInfraModel(stored.id, infraModelTypeOf(stored), body);
 }
 
 export function deleteModel(model: IStoredMigrationModel) {
+  if (modelCategoryOf(model) === 'objectStorage') {
+    return axiosInstance.post(DELETE_OBJECT_STORAGE_MODEL, {
+      pathParams: { id: model.id },
+      queryParams: { modelStage: modelStageOf(model) },
+    });
+  }
   if (modelCategoryOf(model) === 'software') {
     return axiosInstance.post(DELETE_SOFTWARE_MODEL, {
       pathParams: { id: model.id },

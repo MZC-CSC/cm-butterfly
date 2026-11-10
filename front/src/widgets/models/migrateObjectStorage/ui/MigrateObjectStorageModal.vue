@@ -9,10 +9,7 @@ import {
 import { computed, reactive } from 'vue';
 import { useRouter } from 'vue-router/composables';
 import { migrateObjectStorage } from '@/entities/objectStorage/api';
-import type {
-  IArtifact,
-  IRecommendedObjectStorage,
-} from '@/entities/objectStorage/model/types';
+import type { IObjectStorageModel } from '@/entities/objectStorage/model/types';
 import { useGetBeetleRequest } from '@/entities/mci/api';
 import { DEFAULT_NAMESPACE } from '@/shared/constants/namespace';
 import { WORKLOAD_OPERATIONS_ROUTE } from '@/app/providers/router/routes/constants';
@@ -21,19 +18,23 @@ import { showSuccessMessage } from '@/shared/utils';
 /**
  * Creates the buckets of an object storage target model in the target cloud
  * (cm-beetle MigrateObjectStorage). Object storage migration ends here: cm-cicada has no
- * bucket task, so the console starts it directly and follows the request until cm-beetle
- * reports the outcome. The migrated buckets are then managed under Workload Operations ▸
- * Object Storages, which is also where a later data migration picks its destination.
+ * bucket task, so the console starts it directly from the target model and follows the
+ * request until cm-beetle reports the outcome. The migrated buckets are then managed under
+ * Workload Operations > Object Storages, which is also where a later data migration picks its
+ * destination.
+ *
+ * cm-beetle's object storage migration request takes no lineage, so the created buckets do not
+ * carry the target model they came from (unlike migrated infra).
  */
 interface IProps {
-  target: IArtifact<IRecommendedObjectStorage>;
+  target: IObjectStorageModel;
 }
 const props = defineProps<IProps>();
 const emit = defineEmits(['update:close-modal']);
 
 const router = useRouter();
 const nsId = DEFAULT_NAMESPACE;
-const artifact = computed(() => props.target);
+const storage = computed(() => props.target?.targetObjectStorageModel);
 
 const state = reactive({
   nameSeed: '',
@@ -91,7 +92,7 @@ async function pollRequest(reqId: string) {
 }
 
 async function handleMigrate() {
-  if (!artifact.value || seedError.value) return;
+  if (!storage.value || seedError.value) return;
   state.running = true;
   state.status = 'Handling';
   state.message = '';
@@ -99,7 +100,7 @@ async function handleMigrate() {
   try {
     await migrateObjectStorage(
       nsId,
-      artifact.value.payload,
+      storage.value,
       state.reqId,
       state.nameSeed.trim() || undefined,
     );
@@ -135,15 +136,15 @@ function goToObjectStorages() {
       <div class="os-migrate" data-testid="os-migrate-body">
         <p class="note">
           Creates
-          {{ artifact?.payload?.targetObjectStorages?.length ?? 0 }} bucket(s)
-          in {{ artifact?.payload?.targetCloud?.csp }} /
-          {{ artifact?.payload?.targetCloud?.region }} (namespace {{ nsId }}).
+          {{ storage?.targetObjectStorages?.length ?? 0 }} bucket(s) in
+          {{ storage?.targetCloud?.csp }} /
+          {{ storage?.targetCloud?.region }} (namespace {{ nsId }}).
           The objects inside the buckets are moved by a data migration, which is
           not part of this step.
         </p>
         <ul class="buckets">
           <li
-            v-for="b in artifact?.payload?.targetObjectStorages ?? []"
+            v-for="b in storage?.targetObjectStorages ?? []"
             :key="b.sourceBucketName"
           >
             {{ b.sourceBucketName }} -> {{ b.bucketName }}

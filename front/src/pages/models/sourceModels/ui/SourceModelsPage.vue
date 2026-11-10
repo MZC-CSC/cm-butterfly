@@ -11,10 +11,16 @@ import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 import { useSourceModelStore } from '@/entities';
 import {
   describeModelError,
+  isObjectStorageModel,
   modelStageOf,
   updateModelInfo,
 } from '@/entities/migrationModel';
 import { GuidedStepBanner } from '@/features/guidedSetup';
+import CreateObjectStorageSourceModelModal from '@/widgets/models/createObjectStorageSourceModel/ui/CreateObjectStorageSourceModelModal.vue';
+import RecommendedObjectStorageModel from '@/widgets/models/recommendedObjectStorageModel/ui/RecommendedObjectStorageModel.vue';
+import CustomViewObjectStorageModel from '@/widgets/models/customViewObjectStorageModel/ui/CustomViewObjectStorageModel.vue';
+import { ObjectStorageBuckets } from '@/widgets/models/objectStorageBuckets';
+import type { IObjectStorageModel } from '@/entities/objectStorage/model/types';
 
 const pageName = 'Source Models';
 
@@ -34,6 +40,21 @@ const isPlanningModel = computed(() => {
     return false;
   }
 });
+// Object storage models share this list; their detail adds the buckets and their own windows.
+const isObjectStorage = computed(
+  () => !!sourceModel.value && isObjectStorageModel(sourceModel.value),
+);
+// The source model store types its entries for infra and software; an object storage entry
+// carries the object storage fields cm-damselfly returns.
+const objectStorageModel = computed(
+  () => sourceModel.value as unknown as IObjectStorageModel,
+);
+const createObjectStorageOpen = ref(false);
+
+function handleObjectStorageSourceSaved() {
+  modalState.editModelModal.trigger = true;
+}
+
 const mainTabState = reactive({
   activeTab: 'details',
   tabs: [
@@ -107,6 +128,16 @@ function handleUpdateSourceModel(e) {
     </header>
     <!-- A target model is produced from a source model here - not on the Target Models list. -->
     <guided-step-banner step="target-model" />
+    <div class="page-actions">
+      <p-button
+        style-type="secondary"
+        icon-left="ic_plus_bold"
+        data-testid="os-source-create-open"
+        @click="createObjectStorageOpen = true"
+      >
+        Create Object Storage Source Model
+      </p-button>
+    </div>
     <section :class="`${pageName}-page-body`">
       <source-model-list
         :trigger="modalState.editModelModal.trigger"
@@ -145,6 +176,10 @@ function handleUpdateSourceModel(e) {
               @update:view-recommend-list-modal="handleRecommendedListModal"
               @update:recommended-model-list="handleRecommendedModelList"
             />
+            <object-storage-buckets
+              v-if="isObjectStorage && sourceModel"
+              :model="objectStorageModel"
+            />
           </template>
         </p-tab>
       </div>
@@ -163,8 +198,14 @@ function handleUpdateSourceModel(e) {
       />
     </div>
     <div class="relative z-70">
+      <custom-view-object-storage-model
+        v-if="modalState.customViewJsonModal.open && isObjectStorage"
+        :model="objectStorageModel"
+        @update:close-modal="handleJsonModal"
+        @update:trigger="modalState.editModelModal.trigger = true"
+      />
       <custom-view-source-model
-        v-if="modalState.customViewJsonModal.open"
+        v-if="modalState.customViewJsonModal.open && !isObjectStorage"
         :source-model-name="sourceModelName"
         :source-model-id="selectedSourceModelId"
         @update:close-modal="handleJsonModal"
@@ -188,8 +229,28 @@ function handleUpdateSourceModel(e) {
         :source-model-id="selectedSourceModelId"
         @update:close-modal="handleRecommendedListModal"
       />
+      <recommended-object-storage-model
+        v-if="
+          modalState.viewRecommendedListModal.open &&
+          recommendedModelList === 'objectStorage' &&
+          sourceModel
+        "
+        :source="objectStorageModel"
+        @update:close-modal="handleRecommendedListModal"
+      />
+      <create-object-storage-source-model-modal
+        v-if="createObjectStorageOpen"
+        @saved="handleObjectStorageSourceSaved"
+        @update:close-modal="createObjectStorageOpen = false"
+      />
     </div>
   </div>
 </template>
 
-<style scoped lang="postcss"></style>
+<style scoped lang="postcss">
+.page-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+}
+</style>
