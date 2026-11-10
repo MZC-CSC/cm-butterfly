@@ -98,8 +98,9 @@ export function planningLineageFrom(
   if (stage === 'planning') {
     const sourceModelId = model.lineage?.sourceModelId;
     if (sourceModelId) return { parentId: sourceModelId };
-    // A planning model saved without a source keeps whatever upstream it has.
-    return { lineage: upstreamOf(model.lineage) };
+    // A planning model saved without a source model keeps only its source group.
+    const sourceGroupId = model.lineage?.sourceGroupId;
+    return sourceGroupId ? { lineage: { sourceGroupId } } : {};
   }
   throw new Error(
     `A planning model cannot be derived from a target model (${model.id})`,
@@ -141,25 +142,20 @@ export function targetLineageFrom(
   );
 }
 
-/** Lineage for a new target model saved from an edited target model: same upstream, new self. */
+/**
+ * Lineage for a new target model saved from an edited target model: a sibling under the same
+ * planning model. The parent is named by `parentId` and cm-damselfly derives the rest from it, as its
+ * lineage guide recommends, rather than the upstream ids being copied by hand. A target without a
+ * planning model (a software target) keeps only its source group - naming its source model alone
+ * would skip the planning stage, which cm-damselfly refuses.
+ */
 export function siblingTargetLineageOf(
   model: IStoredMigrationModel,
 ): ILineageRequest {
-  return { lineage: upstreamOf(model.lineage, 'target') };
-}
-
-/** The lineage fields above `stage`, without empty values. */
-function upstreamOf(
-  lin: IMigrationLineage | undefined,
-  stage: ModelStage = 'planning',
-): IMigrationLineage {
-  const result: IMigrationLineage = {};
-  if (lin?.sourceGroupId) result.sourceGroupId = lin.sourceGroupId;
-  if (lin?.sourceModelId) result.sourceModelId = lin.sourceModelId;
-  if (stage === 'target' && lin?.planningModelId) {
-    result.planningModelId = lin.planningModelId;
-  }
-  return result;
+  const planningModelId = model.lineage?.planningModelId;
+  if (planningModelId) return { parentId: planningModelId };
+  const sourceGroupId = model.lineage?.sourceGroupId;
+  return sourceGroupId ? { lineage: { sourceGroupId } } : {};
 }
 
 /** Lineage for the request bodies sent to cm-beetle (recommendation, migration). */
