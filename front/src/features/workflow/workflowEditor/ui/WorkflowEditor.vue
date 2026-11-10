@@ -32,6 +32,7 @@ import {
   ITaskComponentInfoResponse,
 } from '@/features/sequential/designer/toolbox/model/api';
 import getRandomId from '@/shared/utils/uuid';
+import { beetleLineageOf } from '@/entities/migrationModel';
 import { parseRequestBody } from '@/shared/utils/stringToObject';
 import {
   mapModelToTaskBody,
@@ -903,8 +904,23 @@ function injectTargetModelIntoSequence() {
     the result (target_mappings) is empty, making the cause hard to find.
   */
   const softwareModel = (tm as any).targetSoftwareModel;
+  /*
+    cm-beetle's MigrateInfraRequest is `{ lineage, ...RecommendedInfra }`: the lineage sits beside the
+    model fields. With it, cm-beetle labels the created cloud resources (cm-source-group-id,
+    cm-source-model-id, cm-planning-model-id, cm-target-model-id), so a running infra can be traced
+    back to the target, planning and source models it came from. It is taken from the stored target
+    model; a model without one is sent as before.
+  */
+  let infraLineage: ReturnType<typeof beetleLineageOf> = {};
+  try {
+    infraLineage = isInfra ? beetleLineageOf(tm as any) : {};
+  } catch {
+    infraLineage = {};
+  }
   const literalBody = isInfra
-    ? tm.cloudInfraModel
+    ? Object.keys(infraLineage).length > 0
+      ? { ...tm.cloudInfraModel, lineage: infraLineage }
+      : tm.cloudInfraModel
     : softwareModel
       ? { targetSoftwareModel: softwareModel }
       : undefined;

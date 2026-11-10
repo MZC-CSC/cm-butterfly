@@ -835,7 +835,7 @@ export class ModelsPage {
   }
 
   /**
-   * Save the recommendation result as a target SW model with the given name (CreateTargetSoftwareModel).
+   * Save the recommendation result as a target SW model with the given name (CreateSoftwareModel, stage target).
    *
    * SW save has a different success UX from infra save — on success only a toast appears and the save form closes (no confirm modal).
    * Previously it waited for a "Confirm" button just like infra, but SW has no such button, so it waited 15 seconds
