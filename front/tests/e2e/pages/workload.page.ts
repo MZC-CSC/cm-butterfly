@@ -1,7 +1,7 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { TablePagination } from '../support/pagination';
 import { humanClick, humanFill } from '../support/humanize';
-import { openSubScreen } from '../support/navigate';
+import { openScreen } from '../support/navigate';
 
 /**
  * WorkloadPage — Page Object for the workload operations screen (infra MCI + node VM + load test).
@@ -19,9 +19,8 @@ import { openSubScreen } from '../support/navigate';
  * Prefer data-testid, and where it is not yet assigned (BAR-880) fall back to the actual .vue markup (placeholder/role/text).
  */
 export class WorkloadPage {
-  /** ★ Screen location (URL) — routing: /main → workload-operations → workloads → mci-wls|pmk-wls */
-  static readonly mciPath = '/main/workload-operations/workloads/mci-wls';
-  static readonly pmkPath = '/main/workload-operations/workloads/pmk-wls';
+  /** ★ Screen location (URL) — routing: /main → workload-operations → mci-wls */
+  static readonly mciPath = '/main/workload-operations/mci-wls';
 
   constructor(private readonly page: Page) {}
 
@@ -32,23 +31,12 @@ export class WorkloadPage {
   /**
    * Navigate to the infra (MCI) workload screen.
    *
-   * Two steps, because that is how the console is laid out. The sidebar carries Workloads; MCI and
-   * PMK are its children (api/conf/menu.yaml) and appear in the side list of the screen Workloads
-   * opens, not in the sidebar itself.
+   * One click, like every other list: Infra Workloads sits directly under the Workload Operations
+   * category in the sidebar (api/conf/menu.yaml).
    */
   async gotoMci(): Promise<void> {
-    await openSubScreen(this.page, 'workloads', 'mciwls', WorkloadPage.mciPath);
+    await openScreen(this.page, 'mciwls', WorkloadPage.mciPath);
     await expect(this.mciTable).toBeVisible({ timeout: 15_000 });
-  }
-
-  /**
-   * Navigate to the PMK (Kubernetes) workload screen.
-   *
-   * Same route as MCI - the workloads screen carries both in its own side list
-   * (api/conf/menu.yaml has `mciwls` and `pmkwls` as children of `workloads`).
-   */
-  async gotoPmk(): Promise<void> {
-    await openSubScreen(this.page, 'workloads', 'pmkwls', WorkloadPage.pmkPath);
   }
 
   // ─────────────────────────────────────────────────────────────

@@ -13,7 +13,7 @@ import { openScreen } from '../support/navigate';
  *  - Source Computing     → /main/source-computing/source-services
  *  - Models               → /main/models/source-models
  *  - Workflow Management   → /main/workflow-management/workflows
- *  - Workload Operations   → /main/workload-operations/workloads
+ *  - Workload Operations   → /main/workload-operations/mci-wls
  */
 interface NavTarget {
   /** Landing URL to navigate to */
@@ -70,7 +70,7 @@ register(
 );
 register(
   {
-    path: '/main/workload-operations/workloads',
+    path: '/main/workload-operations/mci-wls',
     menuId: 'workloadoperations',
     urlPattern: /\/main\/workload-operations/,
   },
