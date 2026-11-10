@@ -213,3 +213,40 @@ Then('이번에 만든 모델과 소스 서비스를 지운다', async ({ page }
     await sources.deleteSelectedGroup();
   }
 });
+
+When(
+  '소스 서비스 상세에서 Collect Object Storage 를 누르면',
+  async ({ page }) => {
+    await new ObjectStoragePage(page).collectFromGroupDetail();
+  },
+);
+
+Then('그 서비스의 버킷이 골라져 바로 수집된다', async ({ page }) => {
+  await new ObjectStoragePage(page).expectBucketCollectedInCreateModal(
+    testBucket(),
+  );
+});
+
+When('그 창에서 소스 모델로 저장하면', async ({ page }) => {
+  run.sourceModel = uniqueName('e2e-os-grp');
+  await new ObjectStoragePage(page).saveFromCreateModal(run.sourceModel);
+});
+
+// 버킷만 든 그룹에는 서버가 없으니 서버 수집 버튼은 잠기고, 왜 잠겼는지 사유가 붙는다.
+Then(
+  '서버 연결이 없어 Collect Infra 와 Collect SW 는 사유와 함께 잠겨 있다',
+  async ({ page }) => {
+    const csp = new CspSourcePage(page);
+    await csp.openGroupDetailTab();
+    await csp.expectCollectReasonOnHover(
+      'source-group-collect-infra-trigger',
+      'source-group-collect-infra',
+      /No server \(VM\) connection/,
+    );
+    await csp.expectCollectReasonOnHover(
+      'source-group-collect-sw-trigger',
+      'source-group-collect-sw',
+      /No server \(VM\) connection/,
+    );
+  },
+);

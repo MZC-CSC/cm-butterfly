@@ -22,7 +22,6 @@ import { useMigratorMenuStore } from '@/entities/menu/model/stores';
 const REACHABLE_MENU_IDS: string[] = [
   MENU_ID.MIGRATION_GUIDE,
   MENU_ID.SOURCE_SERVICES,
-  MENU_ID.CLOUD_SOURCES,
   MENU_ID.SOURCE_MODELS,
   MENU_ID.TARGET_MODELS,
   MENU_ID.WORKFLOWS,

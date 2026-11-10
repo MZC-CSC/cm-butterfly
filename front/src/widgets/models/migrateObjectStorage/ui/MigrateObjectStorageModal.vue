@@ -10,6 +10,7 @@ import { computed, reactive } from 'vue';
 import { useRouter } from 'vue-router/composables';
 import { migrateObjectStorage } from '@/entities/objectStorage/api';
 import type { IObjectStorageModel } from '@/entities/objectStorage/model/types';
+import { beetleLineageOf } from '@/entities/migrationModel';
 import { useGetBeetleRequest } from '@/entities/mci/api';
 import { DEFAULT_NAMESPACE } from '@/shared/constants/namespace';
 import { WORKLOAD_OPERATIONS_ROUTE } from '@/app/providers/router/routes/constants';
@@ -23,8 +24,8 @@ import { showSuccessMessage } from '@/shared/utils';
  * Workload Operations > Object Storages, which is also where a later data migration picks its
  * destination.
  *
- * cm-beetle's object storage migration request takes no lineage, so the created buckets do not
- * carry the target model they came from (unlike migrated infra).
+ * The request carries the target model's lineage as the infra migration does. cm-beetle 0.6.4
+ * does not read it for buckets yet, so the created buckets do not carry it until it does.
  */
 interface IProps {
   target: IObjectStorageModel;
@@ -103,6 +104,7 @@ async function handleMigrate() {
       storage.value,
       state.reqId,
       state.nameSeed.trim() || undefined,
+      beetleLineageOf(props.target) as Record<string, string>,
     );
     await pollRequest(state.reqId);
     if (state.status === 'Success')

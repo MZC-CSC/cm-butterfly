@@ -241,12 +241,17 @@ export class ObjectStoragePage {
     );
   }
 
-  /** 수집이 끝난 버킷 연결에서 Save as Source Model 로 저장한다. 창은 그 버킷을 골라 수집한 채로 열린다. */
+  /**
+   * 버킷 연결에서 수집하면 소스 모델 저장 창이 바로 열린다(Collect Infra 와 같다). 그 창은 그 버킷을
+   * 방금 수집한 값으로 고른 채 열리고 다시 수집하지 않는다. 이름을 넣고 저장한다.
+   */
   async saveSourceModelFromConnection(
     bucket: string,
     name: string,
   ): Promise<void> {
-    await humanClick(this.page.getByTestId('bucket-collect-save-model'));
+    await expect(this.page.getByTestId('os-source-create-body')).toBeVisible({
+      timeout: 15_000,
+    });
     const row = this.page.getByTestId(`os-source-create-bucket-${bucket}`);
     await expect(row).toHaveAttribute('data-selected', 'true', {
       timeout: 30_000,
@@ -258,6 +263,45 @@ export class ObjectStoragePage {
     await humanClick(this.confirmButton('os-source-create-save'));
     await expect(this.page.getByTestId('bucket-collect-saved')).toContainText(
       name,
+      { timeout: 30_000 },
+    );
+  }
+
+  /**
+   * 소스 서비스 상세(Detail 탭)의 Collect Object Storage 를 누른다. 그 서비스의 버킷 연결이 모두 골라진 채
+   * 소스 모델 저장 창이 열리고 바로 수집된다(Collect Infra 와 같다).
+   */
+  async collectFromGroupDetail(): Promise<void> {
+    await humanClick(this.page.getByRole('tab', { name: /Detail/i }).first());
+    const button = this.page.getByTestId('source-group-collect-os');
+    await expect(button).toBeVisible({ timeout: 30_000 });
+    // 버킷 연결이 있으면 사유가 비어 있다(미리내 버튼 비활성은 클래스뿐이라 사유로 본다).
+    await expect(
+      this.page.getByTestId('source-group-collect-os-trigger'),
+    ).toHaveAttribute('data-disabled-reason', '', { timeout: 30_000 });
+    await humanClick(button);
+    await expect(this.page.getByTestId('os-source-create-body')).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
+  /** 저장 창에서 그 버킷이 골라져 수집됐다. */
+  async expectBucketCollectedInCreateModal(bucket: string): Promise<void> {
+    const row = this.page.getByTestId(`os-source-create-bucket-${bucket}`);
+    await expect(row).toHaveAttribute('data-selected', 'true', {
+      timeout: 30_000,
+    });
+    await expect(row).toHaveAttribute('data-status', 'collected', {
+      timeout: 120_000,
+    });
+  }
+
+  /** 저장 창에 이름을 넣고 저장한다. 창이 닫히면 끝난다. */
+  async saveFromCreateModal(name: string): Promise<void> {
+    await humanFill(this.input('os-source-create-name'), name);
+    await humanClick(this.confirmButton('os-source-create-save'));
+    await expect(this.page.getByTestId('os-source-create-body')).toHaveCount(
+      0,
       { timeout: 30_000 },
     );
   }

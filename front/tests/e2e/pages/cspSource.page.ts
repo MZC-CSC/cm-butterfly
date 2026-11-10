@@ -42,10 +42,13 @@ export class CspSourcePage {
     return this.page.getByTestId('csp-connection-resource-list');
   }
 
-  /** 등록 모달을 열고 유형을 클라우드로 바꾼다. */
+  /** 등록 모달을 열고 유형을 클라우드로 고른다. 유형은 등록할 때 정한다. */
   async openCspRegistration(): Promise<void> {
-    // Cloud Sources 의 등록 창은 처음부터 클라우드 유형이다(유형 선택 없음).
     await humanClick(this.page.getByTestId('source-group-add'));
+    await expect(this.page.getByTestId('source-service-type')).toBeVisible({
+      timeout: 15_000,
+    });
+    await humanClick(this.page.getByTestId('source-service-type-csp').first());
     await expect(this.providerDropdown).toBeVisible({ timeout: 15_000 });
   }
 

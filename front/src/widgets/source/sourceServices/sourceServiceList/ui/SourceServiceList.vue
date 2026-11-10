@@ -4,6 +4,7 @@ import {
   PHorizontalLayout,
   PButton,
   PButtonModal,
+  PSelectDropdown,
 } from '@cloudforet-test/mirinae';
 import {
   onBeforeMount,
@@ -21,7 +22,10 @@ import {
   showSuccessMessage,
   toErrorMessage,
 } from '@/shared/utils';
-import { useSourceServiceListModel } from '@/widgets/source/sourceServices/sourceServiceList/model/sourceServiceListModel';
+import {
+  SOURCE_GROUP_TYPE_FILTER_ITEMS,
+  useSourceServiceListModel,
+} from '@/widgets/source/sourceServices/sourceServiceList/model/sourceServiceListModel';
 import DynamicTableIconButton from '@/shared/ui/Button/dynamicIconButton/DynamicTableIconButton.vue';
 import { useBulkDeleteSourceGroup } from '@/entities/sourceService/api';
 import { useDynamicTableHeight } from '@/shared/hooks/table/useDynamicTableHeight';
@@ -29,10 +33,11 @@ import { useToolboxTableHeight } from '@/shared/hooks/table/useToolboxTableHeigh
 
 const {
   tableModel,
+  kindFilter,
   sourceServicesStore,
   resSourceServiceList,
   initToolBoxTableModel,
-} = useSourceServiceListModel(() => props.sourceKind);
+} = useSourceServiceListModel();
 
 const { dynamicHeight, minHeight, maxHeight } = useDynamicTableHeight(
   computed(() => tableModel.tableState.items.length),
@@ -49,7 +54,6 @@ const tableKey = ref(0); // key used to force the component to re-render
 interface IProps {
   addModalState: boolean;
   trigger: boolean;
-  sourceKind?: 'onprem' | 'csp';
 }
 
 const props = defineProps<IProps>();
@@ -254,6 +258,15 @@ watch(
             >
               Add
             </p-button>
+            <p-select-dropdown
+              class="kind-filter"
+              :menu="SOURCE_GROUP_TYPE_FILTER_ITEMS"
+              :selected="kindFilter"
+              use-fixed-menu-style
+              data-testid="source-group-type-filter"
+              :data-value="kindFilter"
+              @select="v => (kindFilter = v)"
+            />
           </template>
         </p-toolbox-table>
       </template>
@@ -281,4 +294,9 @@ watch(
   </div>
 </template>
 
-<style scoped lang="postcss"></style>
+<style scoped lang="postcss">
+.kind-filter {
+  margin-left: 0.5rem;
+  min-width: 9rem;
+}
+</style>

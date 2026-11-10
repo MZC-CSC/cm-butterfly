@@ -5,16 +5,26 @@ import { useGetSourceServiceList } from '@/entities/sourceService/api';
 import {
   ISourceService,
   SourceServiceTableType,
-  isCspSourceGroup,
+  groupTypeOf,
+  SOURCE_GROUP_TYPE_LABEL,
+  SourceGroupTypeValue,
   sourceTypeLabel,
 } from '@/entities/sourceService/model/types';
-import { watch } from 'vue';
+import { ref, watch } from 'vue';
 
-/** Which source groups a list shows: on-premise (SSH) or cloud accounts (CSP). */
-export type SourceKind = 'onprem' | 'csp';
+/**
+ * Every source group type shares one list. cm-honeybee keeps the type on each source group
+ * but its list API takes no type filter, so the list is narrowed here from the loaded groups.
+ */
+export const SOURCE_GROUP_TYPE_FILTER_ITEMS = [
+  { name: '', label: 'All types' },
+  ...(Object.keys(SOURCE_GROUP_TYPE_LABEL) as SourceGroupTypeValue[]).map(
+    t => ({ name: t, label: SOURCE_GROUP_TYPE_LABEL[t] }),
+  ),
+];
 
-// Read lazily: the list component declares its props after it sets up this model.
-export function useSourceServiceListModel(kind?: () => SourceKind | undefined) {
+export function useSourceServiceListModel() {
+  const kindFilter = ref<'' | SourceGroupTypeValue>('');
   const tableModel =
     useToolboxTableModel<Partial<Record<SourceServiceTableType, any>>>();
   const sourceServicesStore = useSourceServiceStore();
@@ -62,19 +72,24 @@ export function useSourceServiceListModel(kind?: () => SourceKind | undefined) {
   }
 
   function ofKind(service: ISourceService) {
-    const k = kind?.();
+    const k = kindFilter.value;
     if (!k) return true;
-    return (k === 'csp') === isCspSourceGroup(service.type);
+    return groupTypeOf(service.type) === k;
   }
 
-  watch(services, nv => {
-    tableModel.tableState.items = nv
-      .filter(ofKind)
-      .map(value => organizeSourceServiceTableItem(value));
-  });
+  watch(
+    [services, kindFilter],
+    ([nv]) => {
+      tableModel.tableState.items = nv
+        .filter(ofKind)
+        .map(value => organizeSourceServiceTableItem(value));
+    },
+    { immediate: true },
+  );
 
   return {
     tableModel,
+    kindFilter,
     services,
     sourceServicesStore,
     resSourceServiceList,

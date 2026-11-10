@@ -80,22 +80,6 @@ menus:
     isaction: "true"
     priority: 1
 
-  # A cloud account as the source (cm-honeybee CSP source group): its resources are
-  # discovered with the account credential instead of reached over SSH.
-  - id: cloudsources
-    parentid: sourcecomputing
-    displayname: Cloud Sources
-    restype: menu
-    isaction: "true"
-    priority: 2
-
-  - id: sourcemetas
-    parentid: sourcecomputing
-    displayname: Source Metas
-    restype: menu
-    isaction: "true"
-    priority: 3
-
   ################## step3 : menu : migrations > models ################
   - id: sourcemodels
     parentid: models

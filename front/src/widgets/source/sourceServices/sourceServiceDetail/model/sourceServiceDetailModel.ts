@@ -40,6 +40,11 @@ export function useSourceServiceDetailModel() {
         name: 'viewSoftware',
         disableCopy: true,
       },
+      {
+        label: 'Object Storage',
+        name: 'viewObjectStorage',
+        disableCopy: true,
+      },
     ];
   }
 
@@ -63,6 +68,7 @@ export function useSourceServiceDetailModel() {
         viewSoftware: {
           isShow: !!sourceService.softwareModel,
         },
+        viewObjectStorage: '',
       };
     }
     return data;

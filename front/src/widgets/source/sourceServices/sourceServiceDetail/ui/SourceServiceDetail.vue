@@ -10,7 +10,13 @@ import {
   watchEffect,
 } from 'vue';
 import type { ISourceConnectionOutcome } from '@/entities/sourceService/model/types';
-import { isCspSourceGroup } from '@/entities/sourceService/model/types';
+import {
+  groupTypeOf,
+  isCspSourceGroup,
+  SOURCE_GROUP_TYPE_LABEL,
+  SourceGroupType,
+} from '@/entities/sourceService/model/types';
+import CreateObjectStorageSourceModelModal from '@/widgets/models/createObjectStorageSourceModel/ui/CreateObjectStorageSourceModelModal.vue';
 import { useSourceServiceDetailModel } from '@/widgets/source/sourceServices/sourceServiceDetail/model/sourceServiceDetailModel';
 import {
   useGetInfraSourceGroup,
@@ -28,6 +34,9 @@ import SourceServiceRefineModal from '@/features/sourceServices/sourceServiceRef
 
 interface IProps {
   selectedServiceId: string;
+  // Grows when connections are added or changed (e.g. from Scan Buckets), so the collect
+  // buttons are worked out again from the new connection list.
+  connectionsVersion?: number;
 }
 
 const props = defineProps<IProps>();
@@ -54,53 +63,65 @@ const resGetInfraInfoSourceGroup = useGetInfraInfoSourceGroup(null);
 const infraModel = ref<any>(null);
 
 /*
-  Collect Infra / Collect SW reach the servers through the cm-honeybee agent (SSH).
-  A cloud source service can hold buckets and VMs without SSH access as well; for those
-  there is nothing to collect this way - cm-honeybee's software import needs the agent,
-  and its refined infra (what a source model is made from) is built from agent data, so
-  the result would be empty or wrong. Run over a whole group, cm-honeybee 0.6.3 also adds
-  an empty node for every connection without the agent to the refined infra, and stops the
-  software import at the first connection that fails. On a cloud source service the group
-  buttons are therefore available only when every connection is a VM with SSH access;
-  otherwise each VM connection is collected from its own tabs.
+  Group collect buttons follow the connections the group holds (internal review 2026-11-05):
+  a button is offered for each kind of connection in the group, and is locked only when the
+  group has no connection that button can collect. A mix of kinds does not lock it - which
+  connections a group request covers is cm-honeybee's to decide (cm-honeybee#85), and an
+  error it returns is shown as is.
+
+  Collect Infra / Collect SW reach servers through the cm-honeybee agent (SSH): on-premise
+  servers, and cloud VMs registered with SSH. Collect Object Storage covers the buckets of a
+  cloud source service. fs, db and minio groups hold data sources the console does not
+  collect yet.
 */
+const groupType = computed(() =>
+  groupTypeOf(sourceServiceStore.getServiceById(props.selectedServiceId)?.type),
+);
 const isCspService = computed(() =>
   isCspSourceGroup(
     sourceServiceStore.getServiceById(props.selectedServiceId)?.type,
   ),
 );
+const isServerGroup = computed(
+  () =>
+    groupType.value === SourceGroupType.OnPremise ||
+    groupType.value === SourceGroupType.Csp,
+);
 const connectionKinds = ref({
   vms: [] as string[],
   sshVms: [] as string[],
+  buckets: [] as string[],
   others: 0,
 });
-const agentCollectDisabled = computed(() => {
-  if (!isCspService.value) return false;
-  const k = connectionKinds.value;
-  return (
-    k.sshVms.length === 0 || k.sshVms.length < k.vms.length || k.others > 0
-  );
-});
-// Shown on hover over the disabled buttons, so the reason is at hand.
+const unsupportedGroupHint = computed(
+  () =>
+    `This is a ${
+      SOURCE_GROUP_TYPE_LABEL[groupType.value] ?? groupType.value
+    } source service. The console does not collect this type yet.`,
+);
 const agentCollectHint = computed(() => {
+  if (!isServerGroup.value) return unsupportedGroupHint.value;
   const k = connectionKinds.value;
-  if (k.sshVms.length === 0) {
+  if (k.vms.length === 0) {
+    return 'No server (VM) connection in this source service.';
+  }
+  if (isCspService.value && k.sshVms.length === 0) {
     return 'No VM connection with SSH access. A cloud VM is collected through the agent only when it is registered with SSH.';
   }
-  const reasons: string[] = [];
-  const noSsh = k.vms.filter(v => !k.sshVms.includes(v));
-  if (noSsh.length) {
-    reasons.push(
-      `${noSsh.length} of ${k.vms.length} VM connections have no SSH access (${noSsh.join(', ')}).`,
-    );
-  }
-  if (k.others) {
-    reasons.push(
-      `${k.others} connection(s) are not servers (buckets and other resources).`,
-    );
-  }
-  return `${reasons.join(' ')} The group collect runs over every connection, so collect each VM connection from its Infra / Software Collect tab.`;
+  return '';
 });
+const agentCollectDisabled = computed(() => !!agentCollectHint.value);
+const objectStorageHint = computed(() => {
+  if (!isCspService.value) {
+    return isServerGroup.value
+      ? 'Object storage is collected from a cloud source service.'
+      : unsupportedGroupHint.value;
+  }
+  return connectionKinds.value.buckets.length === 0
+    ? 'No object storage connection in this source service. Add buckets from Detail > Scan Buckets or Connections.'
+    : '';
+});
+const objectStorageCollectOpen = ref(false);
 
 // Software-related state
 const softwareModel = ref<any>(null);
@@ -326,10 +347,14 @@ async function loadConnectionOutcomes() {
     });
     const list = data.responseData?.connection_info ?? [];
     const vms = list.filter((c: any) => (c.resource_type || 'vm') === 'vm');
+    const buckets = list.filter(
+      (c: any) => c.resource_type === 'object_storage',
+    );
     connectionKinds.value = {
       vms: vms.map((c: any) => c.name),
       sshVms: vms.filter((c: any) => !!c.ip_address).map((c: any) => c.name),
-      others: list.length - vms.length,
+      buckets: buckets.map((c: any) => c.resource_id),
+      others: list.length - vms.length - buckets.length,
     };
     sourceServiceStore.mappingConnectionOutcomes(
       props.selectedServiceId,
@@ -503,6 +528,15 @@ function handleSoftwareModal() {
         <span v-else />
       </template>
 
+      <!-- Always render the element: an empty slot makes PDefinitionTable fall back to its default (DESIGN-MIRINAE). -->
+      <template #data-viewObjectStorage>
+        <span data-testid="source-group-bucket-count">{{
+          connectionKinds.buckets.length
+            ? `${connectionKinds.buckets.length} bucket(s)`
+            : ''
+        }}</span>
+      </template>
+
       <template #extra="{ name }">
         <div v-if="name === 'status'" class="status-actions">
           <!--
@@ -545,6 +579,26 @@ function handleSoftwareModal() {
             </p-button>
           </disabled-reason>
         </div>
+        <div v-else-if="name === 'viewObjectStorage'" class="collect-actions">
+          <disabled-reason
+            :reason="objectStorageHint"
+            testid="source-group-collect-os-trigger"
+          >
+            <p-button
+              data-testid="source-group-collect-os"
+              style-type="tertiary"
+              size="sm"
+              :disabled="!!objectStorageHint"
+              @click="
+                () => {
+                  if (!objectStorageHint) objectStorageCollectOpen = true;
+                }
+              "
+            >
+              Collect Object Storage
+            </p-button>
+          </disabled-reason>
+        </div>
         <div v-else-if="name === 'viewSoftware'" class="collect-actions">
           <disabled-reason
             :reason="agentCollectDisabled ? agentCollectHint : ''"
@@ -564,6 +618,14 @@ function handleSoftwareModal() {
         </div>
       </template>
     </p-definition-table>
+    <!-- Collect Object Storage: the buckets of this source service are collected and saved as a
+         source model in one go, as Collect Infra does for servers. -->
+    <create-object-storage-source-model-modal
+      v-if="objectStorageCollectOpen"
+      :initial-group-id="props.selectedServiceId"
+      select-all
+      @update:close-modal="objectStorageCollectOpen = false"
+    />
     <SourceServiceRefineModal
       v-if="modalState.open"
       :sgId="props.selectedServiceId"

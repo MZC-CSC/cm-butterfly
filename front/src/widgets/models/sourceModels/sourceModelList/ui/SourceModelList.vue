@@ -4,6 +4,7 @@ import {
   PHorizontalLayout,
   PButton,
   PButtonModal,
+  PSelectDropdown,
 } from '@cloudforet-test/mirinae';
 import { useSourceModelListModel } from '@/widgets/models/sourceModels/sourceModelList/model/sourceModelListModel';
 import TableLoadingSpinner from '@/shared/ui/LoadingSpinner/TableLoadingSpinner.vue';
@@ -27,6 +28,9 @@ import {
   deleteModels,
   formatDeleteFailures,
   isConsoleModel,
+  matchesCategory,
+  MODEL_CATEGORY_FILTER_ITEMS,
+  ModelCategory,
 } from '@/entities/migrationModel';
 import { useDynamicTableHeight } from '@/shared/hooks/table/useDynamicTableHeight';
 import { useToolboxTableHeight } from '@/shared/hooks/table/useToolboxTableHeight';
@@ -88,6 +92,23 @@ watch(
   },
 );
 
+// The list mixes infra, software and object storage models; the category filter narrows it.
+// The fetched models are kept so that changing the filter does not fetch again.
+const fetchedModels = ref<any[]>([]);
+const categoryFilter = ref<'' | ModelCategory>('');
+
+function applyCategoryFilter() {
+  tableModel.tableState.selectIndex = [];
+  sourceModelStore.setSourceModel(
+    fetchedModels.value.filter(m => matchesCategory(m, categoryFilter.value)),
+  );
+}
+
+watch(categoryFilter, () => {
+  applyCategoryFilter();
+  emit('select-row', { id: '', name: '' });
+});
+
 function getTableList() {
   isDataLoaded.value = false;
   resSourceList
@@ -98,13 +119,10 @@ function getTableList() {
       // rows on screen. Always write, coercing to [].
       // Source and planning models share this list (GetModels is asked for every stage), for
       // infra, software and object storage. Categories without a console screen (RDBMS) are left out.
-      sourceModelStore.setSourceModel(
-        Array.isArray(res.data.responseData)
-          ? res.data.responseData.filter(
-              m => isSourceSideModel(m) && isConsoleModel(m),
-            )
-          : [],
-      );
+      fetchedModels.value = Array.isArray(res.data.responseData)
+        ? res.data.responseData.filter(m => isSourceSideModel(m) && isConsoleModel(m))
+        : [];
+      applyCategoryFilter();
       nextTick(() => {
         isDataLoaded.value = true;
         // Re-render the component after data loads
@@ -241,6 +259,15 @@ function handleDeleteConfirm() {
             <p-button style-type="primary" icon-left="ic_plus_bold" disabled>
               Add
             </p-button>
+            <p-select-dropdown
+              class="category-filter"
+              :menu="MODEL_CATEGORY_FILTER_ITEMS"
+              :selected="categoryFilter"
+              use-fixed-menu-style
+              data-testid="model-list-category-filter"
+              :data-value="categoryFilter"
+              @select="v => (categoryFilter = v)"
+            />
           </template>
         </p-toolbox-table>
       </template>
@@ -263,4 +290,8 @@ function handleDeleteConfirm() {
   </div>
 </template>
 
-<style scoped lang="postcss"></style>
+<style scoped lang="postcss">
+.category-filter {
+  margin-left: 0.5rem;
+  min-width: 9rem;
+}</style>

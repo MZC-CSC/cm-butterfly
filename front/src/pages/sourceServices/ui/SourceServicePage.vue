@@ -12,7 +12,6 @@ import SourceBucketCollect from '@/widgets/source/sourceConnections/sourceConnec
 import SourceConnectionModal from '@/widgets/source/sourceConnections/sourceConnectionModal/ui/SourceConnectionModal.vue';
 import { useSidebar } from '@/shared/libs/store/sidebar';
 import { storeToRefs } from 'pinia';
-import { useRoute } from 'vue-router/composables';
 import MetaViewer from '@/widgets/source/sourceConnections/sourceConnectionDetail/metaViewer/ui/MetaViewer.vue';
 import { useSourceInfraCollectModel } from '@/widgets/source/sourceConnections/sourceConnectionDetail/infraCollect/model/sourceInfraCollectModel';
 import EditSourceConnectionModal from '@/widgets/source/sourceConnections/sourceConnectionModal/ui/EditSourceConnectionModal.vue';
@@ -49,17 +48,10 @@ const isCspSelected = computed(() =>
 
 const { isCollapsed, isGnbToolboxShown } = storeToRefs(sidebar);
 
-// One page, two menus: Source Services (on-premise servers over SSH) and Cloud Sources
-// (cloud accounts read with their credential). The route says which.
-const route = useRoute();
-const sourceKind = computed<'onprem' | 'csp'>(() =>
-  route.meta?.sourceKind === 'csp' ? 'csp' : 'onprem',
-);
-// Layout classes keep the original name so existing styles apply to both menus.
+// On-premise servers (SSH) and cloud accounts (CSP) are registered and listed here together.
+// The type is chosen when a source service is registered, and the list can be narrowed to one type.
 const pageClass = 'Source Services';
-const pageName = computed(() =>
-  sourceKind.value === 'csp' ? 'Cloud Sources' : 'Source Services',
-);
+const pageName = 'Source Services';
 
 const mainTabState = reactive({
   activeTab: 'detail',
@@ -109,6 +101,14 @@ const sourceConnectionDetailTabState = reactive({
 watch(isBucketConnection, () => {
   sourceConnectionDetailTabState.activeTab = 'information';
 });
+
+// Bumped whenever connections are added or changed. The connection list resets its own
+// trigger, but only while its tab is open, so the detail tab follows this counter instead.
+const connectionsVersion = ref(0);
+function onConnectionsChanged() {
+  modalStates.addSourceConnection.trigger = true;
+  connectionsVersion.value += 1;
+}
 
 // Setting trigger to true causes it to update.
 const modalStates = reactive({
@@ -225,15 +225,11 @@ const data = computed(() => {
       <p data-testid="source-services-header">{{ pageName }}</p>
     </header>
     <!-- Three steps are done here: register the servers, collect from them, then save that as a source model. -->
-    <!-- The guided steps walk through servers; they are not about cloud accounts. -->
-    <template v-if="sourceKind === 'onprem'">
-      <guided-step-banner step="source-service" />
-      <guided-step-banner step="collect" />
-      <guided-step-banner step="source-model" />
-    </template>
+    <guided-step-banner step="source-service" />
+    <guided-step-banner step="collect" />
+    <guided-step-banner step="source-model" />
     <section :class="`${pageClass}-page-body`">
       <SourceServiceList
-        :source-kind="sourceKind"
         :add-modal-state="modalStates.addServiceGroup.open"
         :trigger="modalStates.addServiceGroup.trigger"
         @selectRow="handleClickServiceId"
@@ -265,6 +261,7 @@ const data = computed(() => {
             </div>
             <SourceServiceDetail
               :selected-service-id="selectedServiceId"
+              :connections-version="connectionsVersion"
               @update:source-connection-name="e => (sourceConnectionName = e)"
               @update:custom-view-json-modal="
                 e => (modalStates.addInfraMetaViewer.open = e)
@@ -356,7 +353,6 @@ const data = computed(() => {
     </section>
     <div class="relative z-60">
       <add-source-service-modal
-        :fixed-type="sourceKind"
         v-if="modalStates.addServiceGroup.open && !isServiceEditBtnClicked"
         @update:isModalOpened="() => (modalStates.addServiceGroup.open = false)"
         @update:is-connection-modal-opened="handleNewConnectionModal"
@@ -387,7 +383,7 @@ const data = computed(() => {
         :source-service-id="selectedServiceId"
         :connection-id="selectedConnectionId"
         @update:is-modal-opened="handleConnectionModal"
-        @update:trigger="modalStates.addSourceConnection.trigger = true"
+        @update:trigger="onConnectionsChanged"
         @add="switchToCspAdd"
       />
       <csp-connection-modal
@@ -397,7 +393,7 @@ const data = computed(() => {
         :region-name="selectedService?.regionName"
         :initial-resource-type="cspInitialResourceType"
         @update:is-modal-opened="handleConnectionModal"
-        @update:trigger="modalStates.addSourceConnection.trigger = true"
+        @update:trigger="onConnectionsChanged"
       />
       <source-connection-modal
         v-else-if="
@@ -422,7 +418,7 @@ const data = computed(() => {
         @update:is-service-modal-opened="
           e => (modalStates.addServiceGroup.open = e)
         "
-        @update:trigger="modalStates.addSourceConnection.trigger = true"
+        @update:trigger="onConnectionsChanged"
       />
 
       <meta-viewer

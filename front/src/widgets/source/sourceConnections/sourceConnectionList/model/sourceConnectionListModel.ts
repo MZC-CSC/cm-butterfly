@@ -5,14 +5,35 @@ import {
 } from '@/entities/sourceConnection/model/types';
 import { useSourceConnectionStore } from '@/entities/sourceConnection/model/stores';
 import { useGetSourceConnectionList } from '@/entities/sourceConnection/api';
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useSourceServiceStore } from '@/entities/sourceService/model/stores';
+import {
+  CONNECTION_TYPE_LABEL,
+  CONNECTION_TYPES_BY_GROUP_TYPE,
+  ConnectionResourceType,
+  connectionTypeOf,
+  groupTypeOf,
+} from '@/entities/sourceService/model/types';
 
-export function useSourceConnectionListModel() {
+/**
+ * The connection type filter offers the types the selected group's type takes. cm-honeybee's
+ * connection list API takes no type filter, so the list is narrowed here.
+ */
+export function useSourceConnectionListModel(selectedServiceId: () => string) {
   const tableModel =
     useToolboxTableModel<Partial<Record<SourceConnectionTableTypes, any>>>();
   const sourceConnectionStore = useSourceConnectionStore();
   const resSourceConnectionList = useGetSourceConnectionList(null);
   const targetConnections = ref<ISourceConnection[]>([]);
+  const sourceServiceStore = useSourceServiceStore();
+  const typeFilter = ref<'' | ConnectionResourceType>('');
+  const typeFilterItems = computed(() => [
+    { name: '', label: 'All connection types' },
+    ...(CONNECTION_TYPES_BY_GROUP_TYPE[
+      groupTypeOf(sourceServiceStore.getServiceById(selectedServiceId())?.type)
+    ]?.map(t => ({ name: t, label: CONNECTION_TYPE_LABEL[t] })) ?? []),
+  ]);
+  watch(selectedServiceId, () => (typeFilter.value = ''));
 
   function initToolBoxTableModel() {
     tableModel.tableState.fields = [
@@ -36,6 +57,7 @@ export function useSourceConnectionListModel() {
       id: sourceConnection.id,
       ip: sourceConnection.ip_address,
       port: sourceConnection.ssh_port,
+      type: CONNECTION_TYPE_LABEL[connectionTypeOf(sourceConnection)] ?? '',
       originalData: sourceConnection,
     };
 
@@ -48,14 +70,18 @@ export function useSourceConnectionListModel() {
       .filter(connection => !!connection);
   }
 
-  watch(targetConnections, nv => {
-    tableModel.tableState.items = nv.map(sourceConnection =>
-      organizationSourceConnectionTableItem(sourceConnection),
-    );
+  watch([targetConnections, typeFilter], ([nv, t]) => {
+    tableModel.tableState.items = nv
+      .filter(c => !t || connectionTypeOf(c) === t)
+      .map(sourceConnection =>
+        organizationSourceConnectionTableItem(sourceConnection),
+      );
   });
 
   return {
     tableModel,
+    typeFilter,
+    typeFilterItems,
     setTargetConnections,
     sourceConnectionStore,
     resSourceConnectionList,

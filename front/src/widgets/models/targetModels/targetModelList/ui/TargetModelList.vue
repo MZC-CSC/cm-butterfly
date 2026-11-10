@@ -4,6 +4,7 @@ import {
   PHorizontalLayout,
   PButton,
   PButtonModal,
+  PSelectDropdown,
 } from '@cloudforet-test/mirinae';
 import { useTargetModelListModel } from '@/widgets/models/targetModels/targetModelList/model/targetModelListModel';
 import TableLoadingSpinner from '@/shared/ui/LoadingSpinner/TableLoadingSpinner.vue';
@@ -27,6 +28,9 @@ import {
   deleteModels,
   formatDeleteFailures,
   isConsoleModel,
+  matchesCategory,
+  MODEL_CATEGORY_FILTER_ITEMS,
+  ModelCategory,
 } from '@/entities/migrationModel';
 import { useDynamicTableHeight } from '@/shared/hooks/table/useDynamicTableHeight';
 import { useToolboxTableHeight } from '@/shared/hooks/table/useToolboxTableHeight';
@@ -114,6 +118,23 @@ function addDeleteIconAtTable() {
   return instance;
 }
 
+// The list mixes infra, software and object storage models; the category filter narrows it.
+// The fetched models are kept so that changing the filter does not fetch again.
+const fetchedModels = ref<any[]>([]);
+const categoryFilter = ref<'' | ModelCategory>('');
+
+function applyCategoryFilter() {
+  tableModel.tableState.selectIndex = [];
+  targetModelStore.setTargetModel(
+    fetchedModels.value.filter(m => matchesCategory(m, categoryFilter.value)),
+  );
+}
+
+watch(categoryFilter, () => {
+  applyCategoryFilter();
+  emit('select-row', { id: '', name: '' });
+});
+
 function getTableList() {
   isDataLoaded.value = false;
   resGetTargetModelList
@@ -124,11 +145,10 @@ function getTableList() {
       // rows on screen — delete the last model and it stayed visible. Always write, coercing to [].
       // Infra, software and object storage models; categories the console has no screen for
       // (RDBMS) are left out instead of breaking the list.
-      targetModelStore.setTargetModel(
-        Array.isArray(res.data.responseData)
-          ? res.data.responseData.filter(isConsoleModel)
-          : [],
-      );
+      fetchedModels.value = Array.isArray(res.data.responseData)
+        ? res.data.responseData.filter(isConsoleModel)
+        : [];
+      applyCategoryFilter();
       nextTick(() => {
         isDataLoaded.value = true;
         // Re-render the component after data loads
@@ -229,6 +249,15 @@ function handleDeleteConfirm() {
             <p-button style-type="primary" icon-left="ic_plus_bold" disabled>
               Add
             </p-button>
+            <p-select-dropdown
+              class="category-filter"
+              :menu="MODEL_CATEGORY_FILTER_ITEMS"
+              :selected="categoryFilter"
+              use-fixed-menu-style
+              data-testid="model-list-category-filter"
+              :data-value="categoryFilter"
+              @select="v => (categoryFilter = v)"
+            />
           </template>
         </p-toolbox-table>
       </template>
@@ -251,4 +280,8 @@ function handleDeleteConfirm() {
   </div>
 </template>
 
-<style scoped lang="postcss"></style>
+<style scoped lang="postcss">
+.category-filter {
+  margin-left: 0.5rem;
+  min-width: 9rem;
+}</style>

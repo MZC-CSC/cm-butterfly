@@ -40,6 +40,13 @@ interface IProps {
   // Opened from a bucket connection: that source service and bucket start selected.
   initialGroupId?: string;
   initialBucket?: string;
+  // Opened from a source service's Collect Object Storage: every bucket starts selected and collected.
+  selectAll?: boolean;
+  // The bucket as that connection just collected it; it is used as is, not collected again.
+  initialCollected?: {
+    bucket: ISourceBucket;
+    sourceCloud?: ISourceObjectStorage['sourceCloud'];
+  };
 }
 const props = defineProps<IProps>();
 const emit = defineEmits(['update:close-modal', 'saved']);
@@ -119,12 +126,22 @@ onMounted(async () => {
         provider: g.provider_name ?? '',
         region: g.region_name ?? '',
       }));
-    if (props.initialGroupId) {
+    if (props.initialGroupId && props.selectAll) {
+      await selectGroup(props.initialGroupId);
+      buckets.value.forEach(b => (b.selected = true));
+      await handleCollect();
+    } else if (props.initialGroupId) {
       await selectGroup(props.initialGroupId);
       const row = buckets.value.find(b => b.bucketName === props.initialBucket);
       if (row) {
         row.selected = true;
-        await handleCollect();
+        if (props.initialCollected) {
+          row.bucket = props.initialCollected.bucket;
+          row.sourceCloud = props.initialCollected.sourceCloud ?? null;
+          row.status = 'collected';
+        } else {
+          await handleCollect();
+        }
       }
     }
   } catch (e) {
@@ -332,14 +349,18 @@ function onOff(value?: boolean) {
                   </span>
                   <span v-else>-</span>
                 </td>
-                <td :data-testid="`os-source-create-versioning-${b.bucketName}`">
+                <td
+                  :data-testid="`os-source-create-versioning-${b.bucketName}`"
+                >
                   {{ b.bucket ? onOff(b.bucket.versioningEnabled) : '-' }}
                 </td>
-                <td>{{ b.bucket ? onOff(b.bucket.encryptionEnabled) : '-' }}</td>
+                <td>
+                  {{ b.bucket ? onOff(b.bucket.encryptionEnabled) : '-' }}
+                </td>
                 <td>
                   {{ b.bucket ? formatBytes(b.bucket.totalSizeBytes) : '-' }}
                 </td>
-                <td>{{ b.bucket ? b.bucket.objectCount ?? '-' : '-' }}</td>
+                <td>{{ b.bucket ? (b.bucket.objectCount ?? '-') : '-' }}</td>
               </tr>
             </tbody>
           </table>

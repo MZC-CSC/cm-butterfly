@@ -2,8 +2,12 @@
 import { i18n } from '@/app/i18n';
 import { PButtonModal, PRadio, PRadioGroup } from '@cloudforet-test/mirinae';
 import CspSourceGroupForm from '@/features/sourceServices/cspSourceGroupForm/ui/CspSourceGroupForm.vue';
-import type { ICspSourceGroupRequest } from '@/entities/sourceService/model/types';
-import { reactive, ref, watchEffect } from 'vue';
+import DataSourceGroupForm from '@/features/sourceServices/dataSourceGroupForm/ui/DataSourceGroupForm.vue';
+import type {
+  ICspSourceGroupRequest,
+  SourceGroupTypeValue,
+} from '@/entities/sourceService/model/types';
+import { computed, reactive, ref, watchEffect } from 'vue';
 import { UpdateSourceService } from '@/features/sourceServices';
 import { useRegisterSourceGroup } from '@/entities/sourceService/api';
 import { showSuccessMessage, showErrorMessage } from '@/shared/utils';
@@ -19,7 +23,7 @@ const { sourceServiceInfo } = storeToRefs(sourceServicesStore);
 interface Props {
   trigger?: boolean;
   // Set by the menu the window is opened from; the type choice is then not shown.
-  fixedType?: 'onprem' | 'csp';
+  fixedType?: SourceGroupTypeValue;
 }
 
 const props = defineProps<Props>();
@@ -41,19 +45,32 @@ const state = reactive({
   description: '',
 });
 
-// On-premise groups are reached over SSH; a CSP group is the customer's cloud account,
-// read through its API with the credential entered here.
-const sourceType = ref<'onprem' | 'csp'>(props.fixedType ?? 'onprem');
+// The group type is chosen here and fixes which connections the group takes (cm-honeybee
+// 0.6.4): on-premise groups are reached over SSH; a CSP group is the customer's cloud account,
+// read through its API with the credential entered here; fs, db and minio groups hold data
+// sources of their own kind.
+const sourceType = ref<SourceGroupTypeValue>(props.fixedType ?? 'onprem');
 const cspRequest = ref<ICspSourceGroupRequest | null>(null);
+const dataSourceRequest = ref<Record<string, any> | null>(null);
+const isDataSourceType = computed(() =>
+  ['fs', 'db', 'minio'].includes(sourceType.value),
+);
 
 const sourceTypeOptions = [
   { value: 'onprem', label: 'On-premise (SSH)' },
   { value: 'csp', label: 'Cloud (CSP account)' },
+  { value: 'fs', label: 'File system' },
+  { value: 'db', label: 'DBMS' },
+  { value: 'minio', label: 'MinIO' },
 ];
 
 watchEffect(() => {
   if (sourceType.value === 'csp') {
     isDisabled.value = !!cspRequest.value;
+    return;
+  }
+  if (isDataSourceType.value) {
+    isDisabled.value = !!dataSourceRequest.value;
     return;
   }
   isDisabled.value =
@@ -67,10 +84,13 @@ const handleCspRequest = (value: ICspSourceGroupRequest | null) => {
 };
 
 const registerCspGroup = async () => {
-  if (!cspRequest.value) return;
+  const request = isDataSourceType.value
+    ? dataSourceRequest.value
+    : cspRequest.value;
+  if (!request) return;
   try {
     const { data } = await registerSourceGroup.execute({
-      request: cspRequest.value,
+      request,
     });
     if (data.status && data.status.code === 200) {
       showSuccessMessage('success', 'Register Success');
@@ -99,7 +119,7 @@ const handleSourceServiceInfo = (value: any) => {
 const isConfirmNoConnectionOpen = ref<boolean>(false);
 
 const handleConfirm = async () => {
-  if (sourceType.value === 'csp') {
+  if (sourceType.value === 'csp' || isDataSourceType.value) {
     await registerCspGroup();
     return;
   }
@@ -221,6 +241,11 @@ const handleConnectionModal = (value: boolean) => {
         <csp-source-group-form
           v-if="sourceType === 'csp'"
           @update:value="handleCspRequest"
+        />
+        <data-source-group-form
+          v-else-if="isDataSourceType"
+          :group-type="sourceType"
+          @update:value="v => (dataSourceRequest = v)"
         />
         <update-source-service
           v-else

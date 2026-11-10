@@ -6,6 +6,7 @@ import {
   PHorizontalLayout,
   PRadio,
   PRadioGroup,
+  PSelectDropdown,
 } from '@cloudforet-test/mirinae';
 import {
   buildExportFileName,
@@ -34,6 +35,11 @@ import { useSourceServiceStore } from '@/entities/sourceService/model/stores';
 import DynamicTableIconButton from '@/shared/ui/Button/dynamicIconButton/DynamicTableIconButton.vue';
 import { useDynamicTableHeight } from '@/shared/hooks/table/useDynamicTableHeight';
 import { useToolboxTableHeight } from '@/shared/hooks/table/useToolboxTableHeight';
+import DisabledReason from '@/shared/ui/DisabledReason/DisabledReason.vue';
+import {
+  groupTypeOf,
+  SOURCE_GROUP_TYPE_LABEL,
+} from '@/entities/sourceService/model/types';
 
 interface IProps {
   selectedServiceId: string;
@@ -55,7 +61,20 @@ const {
   initToolBoxTableModel,
   sourceConnectionStore,
   setTargetConnections,
-} = useSourceConnectionListModel();
+  typeFilter,
+  typeFilterItems,
+} = useSourceConnectionListModel(() => props.selectedServiceId);
+
+// fs, db and minio groups take connections of their own kind, whose forms the console does
+// not have yet.
+const addConnectionHint = computed(() => {
+  const t = groupTypeOf(
+    sourceServiceStore.getServiceById(props.selectedServiceId)?.type,
+  );
+  return ['fs', 'db', 'minio'].includes(t)
+    ? `${SOURCE_GROUP_TYPE_LABEL[t]} connections cannot be added from the console yet.`
+    : '';
+});
 
 const { dynamicHeight, minHeight, maxHeight } = useDynamicTableHeight(
   computed(() => tableModel.tableState.items.length),
@@ -389,14 +408,20 @@ function handleSourceConnectionList() {
             @select="handleSelectedIndex"
           >
             <template #toolbox-left>
-              <p-button
-                data-testid="source-connection-add-edit"
-                style-type="secondary"
-                icon-left="ic_plus_bold"
-                @click="handleSourceConnectionList"
+              <disabled-reason
+                :reason="addConnectionHint"
+                testid="source-connection-add-edit-trigger"
               >
-                Add / Edit
-              </p-button>
+                <p-button
+                  data-testid="source-connection-add-edit"
+                  style-type="secondary"
+                  icon-left="ic_plus_bold"
+                  :disabled="!!addConnectionHint"
+                  @click="handleSourceConnectionList"
+                >
+                  Add / Edit
+                </p-button>
+              </disabled-reason>
               <p-button
                 data-testid="source-connection-export"
                 class="ml-2"
@@ -407,6 +432,15 @@ function handleSourceConnectionList() {
               >
                 Export
               </p-button>
+              <p-select-dropdown
+                class="ml-2"
+                :menu="typeFilterItems"
+                :selected="typeFilter"
+                use-fixed-menu-style
+                data-testid="source-connection-type-filter"
+                :data-value="typeFilter"
+                @select="v => (typeFilter = v)"
+              />
             </template>
           </p-toolbox-table>
         </template>

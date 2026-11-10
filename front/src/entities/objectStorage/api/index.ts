@@ -75,17 +75,22 @@ export async function getObjectStorageSupport(): Promise<ObjectStorageSupport> {
   return (body.data ?? body.supports ?? body) as ObjectStorageSupport;
 }
 
+/**
+ * `lineage` is sent the way the infra recommendation sends it. cm-beetle 0.6.4 does not read it
+ * for object storage yet and ignores it; once it does, nothing here has to change.
+ */
 export function recommendObjectStorage(
   source: ISourceObjectStorage,
   csp: string,
   region: string,
+  lineage?: Record<string, string>,
 ) {
-  return call<IRecommendedObjectStorage>(RECOMMEND, {
-    request: {
-      desiredCloud: { csp, region },
-      sourceObjectStorages: source.sourceObjectStorages,
-    },
-  });
+  const request: Record<string, any> = {
+    desiredCloud: { csp, region },
+    sourceObjectStorages: source.sourceObjectStorages,
+  };
+  if (lineage && Object.keys(lineage).length) request.lineage = lineage;
+  return call<IRecommendedObjectStorage>(RECOMMEND, { request });
 }
 
 /**
@@ -98,10 +103,15 @@ export function migrateObjectStorage(
   target: IRecommendedObjectStorage,
   reqId: string,
   nameSeed?: string,
+  lineage?: Record<string, string>,
 ) {
+  // The lineage goes beside the model fields, as the infra migration request carries it
+  // (cm-beetle labels migrated infra with it; for buckets it is not read yet).
+  const request: Record<string, any> = { ...target };
+  if (lineage && Object.keys(lineage).length) request.lineage = lineage;
   const body: Record<string, any> = {
     pathParams: { nsId },
-    request: target,
+    request,
   };
   if (nameSeed) body.queryParams = { nameSeed };
   return axiosInstance.post(MIGRATE, body, {
