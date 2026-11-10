@@ -1,6 +1,6 @@
 import { RouteConfig } from 'vue-router';
 import { WORKLOAD_OPERATIONS_ROUTE } from '@/app/providers/router/routes/constants';
-import { MciPage, WorkloadsPage, PmkPage } from '@/pages/workloadOperations';
+import { MciPage } from '@/pages/workloadOperations';
 
 export const workloadsRoutes: RouteConfig[] = [
   {
@@ -9,36 +9,23 @@ export const workloadsRoutes: RouteConfig[] = [
     component: { template: '<router-view/>' },
     children: [
       {
-        path: 'workloads',
-        name: WORKLOAD_OPERATIONS_ROUTE.WORKLOADS._NAME,
-        component: WorkloadsPage,
+        path: 'mci-wls',
+        name: WORKLOAD_OPERATIONS_ROUTE.MCI_WLS._NAME,
+        component: MciPage,
         meta: {
-          lsbVisible: true,
-          menuId: WORKLOAD_OPERATIONS_ROUTE.WORKLOADS._NAME,
+          menuId: WORKLOAD_OPERATIONS_ROUTE.MCI_WLS._NAME,
           category: WORKLOAD_OPERATIONS_ROUTE._NAME,
         },
-        children: [
-          {
-            path: 'mci-wls',
-            name: WORKLOAD_OPERATIONS_ROUTE.WORKLOADS.MCI_WLS._NAME,
-            component: MciPage,
-            meta: {
-              lsbVisible: true,
-              menuId: WORKLOAD_OPERATIONS_ROUTE.WORKLOADS._NAME,
-              category: WORKLOAD_OPERATIONS_ROUTE._NAME,
-            },
-          },
-          {
-            path: 'pmk-wls',
-            name: WORKLOAD_OPERATIONS_ROUTE.WORKLOADS.PMK_WLS._NAME,
-            component: PmkPage,
-            meta: {
-              lsbVisible: true,
-              menuId: WORKLOAD_OPERATIONS_ROUTE.WORKLOADS._NAME,
-              category: WORKLOAD_OPERATIONS_ROUTE._NAME,
-            },
-          },
-        ],
+      },
+      // The list used to live one level deeper, under a "Workloads" page with its own
+      // side list. Bookmarks and published guides still carry that address.
+      {
+        path: 'workloads/mci-wls',
+        redirect: { name: WORKLOAD_OPERATIONS_ROUTE.MCI_WLS._NAME },
+      },
+      {
+        path: 'workloads',
+        redirect: { name: WORKLOAD_OPERATIONS_ROUTE.MCI_WLS._NAME },
       },
     ],
   },

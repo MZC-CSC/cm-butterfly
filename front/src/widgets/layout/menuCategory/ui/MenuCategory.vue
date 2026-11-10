@@ -27,7 +27,7 @@ const REACHABLE_MENU_IDS: string[] = [
   MENU_ID.WORKFLOWS,
   MENU_ID.WORKFLOW_TEMPLATES,
   MENU_ID.TASK_COMPONENTS,
-  MENU_ID.WORKLOADS,
+  MENU_ID.MCI_WLS,
   MENU_ID.SERVICE_STATUS,
   // Cloud Credentials and APIs are withheld until credential management can be
   // offered safely - the reasoning is in api/conf/menu.yaml, where the menu tree

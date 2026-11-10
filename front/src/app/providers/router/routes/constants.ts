@@ -41,14 +41,8 @@ export const WORKFLOW_MANAGEMENT_ROUTE = {
 
 export const WORKLOAD_OPERATIONS_ROUTE = {
   _NAME: MENU_ID.WORKLOAD_OPERATIONS,
-  WORKLOADS: {
-    _NAME: MENU_ID.WORKLOADS,
-    MCI_WLS: {
-      _NAME: MENU_ID.MCI_WLS,
-    },
-    PMK_WLS: {
-      _NAME: MENU_ID.PMK_WLS,
-    },
+  MCI_WLS: {
+    _NAME: MENU_ID.MCI_WLS,
   },
 };
 

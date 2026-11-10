@@ -15,9 +15,7 @@ export const MENU_ID = Object.freeze({
   WORKFLOW_TEMPLATES: 'workflowtemplates',
   TASK_COMPONENTS: 'taskcomponents',
   WORKLOAD_OPERATIONS: 'workloadoperations',
-  WORKLOADS: 'workloads',
   MCI_WLS: 'mciwls',
-  PMK_WLS: 'pmkwls',
   CLOUD_RESOURCES: 'cloudresources',
   CLOUD_CREDENTIALS: 'cloudcredentials',
 

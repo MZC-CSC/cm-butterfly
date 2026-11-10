@@ -144,11 +144,14 @@ menus:
     priority: 0
 
   ################## step3 : menu : migrations > workloadoperations ################
-  - id: workloads
+  # The infra list sits directly under its category, like every other list. It used to
+  # hang under a "Workloads" group whose only child it was, which cost an extra click and
+  # an empty page with its own side list.
+  - id: mciwls
     parentid: workloadoperations
-    displayname: Workloads
+    displayname: Infra Workloads
     restype: menu
-    isaction: "false"
+    isaction: "true"
     priority: 0
   
   ################## step3 : menu : migrations > workloadoperations ################
@@ -168,10 +171,3 @@ menus:
   #   isaction: "true"
   #   priority: 1
 
-  ###################### step4 : submenu : migrations > workloadoperations > workloads ################
-  - id: mciwls
-    parentid: workloads
-    displayname: Infra Workloads
-    restype: menu
-    isaction: "true"
-    priority: 0
