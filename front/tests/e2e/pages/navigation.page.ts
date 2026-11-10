@@ -20,7 +20,13 @@ interface NavTarget {
   path: string;
   /** URL regex for judging a successful load (based on the parent route) */
   urlPattern: RegExp;
-  /** Route name of the sidebar item that leads here (data-testid="menu-{id}") */
+  /**
+   * Route name of the sidebar item that leads here (data-testid="menu-{id}").
+   *
+   * An item, not the category. The category is only a heading in the sidebar and carries no
+   * testid, so pointing at it timed out - and the first category still passed, because a login
+   * already lands on its screen and nothing was clicked.
+   */
   menuId: string;
 }
 
@@ -33,7 +39,7 @@ function register(target: NavTarget, ...names: string[]) {
 register(
   {
     path: '/main/source-computing/source-services',
-    menuId: 'sourcecomputing',
+    menuId: 'sourceservices',
     urlPattern: /\/main\/source-computing/,
   },
   'Source Computing',
@@ -48,7 +54,7 @@ register(
 register(
   {
     path: '/main/models/source-models',
-    menuId: 'models',
+    menuId: 'sourcemodels',
     urlPattern: /\/main\/models/,
   },
   'Models',
@@ -59,7 +65,7 @@ register(
 register(
   {
     path: '/main/workflow-management/workflows',
-    menuId: 'workflowmanagement',
+    menuId: 'workflows',
     urlPattern: /\/main\/workflow-management/,
   },
   'Workflow Management',
@@ -71,7 +77,7 @@ register(
 register(
   {
     path: '/main/workload-operations/mci-wls',
-    menuId: 'workloadoperations',
+    menuId: 'mciwls',
     urlPattern: /\/main\/workload-operations/,
   },
   'Workload Operations',
