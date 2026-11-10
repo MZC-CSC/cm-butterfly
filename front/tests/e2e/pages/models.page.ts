@@ -14,7 +14,7 @@ import { openScreen } from '../support/navigate';
  * Screens covered (cm-damselfly models + cm-beetle recommendation):
  *   - source model list/detail  /main/models/source-models  (GetModels · CreateInfraModel/UpdateInfraModel)
  *   - target model list/detail  /main/models/target-models  (GetModels · CreateInfraModel)
- *   - recommend (modal)     RecommendVmInfraCandidates · Updateandgetestimatecost · GetProviderList/GetRegions
+ *   - recommend (modal)     RecommendInfraCandidates · Updateandgetestimatecost · GetProviderList/GetRegions
  *
  * ★ Cost protection: from the recommendation results, pick the *cheapest candidate* (lowest estimated monthly cost), and if needed verify the spec class (nano/small)
  *   is at or below maxClass. If the source is nano, recommendations also come out at nano/small class, and picking the cheapest candidate enforces low cost.
@@ -420,7 +420,7 @@ export class ModelsPage {
   }
 
   // ───────────────────────────────────────────────────────────────────
-  // Recommend → save target model (RecommendVmInfraCandidates + CreateInfraModel, stage target)
+  // Recommend → save target model (RecommendInfraCandidates + CreateInfraModel, stage target)
   // ───────────────────────────────────────────────────────────────────
 
   /** Open the recommend modal from the selected source model's detail */
@@ -558,7 +558,7 @@ export class ModelsPage {
   async runRecommendCapturingQuery(): Promise<Record<string, string>> {
     const requestPromise = this.page.waitForRequest(
       req =>
-        req.url().includes('cm-beetle/RecommendVmInfraCandidates') &&
+        req.url().includes('cm-beetle/RecommendInfraCandidates') &&
         req.method() === 'POST',
       { timeout: 30_000 },
     );
@@ -630,7 +630,7 @@ export class ModelsPage {
     if (minIndex < 0) {
       throw new Error(
         `추천 결과에 값이 모두 채워진 후보가 없음(후보 ${count}개 전부 불완전). ` +
-          `cm-beetle 추천 응답의 필드 범위를 소스레벨로 병행 검증 필요 — RecommendVmInfraCandidates가 빈 값을 반환하는 원인 확인.`,
+          `cm-beetle 추천 응답의 필드 범위를 소스레벨로 병행 검증 필요 — RecommendInfraCandidates가 빈 값을 반환하는 원인 확인.`,
       );
     }
 
@@ -769,7 +769,7 @@ export class ModelsPage {
         `추천 결과에 완전한(data-complete=true) 후보가 "${maxClass}" 급 이하로 없다 — ` +
           `후보 ${count}개 중 완전 ${completeCount}·불완전 ${incompleteCount}. ` +
           `완전 후보가 0개이면 문제는 프론트가 아니라 cm-beetle 추천 응답이 spec/image를 ` +
-          `채우지 못하는 것이므로 RecommendVmInfraCandidates 응답을 소스레벨로 병행 검증해야 한다.`,
+          `채우지 못하는 것이므로 RecommendInfraCandidates 응답을 소스레벨로 병행 검증해야 한다.`,
       );
     }
 
