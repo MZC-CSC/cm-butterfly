@@ -22,7 +22,7 @@ import {
   ref,
   nextTick,
 } from 'vue';
-import { useGetTargetModelList } from '@/entities';
+import { useGetTargetModelList, isInfraOrSoftwareModel } from '@/entities';
 import { deleteModels, formatDeleteFailures } from '@/entities/migrationModel';
 import { useDynamicTableHeight } from '@/shared/hooks/table/useDynamicTableHeight';
 import { useToolboxTableHeight } from '@/shared/hooks/table/useToolboxTableHeight';
@@ -119,7 +119,9 @@ function getTableList() {
       // Guarding with `if (responseData)` therefore skipped the update and left the previous fetch's
       // rows on screen — delete the last model and it stayed visible. Always write, coercing to [].
       targetModelStore.setTargetModel(
-        Array.isArray(res.data.responseData) ? res.data.responseData : [],
+        Array.isArray(res.data.responseData)
+          ? res.data.responseData.filter(isInfraOrSoftwareModel)
+          : [],
       );
       nextTick(() => {
         isDataLoaded.value = true;
