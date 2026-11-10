@@ -12,7 +12,6 @@ import { AUTH_ROUTE } from '@/pages/auth/auth.route';
 import { isSessionAlive } from '@/shared/libs/auth/session';
 import { ROLE_TYPE } from '@/shared/libs/accessControl/pageAccessHelper/constant';
 import { RoleType } from '@/shared/libs/accessControl/pageAccessHelper/types';
-import { tempRoutes } from '@/app/providers/router/routes/temp';
 import { migrationGuideRoutes } from '@/app/providers/router/routes/migrationGuide';
 import { systemRoutes } from '@/app/providers/router/routes/system';
 import NotFound from '@/pages/error/404/NotFound.vue';
@@ -44,7 +43,6 @@ export class McmpRouter {
         ...modelRoutes,
         ...workflowManagementRoutes,
         ...workloadsRoutes,
-        ...tempRoutes,
         ...cloudResourcesRoutes,
         ...systemRoutes,
       ],

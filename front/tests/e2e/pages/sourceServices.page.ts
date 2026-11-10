@@ -24,8 +24,6 @@ import { spotlight } from '../support/spotlight';
 export class SourceServicesPage {
   /** ★ 화면 위치(URL) — 라우트 /main + source-computing/source-services */
   static readonly path = '/main/source-computing/source-services';
-  /** 클라우드 계정(CSP) 소스는 같은 화면을 쓰는 별도 메뉴 Cloud Sources 에 있다. */
-  static readonly cloudPath = '/main/source-computing/cloud-sources';
 
   constructor(private readonly page: Page) {}
 
@@ -276,18 +274,25 @@ export class SourceServicesPage {
 
   // ───────────────────────── 액션 ─────────────────────────
 
-  /** 소스 서비스 화면으로 이동 */
+  /**
+   * 소스 서비스 화면으로 가서 목록을 클라우드 유형으로 좁힌다.
+   * 클라우드 계정(CSP) 소스는 온프레미스와 같은 목록에 있고, 유형 필터로 나눈다(Cloud Sources 메뉴는 없앴다).
+   */
   async gotoCloud(): Promise<void> {
-    await openScreen(
-      this.page,
-      'cloudsources',
-      SourceServicesPage.cloudPath,
-      'source-group-list-table',
+    await this.goto();
+    await this.filterByType('csp', 'Cloud');
+  }
+
+  /** 목록의 유형 필터. 고른 값은 루트의 data-value 로 드러난다(미리내 선택 상태는 표준 속성이 아니다). */
+  async filterByType(value: '' | 'onprem' | 'csp', label: string): Promise<void> {
+    const filter = this.page.getByTestId('source-group-type-filter').first();
+    await humanClick(filter);
+    await humanClick(
+      filter
+        .locator('.p-context-menu-item', { hasText: new RegExp(`^\\s*${label}\\s*$`) })
+        .first(),
     );
-    await expect(this.page.getByTestId('source-services-header')).toHaveText(
-      'Cloud Sources',
-      { timeout: 15_000 },
-    );
+    await expect(filter).toHaveAttribute('data-value', value);
   }
 
   async goto(): Promise<void> {

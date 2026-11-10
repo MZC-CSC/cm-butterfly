@@ -20,6 +20,7 @@ import type {
   ObjectStorageSupport,
 } from '@/entities/objectStorage/model/types';
 import {
+  beetleLineageOf,
   createObjectStorageModel,
   describeModelError,
   targetLineageFrom,
@@ -33,8 +34,8 @@ import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
  * is that planning model. Same place in the flow as the infra recommendation: a source model is
  * read-only and recommendations start from a planning model.
  *
- * cm-beetle takes only the bucket list for an object storage recommendation, with no lineage,
- * so the lineage is kept by cm-damselfly alone.
+ * The request carries the lineage as the infra recommendation does. cm-beetle 0.6.4 does not
+ * read it for object storage yet, so for now the lineage is kept by cm-damselfly alone.
  */
 interface IProps {
   source: IObjectStorageModel;
@@ -93,6 +94,7 @@ async function handleRecommend() {
       sourceStorage.value,
       target.csp,
       target.region,
+      beetleLineageOf(sourceModel.value) as Record<string, string>,
     );
     if (!target.modelName) {
       target.modelName = `os-tgt-${target.csp}-${Date.now()

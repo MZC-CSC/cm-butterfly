@@ -4,7 +4,10 @@ import { computed, reactive, watch } from 'vue';
 import { useRouter } from 'vue-router/composables';
 import { useCollectInfra } from '@/entities/sourceConnection/api';
 import { getRefinedBucket } from '@/entities/objectStorage/api';
-import type { ISourceBucket } from '@/entities/objectStorage/model/types';
+import type {
+  ISourceBucket,
+  ISourceObjectStorage,
+} from '@/entities/objectStorage/model/types';
 import { MODEL_ROUTE } from '@/app/providers/router/routes/constants';
 import CreateObjectStorageSourceModelModal from '@/widgets/models/createObjectStorageSourceModel/ui/CreateObjectStorageSourceModelModal.vue';
 import { formatBytes } from '@/widgets/models/objectStorageBuckets/model/format';
@@ -16,10 +19,11 @@ import { formatDate, showErrorMessage, toErrorMessage } from '@/shared/utils';
  * shows the bucket and its collect step in place of the server fields.
  *
  * Collect Object Storage asks cm-honeybee to read the bucket from the source account
- * (import-infra runs the CSP lookup for every resource type), and the refined answer shows
- * what was collected: versioning, encryption, size and object count (cm-honeybee 0.6.4+).
- * Save as Source Model then opens the source model window with this bucket chosen, the same
- * window Models > Source Models uses for several buckets.
+ * (import-infra runs the CSP lookup for every resource type), shows what was collected
+ * (versioning, encryption, size and object count; cm-honeybee 0.6.4+) and goes straight on to
+ * the source model window with this bucket, as Collect Infra does for a server. Save as Source
+ * Model opens that window again after it was closed. It is the same window Models > Source
+ * Models uses for several buckets.
  */
 interface IProps {
   sourceGroupId: string;
@@ -42,6 +46,7 @@ const state = reactive({
   saveOpen: false,
   savedModelName: '',
   bucket: null as ISourceBucket | null,
+  sourceCloud: undefined as ISourceObjectStorage['sourceCloud'],
 });
 
 // A different connection starts from nothing collected.
@@ -95,8 +100,10 @@ async function handleCollect() {
       );
     }
     state.bucket = bucket;
+    state.sourceCloud = refined.sourceCloud;
     state.status = 'success';
     state.collectedAt = formatDate(new Date().toISOString());
+    state.saveOpen = true;
   } catch (e) {
     state.status = 'failed';
     state.message = refinedErrorText(e, 'Could not read the collected bucket.');
@@ -201,6 +208,11 @@ function goToModels() {
         v-if="state.saveOpen"
         :initial-group-id="sourceGroupId"
         :initial-bucket="bucketName"
+        :initial-collected="
+          state.bucket
+            ? { bucket: state.bucket, sourceCloud: state.sourceCloud }
+            : undefined
+        "
         @saved="onSaved"
         @update:close-modal="state.saveOpen = false"
       />

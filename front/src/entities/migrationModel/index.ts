@@ -94,6 +94,27 @@ export function isConsoleModel(model: IStoredMigrationModel): boolean {
   }
 }
 
+/** Category filter of the Source Models / Target Models lists ('' shows every category). */
+export const MODEL_CATEGORY_FILTER_ITEMS: { name: '' | ModelCategory; label: string }[] =
+  [
+    { name: '', label: 'All types' },
+    { name: 'infra', label: 'Infra' },
+    { name: 'software', label: 'Software' },
+    { name: 'objectStorage', label: 'Object Storage' },
+  ];
+
+export function matchesCategory(
+  model: IStoredMigrationModel,
+  category: '' | ModelCategory,
+): boolean {
+  if (!category) return true;
+  try {
+    return modelCategoryOf(model) === category;
+  } catch {
+    return false;
+  }
+}
+
 export function isObjectStorageModel(model: IStoredMigrationModel): boolean {
   return model.modelType === MODEL_TYPE.OBJECT_STORAGE;
 }

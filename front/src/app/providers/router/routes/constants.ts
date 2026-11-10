@@ -14,9 +14,6 @@ export const SOURCE_COMPUTING_ROUTE = {
       _NAME: MENU_ID.SOURCE_CONNECTIONS,
     },
   },
-  CLOUD_SOURCES: {
-    _NAME: MENU_ID.CLOUD_SOURCES,
-  },
 };
 
 export const MODEL_ROUTE = {

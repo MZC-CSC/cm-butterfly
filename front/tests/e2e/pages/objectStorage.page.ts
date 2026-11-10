@@ -241,12 +241,17 @@ export class ObjectStoragePage {
     );
   }
 
-  /** 수집이 끝난 버킷 연결에서 Save as Source Model 로 저장한다. 창은 그 버킷을 골라 수집한 채로 열린다. */
+  /**
+   * 버킷 연결에서 수집하면 소스 모델 저장 창이 바로 열린다(Collect Infra 와 같다). 그 창은 그 버킷을
+   * 방금 수집한 값으로 고른 채 열리고 다시 수집하지 않는다. 이름을 넣고 저장한다.
+   */
   async saveSourceModelFromConnection(
     bucket: string,
     name: string,
   ): Promise<void> {
-    await humanClick(this.page.getByTestId('bucket-collect-save-model'));
+    await expect(this.page.getByTestId('os-source-create-body')).toBeVisible({
+      timeout: 15_000,
+    });
     const row = this.page.getByTestId(`os-source-create-bucket-${bucket}`);
     await expect(row).toHaveAttribute('data-selected', 'true', {
       timeout: 30_000,

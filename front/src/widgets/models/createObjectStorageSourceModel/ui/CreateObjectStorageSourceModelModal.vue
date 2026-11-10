@@ -40,6 +40,11 @@ interface IProps {
   // Opened from a bucket connection: that source service and bucket start selected.
   initialGroupId?: string;
   initialBucket?: string;
+  // The bucket as that connection just collected it; it is used as is, not collected again.
+  initialCollected?: {
+    bucket: ISourceBucket;
+    sourceCloud?: ISourceObjectStorage['sourceCloud'];
+  };
 }
 const props = defineProps<IProps>();
 const emit = defineEmits(['update:close-modal', 'saved']);
@@ -124,7 +129,13 @@ onMounted(async () => {
       const row = buckets.value.find(b => b.bucketName === props.initialBucket);
       if (row) {
         row.selected = true;
-        await handleCollect();
+        if (props.initialCollected) {
+          row.bucket = props.initialCollected.bucket;
+          row.sourceCloud = props.initialCollected.sourceCloud ?? null;
+          row.status = 'collected';
+        } else {
+          await handleCollect();
+        }
       }
     }
   } catch (e) {
