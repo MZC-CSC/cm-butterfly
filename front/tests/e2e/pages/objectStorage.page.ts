@@ -98,16 +98,16 @@ export class ObjectStoragePage {
   }
 
   /**
-   * 이행된 버킷을 지운다. 삭제 창에서 cm-beetle 삭제 옵션을 고르게 되어 있고, 여기서는 "비우고 삭제"(empty)를
-   * 골라 그 옵션이 실제 요청에 실리는지까지 본다(미리내 라디오는 선택 상태를 표준 속성으로 드러내지 않아
+   * 이행된 버킷을 지운다. 삭제 창에서 삭제 옵션을 고르게 되어 있고, 여기서는 "강제 삭제"(force)를 골라 그 옵션이
+   * 실제 요청에 실리는지까지 본다. empty 는 버킷을 비우기만 하고 남기므로(cb-tumblebug 0.13.8) 삭제 시험에 쓰지 않는다(미리내 라디오는 선택 상태를 표준 속성으로 드러내지 않아
    * 요청 본문으로 판정한다 — DESIGN-MIRINAE §2.3).
    */
   async deleteBucket(osId: string): Promise<void> {
     await humanClick(this.page.getByTestId(`os-migrated-delete-${osId}`));
-    await humanClick(this.page.getByTestId('os-migrated-delete-option-empty'));
+    await humanClick(this.page.getByTestId('os-migrated-delete-option-force'));
     await expect(
       this.page.getByTestId('os-migrated-delete-option'),
-    ).toHaveAttribute('data-value', 'empty');
+    ).toHaveAttribute('data-value', 'force');
     await humanFill(this.input('os-migrated-delete-confirm-input'), osId);
     const request = this.page.waitForRequest(
       r => /DeleteObjectStorage/i.test(r.url()) && r.method() === 'POST',
@@ -117,7 +117,7 @@ export class ObjectStoragePage {
     expect(
       (await request).postData() ?? '',
       '삭제 옵션이 요청에 실리지 않았다',
-    ).toContain('"option":"empty"');
+    ).toContain('"option":"force"');
     await expect(this.page.getByTestId(`os-migrated-${osId}`)).toHaveCount(0, {
       timeout: 120_000,
     });
