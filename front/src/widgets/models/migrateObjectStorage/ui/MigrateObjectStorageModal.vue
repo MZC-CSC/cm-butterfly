@@ -140,9 +140,9 @@ function goToObjectStorages() {
           Creates
           {{ storage?.targetObjectStorages?.length ?? 0 }} bucket(s) in
           {{ storage?.targetCloud?.csp }} /
-          {{ storage?.targetCloud?.region }} (namespace {{ nsId }}).
-          The objects inside the buckets are moved by a data migration, which is
-          not part of this step.
+          {{ storage?.targetCloud?.region }} (namespace {{ nsId }}). The objects
+          inside the buckets are moved by a data migration, which is not part of
+          this step.
         </p>
         <ul class="buckets">
           <li
