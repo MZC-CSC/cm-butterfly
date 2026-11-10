@@ -902,12 +902,19 @@ export class SourceServicesPage {
    *
    *   기다릴 것은 버튼의 겉모습이 아니라 **화면이 말하는 상태**다. Refresh 는 서버에 다시 물어
    *   Agent Status 를 갱신하고, 그 값이 success 여야 수집이 실제로 결과를 가져온다.
+   *
+   * ★ 한 번 누르고 기다리기만 하면 안 된다 (2026-11-10). 화면은 Refresh 를 누를 때만 서버에
+   *   다시 묻는다. 소스 서버를 막 켠 직후에는 연결은 되지만 에이전트가 아직 응답하지 않아
+   *   PartialSuccess(또는 Failed)가 오고, 그 값은 다시 누르기 전까지 바뀌지 않는다. 사람도
+   *   상태가 바뀔 때까지 다시 누른다 — 그래서 Success 가 될 때까지 다시 누른다.
    */
   async refreshGroupStatus(): Promise<void> {
-    await humanClick(this.groupRefreshButton);
-    await expect(this.groupStatus).toHaveAttribute('data-status', 'Success', {
-      timeout: 60_000,
-    });
+    await expect(async () => {
+      await humanClick(this.groupRefreshButton);
+      await expect(this.groupStatus).toHaveAttribute('data-status', 'Success', {
+        timeout: 15_000,
+      });
+    }).toPass({ timeout: 180_000, intervals: [10_000] });
   }
 
   /** 인프라 수집 실행 (그룹단위 import-infra) — 선택된 그룹 상세에서 Refresh 후 Collect Infra */
