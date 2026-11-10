@@ -37,18 +37,8 @@ const router = useRouter();
 const nsId = DEFAULT_NAMESPACE;
 const storage = computed(() => props.target?.targetObjectStorageModel);
 
-// The prefix keeps bucket IDs apart: cm-beetle numbers the recommended buckets os-01,
-// os-02... on every recommendation and uses them as the IDs in the namespace, so a second
-// migration without a prefix collides with the first. It is required and starts with one
-// that is unique to this moment; the user can change it.
-function defaultSeed() {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `mig${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}`;
-}
-
 const state = reactive({
-  nameSeed: defaultSeed(),
+  nameSeed: '',
   running: false,
   status: '' as '' | 'Handling' | 'Success' | 'Error',
   message: '',
@@ -60,9 +50,7 @@ const state = reactive({
 const SEED_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const seedError = computed(() => {
   const seed = state.nameSeed.trim();
-  if (!seed)
-    return 'Enter a name prefix. It keeps these bucket IDs apart from earlier migrations.';
-  if (SEED_PATTERN.test(seed)) return '';
+  if (!seed || SEED_PATTERN.test(seed)) return '';
   return 'Use lowercase letters, digits and hyphens, starting with a letter or digit. It becomes part of the bucket name.';
 });
 
@@ -115,7 +103,7 @@ async function handleMigrate() {
       nsId,
       storage.value,
       state.reqId,
-      state.nameSeed.trim(),
+      state.nameSeed.trim() || undefined,
       beetleLineageOf(props.target) as Record<string, string>,
     );
     await pollRequest(state.reqId);
@@ -152,9 +140,9 @@ function goToObjectStorages() {
           Creates
           {{ storage?.targetObjectStorages?.length ?? 0 }} bucket(s) in
           {{ storage?.targetCloud?.csp }} /
-          {{ storage?.targetCloud?.region }} (namespace {{ nsId }}). The objects
-          inside the buckets are moved by a data migration, which is not part of
-          this step.
+          {{ storage?.targetCloud?.region }} (namespace {{ nsId }}).
+          The objects inside the buckets are moved by a data migration, which is
+          not part of this step.
         </p>
         <ul class="buckets">
           <li
@@ -167,7 +155,7 @@ function goToObjectStorages() {
             >
           </li>
         </ul>
-        <p-field-group label="Name prefix" required>
+        <p-field-group label="Name prefix">
           <p-text-input
             v-model="state.nameSeed"
             :invalid="!!seedError"

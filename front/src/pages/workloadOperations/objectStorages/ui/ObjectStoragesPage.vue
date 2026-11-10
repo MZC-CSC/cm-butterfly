@@ -59,12 +59,16 @@ const migratedState = reactive({
   deleting: false,
 });
 
-// A plain delete fails on a bucket that is not empty. Emptying keeps the bucket, so a
-// non-empty bucket is either emptied and then deleted, or force-deleted.
+// cm-beetle's delete options, as it documents them. A plain delete fails on a bucket that
+// is not empty.
 const DELETE_OPTIONS: { value: BucketDeleteOption; label: string }[] = [
   { value: '', label: 'Delete (only if the bucket is empty)' },
-  { value: 'empty', label: 'Empty the bucket only (the bucket is kept)' },
+  { value: 'empty', label: 'Empty the bucket, then delete' },
   { value: 'force', label: 'Force delete with its contents' },
+  {
+    value: 'reconcile',
+    label: 'Remove the record only (the cloud is not called)',
+  },
 ];
 
 function openDelete(osId: string) {
@@ -106,12 +110,7 @@ async function handleDeleteBucket() {
       migratedState.deleteTarget,
       migratedState.deleteOption,
     );
-    showSuccessMessage(
-      'success',
-      migratedState.deleteOption === 'empty'
-        ? 'Bucket emptied'
-        : 'Bucket deleted',
-    );
+    showSuccessMessage('success', 'Bucket deleted');
     migratedState.deleteTarget = '';
     migratedState.deleteConfirm = '';
     await loadMigrated();
