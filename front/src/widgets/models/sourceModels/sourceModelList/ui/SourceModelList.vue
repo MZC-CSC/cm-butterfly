@@ -22,7 +22,11 @@ import {
   showSuccessMessage,
 } from '@/shared/utils';
 import DynamicTableIconButton from '@/shared/ui/Button/dynamicIconButton/DynamicTableIconButton.vue';
-import { useGetSourceModelList, isSourceSideModel } from '@/entities';
+import {
+  useGetSourceModelList,
+  isSourceSideModel,
+  isInfraOrSoftwareModel,
+} from '@/entities';
 import { deleteModels, formatDeleteFailures } from '@/entities/migrationModel';
 import { useDynamicTableHeight } from '@/shared/hooks/table/useDynamicTableHeight';
 import { useToolboxTableHeight } from '@/shared/hooks/table/useToolboxTableHeight';
@@ -95,7 +99,9 @@ function getTableList() {
       // Source and planning models share this list (GetModels is asked for every stage).
       sourceModelStore.setSourceModel(
         Array.isArray(res.data.responseData)
-          ? res.data.responseData.filter(isSourceSideModel)
+          ? res.data.responseData.filter(
+              m => isSourceSideModel(m) && isInfraOrSoftwareModel(m),
+            )
           : [],
       );
       nextTick(() => {

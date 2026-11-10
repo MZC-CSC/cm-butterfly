@@ -26,3 +26,16 @@ export function useGetSourceModelList() {
 export function isSourceSideModel(model: { modelStage?: string }) {
   return model.modelStage === 'source' || model.modelStage === 'planning';
 }
+
+/**
+ * Infra and software models only. GetModels without a category also returns the RDBMS and object
+ * storage models (cm-damselfly 0.6.5), which have screens of their own and a different shape; the
+ * Source and Target Models lists leave them out rather than fail on them.
+ */
+export function isInfraOrSoftwareModel(model: { modelType?: string }) {
+  return (
+    model.modelType === 'OnPremiseModel' ||
+    model.modelType === 'CloudModel' ||
+    model.modelType === 'SoftwareModel'
+  );
+}
