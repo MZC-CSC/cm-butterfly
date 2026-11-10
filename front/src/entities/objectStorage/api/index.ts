@@ -139,13 +139,11 @@ export function listBucketObjects(nsId: string, osId: string) {
 }
 
 /**
- * Delete options as they behave on our lineup (cm-beetle 0.6.4 passes the option to
- * cb-tumblebug 0.13.8): none deletes only an empty bucket; `empty` only empties the bucket
- * and keeps it (cm-beetle documents it as "empty, then delete", but cb-tumblebug returns after
- * emptying); `force` deletes it with its contents. cm-beetle's `reconcile` is not offered:
- * cb-tumblebug 0.13.8 rejects it as an invalid option.
+ * cm-beetle's delete options (0.6.4), offered as cm-beetle documents them: none deletes only an
+ * empty bucket; `empty` empties it, then deletes; `force` deletes it with its contents;
+ * `reconcile` removes only the record without calling the cloud.
  */
-export type BucketDeleteOption = '' | 'empty' | 'force';
+export type BucketDeleteOption = '' | 'empty' | 'force' | 'reconcile';
 
 export function deleteMigratedBucket(
   nsId: string,
