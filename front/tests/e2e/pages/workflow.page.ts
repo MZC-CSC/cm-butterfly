@@ -24,7 +24,7 @@ import { openScreen } from '../support/navigate';
  * ⚠️ Sections without data-testid: the workflow domain .vue files currently have no data-testid.
  *   BAR-880 (selector stabilization) — data-testid has been added at the key points of the workflow domain:
  *     workflow-list-table · taskcomponent-list-table · workflow-template-list-table ·
- *     workflow-json-view (open JSON from detail) · workflow-json-viewer (viewer body).
+ *     workflow-viewer-view-json-btn (open JSON from Run Status) · workflow-json-viewer (viewer body).
  *   Even if screen text or DOM structure changes, these testids locate elements precisely. Only sections
  *   that still lack a testid keep a role/text fallback, and the fallback is removed as testids are added.
  */
@@ -1686,11 +1686,16 @@ export class WorkflowPage {
   // the location of that value shifted from `task.request_body` → `task.spec.request_body`.
   // If the viewer fails to read the new location, a base64 blob is exposed on screen as-is.
 
-  /** Select a workflow and press "View Workflow JSON" in the detail to open the viewer */
+  /**
+   * Select a workflow and press View JSON to open the viewer.
+   *
+   * Selecting a workflow opens Run Status, and View JSON lives there; the Details link the
+   * test used to press was removed when Run Status became the entry point.
+   */
   async openJsonViewer(name: string): Promise<void> {
     await this.revealWorkflow(name);
     await humanClick(this.rowByText(name));
-    const link = this.page.getByTestId('workflow-json-view').first();
+    const link = this.page.getByTestId('workflow-viewer-view-json-btn').first();
     await expect(link).toBeVisible({ timeout: 15_000 });
     // Scroll it into view and press it. It used to be opened with a DOM-level click because the
     // detail panel can sit outside the viewport - but that skips the pointer entirely, and a
