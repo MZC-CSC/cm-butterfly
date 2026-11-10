@@ -5,27 +5,26 @@ import { useGetSourceServiceList } from '@/entities/sourceService/api';
 import {
   ISourceService,
   SourceServiceTableType,
-  isCspSourceGroup,
+  groupTypeOf,
+  SOURCE_GROUP_TYPE_LABEL,
+  SourceGroupTypeValue,
   sourceTypeLabel,
 } from '@/entities/sourceService/model/types';
 import { ref, watch } from 'vue';
 
-/** On-premise (SSH) or cloud account (CSP) source groups; '' shows both. */
-export type SourceKind = 'onprem' | 'csp';
-
 /**
- * On-premise servers and cloud accounts share one list. cm-honeybee keeps the type on each
- * source group and its group-wide actions work on one type, so the type is chosen at
- * registration and the list can be narrowed to one type.
+ * Every source group type shares one list. cm-honeybee keeps the type on each source group
+ * but its list API takes no type filter, so the list is narrowed here from the loaded groups.
  */
-export const SOURCE_KIND_FILTER_ITEMS = [
+export const SOURCE_GROUP_TYPE_FILTER_ITEMS = [
   { name: '', label: 'All types' },
-  { name: 'onprem', label: 'On-premise' },
-  { name: 'csp', label: 'Cloud' },
+  ...(Object.keys(SOURCE_GROUP_TYPE_LABEL) as SourceGroupTypeValue[]).map(
+    t => ({ name: t, label: SOURCE_GROUP_TYPE_LABEL[t] }),
+  ),
 ];
 
 export function useSourceServiceListModel() {
-  const kindFilter = ref<'' | SourceKind>('');
+  const kindFilter = ref<'' | SourceGroupTypeValue>('');
   const tableModel =
     useToolboxTableModel<Partial<Record<SourceServiceTableType, any>>>();
   const sourceServicesStore = useSourceServiceStore();
@@ -75,7 +74,7 @@ export function useSourceServiceListModel() {
   function ofKind(service: ISourceService) {
     const k = kindFilter.value;
     if (!k) return true;
-    return (k === 'csp') === isCspSourceGroup(service.type);
+    return groupTypeOf(service.type) === k;
   }
 
   watch(

@@ -102,6 +102,14 @@ watch(isBucketConnection, () => {
   sourceConnectionDetailTabState.activeTab = 'information';
 });
 
+// Bumped whenever connections are added or changed. The connection list resets its own
+// trigger, but only while its tab is open, so the detail tab follows this counter instead.
+const connectionsVersion = ref(0);
+function onConnectionsChanged() {
+  modalStates.addSourceConnection.trigger = true;
+  connectionsVersion.value += 1;
+}
+
 // Setting trigger to true causes it to update.
 const modalStates = reactive({
   addServiceGroup: {
@@ -253,6 +261,7 @@ const data = computed(() => {
             </div>
             <SourceServiceDetail
               :selected-service-id="selectedServiceId"
+              :connections-version="connectionsVersion"
               @update:source-connection-name="e => (sourceConnectionName = e)"
               @update:custom-view-json-modal="
                 e => (modalStates.addInfraMetaViewer.open = e)
@@ -374,7 +383,7 @@ const data = computed(() => {
         :source-service-id="selectedServiceId"
         :connection-id="selectedConnectionId"
         @update:is-modal-opened="handleConnectionModal"
-        @update:trigger="modalStates.addSourceConnection.trigger = true"
+        @update:trigger="onConnectionsChanged"
         @add="switchToCspAdd"
       />
       <csp-connection-modal
@@ -384,7 +393,7 @@ const data = computed(() => {
         :region-name="selectedService?.regionName"
         :initial-resource-type="cspInitialResourceType"
         @update:is-modal-opened="handleConnectionModal"
-        @update:trigger="modalStates.addSourceConnection.trigger = true"
+        @update:trigger="onConnectionsChanged"
       />
       <source-connection-modal
         v-else-if="
@@ -409,7 +418,7 @@ const data = computed(() => {
         @update:is-service-modal-opened="
           e => (modalStates.addServiceGroup.open = e)
         "
-        @update:trigger="modalStates.addSourceConnection.trigger = true"
+        @update:trigger="onConnectionsChanged"
       />
 
       <meta-viewer

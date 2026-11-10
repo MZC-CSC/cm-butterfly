@@ -23,7 +23,7 @@ import {
   toErrorMessage,
 } from '@/shared/utils';
 import {
-  SOURCE_KIND_FILTER_ITEMS,
+  SOURCE_GROUP_TYPE_FILTER_ITEMS,
   useSourceServiceListModel,
 } from '@/widgets/source/sourceServices/sourceServiceList/model/sourceServiceListModel';
 import DynamicTableIconButton from '@/shared/ui/Button/dynamicIconButton/DynamicTableIconButton.vue';
@@ -260,7 +260,7 @@ watch(
             </p-button>
             <p-select-dropdown
               class="kind-filter"
-              :menu="SOURCE_KIND_FILTER_ITEMS"
+              :menu="SOURCE_GROUP_TYPE_FILTER_ITEMS"
               :selected="kindFilter"
               use-fixed-menu-style
               data-testid="source-group-type-filter"
@@ -298,4 +298,5 @@ watch(
 .kind-filter {
   margin-left: 0.5rem;
   min-width: 9rem;
-}</style>
+}
+</style>
