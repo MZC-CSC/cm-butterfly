@@ -43,6 +43,10 @@ const state = reactive({
   status: '' as '' | 'Handling' | 'Success' | 'Error',
   message: '',
   reqId: '',
+  // cm-beetle 0.6.5+: the outcome of a finished migration, "created" when every bucket and
+  // its versioning and CORS settings were made, "partial" with warnings when some were not.
+  resultStatus: '',
+  warnings: [] as string[],
 });
 
 // The prefix becomes part of each bucket name, so it follows bucket naming. cm-beetle
@@ -81,6 +85,9 @@ async function pollRequest(reqId: string) {
       if (status === 'Success' || status === 'Error') {
         state.status = status;
         state.message = details?.errorResponse ?? '';
+        const result = details?.responseData?.data ?? details?.responseData;
+        state.resultStatus = result?.status ?? '';
+        state.warnings = Array.isArray(result?.warnings) ? result.warnings : [];
         return;
       }
       state.status = 'Handling';
@@ -97,6 +104,8 @@ async function handleMigrate() {
   state.running = true;
   state.status = 'Handling';
   state.message = '';
+  state.resultStatus = '';
+  state.warnings = [];
   state.reqId = newRequestId();
   try {
     await migrateObjectStorage(
@@ -108,7 +117,12 @@ async function handleMigrate() {
     );
     await pollRequest(state.reqId);
     if (state.status === 'Success')
-      showSuccessMessage('success', 'Buckets created');
+      showSuccessMessage(
+        'success',
+        state.resultStatus === 'partial'
+          ? 'Some buckets or settings were not created. See the warnings.'
+          : 'Buckets created',
+      );
   } catch (e) {
     state.status = 'Error';
     state.message = errorText(e, 'Migration request failed.');
@@ -182,6 +196,17 @@ function goToObjectStorages() {
             <span class="req">request {{ state.reqId }}</span>
           </template>
         </p>
+        <div
+          v-if="state.status === 'Success' && state.resultStatus"
+          class="result"
+          data-testid="os-migrate-result"
+          :data-result-status="state.resultStatus"
+        >
+          <span>Result: {{ state.resultStatus }}</span>
+          <ul v-if="state.warnings.length" data-testid="os-migrate-warnings">
+            <li v-for="(w, i) in state.warnings" :key="i">{{ w }}</li>
+          </ul>
+        </div>
         <p class="next">
           <button
             v-if="state.status === 'Success'"
@@ -231,6 +256,12 @@ function goToObjectStorages() {
   align-items: center;
   gap: 0.5rem;
   font-size: 0.875rem;
+}
+.result {
+  font-size: 0.875rem;
+}
+.result[data-result-status='partial'] {
+  color: #b45309;
 }
 .status[data-status='Success'] {
   color: #15803d;
