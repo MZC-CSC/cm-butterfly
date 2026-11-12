@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import DisabledReason from '@/shared/ui/DisabledReason/DisabledReason.vue';
-import { PDefinitionTable, PButton, PStatus } from '@cloudforet-test/mirinae';
+import {
+  PDefinitionTable,
+  PButton,
+  PStatus,
+  PTooltip,
+} from '@cloudforet-test/mirinae';
 import {
   computed,
   onBeforeMount,
@@ -24,7 +29,7 @@ import {
   useGetSoftwareInfoSourceGroup,
   useGetSourceService,
 } from '@/entities/sourceService/api';
-import { showErrorMessage } from '@/shared/utils';
+import { showErrorMessage, toErrorMessage } from '@/shared/utils';
 import {
   useRefreshSourceGroupConnectionInfoStatus,
   useCollectSWSourceGroup,
@@ -44,6 +49,7 @@ const props = defineProps<IProps>();
 const emit = defineEmits([
   'update:source-connection-name',
   'update:custom-view-json-modal',
+  'open-bucket-scan',
 ]);
 
 const {
@@ -111,6 +117,27 @@ const agentCollectHint = computed(() => {
   return '';
 });
 const agentCollectDisabled = computed(() => !!agentCollectHint.value);
+// The servers a group collect reaches: on-premise servers, and cloud VMs registered with SSH.
+const collectableServerCount = computed(() =>
+  isCspService.value
+    ? connectionKinds.value.sshVms.length
+    : connectionKinds.value.vms.length,
+);
+const DISCOVER_BUCKETS_HINT =
+  "Find the buckets in the cloud account with this source service's credential and add them as connections.";
+const discoverBucketsHint = computed(() =>
+  isCspService.value ? '' : 'Buckets are discovered in a cloud source service.',
+);
+
+// A failed collect is shown, not only logged: the request returns quickly when the servers
+// cannot be reached, and nothing on the screen would change otherwise.
+function reportCollectFailure(what: string, e: unknown) {
+  showErrorMessage(
+    `${what} collect failed`,
+    toErrorMessage(e, `Could not collect the ${what.toLowerCase()}.`),
+  );
+  loadConnectionOutcomes();
+}
 const objectStorageHint = computed(() => {
   if (!isCspService.value) {
     return isServerGroup.value
@@ -118,7 +145,7 @@ const objectStorageHint = computed(() => {
       : unsupportedGroupHint.value;
   }
   return connectionKinds.value.buckets.length === 0
-    ? 'No object storage connection in this source service. Add buckets from Detail > Scan Buckets or Connections.'
+    ? 'No object storage connection in this source service. Add buckets with Discover Buckets or from Connections.'
     : '';
 });
 const objectStorageCollectOpen = ref(false);
@@ -270,7 +297,13 @@ function getSourceGroupInfras() {
       },
     })
     .then(res => {
-      if (!res.data.responseData) return undefined;
+      if (!res.data.responseData) {
+        reportCollectFailure(
+          'Infra',
+          new Error('The source service returned no collected data.'),
+        );
+        return undefined;
+      }
       sourceServiceStore.mappinginfraModel(
         props.selectedServiceId,
         res.data.responseData,
@@ -290,8 +323,8 @@ function getSourceGroupInfras() {
       }
     })
     .catch(e => {
-      console.error('Failed to get source group infras:', e);
       infraModel.value = null;
+      reportCollectFailure('Infra', e);
     });
 }
 
@@ -306,7 +339,13 @@ function getSourceGroupSoftware() {
       },
     })
     .then(res => {
-      if (!res.data.responseData) return undefined;
+      if (!res.data.responseData) {
+        reportCollectFailure(
+          'Software',
+          new Error('The source service returned no collected data.'),
+        );
+        return undefined;
+      }
       sourceServiceStore.mappingSoftwareModel(
         props.selectedServiceId,
         res.data.responseData,
@@ -326,8 +365,8 @@ function getSourceGroupSoftware() {
       }
     })
     .catch(e => {
-      console.error('Failed to get source group software:', e);
       softwareModel.value = null;
+      reportCollectFailure('Software', e);
     });
 }
 
@@ -503,6 +542,9 @@ function handleSoftwareModal() {
       </template>
 
       <template #data-viewInfra="{ data }">
+        <span class="resource-count" data-testid="source-group-server-count">{{
+          collectableServerCount ? `${collectableServerCount} server(s)` : ''
+        }}</span>
         <p
           v-if="data.isShow"
           data-testid="source-group-view-infra-meta"
@@ -516,6 +558,13 @@ function handleSoftwareModal() {
       </template>
 
       <template #data-viewSoftware="{ data }">
+        <span
+          class="resource-count"
+          data-testid="source-group-sw-server-count"
+          >{{
+            collectableServerCount ? `${collectableServerCount} server(s)` : ''
+          }}</span
+        >
         <p
           v-if="data.isShow"
           data-testid="source-group-view-sw-meta"
@@ -530,7 +579,7 @@ function handleSoftwareModal() {
 
       <!-- Always render the element: an empty slot makes PDefinitionTable fall back to its default (DESIGN-MIRINAE). -->
       <template #data-viewObjectStorage>
-        <span data-testid="source-group-bucket-count">{{
+        <span class="resource-count" data-testid="source-group-bucket-count">{{
           connectionKinds.buckets.length
             ? `${connectionKinds.buckets.length} bucket(s)`
             : ''
@@ -596,6 +645,34 @@ function handleSoftwareModal() {
               "
             >
               Collect Object Storage
+            </p-button>
+          </disabled-reason>
+          <p-tooltip
+            v-if="!discoverBucketsHint"
+            :contents="DISCOVER_BUCKETS_HINT"
+            position="top"
+          >
+            <p-button
+              data-testid="csp-bucket-scan-run"
+              style-type="tertiary"
+              size="sm"
+              @click="emit('open-bucket-scan')"
+            >
+              Discover Buckets
+            </p-button>
+          </p-tooltip>
+          <disabled-reason
+            v-else
+            :reason="discoverBucketsHint"
+            testid="csp-bucket-scan-run-trigger"
+          >
+            <p-button
+              data-testid="csp-bucket-scan-run"
+              style-type="tertiary"
+              size="sm"
+              disabled
+            >
+              Discover Buckets
             </p-button>
           </disabled-reason>
         </div>
@@ -853,5 +930,9 @@ function handleSoftwareModal() {
   padding: 16px;
   font-size: 12px;
   line-height: 1.5;
+}
+.resource-count {
+  margin-right: 0.75rem;
+  color: #6b7280;
 }
 </style>
