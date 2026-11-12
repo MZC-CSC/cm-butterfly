@@ -31,12 +31,12 @@ export function useSourceServiceDetailModel() {
         disableCopy: true,
       },
       {
-        label: 'view Infra',
+        label: 'Infra',
         name: 'viewInfra',
         disableCopy: true,
       },
       {
-        label: 'view Software',
+        label: 'Software',
         name: 'viewSoftware',
         disableCopy: true,
       },
