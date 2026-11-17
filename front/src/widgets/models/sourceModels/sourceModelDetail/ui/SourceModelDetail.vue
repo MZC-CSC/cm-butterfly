@@ -72,7 +72,7 @@ const customViewLabel = computed(() => {
 });
 
 const RECOMMEND_DISABLED_REASON =
-  'A source model keeps what was collected and is read-only. Open it with "View & Save as Planning Model", save it as a planning model, and get recommendations from that planning model.';
+  'Recommendations are available only from a planning model. A source model keeps what was collected and is read-only.';
 
 const recommendable = computed(() => {
   if (!selectedModel.value) return false;
