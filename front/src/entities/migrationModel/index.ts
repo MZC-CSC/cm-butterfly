@@ -344,20 +344,109 @@ export function updateBodyOf(
 
 /**
  * userModelVersion is the console's own counter; cm-damselfly stores it as given and keeps no
- * history. Every new model starts at INITIAL_MODEL_VERSION, and each update of a stored model
- * raises it by 0.1 (v0.9 -> v1.0), so the version tells how many times the model was edited.
+ * history. It follows the MAJOR.MINOR.PATCH form cm-beetle's UX Lab uses. Every new model starts
+ * at INITIAL_MODEL_VERSION, and each update of a stored model raises the minor number
+ * (0.1.0 -> 0.2.0), so the version tells how many times the model was edited.
  */
-export const INITIAL_MODEL_VERSION = 'v0.1';
+export const INITIAL_MODEL_VERSION = '0.1.0';
 
-/** The version after `version`. A value not in the vMAJOR.MINOR form (e.g. a legacy '1') is kept. */
+/**
+ * The version after `version`. The earlier 'vMAJOR.MINOR' values are read as well (v0.1 -> 0.2.0);
+ * anything else (e.g. a legacy '1') is kept as it is.
+ */
 export function nextModelVersion(version: string | undefined): string {
-  const m = /^v(\d+)\.(\d)$/.exec((version ?? '').trim());
+  const m = /^v?(\d+)\.(\d+)(?:\.\d+)?$/.exec((version ?? '').trim());
   if (!m) return version ?? '';
-  const tenths = Number(m[1]) * 10 + Number(m[2]) + 1;
-  return `v${Math.floor(tenths / 10)}.${tenths % 10}`;
+  return `${m[1]}.${Number(m[2]) + 1}.0`;
 }
 
-/** Update the name and description of any stored model; its version is raised by 0.1. */
+/** The id of the model cm-damselfly returned for a create call (behind the console proxy). */
+export function createdModelIdOf(res: any): string {
+  const id = res?.data?.responseData?.id;
+  if (!id)
+    throw new Error('cm-damselfly did not return the id of the created model');
+  return id;
+}
+
+/**
+ * Save a collected source group as models. The source model keeps what was collected, as the
+ * conversion returned it: it is the record the system refers to and is never edited. What the user
+ * saves - the shown model, edited or not, with the name and description they gave - becomes a
+ * planning model derived from it.
+ *
+ * Software has no planning stage in the console (cm-damselfly takes a software planning model in
+ * the target structure), so an edited software model is saved as a second source model instead.
+ * Unedited, a single source model is saved under the user's name.
+ */
+export async function saveCollectedModels(params: {
+  category: 'infra' | 'software';
+  sourceGroupId: string;
+  userId: string;
+  name: string;
+  description: string;
+  /** The model as the conversion returned it. */
+  original: Record<string, any>;
+  /** The model as shown when the user saved it. */
+  edited: Record<string, any>;
+}): Promise<{ source: string; derived?: string }> {
+  const { category, sourceGroupId, userId, name, description } = params;
+  const sourceName = `${name}-source`;
+  const sourceDescription = `Collected from source group ${sourceGroupId}`;
+  const common = { userId, userModelVersion: INITIAL_MODEL_VERSION };
+
+  if (category === 'software') {
+    const softwareOf = (m: Record<string, any>) => m?.sourceSoftwareModel || m;
+    const edited =
+      JSON.stringify(softwareOf(params.original)) !==
+      JSON.stringify(softwareOf(params.edited));
+    const source = createdModelIdOf(
+      await createSoftwareModel('source', {
+        ...common,
+        lineage: { sourceGroupId },
+        isInitUserModel: true,
+        userModelName: edited ? sourceName : name,
+        description: edited ? sourceDescription : description,
+        sourceSoftwareModel: softwareOf(params.original),
+      }),
+    );
+    if (!edited) return { source };
+    const derived = createdModelIdOf(
+      await createSoftwareModel('source', {
+        ...common,
+        lineage: { sourceGroupId },
+        isInitUserModel: false,
+        userModelName: name,
+        description,
+        sourceSoftwareModel: softwareOf(params.edited),
+      }),
+    );
+    return { source, derived };
+  }
+
+  const source = createdModelIdOf(
+    await createInfraModel('onprem', 'source', {
+      ...common,
+      ...params.original,
+      lineage: { sourceGroupId },
+      isInitUserModel: true,
+      userModelName: sourceName,
+      description: sourceDescription,
+    }),
+  );
+  const derived = createdModelIdOf(
+    await createInfraModel('onprem', 'planning', {
+      ...common,
+      ...params.edited,
+      parentId: source,
+      isInitUserModel: false,
+      userModelName: name,
+      description,
+    }),
+  );
+  return { source, derived };
+}
+
+/** Update the name and description of any stored model; its version is raised (nextModelVersion). */
 export function updateModelInfo(
   model: Record<string, any>,
   changes: { userModelName: string; description: string },

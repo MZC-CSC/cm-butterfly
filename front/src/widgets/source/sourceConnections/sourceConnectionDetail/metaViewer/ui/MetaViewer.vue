@@ -7,10 +7,8 @@ import { ref, computed } from 'vue';
 import { AxiosResponse } from 'axios';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 import {
-  createInfraModel,
-  createSoftwareModel,
   describeModelError,
-  INITIAL_MODEL_VERSION,
+  saveCollectedModels,
 } from '@/entities/migrationModel';
 import JsonViewer from '@/features/sourceServices/jsonViewer/ui/JsonViewer.vue';
 import {
@@ -35,6 +33,9 @@ const isConverted = ref<boolean>(false);
 const isSaveModal = ref<boolean>(false);
 
 const convertedData = ref();
+// The model as the conversion returned it, kept apart from the editable copy above: it is
+// saved as the source model, while the shown (possibly edited) model becomes the planning model.
+const originalData = ref<any>(null);
 
 const auth = useAuth();
 const getInfraInfoRefined = useGetInfraInfoRefined(props.sgId, props.connId);
@@ -71,56 +72,35 @@ const handleSave = () => {
 
 const handleMetaViewer = e => {
   isSaveModal.value = false;
-
-  // Software: a source-stage software model (CreateSoftwareModel)
-  if (props.dataType === 'software') {
-    console.log(
-      'MetaViewer Creating Source Software Model with data:',
-      convertedData.value,
-    );
-
-    // extract the sourceSoftwareModel property from the API response
-    const sourceSoftwareModelData =
-      convertedData.value?.sourceSoftwareModel || convertedData.value;
-    console.log(
-      'MetaViewer Extracted sourceSoftwareModel data:',
-      sourceSoftwareModelData,
-    );
-
-    createSoftwareModel('source', {
-      // The collected source group is where the migration lineage starts.
-      lineage: { sourceGroupId: props.sgId },
-      description: e.description,
-      isInitUserModel: true,
-      sourceSoftwareModel: sourceSoftwareModelData,
-      userId: auth.getUser().id,
-      userModelName: e.name,
-      userModelVersion: INITIAL_MODEL_VERSION,
+  const category = props.dataType === 'software' ? 'software' : 'infra';
+  saveCollectedModels({
+    category,
+    // The collected source group is where the migration lineage starts.
+    sourceGroupId: props.sgId,
+    userId: auth.getUser().id,
+    name: e.name,
+    description: e.description,
+    original: originalData.value ?? convertedData.value,
+    edited: convertedData.value,
+  })
+    .then(({ derived }) => {
+      if (category === 'infra') {
+        showSuccessMessage(
+          'success',
+          `Saved the collected source model and the planning model "${e.name}"`,
+        );
+      } else {
+        showSuccessMessage(
+          'success',
+          derived
+            ? `Saved the collected source model and the edited model "${e.name}"`
+            : `Saved the source model "${e.name}"`,
+        );
+      }
     })
-      .then(res => {
-        showSuccessMessage('success', 'create Software Model');
-      })
-      .catch(e => {
-        showErrorMessage('error', describeModelError(e).message);
-      });
-  } else {
-    // Infra: a source-stage on-premise model (CreateInfraModel)
-    createInfraModel('onprem', 'source', {
-      lineage: { sourceGroupId: props.sgId },
-      userId: auth.getUser().id,
-      ...convertedData.value,
-      description: e.description,
-      userModelName: e.name,
-      isInitUserModel: true,
-      userModelVersion: INITIAL_MODEL_VERSION,
-    })
-      .then(res => {
-        showSuccessMessage('success', 'create Model');
-      })
-      .catch(e => {
-        showErrorMessage('error', describeModelError(e).message);
-      });
-  }
+    .catch(err => {
+      showErrorMessage('error', describeModelError(err).message);
+    });
 
   emit('update:is-meta-viewer-opened');
 };
@@ -133,6 +113,9 @@ function handleConvertInfra(): (
     getInfraInfoRefined.execute().then(res => {
       isConverted.value = true;
       convertedData.value = res.data.responseData;
+      originalData.value = JSON.parse(
+        JSON.stringify(res.data.responseData ?? null),
+      );
       return res;
     });
 }
@@ -146,6 +129,9 @@ function handleConvertSoftware(): (
       isConverted.value = true;
       console.log('MetaViewer Software API Response:', res.data.responseData);
       convertedData.value = res.data.responseData;
+      originalData.value = JSON.parse(
+        JSON.stringify(res.data.responseData ?? null),
+      );
       return res;
     });
 }

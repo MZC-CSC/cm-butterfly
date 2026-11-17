@@ -41,9 +41,16 @@ export class ModelsPage {
     // ★ 목록 표 안으로 한정한다 — 행은 화면 어디에 있든 role=row 로 잡히기 때문이다.
     //   같은 이름을 담은 요소가 표 밖에도 있으면 `.first()` 가 그 쪽을 집어, 클릭은 성공하는데
     //   아무 일도 일어나지 않는다. 소스 서비스 목록에서 실제로 그렇게 걸렸다. (2026-07-31)
+    //   행 전체 텍스트로 찾으면 이름을 *포함하는* 다른 행도 걸린다. 수집 결과를 저장하면 원본이
+    //   "{이름}-source" 소스 모델로 함께 저장되고, 목록에서 그 행이 먼저 나와 엉뚱한 모델을 잡는다.
+    //   그래서 *한 칸이 이름과 정확히 같은* 행만 잡는다. (2026-11-17)
     return this.listTable
       .getByTestId(`model-row-${name}`)
-      .or(this.listTable.getByRole('row', { name }))
+      .or(
+        this.listTable
+          .getByRole('row')
+          .filter({ has: this.page.getByRole('cell', { name, exact: true }) }),
+      )
       .first();
   }
 
