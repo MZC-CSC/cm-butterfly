@@ -22,6 +22,7 @@ import {
   createObjectStorageModel,
   describeModelError,
   INITIAL_MODEL_VERSION,
+  createdModelIdOf,
 } from '@/entities/migrationModel';
 import { useAuth } from '@/features/auth/model/useAuth.ts';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
@@ -252,17 +253,36 @@ async function handleSave() {
     sourceCloud,
     sourceObjectStorages: collectedBuckets.value.map(b => b.bucket!),
   };
+  // The collected buckets are kept as the source model, which the system refers to and nobody
+  // edits; the name and description the user gave go to a planning model derived from it, which is
+  // what a recommendation is run from (as for infra, see saveCollectedModels).
+  const name = state.name.trim();
+  const common = {
+    userId: auth.getUser().id,
+    userModelVersion: INITIAL_MODEL_VERSION,
+    sourceObjectStorageModel,
+  };
   try {
-    const res = await createObjectStorageModel('source', {
-      userModelName: state.name.trim(),
+    const sourceId = createdModelIdOf(
+      await createObjectStorageModel('source', {
+        ...common,
+        userModelName: `${name}-source`,
+        description: `Collected from source group ${selectedGroup.value.name}`,
+        isInitUserModel: true,
+        lineage: { sourceGroupId: selectedGroup.value.name },
+      }),
+    );
+    const res = await createObjectStorageModel('planning', {
+      ...common,
+      userModelName: name,
       description: state.description,
-      userId: auth.getUser().id,
-      userModelVersion: INITIAL_MODEL_VERSION,
-      isInitUserModel: true,
-      lineage: { sourceGroupId: selectedGroup.value.name },
-      sourceObjectStorageModel,
+      isInitUserModel: false,
+      parentId: sourceId,
     });
-    showSuccessMessage('success', 'Source model saved');
+    showSuccessMessage(
+      'success',
+      `Saved the collected source model and the planning model "${name}"`,
+    );
     emit('saved', res.data?.responseData);
     emit('update:close-modal', false);
   } catch (e) {

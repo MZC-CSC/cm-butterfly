@@ -98,11 +98,13 @@ Then('그 버킷이 커넥션 목록에 보인다', async ({ page }) => {
 When(
   'Source Models 에서 그 버킷을 수집해 오브젝트 스토리지 소스 모델을 만들면',
   async ({ page }) => {
-    run.sourceModel = uniqueName('e2e-os-src');
+    // 입력한 이름은 계획 모델이 되고, 수집 원본은 "{이름}-source" 소스 모델로 저장된다.
+    const name = uniqueName('e2e-os-src');
+    run.sourceModel = `${name}-source`;
     run.sourceModelId = await new ObjectStoragePage(page).createSourceModel(
       run.group,
       testBucket(),
-      run.sourceModel,
+      name,
     );
     expect(run.sourceModelId).not.toBe('');
   },

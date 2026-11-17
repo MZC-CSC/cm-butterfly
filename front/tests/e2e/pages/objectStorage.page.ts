@@ -198,7 +198,9 @@ export class ObjectStoragePage {
       0,
       { timeout: 30_000 },
     );
-    return this.selectedModelId(name);
+    // 저장하면 수집 원본은 "{이름}-source" 소스 모델로, 입력한 이름은 그 아래 계획 모델로 함께
+    // 저장된다. 여기서는 소스 모델의 ID 를 돌려준다. (2026-11-17)
+    return this.selectedModelId(`${name}-source`);
   }
 
   /** 목록에서 그 모델을 골라 상세가 가리키는 모델 ID 를 읽는다. */
