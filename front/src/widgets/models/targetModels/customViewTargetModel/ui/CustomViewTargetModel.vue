@@ -10,6 +10,7 @@ import {
   createSoftwareModel,
   describeModelError,
   siblingTargetLineageOf,
+  INITIAL_MODEL_VERSION,
 } from '@/entities/migrationModel';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 import { useAuth } from '@/features/auth/model/useAuth.ts';
@@ -133,7 +134,7 @@ function handleCreateSoftwareTargetModel(e) {
       targetSoftwareModel: parsedData,
       userId: auth.getUser().id,
       userModelName: e.name,
-      userModelVersion: targetModel.value?.userModelVersion ?? 'v0.1',
+      userModelVersion: INITIAL_MODEL_VERSION,
     };
   } catch (error) {
     showErrorMessage(
@@ -177,7 +178,7 @@ function handleCreateInfraTargetModel(e) {
       region: targetModel.value?.region ?? '',
       userId: auth.getUser().id,
       userModelName: e.name,
-      userModelVersion: targetModel.value?.userModelVersion ?? '',
+      userModelVersion: INITIAL_MODEL_VERSION,
       zone: targetModel.value?.zone ?? '',
     };
   } catch (error) {

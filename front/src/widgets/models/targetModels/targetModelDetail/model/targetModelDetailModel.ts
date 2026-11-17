@@ -27,6 +27,8 @@ export function useTargetModelDetailModel() {
       { label: 'Migration Type', name: 'migrationType' },
       { label: 'Custom', name: 'custom' },
       { label: 'Derived From (Planning Model)', name: 'parentPlanningModel' },
+      { label: 'Source Model', name: 'sourceModel' },
+      { label: 'Source Group', name: 'sourceGroup' },
       { label: 'Model Type', name: 'modelType' },
       { label: 'Created Date Time', name: 'createdDateTime' },
       { label: 'Updated Date Time', name: 'updatedDateTime' },
@@ -47,7 +49,8 @@ export function useTargetModelDetailModel() {
     const field = tableModel.tableState.fields.find(
       f => f.name === 'workflowTool',
     );
-    if (field) field.label = objectStorage ? 'Bucket Migration' : 'Workflow Tool';
+    if (field)
+      field.label = objectStorage ? 'Bucket Migration' : 'Workflow Tool';
   }
 
   function setDefineTableData(targetModelId: string) {
@@ -64,6 +67,8 @@ export function useTargetModelDetailModel() {
         custom: targetModel.isInitUserModel ? 'Basic' : 'Custom',
         // The planning model this target was recommended from (cm-damselfly lineage).
         parentPlanningModel: targetModel.lineage?.planningModelId ?? '',
+        sourceModel: targetModel.lineage?.sourceModelId ?? '',
+        sourceGroup: targetModel.lineage?.sourceGroupId ?? '',
         modelType: targetModel.modelType || 'Unknown',
         createdDateTime: formatDate(targetModel.createTime),
         updatedDateTime: formatDate(targetModel.updateTime),

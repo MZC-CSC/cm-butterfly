@@ -10,6 +10,7 @@ import {
   modelStageOf,
   planningLineageFrom,
   siblingTargetLineageOf,
+  INITIAL_MODEL_VERSION,
 } from '@/entities/migrationModel';
 import { EnhancedJsonEditor } from '@/shared/ui/EnhancedJsonEditor';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
@@ -51,7 +52,9 @@ const title = computed(() => {
   return 'View & Save as Planning Model - Object Storage';
 });
 const saveTitle = computed(() =>
-  isTarget.value ? 'Save as a new Target model' : 'Save as a new Planning model',
+  isTarget.value
+    ? 'Save as a new Target model'
+    : 'Save as a new Planning model',
 );
 
 watch(
@@ -98,7 +101,7 @@ async function handleSave(e: { name: string; description: string }) {
     userModelName: e.name,
     description: e.description,
     userId: auth.getUser().id,
-    userModelVersion: props.model.userModelVersion || 'v0.1',
+    userModelVersion: INITIAL_MODEL_VERSION,
     isInitUserModel: false,
     ...lineageReq,
   };

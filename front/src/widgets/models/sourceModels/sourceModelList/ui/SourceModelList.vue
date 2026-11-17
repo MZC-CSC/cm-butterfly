@@ -23,12 +23,11 @@ import {
   showSuccessMessage,
 } from '@/shared/utils';
 import DynamicTableIconButton from '@/shared/ui/Button/dynamicIconButton/DynamicTableIconButton.vue';
-import { useGetSourceModelList, isSourceSideModel } from '@/entities';
+import { useGetSourceModelList, SOURCE_LIST_STAGES } from '@/entities';
 import {
   deleteModels,
   formatDeleteFailures,
   isConsoleModel,
-  matchesCategory,
   MODEL_CATEGORY_FILTER_ITEMS,
   ModelCategory,
 } from '@/entities/migrationModel';
@@ -92,37 +91,35 @@ watch(
   },
 );
 
-// The list mixes infra, software and object storage models; the category filter narrows it.
-// The fetched models are kept so that changing the filter does not fetch again.
-const fetchedModels = ref<any[]>([]);
+// The list mixes infra, software and object storage models. The category filter is sent to
+// cm-damselfly (GetModels 'category') so that only the asked models come back.
 const categoryFilter = ref<'' | ModelCategory>('');
 
-function applyCategoryFilter() {
-  tableModel.tableState.selectIndex = [];
-  sourceModelStore.setSourceModel(
-    fetchedModels.value.filter(m => matchesCategory(m, categoryFilter.value)),
-  );
-}
-
 watch(categoryFilter, () => {
-  applyCategoryFilter();
+  getTableList();
   emit('select-row', { id: '', name: '' });
 });
 
 function getTableList() {
   isDataLoaded.value = false;
-  resSourceList
-    .execute()
-    .then(res => {
-      // cm-damselfly returns 200 with a null body when there are no models, not an empty array.
-      // Guarding with `if (responseData)` therefore skipped the update and left the previous fetch's
-      // rows on screen. Always write, coercing to [].
-      // Source and planning models share this list (GetModels is asked for every stage), for
-      // infra, software and object storage. Categories without a console screen (RDBMS) are left out.
-      fetchedModels.value = Array.isArray(res.data.responseData)
-        ? res.data.responseData.filter(m => isSourceSideModel(m) && isConsoleModel(m))
-        : [];
-      applyCategoryFilter();
+  tableModel.tableState.selectIndex = [];
+  const category = categoryFilter.value;
+  // One call per stage (source, planning), joined: GetModels takes a single stage.
+  Promise.all(
+    SOURCE_LIST_STAGES.map(modelStage =>
+      resSourceList.execute({
+        queryParams: { modelStage, ...(category ? { category } : {}) },
+      }),
+    ),
+  )
+    .then(responses => {
+      // cm-damselfly returns 200 with a null body when there are no models, not an empty array,
+      // so each body is coerced to []. Categories without a console screen (RDBMS) are left out:
+      // their models cannot be opened, edited or deleted here.
+      const models = responses.flatMap(res =>
+        Array.isArray(res.data.responseData) ? res.data.responseData : [],
+      );
+      sourceModelStore.setSourceModel(models.filter(isConsoleModel));
       nextTick(() => {
         isDataLoaded.value = true;
         // Re-render the component after data loads
@@ -294,4 +291,5 @@ function handleDeleteConfirm() {
 .category-filter {
   margin-left: 0.5rem;
   min-width: 9rem;
-}</style>
+}
+</style>

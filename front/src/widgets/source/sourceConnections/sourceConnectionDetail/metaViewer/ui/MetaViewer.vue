@@ -10,6 +10,7 @@ import {
   createInfraModel,
   createSoftwareModel,
   describeModelError,
+  INITIAL_MODEL_VERSION,
 } from '@/entities/migrationModel';
 import JsonViewer from '@/features/sourceServices/jsonViewer/ui/JsonViewer.vue';
 import {
@@ -94,7 +95,7 @@ const handleMetaViewer = e => {
       sourceSoftwareModel: sourceSoftwareModelData,
       userId: auth.getUser().id,
       userModelName: e.name,
-      userModelVersion: 'v0.1',
+      userModelVersion: INITIAL_MODEL_VERSION,
     })
       .then(res => {
         showSuccessMessage('success', 'create Software Model');
@@ -111,7 +112,7 @@ const handleMetaViewer = e => {
       description: e.description,
       userModelName: e.name,
       isInitUserModel: true,
-      userModelVersion: 'v0.1',
+      userModelVersion: INITIAL_MODEL_VERSION,
     })
       .then(res => {
         showSuccessMessage('success', 'create Model');

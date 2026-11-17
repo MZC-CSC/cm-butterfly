@@ -9,6 +9,7 @@ import {
   createSoftwareModel,
   describeModelError,
   targetLineageFrom,
+  INITIAL_MODEL_VERSION,
 } from '@/entities/migrationModel';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 import { useAuthStore } from '@/shared/libs/store/auth';
@@ -202,7 +203,7 @@ function handleCreateTargetModel(e) {
   const isInitUserModel =
     sourceSoftwareModelData.value?.isInitUserModel ?? false;
   const userId = authStore.id; // use the logged-in user's ID
-  const userModelVersion = sourceModel.value?.userModelVersion ?? 'v0.1';
+  const userModelVersion = INITIAL_MODEL_VERSION;
 
   const requestBody = {
     description: e.description,

@@ -8,21 +8,19 @@ import { ISourceModelResponse } from '@/entities/sourceModels/model/types';
 const GET_MODELS = 'cm-damselfly/GetModels';
 
 /**
- * Source and planning models. The Source Models list shows both: a planning model is a source model
- * the user has edited, and it is what a recommendation is run from. GetModels takes one stage at a
- * time, so the list asks for every stage and keeps the two (see `isSourceSideModel`).
+ * The Source Models list shows source and planning models together: a planning model is the plan
+ * of a source model. cm-damselfly's GetModels takes one stage per call, so the list calls it once
+ * per stage in SOURCE_LIST_STAGES and joins the results, with the category filter sent along.
  */
+export const SOURCE_LIST_STAGES = ['source', 'planning'] as const;
+
 export function useGetSourceModelList() {
   const requestWrapper: Required<Pick<RequestBodyWrapper<any>, 'queryParams'>> =
     {
-      queryParams: {},
+      queryParams: { modelStage: 'source' },
     };
   return useAxiosPost<
     IAxiosResponse<ISourceModelResponse[]>,
     Required<Pick<RequestBodyWrapper<any>, 'queryParams'>>
   >(GET_MODELS, requestWrapper);
-}
-
-export function isSourceSideModel(model: { modelStage?: string }) {
-  return model.modelStage === 'source' || model.modelStage === 'planning';
 }

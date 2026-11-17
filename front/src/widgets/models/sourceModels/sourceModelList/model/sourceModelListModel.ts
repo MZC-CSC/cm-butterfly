@@ -24,6 +24,7 @@ export function useSourceModelListModel() {
       { name: 'description', label: 'Description' },
       { name: 'migrationType', label: 'Migration Type' },
       { name: 'stage', label: 'Stage' },
+      { name: 'parentSourceModel', label: 'Derived From' },
       { name: 'createdDateTime', label: 'Created Date Time' },
       { name: 'updatedDateTime', label: 'Updated Date Time' },
     ];
@@ -37,13 +38,31 @@ export function useSourceModelListModel() {
           { name: 'description', label: 'Description' },
           { name: 'migrationType', label: 'Migration Type' },
           { name: 'stage', label: 'Stage' },
+          { name: 'parentSourceModel', label: 'Derived From' },
           { name: 'createdDateTime', label: 'Created Date Time' },
           { name: 'updatedDateTime', label: 'Updated Date Time' },
         ],
       },
     ];
   }
-  function organizeSourceModelTableItem(sourceModel: ISourceModelResponse) {
+  /**
+   * A planning model shows the source model it was derived from. That source model is in the same
+   * list, so its name is looked up there; the id is shown when it is not (e.g. deleted with force).
+   */
+  function parentSourceModelOf(
+    sourceModel: ISourceModelResponse,
+    byId: Map<string, ISourceModelResponse>,
+  ) {
+    if (sourceModel.modelStage !== 'planning') return '';
+    const id = sourceModel.lineage?.sourceModelId;
+    if (!id) return '';
+    return byId.get(id)?.userModelName || id;
+  }
+
+  function organizeSourceModelTableItem(
+    sourceModel: ISourceModelResponse,
+    byId: Map<string, ISourceModelResponse>,
+  ) {
     const organizedDatum: Partial<
       Record<SourceModelTableType | 'originalData', any>
     > = {
@@ -56,6 +75,7 @@ export function useSourceModelListModel() {
       stage: sourceModel.modelStage
         ? MODEL_STAGE_LABEL[sourceModel.modelStage]
         : '',
+      parentSourceModel: parentSourceModelOf(sourceModel, byId),
       modelType: sourceModel.modelType || 'Unknown',
       createdDateTime: formatDate(sourceModel.createTime),
       updatedDateTime: formatDate(sourceModel.updateTime),
@@ -65,8 +85,11 @@ export function useSourceModelListModel() {
   }
 
   watch(models, nv => {
+    const byId = new Map<string, ISourceModelResponse>(
+      nv.map((m: ISourceModelResponse) => [m.id, m]),
+    );
     tableModel.tableState.items = nv.map((value: ISourceModelResponse) =>
-      organizeSourceModelTableItem(value),
+      organizeSourceModelTableItem(value, byId),
     );
   });
 

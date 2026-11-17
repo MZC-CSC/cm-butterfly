@@ -12,6 +12,7 @@ import {
   modelCategoryOf,
   modelStageOf,
   planningLineageFrom,
+  INITIAL_MODEL_VERSION,
 } from '@/entities/migrationModel';
 import { EnhancedJsonEditor } from '@/shared/ui/EnhancedJsonEditor';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
@@ -160,7 +161,7 @@ function handleSaveModal(e) {
       sourceSoftwareModel: JSON.parse(serverCode.value),
       userId: auth.getUser().id,
       userModelName: e.name,
-      userModelVersion: targetModel.value?.userModelVersion || 'v0.1',
+      userModelVersion: INITIAL_MODEL_VERSION,
     };
 
     console.log('Software request body:', softwareRequestBody);
@@ -196,7 +197,7 @@ function handleSaveModal(e) {
       description: e.description,
       userModelName: e.name,
       isInitUserModel: false,
-      userModelVersion: targetModel.value?.userModelVersion || 'v0.1',
+      userModelVersion: INITIAL_MODEL_VERSION,
       // Only the nodes are edited here. Everything else is carried over as stored: rebuilding it
       // (e.g. defaulting the network lists to []) breaks once the model shape moves on - imdl
       // v0.1.20 takes ipv4Networks/ipv6Networks as objects and rejects arrays.

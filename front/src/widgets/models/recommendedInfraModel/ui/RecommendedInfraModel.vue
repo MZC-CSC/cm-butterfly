@@ -16,6 +16,7 @@ import {
   createInfraModel,
   describeModelError,
   targetLineageFrom,
+  INITIAL_MODEL_VERSION,
 } from '@/entities/migrationModel';
 import {
   getRecommendCost,
@@ -523,7 +524,7 @@ function handleSave(e: { name: string; description: string }) {
       isInitUserModel: true,
       region: region,
       userModelName: modelName.value,
-      userModelVersion: '1',
+      userModelVersion: INITIAL_MODEL_VERSION,
       zone: '',
       userId: auth.getUser().id,
       ...targetLineageFrom(targetSourceModel.value),

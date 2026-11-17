@@ -95,25 +95,15 @@ export function isConsoleModel(model: IStoredMigrationModel): boolean {
 }
 
 /** Category filter of the Source Models / Target Models lists ('' shows every category). */
-export const MODEL_CATEGORY_FILTER_ITEMS: { name: '' | ModelCategory; label: string }[] =
-  [
-    { name: '', label: 'All types' },
-    { name: 'infra', label: 'Infra' },
-    { name: 'software', label: 'Software' },
-    { name: 'objectStorage', label: 'Object Storage' },
-  ];
-
-export function matchesCategory(
-  model: IStoredMigrationModel,
-  category: '' | ModelCategory,
-): boolean {
-  if (!category) return true;
-  try {
-    return modelCategoryOf(model) === category;
-  } catch {
-    return false;
-  }
-}
+export const MODEL_CATEGORY_FILTER_ITEMS: {
+  name: '' | ModelCategory;
+  label: string;
+}[] = [
+  { name: '', label: 'All types' },
+  { name: 'infra', label: 'Infra' },
+  { name: 'software', label: 'Software' },
+  { name: 'objectStorage', label: 'Object Storage' },
+];
 
 export function isObjectStorageModel(model: IStoredMigrationModel): boolean {
   return model.modelType === MODEL_TYPE.OBJECT_STORAGE;
@@ -121,7 +111,9 @@ export function isObjectStorageModel(model: IStoredMigrationModel): boolean {
 
 /** Shown in the Migration Type column; cm-damselfly's raw modelType for the others. */
 export function migrationTypeLabelOf(model: IStoredMigrationModel): string {
-  return isObjectStorageModel(model) ? 'ObjectStorageModel' : model.modelType ?? '';
+  return isObjectStorageModel(model)
+    ? 'ObjectStorageModel'
+    : (model.modelType ?? '');
 }
 
 export function infraModelTypeOf(model: IStoredMigrationModel): InfraModelType {
@@ -287,7 +279,10 @@ export function createObjectStorageModel(
   });
 }
 
-export function updateObjectStorageModel(id: string, body: Record<string, any>) {
+export function updateObjectStorageModel(
+  id: string,
+  body: Record<string, any>,
+) {
   return axiosInstance.post(UPDATE_OBJECT_STORAGE_MODEL, {
     pathParams: { id },
     request: body,
@@ -318,28 +313,28 @@ export function updateBodyOf(
           'userModelVersion',
         ]
       : category === 'objectStorage'
-      ? [
-          'description',
-          'isInitUserModel',
-          'nodeId',
-          'sourceObjectStorageModel',
-          'targetObjectStorageModel',
-          'userId',
-          'userModelName',
-          'userModelVersion',
-        ]
-      : [
-          'cloudInfraModel',
-          'csp',
-          'description',
-          'isInitUserModel',
-          'onpremiseInfraModel',
-          'region',
-          'userId',
-          'userModelName',
-          'userModelVersion',
-          'zone',
-        ];
+        ? [
+            'description',
+            'isInitUserModel',
+            'nodeId',
+            'sourceObjectStorageModel',
+            'targetObjectStorageModel',
+            'userId',
+            'userModelName',
+            'userModelVersion',
+          ]
+        : [
+            'cloudInfraModel',
+            'csp',
+            'description',
+            'isInitUserModel',
+            'onpremiseInfraModel',
+            'region',
+            'userId',
+            'userModelName',
+            'userModelVersion',
+            'zone',
+          ];
   const body: Record<string, any> = {};
   keys.forEach(k => {
     if (model[k] !== undefined && model[k] !== null) body[k] = model[k];
@@ -347,13 +342,31 @@ export function updateBodyOf(
   return { ...body, ...changes };
 }
 
-/** Update the name and description of any stored model. */
+/**
+ * userModelVersion is the console's own counter; cm-damselfly stores it as given and keeps no
+ * history. Every new model starts at INITIAL_MODEL_VERSION, and each update of a stored model
+ * raises it by 0.1 (v0.9 -> v1.0), so the version tells how many times the model was edited.
+ */
+export const INITIAL_MODEL_VERSION = 'v0.1';
+
+/** The version after `version`. A value not in the vMAJOR.MINOR form (e.g. a legacy '1') is kept. */
+export function nextModelVersion(version: string | undefined): string {
+  const m = /^v(\d+)\.(\d)$/.exec((version ?? '').trim());
+  if (!m) return version ?? '';
+  const tenths = Number(m[1]) * 10 + Number(m[2]) + 1;
+  return `v${Math.floor(tenths / 10)}.${tenths % 10}`;
+}
+
+/** Update the name and description of any stored model; its version is raised by 0.1. */
 export function updateModelInfo(
   model: Record<string, any>,
   changes: { userModelName: string; description: string },
 ) {
   const stored = model as IStoredMigrationModel;
-  const body = updateBodyOf(model, changes);
+  const body = updateBodyOf(model, {
+    ...changes,
+    userModelVersion: nextModelVersion(model.userModelVersion),
+  });
   const category = modelCategoryOf(stored);
   if (category === 'software') return updateSoftwareModel(stored.id, body);
   if (category === 'objectStorage')

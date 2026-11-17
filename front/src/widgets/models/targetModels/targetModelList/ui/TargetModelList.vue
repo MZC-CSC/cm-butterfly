@@ -28,7 +28,6 @@ import {
   deleteModels,
   formatDeleteFailures,
   isConsoleModel,
-  matchesCategory,
   MODEL_CATEGORY_FILTER_ITEMS,
   ModelCategory,
 } from '@/entities/migrationModel';
@@ -118,37 +117,34 @@ function addDeleteIconAtTable() {
   return instance;
 }
 
-// The list mixes infra, software and object storage models; the category filter narrows it.
-// The fetched models are kept so that changing the filter does not fetch again.
-const fetchedModels = ref<any[]>([]);
+// The list mixes infra, software and object storage models. The category filter is sent to
+// cm-damselfly (GetModels 'category') so that only the asked models come back.
 const categoryFilter = ref<'' | ModelCategory>('');
 
-function applyCategoryFilter() {
-  tableModel.tableState.selectIndex = [];
-  targetModelStore.setTargetModel(
-    fetchedModels.value.filter(m => matchesCategory(m, categoryFilter.value)),
-  );
-}
-
 watch(categoryFilter, () => {
-  applyCategoryFilter();
+  getTableList();
   emit('select-row', { id: '', name: '' });
 });
 
 function getTableList() {
   isDataLoaded.value = false;
+  tableModel.tableState.selectIndex = [];
+  const category = categoryFilter.value;
   resGetTargetModelList
-    .execute()
+    .execute({
+      queryParams: { modelStage: 'target', ...(category ? { category } : {}) },
+    })
     .then(res => {
       // cm-damselfly returns 200 with a null body when there are no models, not an empty array.
       // Guarding with `if (responseData)` therefore skipped the update and left the previous fetch's
-      // rows on screen — delete the last model and it stayed visible. Always write, coercing to [].
-      // Infra, software and object storage models; categories the console has no screen for
-      // (RDBMS) are left out instead of breaking the list.
-      fetchedModels.value = Array.isArray(res.data.responseData)
-        ? res.data.responseData.filter(isConsoleModel)
-        : [];
-      applyCategoryFilter();
+      // rows on screen - delete the last model and it stayed visible. Always write, coercing to [].
+      // Categories the console has no screen for (RDBMS) are left out: their models cannot be
+      // opened, edited or deleted here.
+      targetModelStore.setTargetModel(
+        Array.isArray(res.data.responseData)
+          ? res.data.responseData.filter(isConsoleModel)
+          : [],
+      );
       nextTick(() => {
         isDataLoaded.value = true;
         // Re-render the component after data loads
@@ -284,4 +280,5 @@ function handleDeleteConfirm() {
 .category-filter {
   margin-left: 0.5rem;
   min-width: 9rem;
-}</style>
+}
+</style>

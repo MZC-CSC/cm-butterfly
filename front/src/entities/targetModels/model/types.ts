@@ -23,6 +23,8 @@ export type TargetModelTableType =
   | 'modelType'
   | 'customAndViewJSON'
   | 'parentPlanningModel'
+  | 'sourceModel'
+  | 'sourceGroup'
   | 'workflowTool';
 
 interface Vm {

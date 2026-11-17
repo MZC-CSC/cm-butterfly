@@ -21,6 +21,7 @@ import type {
 import {
   createObjectStorageModel,
   describeModelError,
+  INITIAL_MODEL_VERSION,
 } from '@/entities/migrationModel';
 import { useAuth } from '@/features/auth/model/useAuth.ts';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
@@ -256,7 +257,7 @@ async function handleSave() {
       userModelName: state.name.trim(),
       description: state.description,
       userId: auth.getUser().id,
-      userModelVersion: 'v0.1',
+      userModelVersion: INITIAL_MODEL_VERSION,
       isInitUserModel: true,
       lineage: { sourceGroupId: selectedGroup.value.name },
       sourceObjectStorageModel,

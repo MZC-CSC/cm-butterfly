@@ -24,6 +24,7 @@ import {
   createObjectStorageModel,
   describeModelError,
   targetLineageFrom,
+  INITIAL_MODEL_VERSION,
 } from '@/entities/migrationModel';
 import { useAuth } from '@/features/auth/model/useAuth.ts';
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
@@ -123,7 +124,7 @@ async function handleSave() {
       userModelName: target.modelName.trim(),
       description: recommended.value.description ?? '',
       userId: auth.getUser().id,
-      userModelVersion: 'v0.1',
+      userModelVersion: INITIAL_MODEL_VERSION,
       isInitUserModel: false,
       targetObjectStorageModel: recommended.value,
       ...lineageReq,
