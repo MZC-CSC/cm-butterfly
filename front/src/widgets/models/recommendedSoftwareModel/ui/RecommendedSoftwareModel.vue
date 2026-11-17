@@ -199,9 +199,8 @@ function handleCreateTargetModel(e) {
   saveTargetModelModal.context.name = e.name;
   saveTargetModelModal.context.description = e.description;
 
-  // get the isInitUserModel value from the Source Software Model
-  const isInitUserModel =
-    sourceSoftwareModelData.value?.isInitUserModel ?? false;
+  // A target saved as recommended is a basic model, as for infra; an edited copy is the custom one.
+  const isInitUserModel = true;
   const userId = authStore.id; // use the logged-in user's ID
   const userModelVersion = INITIAL_MODEL_VERSION;
 

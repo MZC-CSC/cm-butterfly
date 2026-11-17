@@ -125,7 +125,8 @@ async function handleSave() {
       description: recommended.value.description ?? '',
       userId: auth.getUser().id,
       userModelVersion: INITIAL_MODEL_VERSION,
-      isInitUserModel: false,
+      // A target saved as recommended is a basic model, as for infra; an edited copy is the custom one.
+      isInitUserModel: true,
       targetObjectStorageModel: recommended.value,
       ...lineageReq,
     });
