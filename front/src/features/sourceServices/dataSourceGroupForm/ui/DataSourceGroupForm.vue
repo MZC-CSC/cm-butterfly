@@ -16,10 +16,11 @@ import {
 
 /**
  * Registration form for a file system, DBMS or MinIO source group. cm-honeybee takes a
- * provider only for db and minio (required for both) and a region only for minio (required
- * on the providers in MINIO_REGION_REQUIRED_PROVIDERS); it drops them for the other types.
- * So the form asks only for what the chosen type keeps: nothing for a file system, the
- * provider for a DBMS, both for MinIO. Connections of these groups are added later, once the
+ * provider only for db and minio (required for both) and a region only for minio, where it
+ * derives the S3 endpoint from it on the providers in MINIO_REGION_REQUIRED_PROVIDERS and
+ * requires it there; it drops them otherwise. So the form asks only for what is used:
+ * nothing for a file system, the provider for a DBMS, and for MinIO the provider plus the
+ * region when that provider needs one. Connections of these groups are added later, once the
  * console supports their forms.
  */
 interface IProps {
@@ -44,7 +45,7 @@ const providerRequired = computed(
     props.groupType === SourceGroupType.Db ||
     props.groupType === SourceGroupType.Minio,
 );
-const showRegion = computed(() => props.groupType === SourceGroupType.Minio);
+// Shown only where it is used, and required wherever it is shown.
 const regionRequired = computed(
   () =>
     props.groupType === SourceGroupType.Minio &&
@@ -70,7 +71,7 @@ watch(
     // A value typed in before switching to a type that does not take it is not sent.
     if (providerRequired.value && state.provider)
       request.provider_name = state.provider;
-    if (showRegion.value && state.region.trim())
+    if (regionRequired.value && state.region.trim())
       request.region_name = state.region.trim();
     emit('update:value', request);
   },
@@ -107,9 +108,9 @@ watch(
         />
       </p-field-group>
       <p-field-group
-        v-if="showRegion"
+        v-if="regionRequired"
         label="Region"
-        :required="regionRequired"
+        required
         help-text="The provider's region code, e.g. ap-northeast-2."
       >
         <p-text-input
