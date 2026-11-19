@@ -62,7 +62,10 @@ Given('생성된 리소스를 정리한다', async ({ page }) => {
   ).toBeTruthy();
 
   // 2) Delete the source group — if a source model was created, remove the connection servers too (scenario step 7)
-  const groupName = uniqueName(sourceServer.name);
+  // The group this scenario registered ("소스 서비스에 … 소스서버를 등록한다" records it); the
+  // fixture name is only a fallback. Using the fixture name alone left the registered group behind.
+  const groupName =
+    scenarioState.sourceGroupName || uniqueName(sourceServer.name);
   try {
     const source = new SourceServicesPage(page);
     await source.goto();

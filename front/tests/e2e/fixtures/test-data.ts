@@ -80,7 +80,8 @@ export const testNamespace = {
  */
 export const sourceServer = {
   name: process.env.TEST_SOURCE_NAME || 'onprem-web-01',
-  ip: process.env.TEST_SOURCE_IP || '',
+  // e2e-prep-check reads TEST_SOURCE_NANO_IP; accept it here too so one variable is enough.
+  ip: process.env.TEST_SOURCE_IP || process.env.TEST_SOURCE_NANO_IP || '',
   privateIp: process.env.TEST_SOURCE_PRIVATE_IP || '',
   sshPort: process.env.TEST_SOURCE_SSH_PORT || '22',
   sshUser: process.env.TEST_SOURCE_SSH_USER || 'ubuntu',
