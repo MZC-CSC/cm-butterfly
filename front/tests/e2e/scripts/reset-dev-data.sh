@@ -6,10 +6,11 @@
 # 무관한 항목이 잔뜩 섞여 나온다. 실제로 타깃 모델 목록에 지난 실행분 12건이 남은 채로 한 벌을
 # 찍었고, 그래서 다시 찍어야 했다.
 #
-# ★ 모델은 종류별로 지운다. `/model/{id}` 같은 경로는 없다 — 목록은 `/model/{isTargetModel}` 로
-#   한꺼번에 나오지만 삭제는 `/cloudmodel/{id}`·`/onpremmodel/{id}`·`/softwaremodel/{source|target}/{id}`
-#   로 갈린다. 목록에서 온 id 를 그대로 `/model/{id}` 에 넣으면 **아무 일도 일어나지 않고 성공처럼
-#   끝난다** — 지웠다고 믿은 채로 촬영에 들어가게 된다.
+# ★ 모델은 종류별로 지운다. 목록은 통합 API `GET /model` 하나로 모든 단계·종류가 나오지만,
+#   삭제는 종류마다 경로가 다르다 — 인프라 `/infra-model/{id}`, 소프트웨어·오브젝트 스토리지·RDBMS 는
+#   `/{종류}-model/{id}?modelStage=…` (단계 필수). 목록에서 온 id 를 다른 종류의 경로에 넣으면 지워지지
+#   않는다 — 지웠다고 믿은 채로 촬영에 들어가게 된다.
+#   하위 모델이 있으면 409 로 거부되므로 목표 → 계획 → 소스 순서로 지운다. (2026-11-19 legacy API 에서 전환)
 #
 # 인프라(워크로드)는 여기서 건드리지 않는다. CSP 자원이 걸려 있어 제품의 삭제 기능으로 지워야 한다.
 #
@@ -36,24 +37,25 @@ for g in json.load(sys.stdin).get('source_group') or []: print(g['id'])"); do
 done
 echo "  소스그룹      $n 건 삭제"
 
-# 종류마다 경로가 다르므로 목록에서 종류를 함께 읽어 짝을 맞춘다.
+# 종류마다 경로가 다르므로 목록에서 종류·단계를 함께 읽어 짝을 맞춘다. 하위 모델부터 지운다.
 m=0
-for pair in $(for t in true false; do
-    curl -s -u "$AUTH" "$DF/model/$t" | python3 -c "
+for pair in $(curl -s -u "$AUTH" "$DF/model" | python3 -c "
 import sys,json
-target = '$t' == 'true'
+order = {'target': 0, 'planning': 1, 'source': 2}
+rows = []
 for x in json.load(sys.stdin) or []:
-    kind = x.get('modelType')
-    if kind == 'CloudModel':        path = 'cloudmodel'
-    elif kind == 'OnPremiseModel':  path = 'onpremmodel'
-    elif kind == 'SoftwareModel':   path = 'softwaremodel/' + ('target' if target else 'source')
-    else:                           continue
-    print(path + '|' + x['id'])
-"
-  done); do
-  path="${pair%%|*}"; id="${pair##*|}"
-  code=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE -u "$AUTH" "$DF/$path/$id")
-  [ "$code" = "200" ] && m=$((m+1)) || echo "    실패($code) $path/$id"
+    kind, stage = x.get('modelType'), x.get('modelStage')
+    if stage not in order: continue
+    if kind in ('CloudModel', 'OnPremiseModel'): path = 'infra-model/' + x['id']
+    elif kind == 'SoftwareModel':                path = 'software-model/' + x['id'] + '?modelStage=' + stage
+    elif kind == 'objectStorageModel':           path = 'object-storage-model/' + x['id'] + '?modelStage=' + stage
+    elif kind == 'RDBMSModel':                   path = 'rdbms-model/' + x['id'] + '?modelStage=' + stage
+    else:                                        continue
+    rows.append((order[stage], path))
+for _, path in sorted(rows): print(path)
+"); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE -u "$AUTH" "$DF/$pair")
+  [ "$code" = "200" ] && m=$((m+1)) || echo "    실패($code) $pair"
 done
 echo "  모델          $m 건 삭제"
 

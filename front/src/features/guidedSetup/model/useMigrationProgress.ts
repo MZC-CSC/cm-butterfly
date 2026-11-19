@@ -121,7 +121,8 @@ function hasContent(payload: any): boolean {
 
 function asArray(payload: any): any[] {
   if (Array.isArray(payload)) return payload;
-  if (payload && Array.isArray(payload.responseData)) return payload.responseData;
+  if (payload && Array.isArray(payload.responseData))
+    return payload.responseData;
   if (payload && Array.isArray(payload.data)) return payload.data;
   return [];
 }
@@ -198,9 +199,9 @@ async function anythingCollected(groups: any[]): Promise<boolean> {
 }
 
 /** Steps 3 and 4 - the same call, told apart by which side of the migration it describes. */
-async function models(isTargetModel: boolean): Promise<any[]> {
+async function models(modelStage: 'source' | 'target'): Promise<any[]> {
   const payload = await post(GET_MODELS, {
-    queryParams: { modelStage: isTargetModel ? 'target' : 'source' },
+    queryParams: { modelStage },
   });
   return asArray(payload);
 }
@@ -267,7 +268,7 @@ export async function evaluateProgress(): Promise<void> {
       return;
     }
 
-    const sourceModels = await models(false);
+    const sourceModels = await models('source');
     found.sourceModels = sourceModels.length;
     facts.value = { ...found };
     if (sourceModels.length === 0) {
@@ -276,7 +277,7 @@ export async function evaluateProgress(): Promise<void> {
       return;
     }
 
-    const targetModels = await models(true);
+    const targetModels = await models('target');
     found.targetModels = targetModels.length;
     facts.value = { ...found };
     if (targetModels.length === 0) {
