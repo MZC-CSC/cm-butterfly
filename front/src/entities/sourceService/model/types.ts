@@ -79,32 +79,6 @@ export function connectionTypeOf(connection: {
     'vm') as ConnectionResourceType;
 }
 
-/** Providers cm-honeybee accepts for minio and db groups (0.6.4, controller/provider.go). */
-export const DATA_SOURCE_PROVIDERS = [
-  'onprem',
-  'aws',
-  'alibaba',
-  'tencent',
-  'ncp',
-  'nhn',
-  'ibm',
-  'gcp',
-  'kt',
-  'azure',
-  'openstack',
-];
-
-/** A minio group of these providers needs a region (cm-honeybee regionRequired). */
-export const MINIO_REGION_REQUIRED_PROVIDERS = [
-  'aws',
-  'alibaba',
-  'tencent',
-  'ncp',
-  'nhn',
-  'ibm',
-  'gcp',
-];
-
 export type CspResourceType = 'vm' | 'k8s' | 'object_storage' | 'nlb' | 'rdbms';
 
 export interface ICspCredentialField {
