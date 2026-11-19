@@ -70,10 +70,16 @@ const handleSave = () => {
   isSaveModal.value = true;
 };
 
-const handleMetaViewer = e => {
+// Saving makes two models one after the other (the source model, then the planning model that
+// names it as its parent), so the viewer stays open until both are stored. Closing it at once let
+// a following navigation drop the second request and leave the source model alone.
+const isSaving = ref(false);
+
+const handleMetaViewer = async e => {
   isSaveModal.value = false;
+  isSaving.value = true;
   const category = props.dataType === 'software' ? 'software' : 'infra';
-  saveCollectedModels({
+  await saveCollectedModels({
     category,
     // The collected source group is where the migration lineage starts.
     sourceGroupId: props.sgId,
@@ -84,6 +90,7 @@ const handleMetaViewer = e => {
     edited: convertedData.value,
   })
     .then(({ derived }) => {
+      emit('update:is-meta-viewer-opened');
       if (category === 'infra') {
         showSuccessMessage(
           'success',
@@ -100,9 +107,10 @@ const handleMetaViewer = e => {
     })
     .catch(err => {
       showErrorMessage('error', describeModelError(err).message);
+    })
+    .finally(() => {
+      isSaving.value = false;
     });
-
-  emit('update:is-meta-viewer-opened');
 };
 
 function handleConvertInfra(): (
@@ -163,7 +171,11 @@ function handleConvertSoftware(): (
         >
           {{ i18n.t('COMPONENT.BUTTON_MODAL.CANCEL') }}
         </p-button>
-        <p-button :disabled="!isConverted" @click="handleSave">
+        <p-button
+          :disabled="!isConverted || isSaving"
+          :loading="isSaving"
+          @click="handleSave"
+        >
           {{ i18n.t('COMPONENT.BUTTON_MODAL.SAVE') }}
         </p-button>
       </template>
