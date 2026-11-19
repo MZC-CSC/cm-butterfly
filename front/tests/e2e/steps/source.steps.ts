@@ -2,6 +2,7 @@ import { createBdd } from 'playwright-bdd';
 import { expect } from '@playwright/test';
 import { test } from '../support/fixtures';
 import { SourceServicesPage, Connection } from '../pages/sourceServices.page';
+import { ModelsPage } from '../pages/models.page';
 import { sourceServer } from '../fixtures/test-data';
 import { uniqueName } from '../support/naming';
 import { scenarioState } from '../support/world';
@@ -90,16 +91,34 @@ Given('소스 인프라를 수집한다', async ({ page }) => {
 
 /**
  * "그리고 수집된 정보를 소스 모델로 저장한다"
- * → 수집 결과 팝업(Refine)에서 Convert → Save → 이름 입력 → 확인으로 인프라 소스모델(OnPremiseModel, "Basic")을 저장한다.
- *   이름은 소스그룹명(uniqueName)과 동일하게 해 이후 추천 단계에서 그 모델을 선택한다.
+ * → 수집 결과 팝업(Refine)에서 Convert → Save → 이름 입력 → 확인.
+ *   저장하면 수집 원본은 "{이름}-source" 소스 모델로, 입력한 이름은 그 아래 계획 모델로 함께 저장된다
+ *   (2026-11-17 변경). 이름은 소스그룹명(uniqueName)과 같게 두고, 이후 추천 단계는 그 계획 모델을 쓴다.
  */
 Given('수집된 정보를 소스 모델로 저장한다', async ({ page }) => {
   const source = new SourceServicesPage(page);
-  // 소스 모델 이름은 소스그룹 이름과 같게 둔다 — 이후 추천 단계가 그 이름으로 모델을 찾는다.
   const modelName = currentSourceGroup();
   await source.saveCollectedInfraAsSourceModel(modelName);
-  scenarioState.sourceModelName = modelName;
+  scenarioState.sourceModelName = `${modelName}-source`;
+  scenarioState.planningModelName = modelName;
 });
+
+/**
+ * "그러면 수집 결과가 원본 소스 모델과 계획 모델로 함께 저장된다"
+ * → 소스 모델("{이름}-source")은 조회만 되고, 입력한 이름의 계획 모델이 그 소스에서 파생돼 있다.
+ */
+Then(
+  '수집 결과가 원본 소스 모델과 계획 모델로 함께 저장된다',
+  async ({ page }) => {
+    const models = new ModelsPage(page);
+    await models.gotoSourceModels();
+    await models.expectDerivedFrom(
+      scenarioState.planningModelName!,
+      scenarioState.sourceModelName!,
+    );
+    await models.expectSourceModelReadOnly(scenarioState.sourceModelName!);
+  },
+);
 
 // ───────────────────────── 유닛 스텝 ─────────────────────────
 

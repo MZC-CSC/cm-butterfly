@@ -452,8 +452,13 @@ export class ObjectStoragePage {
     await models.selectModel(name);
     await humanClick(this.page.getByTestId('model-list-delete'));
     await humanClick(this.confirmButton('model-list-delete-confirm'));
+    // Match the row by a cell equal to the name: a planning model's name is the prefix of its
+    // source model's ("{name}-source"), so a row-text match would keep finding the source row.
     await expect(
-      this.page.getByTestId('model-list-table').getByRole('row', { name }),
+      this.page
+        .getByTestId('model-list-table')
+        .getByRole('row')
+        .filter({ has: this.page.getByRole('cell', { name, exact: true }) }),
     ).toHaveCount(0, { timeout: 30_000 });
   }
 }

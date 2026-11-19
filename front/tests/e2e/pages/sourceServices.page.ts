@@ -284,12 +284,17 @@ export class SourceServicesPage {
   }
 
   /** 목록의 유형 필터. 고른 값은 루트의 data-value 로 드러난다(미리내 선택 상태는 표준 속성이 아니다). */
-  async filterByType(value: '' | 'onprem' | 'csp', label: string): Promise<void> {
+  async filterByType(
+    value: '' | 'onprem' | 'csp',
+    label: string,
+  ): Promise<void> {
     const filter = this.page.getByTestId('source-group-type-filter').first();
     await humanClick(filter);
     await humanClick(
       filter
-        .locator('.p-context-menu-item', { hasText: new RegExp(`^\\s*${label}\\s*$`) })
+        .locator('.p-context-menu-item', {
+          hasText: new RegExp(`^\\s*${label}\\s*$`),
+        })
         .first(),
     );
     await expect(filter).toHaveAttribute('data-value', value);
@@ -944,6 +949,9 @@ export class SourceServicesPage {
     await humanClick(this.refineSaveButton); // Convert 후 활성화(자동 대기)
     await humanFill(this.refineModelNameInput, name);
     await humanClick(this.refineModelNameConfirm);
+    // 저장은 모델 두 개(소스 원본 → 계획 모델)를 차례로 만들고, 둘 다 끝나야 창이 닫힌다.
+    // 닫히기 전에 다음 화면으로 넘어가면 두 번째 요청이 끊긴다. (2026-11-19)
+    await expect(this.refineConvertButton).toBeHidden({ timeout: 60_000 });
   }
 
   /** 수집된 소프트웨어를 damselfly 소스모델(SoftwareModel, "Basic")로 저장(인프라와 동일 팝업 흐름). */
@@ -952,6 +960,9 @@ export class SourceServicesPage {
     await humanClick(this.refineSaveButton);
     await humanFill(this.refineModelNameInput, name);
     await humanClick(this.refineModelNameConfirm);
+    // 저장은 모델 두 개(소스 원본 → 계획 모델)를 차례로 만들고, 둘 다 끝나야 창이 닫힌다.
+    // 닫히기 전에 다음 화면으로 넘어가면 두 번째 요청이 끊긴다. (2026-11-19)
+    await expect(this.refineConvertButton).toBeHidden({ timeout: 60_000 });
   }
 
   /** 선택된 소스그룹 삭제 (delete-source-group) */

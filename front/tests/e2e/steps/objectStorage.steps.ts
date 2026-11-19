@@ -15,6 +15,8 @@ const run = {
   group: '',
   sourceModel: '',
   sourceModelId: '',
+  // 수집해 저장할 때 소스 모델과 함께 만들어지는 계획 모델의 이름(입력한 이름 그대로).
+  collectedPlanningModel: '',
   planningModel: '',
   planningModelId: '',
   targetModel: '',
@@ -101,6 +103,7 @@ When(
     // 입력한 이름은 계획 모델이 되고, 수집 원본은 "{이름}-source" 소스 모델로 저장된다.
     const name = uniqueName('e2e-os-src');
     run.sourceModel = `${name}-source`;
+    run.collectedPlanningModel = name;
     run.sourceModelId = await new ObjectStoragePage(page).createSourceModel(
       run.group,
       testBucket(),
@@ -121,6 +124,21 @@ Then('그 소스 모델에서는 추천을 받을 수 없다', async ({ page }) 
   const models = new ModelsPage(page);
   await models.gotoSourceModels();
   await models.expectSourceModelReadOnly(run.sourceModel);
+});
+
+/**
+ * "만약 수집할 때 함께 만들어진 계획 모델을 쓰면"
+ * → 수집 결과를 저장하면 계획 모델이 소스 모델과 함께 만들어지므로(2026-11-17), 새로 저장하지 않고 그것을 쓴다.
+ */
+When('수집할 때 함께 만들어진 계획 모델을 쓰면', async ({ page }) => {
+  expect(run.collectedPlanningModel, '수집해 저장한 모델이 없다').not.toBe('');
+  run.planningModel = run.collectedPlanningModel;
+  const models = new ModelsPage(page);
+  await models.gotoSourceModels();
+  run.planningModelId = await new ObjectStoragePage(page).selectedModelId(
+    run.planningModel,
+  );
+  expect(run.planningModelId).not.toBe('');
 });
 
 When('그 소스 모델을 계획 모델로 저장하면', async ({ page }) => {

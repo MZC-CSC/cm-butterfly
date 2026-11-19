@@ -1542,6 +1542,30 @@ export class WorkflowPage {
    * A single, non-throwing visibility check — no reload loop. Callers that want a best-effort, time-bounded probe
    * pass a short timeout; the button being absent within that window is a valid answer (returns false).
    */
+  /**
+   * Close every open software migration result screen. It is a full-screen overlay that covers the
+   * menu, and the View SW path leaves it open (the run-result path closes its own); two can end up
+   * stacked. Closed from the top one down with its back button.
+   */
+  async closeSoftwareMigrationOverlays(): Promise<void> {
+    // Count only the shown ones: a hidden copy of the overlay stays in the DOM after it is closed.
+    const shown = this.page.locator(
+      '[data-testid="sw-migration-overlay"]:visible',
+    );
+    for (let i = 0; i < 5; i += 1) {
+      const count = await shown.count();
+      if (count === 0) return;
+      await humanClick(
+        shown
+          .nth(count - 1)
+          .locator('.page-top button')
+          .first(),
+      );
+      await expect(shown).toHaveCount(count - 1, { timeout: 15_000 });
+    }
+    await expect(shown).toHaveCount(0);
+  }
+
   async hasSoftwareMigrationResult(timeoutMs = 30_000): Promise<boolean> {
     return this.viewSwButton
       .isVisible({ timeout: timeoutMs })

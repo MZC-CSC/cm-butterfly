@@ -472,6 +472,11 @@ Then('JSON 뷰어에 스크립트가 디코드되어 보인다', async ({ page }
   );
 });
 
+/** "그리고 소프트웨어 마이그레이션 결과 화면을 닫는다" — 메뉴를 가리는 결과 오버레이를 모두 닫는다. */
+When('소프트웨어 마이그레이션 결과 화면을 닫는다', async ({ page }) => {
+  await new WorkflowPage(page).closeSoftwareMigrationOverlays();
+});
+
 Then('화면을 {string} 이름으로 캡처한다', async ({ page }, name: string) => {
   await captureScreen(page, test.info(), name);
 });
