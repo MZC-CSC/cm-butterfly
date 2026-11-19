@@ -47,8 +47,9 @@ const state = reactive({
 
 // The group type is chosen here and fixes which connections the group takes (cm-honeybee
 // 0.6.4): on-premise groups are reached over SSH; a CSP group is the customer's cloud account,
-// read through its API with the credential entered here; fs, db and minio groups hold data
-// sources of their own kind.
+// read through its API with the credential entered here. File system, DBMS and MinIO groups are
+// collected by cm-honeybee as cm-centipede data migration models, which v0.7.0 does not cover,
+// so those types are listed as planned and cannot be chosen yet.
 const sourceType = ref<SourceGroupTypeValue>(props.fixedType ?? 'onprem');
 const cspRequest = ref<ICspSourceGroupRequest | null>(null);
 const dataSourceRequest = ref<Record<string, any> | null>(null);
@@ -57,11 +58,11 @@ const isDataSourceType = computed(() =>
 );
 
 const sourceTypeOptions = [
-  { value: 'onprem', label: 'On-premise (SSH)' },
-  { value: 'csp', label: 'Cloud (CSP account)' },
-  { value: 'fs', label: 'File system' },
-  { value: 'db', label: 'DBMS' },
-  { value: 'minio', label: 'MinIO' },
+  { value: 'onprem', label: 'On-premise (SSH)', planned: false },
+  { value: 'csp', label: 'Cloud (CSP account)', planned: false },
+  { value: 'fs', label: 'File system', planned: true },
+  { value: 'db', label: 'DBMS', planned: true },
+  { value: 'minio', label: 'MinIO', planned: true },
 ];
 
 watchEffect(() => {
@@ -232,11 +233,19 @@ const handleConnectionModal = (value: boolean) => {
               :key="option.value"
               v-model="sourceType"
               :value="option.value"
+              :disabled="option.planned"
               :data-testid="`source-service-type-${option.value}`"
+              :data-disabled="option.planned"
             >
               <span>{{ option.label }}</span>
             </p-radio>
           </p-radio-group>
+          <p
+            class="source-type-planned"
+            data-testid="source-service-type-planned"
+          >
+            File system, DBMS and MinIO sources are planned for a later release.
+          </p>
         </div>
         <csp-source-group-form
           v-if="sourceType === 'csp'"
@@ -287,8 +296,14 @@ const handleConnectionModal = (value: boolean) => {
 .source-type {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 1rem;
   padding: 1rem 1rem 0;
+}
+.source-type-planned {
+  width: 100%;
+  font-size: 0.75rem;
+  color: theme('colors.gray.500');
 }
 .source-type-label {
   font-size: 0.875rem;
