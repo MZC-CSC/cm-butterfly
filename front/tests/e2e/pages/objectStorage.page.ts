@@ -162,44 +162,22 @@ export class ObjectStoragePage {
   // 목록 선택·계획 모델 저장·단계/부모 확인은 ModelsPage 를 그대로 쓴다.
 
   /**
-   * Source Models 의 Create Object Storage Source Model 창에서 그룹과 버킷을 골라 수집하고 저장한다.
-   * 버킷 설정은 손으로 넣지 않는다 — 소스 서비스가 계정에서 읽어 온 값이 들어간다.
-   * 저장된 모델의 ID 를 돌려준다.
+   * 소스 서비스 상세의 Collect Object Storage 로 그 서비스의 버킷을 수집하고, 열린 수집 결과 창에서
+   * Convert → Save 로 저장한다(인프라·SW 와 같은 흐름). 버킷 설정은 손으로 넣지 않는다.
+   * 저장하면 수집 원본은 "{이름}-source" 소스 모델, 입력한 이름은 그 아래 계획 모델이 된다.
+   * 소스 모델의 ID 를 돌려준다.
    */
   async createSourceModel(
     group: string,
     bucket: string,
     name: string,
   ): Promise<string> {
-    const models = new ModelsPage(this.page);
-    await models.gotoSourceModels();
-    await humanClick(this.page.getByTestId('os-source-create-open'));
-    await expect(this.page.getByTestId('os-source-create-body')).toBeVisible({
-      timeout: 15_000,
-    });
-    const dropdown = this.page.getByTestId('os-source-create-group');
-    await humanClick(dropdown);
-    await humanClick(
-      dropdown
-        .locator('.p-context-menu-item', { hasText: `${group} (` })
-        .first(),
-    );
-    const row = this.page.getByTestId(`os-source-create-bucket-${bucket}`);
-    await expect(row).toBeVisible({ timeout: 30_000 });
-    await humanClick(this.page.getByTestId(`os-source-create-pick-${bucket}`));
-    await expect(row).toHaveAttribute('data-selected', 'true');
-    await humanClick(this.page.getByTestId('os-source-create-collect'));
-    await expect(row).toHaveAttribute('data-status', 'collected', {
-      timeout: 120_000,
-    });
-    await humanFill(this.input('os-source-create-name'), name);
-    await humanClick(this.confirmButton('os-source-create-save'));
-    await expect(this.page.getByTestId('os-source-create-body')).toHaveCount(
-      0,
-      { timeout: 30_000 },
-    );
-    // 저장하면 수집 원본은 "{이름}-source" 소스 모델로, 입력한 이름은 그 아래 계획 모델로 함께
-    // 저장된다. 여기서는 소스 모델의 ID 를 돌려준다. (2026-11-17)
+    const sources = new SourceServicesPage(this.page);
+    await sources.gotoCloud();
+    await sources.selectGroup(group);
+    await this.collectFromGroupDetail();
+    await this.expectBucketInCollectViewer(bucket);
+    await sources.saveCollectedObjectStorageAsSourceModel(name);
     return this.selectedModelId(`${name}-source`);
   }
 
@@ -261,35 +239,20 @@ export class ObjectStoragePage {
   }
 
   /**
-   * 버킷 연결에서 수집하면 소스 모델 저장 창이 바로 열린다(Collect Infra 와 같다). 그 창은 그 버킷을
-   * 방금 수집한 값으로 고른 채 열리고 다시 수집하지 않는다. 이름을 넣고 저장한다.
+   * 버킷 연결에서 수집하면 수집 결과 창이 바로 열린다(Collect Infra 와 같다). 그 창에서 Convert → Save 로
+   * 저장한다. 다시 수집하지 않는다.
    */
   async saveSourceModelFromConnection(
     bucket: string,
     name: string,
   ): Promise<void> {
-    await expect(this.page.getByTestId('os-source-create-body')).toBeVisible({
-      timeout: 15_000,
-    });
-    const row = this.page.getByTestId(`os-source-create-bucket-${bucket}`);
-    await expect(row).toHaveAttribute('data-selected', 'true', {
-      timeout: 30_000,
-    });
-    await expect(row).toHaveAttribute('data-status', 'collected', {
-      timeout: 120_000,
-    });
-    await humanFill(this.input('os-source-create-name'), name);
-    await humanClick(this.confirmButton('os-source-create-save'));
-    await expect(this.page.getByTestId('bucket-collect-saved')).toContainText(
-      name,
-      { timeout: 30_000 },
-    );
+    await this.expectBucketInCollectViewer(bucket);
+    await new SourceServicesPage(
+      this.page,
+    ).saveCollectedObjectStorageAsSourceModel(name);
   }
 
-  /**
-   * 소스 서비스 상세(Detail 탭)의 Collect Object Storage 를 누른다. 그 서비스의 버킷 연결이 모두 골라진 채
-   * 소스 모델 저장 창이 열리고 바로 수집된다(Collect Infra 와 같다).
-   */
+  /** 소스 서비스 상세(Detail 탭)의 Collect Object Storage 를 누르면 버킷을 수집한 뒤 수집 결과 창이 열린다. */
   async collectFromGroupDetail(): Promise<void> {
     await humanClick(this.page.getByRole('tab', { name: /Detail/i }).first());
     const button = this.page.getByTestId('source-group-collect-os');
@@ -299,30 +262,23 @@ export class ObjectStoragePage {
       this.page.getByTestId('source-group-collect-os-trigger'),
     ).toHaveAttribute('data-disabled-reason', '', { timeout: 30_000 });
     await humanClick(button);
-    await expect(this.page.getByTestId('os-source-create-body')).toBeVisible({
-      timeout: 15_000,
-    });
+    await new SourceServicesPage(this.page).expectCollectViewerOpen();
   }
 
-  /** 저장 창에서 그 버킷이 골라져 수집됐다. */
-  async expectBucketCollectedInCreateModal(bucket: string): Promise<void> {
-    const row = this.page.getByTestId(`os-source-create-bucket-${bucket}`);
-    await expect(row).toHaveAttribute('data-selected', 'true', {
-      timeout: 30_000,
-    });
-    await expect(row).toHaveAttribute('data-status', 'collected', {
-      timeout: 120_000,
-    });
-  }
-
-  /** 저장 창에 이름을 넣고 저장한다. 창이 닫히면 끝난다. */
-  async saveFromCreateModal(name: string): Promise<void> {
-    await humanFill(this.input('os-source-create-name'), name);
-    await humanClick(this.confirmButton('os-source-create-save'));
-    await expect(this.page.getByTestId('os-source-create-body')).toHaveCount(
-      0,
+  /** 수집 결과 창 왼쪽(Meta)에 그 버킷이 수집돼 있다. */
+  async expectBucketInCollectViewer(bucket: string): Promise<void> {
+    await new SourceServicesPage(this.page).expectCollectViewerOpen();
+    await expect(this.page.getByTestId('source-meta-json')).toContainText(
+      bucket,
       { timeout: 30_000 },
     );
+  }
+
+  /** 수집 결과 창에서 Convert → Save 로 저장한다. 창이 닫히면 끝난다. */
+  async saveFromCollectViewer(name: string): Promise<void> {
+    await new SourceServicesPage(
+      this.page,
+    ).saveCollectedObjectStorageAsSourceModel(name);
   }
 
   /** 계획 모델 상세의 View Recommended List 로 추천 창을 열고, 같은 CSP·리전으로 추천받아 목표 모델로 저장한다. */

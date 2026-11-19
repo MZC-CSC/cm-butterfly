@@ -379,7 +379,7 @@ export function createdModelIdOf(res: any): string {
  * Unedited, a single source model is saved under the user's name.
  */
 export async function saveCollectedModels(params: {
-  category: 'infra' | 'software';
+  category: 'infra' | 'software' | 'objectStorage';
   sourceGroupId: string;
   userId: string;
   name: string;
@@ -418,6 +418,34 @@ export async function saveCollectedModels(params: {
         userModelName: name,
         description,
         sourceSoftwareModel: softwareOf(params.edited),
+      }),
+    );
+    return { source, derived };
+  }
+
+  if (category === 'objectStorage') {
+    // The collected buckets are the source model and the shown (possibly edited) ones the
+    // planning model, as for infra; recommendations run from the planning model.
+    const storageOf = (m: Record<string, any>) =>
+      m?.sourceObjectStorageModel || m;
+    const source = createdModelIdOf(
+      await createObjectStorageModel('source', {
+        ...common,
+        sourceObjectStorageModel: storageOf(params.original),
+        lineage: { sourceGroupId },
+        isInitUserModel: true,
+        userModelName: sourceName,
+        description: sourceDescription,
+      }),
+    );
+    const derived = createdModelIdOf(
+      await createObjectStorageModel('planning', {
+        ...common,
+        sourceObjectStorageModel: storageOf(params.edited),
+        parentId: source,
+        isInitUserModel: false,
+        userModelName: name,
+        description,
       }),
     );
     return { source, derived };

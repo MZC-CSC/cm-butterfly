@@ -965,6 +965,20 @@ export class SourceServicesPage {
     await expect(this.refineConvertButton).toBeHidden({ timeout: 60_000 });
   }
 
+  /** 수집 결과 창이 열렸다(Collect 가 수집을 마치면 자동으로 연다). */
+  async expectCollectViewerOpen(): Promise<void> {
+    await expect(this.refineConvertButton).toBeVisible({ timeout: 120_000 });
+  }
+
+  /** 수집된 버킷을 소스 모델 + 계획 모델로 저장(인프라·SW 와 같은 수집 결과 창 흐름). */
+  async saveCollectedObjectStorageAsSourceModel(name: string): Promise<void> {
+    await humanClick(this.refineConvertButton);
+    await humanClick(this.refineSaveButton);
+    await humanFill(this.refineModelNameInput, name);
+    await humanClick(this.refineModelNameConfirm);
+    await expect(this.refineConvertButton).toBeHidden({ timeout: 60_000 });
+  }
+
   /** 선택된 소스그룹 삭제 (delete-source-group) */
   async deleteSelectedGroup(): Promise<void> {
     await humanClick(this.deleteGroupIcon);

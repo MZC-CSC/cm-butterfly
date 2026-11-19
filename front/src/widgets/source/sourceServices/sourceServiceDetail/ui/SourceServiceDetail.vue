@@ -21,7 +21,10 @@ import {
   SOURCE_GROUP_TYPE_LABEL,
   SourceGroupType,
 } from '@/entities/sourceService/model/types';
-import CreateObjectStorageSourceModelModal from '@/widgets/models/createObjectStorageSourceModel/ui/CreateObjectStorageSourceModelModal.vue';
+import {
+  collectBucket,
+  getGroupBucketsMeta,
+} from '@/entities/objectStorage/api';
 import { useSourceServiceDetailModel } from '@/widgets/source/sourceServices/sourceServiceDetail/model/sourceServiceDetailModel';
 import {
   useGetInfraSourceGroup,
@@ -99,6 +102,8 @@ const connectionKinds = ref({
   buckets: [] as string[],
   others: 0,
 });
+// The bucket connections Collect Object Storage collects.
+const bucketConnectionIds = ref<string[]>([]);
 const unsupportedGroupHint = computed(
   () =>
     `This is a ${
@@ -148,7 +153,42 @@ const objectStorageHint = computed(() => {
     ? 'No object storage connection in this source service. Add buckets with Discover Buckets or from Connections.'
     : '';
 });
-const objectStorageCollectOpen = ref(false);
+
+/*
+  Collect Object Storage works as Collect Infra does: every bucket connection of the source
+  service is collected, then the viewer opens with what was collected (Meta). Convert turns it
+  into the source model and Save stores it as the source and planning models.
+*/
+const objectStorageModal = reactive({ open: false });
+const objectStorageMeta = ref<any>(null);
+const isCollectingObjectStorage = ref(false);
+async function collectSourceGroupBuckets() {
+  if (objectStorageHint.value || isCollectingObjectStorage.value) return;
+  isCollectingObjectStorage.value = true;
+  try {
+    await Promise.all(
+      bucketConnectionIds.value.map(id =>
+        collectBucket(props.selectedServiceId, id),
+      ),
+    );
+    const res = await getGroupBucketsMeta(props.selectedServiceId);
+    if (!res.data.responseData) {
+      reportCollectFailure(
+        'Object storage',
+        new Error('The source service returned no collected data.'),
+      );
+      return;
+    }
+    objectStorageMeta.value = res.data.responseData;
+    objectStorageModal.open = true;
+    loadConnectionOutcomes();
+  } catch (e) {
+    objectStorageMeta.value = null;
+    reportCollectFailure('Object storage', e);
+  } finally {
+    isCollectingObjectStorage.value = false;
+  }
+}
 
 // Software-related state
 const softwareModel = ref<any>(null);
@@ -395,6 +435,7 @@ async function loadConnectionOutcomes() {
       buckets: buckets.map((c: any) => c.resource_id),
       others: list.length - vms.length - buckets.length,
     };
+    bucketConnectionIds.value = buckets.map((c: any) => c.id);
     sourceServiceStore.mappingConnectionOutcomes(
       props.selectedServiceId,
       list.map((c: any) => ({
@@ -638,11 +679,8 @@ function handleSoftwareModal() {
               style-type="tertiary"
               size="sm"
               :disabled="!!objectStorageHint"
-              @click="
-                () => {
-                  if (!objectStorageHint) objectStorageCollectOpen = true;
-                }
-              "
+              :loading="isCollectingObjectStorage"
+              @click="collectSourceGroupBuckets"
             >
               Collect Object Storage
             </p-button>
@@ -695,13 +733,15 @@ function handleSoftwareModal() {
         </div>
       </template>
     </p-definition-table>
-    <!-- Collect Object Storage: the buckets of this source service are collected and saved as a
-         source model in one go, as Collect Infra does for servers. -->
-    <create-object-storage-source-model-modal
-      v-if="objectStorageCollectOpen"
-      :initial-group-id="props.selectedServiceId"
-      select-all
-      @update:close-modal="objectStorageCollectOpen = false"
+    <!-- Collect Object Storage: what was collected from the buckets of this source service, shown
+         and saved as Collect Infra does for servers. -->
+    <SourceServiceRefineModal
+      v-if="objectStorageModal.open"
+      :sgId="props.selectedServiceId"
+      :collect-data="objectStorageMeta"
+      data-type="objectStorage"
+      data-source="sourceGroup"
+      @update:is-meta-viewer-opened="objectStorageModal.open = false"
     />
     <SourceServiceRefineModal
       v-if="modalState.open"

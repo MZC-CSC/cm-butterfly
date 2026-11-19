@@ -16,13 +16,14 @@ import {
   useGetSoftwareInfoRefined,
 } from '@/entities/sourceConnection/api';
 import { useAuth } from '@/features/auth/model/useAuth.ts';
+import { getRefinedBucketResponse } from '@/entities/objectStorage/api';
 
 interface iProps {
   collectData: string | undefined;
   sourceConnectionName: string;
   sgId: string;
   connId: string;
-  dataType?: 'infra' | 'software';
+  dataType?: 'infra' | 'software' | 'objectStorage';
 }
 
 const props = defineProps<iProps>();
@@ -47,6 +48,9 @@ const getSoftwareInfoRefined = useGetSoftwareInfoRefined(
 // pick the appropriate conversion function based on the data type
 const getConvertFunction = computed(() => {
   // pick the conversion function based on the dataType prop
+  if (props.dataType === 'objectStorage') {
+    return handleConvertObjectStorage();
+  }
   if (props.dataType === 'software') {
     return handleConvertSoftware();
   }
@@ -62,6 +66,8 @@ const modalTitle = computed(() => {
     return `${baseTitle} - Software`;
   } else if (props.dataType === 'infra') {
     return `${baseTitle} - Infra`;
+  } else if (props.dataType === 'objectStorage') {
+    return `${baseTitle} - Object Storage`;
   }
   return baseTitle;
 });
@@ -78,7 +84,10 @@ const isSaving = ref(false);
 const handleMetaViewer = async e => {
   isSaveModal.value = false;
   isSaving.value = true;
-  const category = props.dataType === 'software' ? 'software' : 'infra';
+  const category =
+    props.dataType === 'software' || props.dataType === 'objectStorage'
+      ? props.dataType
+      : 'infra';
   await saveCollectedModels({
     category,
     // The collected source group is where the migration lineage starts.
@@ -91,7 +100,7 @@ const handleMetaViewer = async e => {
   })
     .then(({ derived }) => {
       emit('update:is-meta-viewer-opened');
-      if (category === 'infra') {
+      if (category !== 'software') {
         showSuccessMessage(
           'success',
           `Saved the collected source model and the planning model "${e.name}"`,
@@ -112,6 +121,29 @@ const handleMetaViewer = async e => {
       isSaving.value = false;
     });
 };
+
+// The collected bucket in the shape of the source model.
+const isConvertingObjectStorage = ref(false);
+function handleConvertObjectStorage(): (
+  payload?: any,
+  config?: any,
+) => Promise<AxiosResponse<any> | void> {
+  return () => {
+    isConvertingObjectStorage.value = true;
+    return getRefinedBucketResponse(props.sgId, props.connId)
+      .then(res => {
+        isConverted.value = true;
+        convertedData.value = res.data.responseData;
+        originalData.value = JSON.parse(
+          JSON.stringify(res.data.responseData ?? null),
+        );
+        return res;
+      })
+      .finally(() => {
+        isConvertingObjectStorage.value = false;
+      });
+  };
+}
 
 function handleConvertInfra(): (
   payload?: any,
@@ -160,8 +192,10 @@ function handleConvertSoftware(): (
           :promiseFunc="getConvertFunction"
           :loading="
             getInfraInfoRefined.isLoading.value ||
-            getSoftwareInfoRefined.isLoading.value
+            getSoftwareInfoRefined.isLoading.value ||
+            isConvertingObjectStorage
           "
+          @update:convertedJSON="convertedData = $event"
         />
       </template>
       <template #buttons>
@@ -172,6 +206,7 @@ function handleConvertSoftware(): (
           {{ i18n.t('COMPONENT.BUTTON_MODAL.CANCEL') }}
         </p-button>
         <p-button
+          data-testid="source-refine-save"
           :disabled="!isConverted || isSaving"
           :loading="isSaving"
           @click="handleSave"
@@ -183,17 +218,11 @@ function handleConvertSoftware(): (
     <simple-edit-form
       v-if="isSaveModal"
       name=""
-      header-title="Save Source Model2"
+      header-title="Save Source Model"
       name-label="Name"
       name-placeholder="Source Service name"
       @update:close-modal="isSaveModal = false"
       @update:save-modal="e => handleMetaViewer(e)"
     />
-    <!-- <save-source-model-modal
-      v-if="isSaveModal"
-      header-title="Save Source Model"
-      name-label="Source Service name"
-      @update:save-modal="handleMetaViewer"
-    /> -->
   </div>
 </template>

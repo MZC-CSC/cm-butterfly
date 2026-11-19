@@ -98,7 +98,7 @@ Then('그 버킷이 커넥션 목록에 보인다', async ({ page }) => {
 });
 
 When(
-  'Source Models 에서 그 버킷을 수집해 오브젝트 스토리지 소스 모델을 만들면',
+  '소스 서비스에서 그 버킷을 수집해 오브젝트 스토리지 소스 모델을 만들면',
   async ({ page }) => {
     // 입력한 이름은 계획 모델이 되고, 수집 원본은 "{이름}-source" 소스 모델로 저장된다.
     const name = uniqueName('e2e-os-src');
@@ -182,10 +182,13 @@ Then('수집한 버킷 설정이 그 자리에 보인다', async ({ page }) => {
 });
 
 When('그 자리에서 소스 모델로 저장하면', async ({ page }) => {
-  run.sourceModel = uniqueName('e2e-os-conn');
+  // 입력한 이름은 계획 모델이 되고, 수집 원본은 "{이름}-source" 소스 모델로 저장된다.
+  const name = uniqueName('e2e-os-conn');
+  run.sourceModel = `${name}-source`;
+  run.collectedPlanningModel = name;
   await new ObjectStoragePage(page).saveSourceModelFromConnection(
     testBucket(),
-    run.sourceModel,
+    name,
   );
 });
 
@@ -225,6 +228,11 @@ Then('이번에 만든 모델과 소스 서비스를 지운다', async ({ page }
   // 계보로 참조되는 모델은 지워지지 않으므로 목표 → 계획 → 소스 순서로 지운다.
   if (run.targetModel) await os.deleteModel('target', run.targetModel);
   if (run.planningModel) await os.deleteModel('source', run.planningModel);
+  if (
+    run.collectedPlanningModel &&
+    run.collectedPlanningModel !== run.planningModel
+  )
+    await os.deleteModel('source', run.collectedPlanningModel);
   if (run.sourceModel) await os.deleteModel('source', run.sourceModel);
   if (run.group) {
     const sources = new SourceServicesPage(page);
@@ -241,15 +249,15 @@ When(
   },
 );
 
-Then('그 서비스의 버킷이 골라져 바로 수집된다', async ({ page }) => {
-  await new ObjectStoragePage(page).expectBucketCollectedInCreateModal(
-    testBucket(),
-  );
+Then('수집 결과 창이 열리고 그 버킷이 들어 있다', async ({ page }) => {
+  await new ObjectStoragePage(page).expectBucketInCollectViewer(testBucket());
 });
 
 When('그 창에서 소스 모델로 저장하면', async ({ page }) => {
-  run.sourceModel = uniqueName('e2e-os-grp');
-  await new ObjectStoragePage(page).saveFromCreateModal(run.sourceModel);
+  const name = uniqueName('e2e-os-grp');
+  run.sourceModel = `${name}-source`;
+  run.collectedPlanningModel = name;
+  await new ObjectStoragePage(page).saveFromCollectViewer(name);
 });
 
 // 버킷만 든 그룹에는 서버가 없으니 서버 수집 버튼은 잠기고, 왜 잠겼는지 사유가 붙는다.

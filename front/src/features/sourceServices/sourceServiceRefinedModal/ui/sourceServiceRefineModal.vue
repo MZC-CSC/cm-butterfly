@@ -18,11 +18,12 @@ import {
 } from '@/entities/sourceConnection/api';
 import { useGetInfraSourceGroupInfraRefine } from '@/entities/sourceService/api';
 import { useAuth } from '@/features/auth/model/useAuth.ts';
+import { getGroupRefinedBuckets } from '@/entities/objectStorage/api';
 
 interface iProps {
   collectData: any;
   sgId: string;
-  dataType?: 'infra' | 'software';
+  dataType?: 'infra' | 'software' | 'objectStorage';
   dataSource?: 'sourceGroup' | 'connection'; // distinguishes the origin of the Software data
 }
 
@@ -45,7 +46,7 @@ const isSoftwareData = computed(() => {
     console.log('Software detected by dataType prop');
     return true;
   }
-  if (props.dataType === 'infra') {
+  if (props.dataType === 'infra' || props.dataType === 'objectStorage') {
     console.log('Infra detected by dataType prop');
     return false;
   }
@@ -106,6 +107,9 @@ const isSoftwareData = computed(() => {
 
 // Pick the appropriate conversion function based on the data type
 const getConvertFunction = computed(() => {
+  if (props.dataType === 'objectStorage') {
+    return handleConvertObjectStorage();
+  }
   if (isSoftwareData.value) {
     // Call a different API depending on the origin of the Software data
     if (props.dataSource === 'sourceGroup') {
@@ -126,6 +130,9 @@ const getConvertFunction = computed(() => {
 // Build the title dynamically based on the data type
 const modalTitle = computed(() => {
   const baseTitle = 'Source Group Connection Viewer';
+  if (props.dataType === 'objectStorage') {
+    return `${baseTitle} - Object Storage`;
+  }
   if (isSoftwareData.value) {
     return `${baseTitle} - Software`;
   } else {
@@ -154,7 +161,12 @@ const isSaving = ref(false);
 const handleMetaViewer = async e => {
   isSaveModal.value = false;
   isSaving.value = true;
-  const category = isSoftwareData.value ? 'software' : 'infra';
+  const category =
+    props.dataType === 'objectStorage'
+      ? 'objectStorage'
+      : isSoftwareData.value
+        ? 'software'
+        : 'infra';
   await saveCollectedModels({
     category,
     // The collected source group is where the migration lineage starts.
@@ -167,7 +179,7 @@ const handleMetaViewer = async e => {
   })
     .then(({ derived }) => {
       emit('update:is-meta-viewer-opened');
-      if (category === 'infra') {
+      if (category !== 'software') {
         showSuccessMessage(
           'success',
           `Saved the collected source model and the planning model "${e.name}"`,
@@ -188,6 +200,29 @@ const handleMetaViewer = async e => {
       isSaving.value = false;
     });
 };
+
+// Every collected bucket of the group, in the shape of the source model.
+const isConvertingObjectStorage = ref(false);
+function handleConvertObjectStorage(): (
+  payload?: any,
+  config?: any,
+) => Promise<AxiosResponse<any> | void> {
+  return () => {
+    isConvertingObjectStorage.value = true;
+    return getGroupRefinedBuckets(props.sgId)
+      .then(res => {
+        isConverted.value = true;
+        convertedData.value = res.data.responseData;
+        originalData.value = JSON.parse(
+          JSON.stringify(res.data.responseData ?? null),
+        );
+        return res;
+      })
+      .finally(() => {
+        isConvertingObjectStorage.value = false;
+      });
+  };
+}
 
 function handleConvertInfra(): (
   payload?: any,
@@ -269,7 +304,8 @@ function handleConvertSoftwareSourceGroup(): (
             getInfraInfoRefined.isLoading.value ||
             getInfraInfoSourceGroupRefined.isLoading.value ||
             getSoftwareInfoRefined.isLoading.value ||
-            getSoftwareInfoSourceGroupRefined.isLoading.value
+            getSoftwareInfoSourceGroupRefined.isLoading.value ||
+            isConvertingObjectStorage
           "
           @update:convertedJSON="convertedData = $event"
         />

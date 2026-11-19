@@ -27,6 +27,10 @@ const UPDATE_ARTIFACT = 'cm-beetle/UpdateArtifact';
 const DELETE_ARTIFACT = 'cm-beetle/DeleteArtifact';
 const COLLECT_BUCKET = 'cm-honeybee/import-infra';
 const GET_BUCKET_REFINED = 'cm-honeybee/get-data-info-refined';
+const GET_BUCKET_META = 'cm-honeybee/get-data-info';
+const GET_GROUP_BUCKETS_META = 'cm-honeybee/get-data-info-source-group';
+const GET_GROUP_BUCKETS_REFINED =
+  'cm-honeybee/get-data-info-source-group-refined';
 
 /**
  * Every call goes through the console's proxy, which answers
@@ -195,6 +199,29 @@ export async function getRefinedBucket(
     throw new Error('The source service returned no bucket information.');
   }
   return model;
+}
+
+/*
+  What was collected for one bucket connection, or for every bucket connection of a source group,
+  as cm-honeybee keeps it (the "Meta" side of the collect viewer), and the same in the shape of a
+  source model (`{ sourceObjectStorageModel }`, the side Convert fills). They are returned as the
+  proxy answered so the viewer handles them as it does infra and software.
+*/
+export function getBucketMeta(sgId: string, connId: string) {
+  return axiosInstance.post(GET_BUCKET_META, { pathParams: { sgId, connId } });
+}
+export function getRefinedBucketResponse(sgId: string, connId: string) {
+  return axiosInstance.post(GET_BUCKET_REFINED, {
+    pathParams: { sgId, connId },
+  });
+}
+export function getGroupBucketsMeta(sgId: string) {
+  return axiosInstance.post(GET_GROUP_BUCKETS_META, { pathParams: { sgId } });
+}
+export function getGroupRefinedBuckets(sgId: string) {
+  return axiosInstance.post(GET_GROUP_BUCKETS_REFINED, {
+    pathParams: { sgId },
+  });
 }
 
 // The artifact functions below serve System > Develop only (the cm-beetle direct test).

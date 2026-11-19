@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { PButton, PStatus } from '@cloudforet-test/mirinae';
 import { computed, reactive, watch } from 'vue';
-import { useRouter } from 'vue-router/composables';
-import { collectBucket, getRefinedBucket } from '@/entities/objectStorage/api';
+import {
+  collectBucket,
+  getBucketMeta,
+  getRefinedBucket,
+} from '@/entities/objectStorage/api';
 import type {
   ISourceBucket,
   ISourceObjectStorage,
 } from '@/entities/objectStorage/model/types';
-import { MODEL_ROUTE } from '@/app/providers/router/routes/constants';
-import CreateObjectStorageSourceModelModal from '@/widgets/models/createObjectStorageSourceModel/ui/CreateObjectStorageSourceModelModal.vue';
+import MetaViewer from '@/widgets/source/sourceConnections/sourceConnectionDetail/metaViewer/ui/MetaViewer.vue';
 import { formatBytes } from '@/widgets/models/objectStorageBuckets/model/format';
 import { formatDate, showErrorMessage, toErrorMessage } from '@/shared/utils';
 
@@ -19,10 +21,10 @@ import { formatDate, showErrorMessage, toErrorMessage } from '@/shared/utils';
  *
  * Collect Object Storage asks cm-honeybee to read the bucket from the source account
  * (import-infra runs the CSP lookup for every resource type), shows what was collected
- * (versioning, encryption, size and object count; cm-honeybee 0.6.4+) and goes straight on to
- * the source model window with this bucket, as Collect Infra does for a server. Save as Source
- * Model opens that window again after it was closed. It is the same window Models > Source
- * Models uses for several buckets.
+ * (versioning, encryption, size and object count; cm-honeybee 0.6.4+) and opens the connection
+ * viewer with what was collected, as Collect Infra does for a server: Convert gives the source
+ * model and Save stores it as the source and planning models. Save as Source Model opens the
+ * viewer again after it was closed.
  */
 interface IProps {
   sourceGroupId: string;
@@ -35,18 +37,14 @@ interface IProps {
 }
 const props = defineProps<IProps>();
 
-const router = useRouter();
-
 const state = reactive({
   status: '' as '' | 'success' | 'failed',
   message: '',
   collectedAt: '',
   saveOpen: false,
-  savedModelName: '',
+  meta: null as any,
   bucket: null as ISourceBucket | null,
   sourceCloud: undefined as ISourceObjectStorage['sourceCloud'],
-  // Off: a large bucket is collected quickly, without size and object count.
-  countObjects: true,
   collecting: false,
 });
 
@@ -57,7 +55,7 @@ watch(
     state.status = '';
     state.message = '';
     state.collectedAt = '';
-    state.savedModelName = '';
+    state.meta = null;
     state.bucket = null;
   },
 );
@@ -87,11 +85,7 @@ async function collectOnce() {
   state.message = '';
   state.bucket = null;
   try {
-    await collectBucket(
-      props.sourceGroupId,
-      props.connectionId,
-      state.countObjects,
-    );
+    await collectBucket(props.sourceGroupId, props.connectionId);
   } catch (e) {
     state.status = 'failed';
     state.message = toErrorMessage(e, 'Could not collect the bucket.');
@@ -114,6 +108,8 @@ async function collectOnce() {
     }
     state.bucket = bucket;
     state.sourceCloud = refined.sourceCloud;
+    const meta = await getBucketMeta(props.sourceGroupId, props.connectionId);
+    state.meta = meta.data.responseData;
     state.status = 'success';
     state.collectedAt = formatDate(new Date().toISOString());
     state.saveOpen = true;
@@ -126,14 +122,6 @@ async function collectOnce() {
 
 function onOff(value?: boolean) {
   return value ? 'on' : 'off';
-}
-
-function onSaved(model: any) {
-  state.savedModelName = model?.userModelName ?? '';
-}
-
-function goToModels() {
-  router.push({ name: MODEL_ROUTE.SOURCE_MODELS._NAME });
 }
 </script>
 
@@ -164,14 +152,6 @@ function goToModels() {
         >
           Collect Object Storage
         </p-button>
-        <label class="count-option">
-          <input
-            v-model="state.countObjects"
-            type="checkbox"
-            data-testid="bucket-collect-count-objects"
-          />
-          Count objects and size
-        </label>
       </dd>
       <dt>Collected At</dt>
       <dd>{{ state.collectedAt || '-' }}</dd>
@@ -195,20 +175,6 @@ function goToModels() {
       </dd>
       <dt>Source Model</dt>
       <dd class="with-action">
-        <span data-testid="bucket-collect-saved">
-          <template v-if="state.savedModelName">
-            Saved as {{ state.savedModelName }} ·
-            <button
-              type="button"
-              class="link"
-              data-testid="bucket-collect-go-models"
-              @click="goToModels"
-            >
-              Source Models
-            </button>
-          </template>
-          <template v-else>-</template>
-        </span>
         <p-button
           data-testid="bucket-collect-save-model"
           style-type="tertiary"
@@ -225,17 +191,14 @@ function goToModels() {
     </p>
 
     <div class="relative z-70">
-      <create-object-storage-source-model-modal
+      <meta-viewer
         v-if="state.saveOpen"
-        :initial-group-id="sourceGroupId"
-        :initial-bucket="bucketName"
-        :initial-collected="
-          state.bucket
-            ? { bucket: state.bucket, sourceCloud: state.sourceCloud }
-            : undefined
-        "
-        @saved="onSaved"
-        @update:close-modal="state.saveOpen = false"
+        :collect-data="state.meta"
+        :source-connection-name="connectionName"
+        :sg-id="sourceGroupId"
+        :conn-id="connectionId"
+        data-type="objectStorage"
+        @update:is-meta-viewer-opened="state.saveOpen = false"
       />
     </div>
   </div>
@@ -260,21 +223,11 @@ function goToModels() {
   font-weight: 700;
   background: #f9fafb;
 }
-.count-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  margin-left: 0.5rem;
-  font-size: 0.75rem;
-}
 .with-action {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-}
-.link {
-  color: #1d4ed8;
 }
 .error {
   margin-top: 0.5rem;

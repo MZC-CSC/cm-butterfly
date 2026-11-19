@@ -16,7 +16,6 @@ import {
   updateModelInfo,
 } from '@/entities/migrationModel';
 import { GuidedStepBanner } from '@/features/guidedSetup';
-import CreateObjectStorageSourceModelModal from '@/widgets/models/createObjectStorageSourceModel/ui/CreateObjectStorageSourceModelModal.vue';
 import RecommendedObjectStorageModel from '@/widgets/models/recommendedObjectStorageModel/ui/RecommendedObjectStorageModel.vue';
 import CustomViewObjectStorageModel from '@/widgets/models/customViewObjectStorageModel/ui/CustomViewObjectStorageModel.vue';
 import { ObjectStorageBuckets } from '@/widgets/models/objectStorageBuckets';
@@ -49,11 +48,6 @@ const isObjectStorage = computed(
 const objectStorageModel = computed(
   () => sourceModel.value as unknown as IObjectStorageModel,
 );
-const createObjectStorageOpen = ref(false);
-
-function handleObjectStorageSourceSaved() {
-  modalState.editModelModal.trigger = true;
-}
 
 const mainTabState = reactive({
   activeTab: 'details',
@@ -128,16 +122,6 @@ function handleUpdateSourceModel(e) {
     </header>
     <!-- A target model is produced from a source model here - not on the Target Models list. -->
     <guided-step-banner step="target-model" />
-    <div class="page-actions">
-      <p-button
-        style-type="secondary"
-        icon-left="ic_plus_bold"
-        data-testid="os-source-create-open"
-        @click="createObjectStorageOpen = true"
-      >
-        Create Object Storage Source Model
-      </p-button>
-    </div>
     <section :class="`${pageName}-page-body`">
       <source-model-list
         :trigger="modalState.editModelModal.trigger"
@@ -238,19 +222,8 @@ function handleUpdateSourceModel(e) {
         :source="objectStorageModel"
         @update:close-modal="handleRecommendedListModal"
       />
-      <create-object-storage-source-model-modal
-        v-if="createObjectStorageOpen"
-        @saved="handleObjectStorageSourceSaved"
-        @update:close-modal="createObjectStorageOpen = false"
-      />
     </div>
   </div>
 </template>
 
-<style scoped lang="postcss">
-.page-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 0.5rem;
-}
-</style>
+<style scoped lang="postcss"></style>
