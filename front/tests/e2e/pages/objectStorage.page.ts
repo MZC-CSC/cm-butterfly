@@ -178,6 +178,7 @@ export class ObjectStoragePage {
     await this.collectFromGroupDetail();
     await this.expectBucketInCollectViewer(bucket);
     await sources.saveCollectedObjectStorageAsSourceModel(name);
+    await new ModelsPage(this.page).gotoSourceModels();
     return this.selectedModelId(`${name}-source`);
   }
 
