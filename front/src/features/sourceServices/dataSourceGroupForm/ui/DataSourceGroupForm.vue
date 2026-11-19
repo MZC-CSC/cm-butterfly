@@ -15,10 +15,12 @@ import {
 } from '@/entities/sourceService/model/types';
 
 /**
- * Registration form for a file system, DBMS or MinIO source group. cm-honeybee 0.6.4 takes
- * the group with a provider (required for db and minio) and a region (required for minio on
- * the providers in MINIO_REGION_REQUIRED_PROVIDERS). Connections of these groups are added
- * later, once the console supports their forms.
+ * Registration form for a file system, DBMS or MinIO source group. cm-honeybee takes a
+ * provider only for db and minio (required for both) and a region only for minio (required
+ * on the providers in MINIO_REGION_REQUIRED_PROVIDERS); it drops them for the other types.
+ * So the form asks only for what the chosen type keeps: nothing for a file system, the
+ * provider for a DBMS, both for MinIO. Connections of these groups are added later, once the
+ * console supports their forms.
  */
 interface IProps {
   groupType: 'fs' | 'db' | 'minio';
@@ -36,11 +38,13 @@ const state = reactive({
 });
 
 const providerItems = DATA_SOURCE_PROVIDERS.map(p => ({ name: p, label: p }));
+// Both are required where they are taken, so one flag serves for showing and requiring.
 const providerRequired = computed(
   () =>
     props.groupType === SourceGroupType.Db ||
     props.groupType === SourceGroupType.Minio,
 );
+const showRegion = computed(() => props.groupType === SourceGroupType.Minio);
 const regionRequired = computed(
   () =>
     props.groupType === SourceGroupType.Minio &&
@@ -63,8 +67,11 @@ watch(
       description: state.description,
       type: props.groupType,
     };
-    if (state.provider) request.provider_name = state.provider;
-    if (state.region.trim()) request.region_name = state.region.trim();
+    // A value typed in before switching to a type that does not take it is not sent.
+    if (providerRequired.value && state.provider)
+      request.provider_name = state.provider;
+    if (showRegion.value && state.region.trim())
+      request.region_name = state.region.trim();
     emit('update:value', request);
   },
   { immediate: true, deep: true },
@@ -88,7 +95,7 @@ watch(
           data-testid="data-source-service-description"
         />
       </p-field-group>
-      <p-field-group label="Provider" :required="providerRequired">
+      <p-field-group v-if="providerRequired" label="Provider" required>
         <p-select-dropdown
           :menu="providerItems"
           :selected="state.provider"
@@ -100,6 +107,7 @@ watch(
         />
       </p-field-group>
       <p-field-group
+        v-if="showRegion"
         label="Region"
         :required="regionRequired"
         help-text="The provider's region code, e.g. ap-northeast-2."
