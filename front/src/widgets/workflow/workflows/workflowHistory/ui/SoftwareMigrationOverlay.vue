@@ -199,11 +199,12 @@ watch(
   { deep: true },
 );
 
-// Load SW status whenever executionIds change
+// Load SW status when the overlay is open and its executionIds change. The hidden copies in the
+// other screens do not fetch.
 watch(
-  () => props.executionIds,
-  () => {
-    if (props.executionIds && props.executionIds.length > 0) {
+  () => [props.isVisible, props.executionIds] as const,
+  ([visible, ids]) => {
+    if (visible && ids && ids.length > 0) {
       loadSwMigrationStatus();
     }
   },
@@ -217,8 +218,13 @@ onBeforeMount(() => {
 
 <template>
   <transition name="slide-down-up" @after-leave="handleClose">
+    <!--
+      v-if, not v-show: the overlay is placed in three screens (run viewer, run history, run detail),
+      and closed copies left in the DOM kept the same data-testid, so the one actually open could not
+      be told apart.
+    -->
     <div
-      v-show="props.isVisible"
+      v-if="props.isVisible"
       class="page-layer"
       data-testid="sw-migration-overlay"
     >
