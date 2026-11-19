@@ -2,6 +2,7 @@
 import { i18n } from '@/app/i18n';
 import { PButtonModal, PRadio, PRadioGroup } from '@cloudforet-test/mirinae';
 import CspSourceGroupForm from '@/features/sourceServices/cspSourceGroupForm/ui/CspSourceGroupForm.vue';
+import DisabledReason from '@/shared/ui/DisabledReason/DisabledReason.vue';
 import DataSourceGroupForm from '@/features/sourceServices/dataSourceGroupForm/ui/DataSourceGroupForm.vue';
 import type {
   ICspSourceGroupRequest,
@@ -49,7 +50,7 @@ const state = reactive({
 // 0.6.4): on-premise groups are reached over SSH; a CSP group is the customer's cloud account,
 // read through its API with the credential entered here. File system, DBMS and MinIO groups are
 // collected by cm-honeybee as cm-centipede data migration models, which v0.7.0 does not cover,
-// so those types are listed as planned and cannot be chosen yet.
+// so those types are shown but cannot be chosen, and say so on hover.
 const sourceType = ref<SourceGroupTypeValue>(props.fixedType ?? 'onprem');
 const cspRequest = ref<ICspSourceGroupRequest | null>(null);
 const dataSourceRequest = ref<Record<string, any> | null>(null);
@@ -57,12 +58,14 @@ const isDataSourceType = computed(() =>
   ['fs', 'db', 'minio'].includes(sourceType.value),
 );
 
+const UNSUPPORTED_TYPE_REASON = 'Not supported yet.';
+
 const sourceTypeOptions = [
-  { value: 'onprem', label: 'On-premise (SSH)', planned: false },
-  { value: 'csp', label: 'Cloud (CSP account)', planned: false },
-  { value: 'fs', label: 'File system', planned: true },
-  { value: 'db', label: 'DBMS', planned: true },
-  { value: 'minio', label: 'MinIO', planned: true },
+  { value: 'onprem', label: 'On-premise (SSH)', unsupported: false },
+  { value: 'csp', label: 'Cloud (CSP account)', unsupported: false },
+  { value: 'fs', label: 'File system', unsupported: true },
+  { value: 'db', label: 'DBMS', unsupported: true },
+  { value: 'minio', label: 'MinIO', unsupported: true },
 ];
 
 watchEffect(() => {
@@ -228,24 +231,22 @@ const handleConnectionModal = (value: boolean) => {
         >
           <span class="source-type-label">Source Type</span>
           <p-radio-group>
-            <p-radio
+            <disabled-reason
               v-for="option in sourceTypeOptions"
               :key="option.value"
-              v-model="sourceType"
-              :value="option.value"
-              :disabled="option.planned"
-              :data-testid="`source-service-type-${option.value}`"
-              :data-disabled="option.planned"
+              :reason="option.unsupported ? UNSUPPORTED_TYPE_REASON : ''"
             >
-              <span>{{ option.label }}</span>
-            </p-radio>
+              <p-radio
+                v-model="sourceType"
+                :value="option.value"
+                :disabled="option.unsupported"
+                :data-testid="`source-service-type-${option.value}`"
+                :data-disabled="option.unsupported"
+              >
+                <span>{{ option.label }}</span>
+              </p-radio>
+            </disabled-reason>
           </p-radio-group>
-          <p
-            class="source-type-planned"
-            data-testid="source-service-type-planned"
-          >
-            File system, DBMS and MinIO sources are planned for a later release.
-          </p>
         </div>
         <csp-source-group-form
           v-if="sourceType === 'csp'"
@@ -296,14 +297,8 @@ const handleConnectionModal = (value: boolean) => {
 .source-type {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 1rem;
   padding: 1rem 1rem 0;
-}
-.source-type-planned {
-  width: 100%;
-  font-size: 0.75rem;
-  color: theme('colors.gray.500');
 }
 .source-type-label {
   font-size: 0.875rem;
