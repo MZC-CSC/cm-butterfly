@@ -22,6 +22,8 @@ import {
   SourceGroupType,
 } from '@/entities/sourceService/model/types';
 import {
+  bucketCollectFailureMessage,
+  bucketCollectFailures,
   collectBucket,
   getGroupBucketsMeta,
 } from '@/entities/objectStorage/api';
@@ -176,6 +178,18 @@ async function collectSourceGroupBuckets() {
       reportCollectFailure(
         'Object storage',
         new Error('The source service returned no collected data.'),
+      );
+      return;
+    }
+    // A bucket that could not be read has nothing to save and nothing the user could fill in, so
+    // the viewer is not opened; the failed buckets are reported instead.
+    const failures = bucketCollectFailures(res.data.responseData);
+    if (failures.length) {
+      reportCollectFailure(
+        'Object storage',
+        new Error(
+          `${failures.length} bucket(s) could not be collected. ${bucketCollectFailureMessage(failures)}`,
+        ),
       );
       return;
     }

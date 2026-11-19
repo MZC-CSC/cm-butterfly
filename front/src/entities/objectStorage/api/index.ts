@@ -210,6 +210,40 @@ export async function getRefinedBucket(
 export function getBucketMeta(sgId: string, connId: string) {
   return axiosInstance.post(GET_BUCKET_META, { pathParams: { sgId, connId } });
 }
+/**
+ * The buckets whose collect failed, read from the collected data. cm-honeybee answers a bucket
+ * collect with success even when it could not read the bucket (for example a bucket of another
+ * region than the source service's), and keeps the reasons only in the collected data's `errors`;
+ * the refined model leaves them out, so the empty values there would pass for observed ones.
+ * Takes the data of one connection or of a group (`minio_data`).
+ */
+export function bucketCollectFailures(
+  meta: any,
+): { bucket: string; errors: string[] }[] {
+  const entries: any[] = Array.isArray(meta?.minio_data)
+    ? meta.minio_data
+    : meta
+      ? [meta]
+      : [];
+  return entries
+    .filter(e => Array.isArray(e?.errors) && e.errors.length > 0)
+    .map(e => ({
+      bucket:
+        (e.buckets ?? [])
+          .map((b: any) => b?.name)
+          .filter(Boolean)
+          .join(', ') || '-',
+      errors: e.errors as string[],
+    }));
+}
+
+/** One message naming every failed bucket and its first reason. */
+export function bucketCollectFailureMessage(
+  failures: { bucket: string; errors: string[] }[],
+) {
+  return failures.map(f => `${f.bucket}: ${f.errors[0]}`).join(' / ');
+}
+
 export function getRefinedBucketResponse(sgId: string, connId: string) {
   return axiosInstance.post(GET_BUCKET_REFINED, {
     pathParams: { sgId, connId },

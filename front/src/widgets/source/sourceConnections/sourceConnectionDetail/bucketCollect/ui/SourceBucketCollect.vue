@@ -2,6 +2,8 @@
 import { PButton, PStatus } from '@cloudforet-test/mirinae';
 import { computed, reactive, watch } from 'vue';
 import {
+  bucketCollectFailureMessage,
+  bucketCollectFailures,
   collectBucket,
   getBucketMeta,
   getRefinedBucket,
@@ -106,9 +108,14 @@ async function collectOnce() {
         `The source service did not return bucket ${props.bucketName}.`,
       );
     }
+    const meta = await getBucketMeta(props.sourceGroupId, props.connectionId);
+    // Collected with success but unread: there is nothing to save, so it is a failed collect.
+    const failures = bucketCollectFailures(meta.data.responseData);
+    if (failures.length) {
+      throw new Error(bucketCollectFailureMessage(failures));
+    }
     state.bucket = bucket;
     state.sourceCloud = refined.sourceCloud;
-    const meta = await getBucketMeta(props.sourceGroupId, props.connectionId);
     state.meta = meta.data.responseData;
     state.status = 'success';
     state.collectedAt = formatDate(new Date().toISOString());
