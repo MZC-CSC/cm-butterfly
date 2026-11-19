@@ -542,8 +542,9 @@ defineExpose({
         return;
       }
 
-      // Only run expand in tree mode
-      editorInstance.expand(() => true);
+      // Since vanilla-jsoneditor 1.0 expand takes the path to start from and a callback, and
+      // the old expand(callback) form silently does nothing, which left converted models folded.
+      editorInstance.expand([], () => true);
     } catch (e) {
       console.warn('expandAll failed:', e.message);
     }
@@ -565,7 +566,8 @@ defineExpose({
         return;
       }
 
-      editorInstance.expand(() => false);
+      // expand no longer collapses; collapse(path, recursive) does.
+      editorInstance.collapse([], true);
     } catch (e) {
       console.warn('collapseAll failed:', e.message);
     }
