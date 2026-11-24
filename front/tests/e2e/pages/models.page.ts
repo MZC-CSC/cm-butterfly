@@ -44,12 +44,18 @@ export class ModelsPage {
     //   행 전체 텍스트로 찾으면 이름을 *포함하는* 다른 행도 걸린다. 수집 결과를 저장하면 원본이
     //   "{이름}-source" 소스 모델로 함께 저장되고, 목록에서 그 행이 먼저 나와 엉뚱한 모델을 잡는다.
     //   그래서 *한 칸이 이름과 정확히 같은* 행만 잡는다. (2026-11-17)
+    //   그 "한 칸"은 이름 칸이어야 한다. 계획 모델 행의 Derived From 칸에는 원본 소스 모델 이름이
+    //   그대로 들어 있어, 목록이 최신순이 되자 원본을 찾으면 그 위의 계획 모델 행이 잡혔다.
+    //   이름은 선택 체크박스 다음, 두 번째 칸이다. (2026-11-24)
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return this.listTable
       .getByTestId(`model-row-${name}`)
       .or(
-        this.listTable
-          .getByRole('row')
-          .filter({ has: this.page.getByRole('cell', { name, exact: true }) }),
+        this.listTable.getByRole('row').filter({
+          has: this.page.locator('td:nth-child(2)', {
+            hasText: new RegExp(`^\\s*${escaped}\\s*$`),
+          }),
+        }),
       )
       .first();
   }
@@ -329,11 +335,20 @@ export class ModelsPage {
    * model only offers to be saved as one - so a source row would leave the recommend link missing.
    */
   async selectFirstInfraModel(): Promise<string> {
-    const row = this.listTable
+    const rows = this.listTable
       .locator('tbody tr')
       .filter({ hasText: 'OnPremiseModel' })
-      .filter({ hasText: 'Planning' })
-      .first();
+      .filter({ hasText: 'Planning' });
+    const row = rows.first();
+    await expect(this.listTable).toBeVisible({ timeout: 15_000 });
+    // 첫 페이지에 없으면 다음 페이지도 본다 — 예전 작업에서 남은 모델이 앞쪽을 채우면
+    // 계획 모델이 뒤 페이지로 밀린다(2026-11-24, 그때는 첫 페이지만 보고 14건이 실패했다).
+    if (!(await row.isVisible().catch(() => false))) {
+      await this.listPagination.expectRowSomewhere(
+        row,
+        '인프라 계획 모델(OnPremiseModel · Planning) 행',
+      );
+    }
     await expect(
       row,
       '인프라 계획 모델(OnPremiseModel · Planning) 행이 목록에 없다',

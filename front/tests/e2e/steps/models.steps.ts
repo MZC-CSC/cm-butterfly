@@ -594,3 +594,55 @@ Then(
     await models.expectDerivedFrom(uniqueName(name), uniqueName(sourceName));
   },
 );
+
+/*
+  Saving what was collected stores two models: the source model as collected, named
+  "{name}-source", and a planning model under the name typed in (saveCollectedModels). The run
+  suffix comes before "-source", so the source cannot be written as one name in a scenario; these
+  steps take the name the collect was saved under and resolve its source model.
+*/
+function collectedSourceOf(name: string): string {
+  return `${uniqueName(name)}-source`;
+}
+
+Then(
+  '{string} 수집의 원본 소스 모델 단계는 {string} 이다',
+  async ({ page }, name: string, stage: string) => {
+    const models = new ModelsPage(page);
+    await models.gotoSourceModels();
+    await models.expectSourceDetailStage(collectedSourceOf(name), stage);
+  },
+);
+
+When(
+  '{string} 수집의 원본 소스 모델을 {string} 커스텀 모델로 저장하면',
+  async ({ page }, name: string, customName: string) => {
+    const models = new ModelsPage(page);
+    await models.gotoSourceModels();
+    await models.selectModel(collectedSourceOf(name));
+    await models.saveAsSourceModel(uniqueName(customName));
+    scenarioState.planningModelName = uniqueName(customName);
+  },
+);
+
+Then(
+  '{string} 모델은 {string} 수집의 원본 소스 모델에서 파생된 계획 모델이다',
+  async ({ page }, planning: string, name: string) => {
+    const models = new ModelsPage(page);
+    await models.gotoSourceModels();
+    await models.expectSourceDetailStage(uniqueName(planning), 'Planning');
+    await models.expectDerivedFrom(
+      uniqueName(planning),
+      collectedSourceOf(name),
+    );
+  },
+);
+
+Then(
+  '{string} 수집의 원본 소스 모델은 조회만 할 수 있다',
+  async ({ page }, name: string) => {
+    const models = new ModelsPage(page);
+    await models.gotoSourceModels();
+    await models.expectSourceModelReadOnly(collectedSourceOf(name));
+  },
+);
