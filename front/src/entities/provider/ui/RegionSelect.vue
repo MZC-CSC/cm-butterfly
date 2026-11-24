@@ -8,18 +8,29 @@ import { useGetRegionList } from '@/entities/provider/api';
  * infra recommendation offers. Typing narrows the list; it does not enter a value, so a
  * region the list does not have cannot be chosen. A mistyped region (ap-northeast2) used
  * to reach cm-beetle and fail only at migration time, when no connection matched it.
+ *
+ * A caller that has its own list (cm-honeybee's live regions for a source account) passes
+ * it as `options` with `loading`/`error`; the cb-tumblebug list is then not read.
  */
 interface IProps {
   provider?: string;
   value?: string;
   testid?: string;
   invalid?: boolean;
+  options?: { name: string; label: string }[] | null;
+  loading?: boolean;
+  error?: string;
+  emptyText?: string;
 }
 const props = withDefaults(defineProps<IProps>(), {
   provider: '',
   value: '',
   testid: undefined,
   invalid: false,
+  options: null,
+  loading: false,
+  error: '',
+  emptyText: '',
 });
 const emit = defineEmits<{ (e: 'input', value: string): void }>();
 
@@ -36,7 +47,7 @@ watch(
   async provider => {
     state.items = [];
     state.error = '';
-    if (!provider) return;
+    if (!provider || props.options) return;
     state.loading = true;
     try {
       const { data } = await resRegions.execute({
@@ -60,6 +71,17 @@ watch(
     } finally {
       state.loading = false;
     }
+  },
+  { immediate: true },
+);
+
+watch(
+  () => [props.options, props.loading, props.error] as const,
+  ([options, loading, error]) => {
+    if (!options) return;
+    state.items = [...options].sort((a, b) => a.name.localeCompare(b.name));
+    state.loading = loading;
+    state.error = error;
   },
   { immediate: true },
 );
@@ -122,6 +144,8 @@ function handleSelect(v: string) {
 const placeholder = computed(() => {
   if (!props.provider) return 'Select a provider first';
   if (state.loading) return 'Loading regions...';
+  if (props.options && !props.options.length && props.emptyText)
+    return props.emptyText;
   return 'Type to filter, then select';
 });
 </script>
@@ -138,7 +162,7 @@ const placeholder = computed(() => {
       :selected="value"
       :search-text.sync="state.searchText"
       :placeholder="placeholder"
-      :disabled="!provider || state.loading"
+      :disabled="!provider || state.loading || (!!options && !options.length)"
       :invalid="invalid"
       is-filterable
       use-fixed-menu-style

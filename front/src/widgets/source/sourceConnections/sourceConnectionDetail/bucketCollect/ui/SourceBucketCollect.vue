@@ -2,8 +2,8 @@
 import { PButton, PStatus } from '@cloudforet-test/mirinae';
 import { computed, reactive, watch } from 'vue';
 import {
-  bucketCollectFailureMessage,
-  bucketCollectFailures,
+  bucketUnreadItems,
+  bucketUnreadItemsMessage,
   collectBucket,
   getBucketMeta,
   getRefinedBucket,
@@ -14,7 +14,12 @@ import type {
 } from '@/entities/objectStorage/model/types';
 import MetaViewer from '@/widgets/source/sourceConnections/sourceConnectionDetail/metaViewer/ui/MetaViewer.vue';
 import { formatBytes } from '@/widgets/models/objectStorageBuckets/model/format';
-import { formatDate, showErrorMessage, toErrorMessage } from '@/shared/utils';
+import {
+  formatDate,
+  showErrorMessage,
+  showInfoMessage,
+  toErrorMessage,
+} from '@/shared/utils';
 
 /**
  * Information of a bucket connection of a cloud source service. A bucket has no host,
@@ -109,10 +114,13 @@ async function collectOnce() {
       );
     }
     const meta = await getBucketMeta(props.sourceGroupId, props.connectionId);
-    // Collected with success but unread: there is nothing to save, so it is a failed collect.
-    const failures = bucketCollectFailures(meta.data.responseData);
-    if (failures.length) {
-      throw new Error(bucketCollectFailureMessage(failures));
+    // A collect that read nothing already failed above; items read only in part are reported.
+    const unread = bucketUnreadItems(meta.data.responseData);
+    if (unread.length) {
+      showInfoMessage(
+        'Some settings were not read',
+        bucketUnreadItemsMessage(unread),
+      );
     }
     state.bucket = bucket;
     state.sourceCloud = refined.sourceCloud;

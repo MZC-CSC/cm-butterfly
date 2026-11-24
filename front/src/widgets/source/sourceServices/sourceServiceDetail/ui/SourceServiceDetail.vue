@@ -23,9 +23,11 @@ import {
 } from '@/entities/sourceService/model/types';
 import {
   bucketCollectFailureMessage,
-  bucketCollectFailures,
-  collectBucket,
+  bucketUnreadItems,
+  bucketUnreadItemsMessage,
+  collectGroupBuckets,
   getGroupBucketsMeta,
+  groupCollectFailures,
 } from '@/entities/objectStorage/api';
 import { useSourceServiceDetailModel } from '@/widgets/source/sourceServices/sourceServiceDetail/model/sourceServiceDetailModel';
 import {
@@ -34,7 +36,11 @@ import {
   useGetSoftwareInfoSourceGroup,
   useGetSourceService,
 } from '@/entities/sourceService/api';
-import { showErrorMessage, toErrorMessage } from '@/shared/utils';
+import {
+  showErrorMessage,
+  showInfoMessage,
+  toErrorMessage,
+} from '@/shared/utils';
 import {
   useRefreshSourceGroupConnectionInfoStatus,
   useCollectSWSourceGroup,
@@ -105,7 +111,6 @@ const connectionKinds = ref({
   others: 0,
 });
 // The bucket connections Collect Object Storage collects.
-const bucketConnectionIds = ref<string[]>([]);
 const unsupportedGroupHint = computed(
   () =>
     `This is a ${
@@ -158,8 +163,10 @@ const objectStorageHint = computed(() => {
 
 /*
   Collect Object Storage works as Collect Infra does: every bucket connection of the source
-  service is collected, then the viewer opens with what was collected (Meta). Convert turns it
-  into the source model and Save stores it as the source and planning models.
+  service is collected (cm-honeybee import/bucket), then the viewer opens with what was collected
+  (Meta). Convert turns it into the source model and Save stores it as the source and planning
+  models. A bucket that could not be collected at all stops it there: the group model would
+  silently lack that bucket. Settings read only in part are reported and the viewer still opens.
 */
 const objectStorageModal = reactive({ open: false });
 const objectStorageMeta = ref<any>(null);
@@ -168,11 +175,20 @@ async function collectSourceGroupBuckets() {
   if (objectStorageHint.value || isCollectingObjectStorage.value) return;
   isCollectingObjectStorage.value = true;
   try {
-    await Promise.all(
-      bucketConnectionIds.value.map(id =>
-        collectBucket(props.selectedServiceId, id),
-      ),
-    );
+    const results = await collectGroupBuckets(props.selectedServiceId);
+    const failed = groupCollectFailures(results);
+    if (failed.length) {
+      reportCollectFailure(
+        'Object storage',
+        new Error(
+          `${failed.length} bucket connection(s) could not be collected. ${failed
+            .map(f => f.message)
+            .join(' / ')}`,
+        ),
+      );
+      loadConnectionOutcomes();
+      return;
+    }
     const res = await getGroupBucketsMeta(props.selectedServiceId);
     if (!res.data.responseData) {
       reportCollectFailure(
@@ -181,17 +197,12 @@ async function collectSourceGroupBuckets() {
       );
       return;
     }
-    // A bucket that could not be read has nothing to save and nothing the user could fill in, so
-    // the viewer is not opened; the failed buckets are reported instead.
-    const failures = bucketCollectFailures(res.data.responseData);
-    if (failures.length) {
-      reportCollectFailure(
-        'Object storage',
-        new Error(
-          `${failures.length} bucket(s) could not be collected. ${bucketCollectFailureMessage(failures)}`,
-        ),
+    const unread = bucketUnreadItems(res.data.responseData);
+    if (unread.length) {
+      showInfoMessage(
+        'Some settings were not read',
+        bucketUnreadItemsMessage(unread),
       );
-      return;
     }
     objectStorageMeta.value = res.data.responseData;
     objectStorageModal.open = true;
@@ -449,7 +460,6 @@ async function loadConnectionOutcomes() {
       buckets: buckets.map((c: any) => c.resource_id),
       others: list.length - vms.length - buckets.length,
     };
-    bucketConnectionIds.value = buckets.map((c: any) => c.id);
     sourceServiceStore.mappingConnectionOutcomes(
       props.selectedServiceId,
       list.map((c: any) => ({

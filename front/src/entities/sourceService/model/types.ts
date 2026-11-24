@@ -111,18 +111,26 @@ export interface ICspCredentialField {
   key: string;
   example: string;
   description: string;
+  /** An optional key; the keys it serves are listed in resource_types. */
+  optional?: boolean;
+  resource_types?: CspResourceType[];
 }
 
 export interface ICspInfo {
   name: string;
   credential_keys: string[];
+  /** Keys only some resource types need, e.g. the S3 keys buckets are read with. */
+  optional_credential_keys?: string[];
   credentials: ICspCredentialField[];
   region_keys: string[];
   default_region?: string;
+  supported_resource_types?: CspResourceType[];
 }
 
 export interface ICspListResponse {
   csp: string[];
+  /** The resource types cm-honeybee can collect, per CSP. */
+  supported_resource_types?: Record<string, CspResourceType[]>;
 }
 
 export interface ICspRegion {

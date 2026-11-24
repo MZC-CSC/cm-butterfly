@@ -10,7 +10,10 @@ import {
   PSpinner,
 } from '@cloudforet-test/mirinae';
 import { computed, onMounted, reactive } from 'vue';
-import { useDiscoverSourceGroupResources } from '@/entities/sourceService/api';
+import {
+  useDiscoverSourceGroupResources,
+  useGetCspInfo,
+} from '@/entities/sourceService/api';
 import {
   useCreateConnectionInfo,
   useGetSourceConnectionList,
@@ -24,8 +27,10 @@ import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 
 /**
  * Adds connections to a CSP-type source group by picking resources that actually exist
- * in the source account (cm-honeybee GET /source_group/{sgId}/discover). Registering
- * only checks that the CSP can see the resource; data arrives when it is collected.
+ * in the source account (cm-honeybee GET /source_group/{sgId}/discover), or by typing
+ * one in: cm-honeybee checks that a typed-in resource exists in the account (and, for a
+ * bucket, that it is in the group's region) and refuses it otherwise. Only the resource
+ * types the CSP's driver can collect are offered (GET /csp/{name}).
  */
 interface Props {
   sourceServiceId: string;
@@ -37,13 +42,48 @@ interface Props {
 const props = defineProps<Props>();
 const emit = defineEmits(['update:is-modal-opened', 'update:trigger']);
 
-const resourceTypeItems: Array<{ name: CspResourceType; label: string }> = [
+const allResourceTypes: Array<{ name: CspResourceType; label: string }> = [
   { name: 'vm', label: 'Virtual Machine' },
   { name: 'object_storage', label: 'Object Storage (bucket)' },
   { name: 'k8s', label: 'Kubernetes cluster' },
   { name: 'nlb', label: 'Network Load Balancer' },
   { name: 'rdbms', label: 'Managed RDBMS' },
 ];
+
+const resCspInfo = useGetCspInfo(null);
+const supportedTypes = reactive<{
+  list: CspResourceType[] | null;
+  error: string;
+}>({
+  list: null,
+  error: '',
+});
+async function loadSupportedTypes() {
+  if (!props.providerName) return;
+  try {
+    const { data } = await resCspInfo.execute({
+      pathParams: { name: props.providerName },
+    });
+    supportedTypes.list = data.responseData?.supported_resource_types ?? [];
+  } catch (e) {
+    supportedTypes.list = [];
+    supportedTypes.error =
+      (e as any)?.errorMsg?.value ??
+      `Could not read which resources ${props.providerName} supports.`;
+  }
+}
+const resourceTypeItems = computed(() =>
+  supportedTypes.list === null
+    ? []
+    : allResourceTypes.filter(t => supportedTypes.list!.includes(t.name)),
+);
+const unsupportedLabels = computed(() =>
+  supportedTypes.list === null
+    ? []
+    : allResourceTypes
+        .filter(t => !supportedTypes.list!.includes(t.name))
+        .map(t => t.label),
+);
 
 const resDiscover = useDiscoverSourceGroupResources(
   props.sourceServiceId,
@@ -84,7 +124,6 @@ const state = reactive({
   sshUser: '',
   sshPort: '22',
   sshPrivateKey: '',
-  // Kept for the disabled manual entry; enabled once cm-honeybee verifies a typed-in resource.
   manualId: '',
 });
 
@@ -117,9 +156,34 @@ async function handleDiscover() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await loadSupportedTypes();
+  if (
+    supportedTypes.list &&
+    !supportedTypes.list.includes(state.resourceType) &&
+    supportedTypes.list.length
+  )
+    state.resourceType = supportedTypes.list[0];
   if (props.initialResourceType) handleDiscover();
 });
+
+// A VM is always listed by Discover, and one typed in would have no address to reach it
+// over SSH, so typing in is offered for the other resource types.
+const canEnterByHand = computed(() => !isVm.value);
+function handleManualAdd() {
+  const id = state.manualId.trim();
+  if (!id) return;
+  if (!state.items.some(i => i.resource_id === id)) {
+    state.items.push({
+      resource_type: state.resourceType,
+      resource_id: id,
+      name: id,
+      extra: {},
+    } as IDiscoveredResource);
+  }
+  if (!state.selectedIds.includes(id)) state.selectedIds.push(id);
+  state.manualId = '';
+}
 
 function toggle(id: string) {
   const item = state.items.find(i => i.resource_id === id);
@@ -212,6 +276,20 @@ function handleClose() {
         <p class="note" data-testid="csp-connection-account">
           Source account: {{ providerName }} / {{ regionName }}
         </p>
+        <p
+          v-if="unsupportedLabels.length"
+          class="note"
+          data-testid="csp-connection-unsupported"
+        >
+          {{ providerName }} cannot collect: {{ unsupportedLabels.join(', ') }}.
+        </p>
+        <p
+          v-if="supportedTypes.error"
+          class="note error"
+          data-testid="csp-connection-supported-error"
+        >
+          {{ supportedTypes.error }}
+        </p>
         <div class="discover-row">
           <p-field-group label="Resource Type" required>
             <p-select-dropdown
@@ -281,7 +359,11 @@ function handleClose() {
           </li>
         </ul>
 
-        <div class="manual-row" data-testid="csp-connection-manual">
+        <div
+          v-if="canEnterByHand"
+          class="manual-row"
+          data-testid="csp-connection-manual"
+        >
           <p-field-group
             :label="`Not listed? Enter the ${
               state.resourceType === 'object_storage'
@@ -291,23 +373,31 @@ function handleClose() {
           >
             <p-text-input
               v-model="state.manualId"
-              disabled
               data-testid="csp-connection-manual-id"
+              @keyup.enter="handleManualAdd"
             />
           </p-field-group>
           <p-button
             style-type="tertiary"
             icon-left="ic_plus"
-            disabled
+            :disabled="!state.manualId.trim()"
             data-testid="csp-connection-manual-add"
+            @click="handleManualAdd"
           >
             Add to list
           </p-button>
         </div>
-        <p class="note" data-testid="csp-connection-manual-note">
-          Entering a resource by hand is not available yet: cm-honeybee
-          registers the connection without checking that the resource exists, so
-          only resources found by Discover can be added.
+        <p
+          v-if="canEnterByHand"
+          class="note"
+          data-testid="csp-connection-manual-note"
+        >
+          A resource entered here is checked when it is added: the source
+          collector refuses one that does not exist in the account<template
+            v-if="state.resourceType === 'object_storage'"
+          >
+            or is in another region</template
+          >.
         </p>
 
         <div v-if="isVm" class="ssh-section">
@@ -365,6 +455,9 @@ function handleClose() {
 .note {
   font-size: 0.875rem;
   color: #6b7280;
+}
+.note.error {
+  color: #dc2626;
 }
 .discover-row,
 .manual-row {

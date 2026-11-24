@@ -28,6 +28,7 @@ const GET_INFRA_INFO_SOURCE_GROUP_REFINE =
 const LIST_CSP = 'cm-honeybee/list-csp';
 const GET_CSP = 'cm-honeybee/get-csp';
 const LIST_SOURCE_GROUP_REGIONS = 'cm-honeybee/list-source-group-regions';
+const LIST_CSP_REGIONS = 'cm-honeybee/List-Csp-Regions';
 const DISCOVER_SOURCE_GROUP_RESOURCES =
   'cm-honeybee/discover-source-group-resources';
 
@@ -182,6 +183,15 @@ export function useListSourceGroupRegions(sgId: string | null) {
     IAxiosResponse<ICspRegionListResponse>,
     Required<Pick<RequestBodyWrapper<{ sgId: string | null }>, 'pathParams'>>
   >(LIST_SOURCE_GROUP_REGIONS, requestWrapper);
+}
+
+// Regions and zones of a CSP queried live with a credential that is not stored, so the
+// registration form can offer real regions before the group exists.
+export function useListCspRegions() {
+  return useAxiosPost<IAxiosResponse<ICspRegionListResponse>, any>(
+    LIST_CSP_REGIONS,
+    null,
+  );
 }
 
 // What actually exists in the source account, read from the CSP rather than

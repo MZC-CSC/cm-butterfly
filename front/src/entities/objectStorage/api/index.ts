@@ -26,11 +26,12 @@ const CREATE_ARTIFACT = 'cm-beetle/CreateArtifact';
 const UPDATE_ARTIFACT = 'cm-beetle/UpdateArtifact';
 const DELETE_ARTIFACT = 'cm-beetle/DeleteArtifact';
 const COLLECT_BUCKET = 'cm-honeybee/import-infra';
-const GET_BUCKET_REFINED = 'cm-honeybee/get-data-info-refined';
+const COLLECT_GROUP_BUCKETS = 'cm-honeybee/Import-Bucket-Source-Group';
+const GET_BUCKET_REFINED = 'cm-honeybee/Get-Bucket-Info-Refined';
 const GET_BUCKET_META = 'cm-honeybee/get-data-info';
 const GET_GROUP_BUCKETS_META = 'cm-honeybee/get-data-info-source-group';
 const GET_GROUP_BUCKETS_REFINED =
-  'cm-honeybee/get-data-info-source-group-refined';
+  'cm-honeybee/Get-Bucket-Info-Source-Group-Refined';
 
 /**
  * Every call goes through the console's proxy, which answers
@@ -178,6 +179,44 @@ export async function collectBucket(
   return res.data?.responseData;
 }
 
+/** One connection's outcome in a group collect (cm-honeybee import/bucket and the like). */
+export interface IGroupCollectResult {
+  connection_id: string;
+  resource_type: string;
+  results: { kind: string; status: string; error_message?: string }[];
+}
+
+/**
+ * Collects every bucket connection of a cloud source service in one call (cm-honeybee
+ * import/bucket). Each connection reports its own outcome; one that fails does not stop the
+ * others, and the call itself fails only when none was collected.
+ */
+export async function collectGroupBuckets(
+  sgId: string,
+  countObjects = true,
+): Promise<IGroupCollectResult[]> {
+  const res = await axiosInstance.post(COLLECT_GROUP_BUCKETS, {
+    pathParams: { sgId },
+    queryParams: { count_objects: String(countObjects) },
+  });
+  const body = res.data?.responseData;
+  return Array.isArray(body) ? body : [];
+}
+
+/** The connections of a group collect that failed, with the reason cm-honeybee gave. */
+export function groupCollectFailures(
+  results: IGroupCollectResult[],
+): { connectionId: string; message: string }[] {
+  return results.flatMap(r =>
+    (r.results ?? [])
+      .filter(x => x.status !== 'success')
+      .map(x => ({
+        connectionId: r.connection_id,
+        message: x.error_message || `${x.kind} ${x.status || 'failed'}`,
+      })),
+  );
+}
+
 /**
  * The collected bucket in the shape of a source model (`sourceObjectStorageModel`), which is
  * what cm-damselfly stores. cm-honeybee answers an error when nothing was collected for the
@@ -211,13 +250,13 @@ export function getBucketMeta(sgId: string, connId: string) {
   return axiosInstance.post(GET_BUCKET_META, { pathParams: { sgId, connId } });
 }
 /**
- * The buckets whose collect failed, read from the collected data. cm-honeybee answers a bucket
- * collect with success even when it could not read the bucket (for example a bucket of another
- * region than the source service's), and keeps the reasons only in the collected data's `errors`;
- * the refined model leaves them out, so the empty values there would pass for observed ones.
- * Takes the data of one connection or of a group (`minio_data`).
+ * The settings that could not be read, per bucket, from the collected data's `errors`.
+ * cm-honeybee fails a collect that read nothing (the collect call answers an error) but keeps a
+ * bucket that was read in part as collected, with the unread items in `errors` and left out of
+ * the refined model. Some are expected (Azure has no versioning to read), so they are reported
+ * rather than treated as a failure. Takes the data of one connection or of a group (`minio_data`).
  */
-export function bucketCollectFailures(
+export function bucketUnreadItems(
   meta: any,
 ): { bucket: string; errors: string[] }[] {
   const entries: any[] = Array.isArray(meta?.minio_data)
@@ -237,11 +276,16 @@ export function bucketCollectFailures(
     }));
 }
 
-/** One message naming every failed bucket and its first reason. */
-export function bucketCollectFailureMessage(
-  failures: { bucket: string; errors: string[] }[],
+/** One message naming each bucket and the items that could not be read from it. */
+export function bucketUnreadItemsMessage(
+  unread: { bucket: string; errors: string[] }[],
 ) {
-  return failures.map(f => `${f.bucket}: ${f.errors[0]}`).join(' / ');
+  return unread
+    .map(
+      f =>
+        `${f.bucket}: ${f.errors.map(e => e.split(':')[0].trim()).join(', ')}`,
+    )
+    .join(' / ');
 }
 
 export function getRefinedBucketResponse(sgId: string, connId: string) {

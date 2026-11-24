@@ -12,10 +12,11 @@ import { useSourceConnectionStore } from '@/entities/sourceConnection/model/stor
 import { showErrorMessage, showSuccessMessage } from '@/shared/utils';
 
 /**
- * Edits a connection of a cloud source service. cm-honeybee updates a CSP connection's
- * name, description, resource type and resource ID; the resource itself is kept read-only
- * here because cm-honeybee does not check that a typed-in resource exists. Pointing at a
- * different resource is done by adding it (Discover) and deleting this connection.
+ * Edits a connection of a cloud source service: its name and description, and for a VM
+ * the SSH access that lets cm-honeybee collect the guest OS and software as well. A blank
+ * SSH field keeps what is stored (cm-honeybee keeps the stored value for an empty one), so
+ * a stored key is never shown or sent back. The resource itself is kept read-only;
+ * pointing at a different resource is done by adding it and deleting this connection.
  */
 interface IProps {
   sourceServiceId: string;
@@ -31,6 +32,24 @@ const resUpdate = useUpdateConnectionInfo(null, null, null);
 const state = reactive({
   name: connection.value?.name ?? '',
   description: connection.value?.description ?? '',
+  ipAddress: connection.value?.ip_address ?? '',
+  sshPort: connection.value?.ssh_port ? String(connection.value.ssh_port) : '',
+  user: connection.value?.user ?? '',
+  privateKey: '',
+});
+
+const isVm = computed(() => connection.value?.resource_type === 'vm');
+const hadSsh = computed(() => !!connection.value?.ip_address);
+// cm-honeybee needs a user and a key with an address. A key already stored counts.
+const sshError = computed(() => {
+  if (!isVm.value || !state.ipAddress.trim()) return '';
+  if (!state.user.trim()) return 'Enter the SSH user.';
+  if (!hadSsh.value && !state.privateKey.trim())
+    return 'Enter the SSH private key.';
+  const port = state.sshPort.trim();
+  if (port && !(/^\d+$/.test(port) && +port >= 1 && +port <= 65535))
+    return 'The SSH port must be between 1 and 65535.';
+  return '';
 });
 
 const typeLabels: Record<string, string> = {
@@ -46,14 +65,29 @@ const typeLabel = computed(() => {
 });
 
 const canSave = computed(
-  () => !!state.name.trim() && !resUpdate.isLoading.value,
+  () => !!state.name.trim() && !sshError.value && !resUpdate.isLoading.value,
 );
 
 async function handleSave() {
   try {
     await resUpdate.execute({
       pathParams: { sgId: props.sourceServiceId, connId: props.connectionId },
-      request: { name: state.name.trim(), description: state.description },
+      request: {
+        name: state.name.trim(),
+        description: state.description,
+        ...(isVm.value && state.ipAddress.trim()
+          ? {
+              ip_address: state.ipAddress.trim(),
+              user: state.user.trim(),
+              ...(state.sshPort.trim()
+                ? { ssh_port: state.sshPort.trim() }
+                : {}),
+              ...(state.privateKey.trim()
+                ? { private_key: state.privateKey }
+                : {}),
+            }
+          : {}),
+      },
     } as any);
     showSuccessMessage('success', 'Connection updated');
     emit('update:trigger');
@@ -115,6 +149,46 @@ async function handleSave() {
             data-testid="csp-connection-edit-description"
           />
         </p-field-group>
+        <div v-if="isVm" class="ssh" data-testid="csp-connection-edit-ssh">
+          <p class="note">
+            SSH access lets the source collector install its agent and collect
+            the guest OS and software as well. A blank field keeps what is
+            stored; a stored address cannot be removed here.
+          </p>
+          <p-field-group label="IP Address">
+            <p-text-input
+              v-model="state.ipAddress"
+              data-testid="csp-connection-edit-ip"
+            />
+          </p-field-group>
+          <p-field-group label="SSH Port">
+            <p-text-input
+              v-model="state.sshPort"
+              placeholder="22"
+              data-testid="csp-connection-edit-ssh-port"
+            />
+          </p-field-group>
+          <p-field-group label="User">
+            <p-text-input
+              v-model="state.user"
+              data-testid="csp-connection-edit-ssh-user"
+            />
+          </p-field-group>
+          <p-field-group label="Private Key">
+            <p-textarea
+              v-model="state.privateKey"
+              :placeholder="hadSsh ? 'Leave blank to keep the stored key' : ''"
+              data-testid="csp-connection-edit-ssh-private-key"
+            />
+          </p-field-group>
+          <p
+            v-if="sshError"
+            class="note error"
+            data-testid="csp-connection-edit-ssh-error"
+          >
+            {{ sshError }}
+          </p>
+        </div>
       </div>
     </template>
     <template #close-button>
@@ -156,5 +230,15 @@ async function handleSave() {
 }
 .link {
   color: #1d4ed8;
+}
+.note.error {
+  color: #dc2626;
+}
+.ssh {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 0.75rem;
 }
 </style>
