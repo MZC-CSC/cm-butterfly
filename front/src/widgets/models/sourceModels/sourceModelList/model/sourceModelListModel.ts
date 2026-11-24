@@ -18,6 +18,9 @@ export function useSourceModelListModel() {
   const models = sourceModelStore.getModels();
 
   function initToolBoxTableModel() {
+    // Newest first: a model just saved from a collect is what the user looks for next, and with
+    // the oldest first it landed on a later page behind models kept from earlier work.
+    tableModel.tableOptions.sortBy = 'createdDateTime';
     tableModel.tableState.fields = [
       { name: 'name', label: 'Name' },
       { name: 'id', label: 'ID' },
@@ -88,9 +91,13 @@ export function useSourceModelListModel() {
     const byId = new Map<string, ISourceModelResponse>(
       nv.map((m: ISourceModelResponse) => [m.id, m]),
     );
-    tableModel.tableState.items = nv.map((value: ISourceModelResponse) =>
-      organizeSourceModelTableItem(value, byId),
-    );
+    tableModel.tableState.items = [...nv]
+      .sort((a: ISourceModelResponse, b: ISourceModelResponse) =>
+        String(b.createTime ?? '').localeCompare(String(a.createTime ?? '')),
+      )
+      .map((value: ISourceModelResponse) =>
+        organizeSourceModelTableItem(value, byId),
+      );
   });
 
   return {
