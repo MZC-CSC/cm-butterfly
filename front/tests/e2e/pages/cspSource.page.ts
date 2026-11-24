@@ -99,6 +99,14 @@ export class CspSourcePage {
     return this.optionalInputs.count();
   }
 
+  /** 버킷을 기본 인증으로 읽는 CSP(aws 등)에는 선택 키 칸과 그 안내가 아예 없다. */
+  async expectNoOptionalFields(): Promise<void> {
+    await expect(this.page.getByTestId('csp-source-optional-note')).toHaveCount(
+      0,
+    );
+    await expect(this.optionalInputs).toHaveCount(0);
+  }
+
   async fillOptional(index: number, value: string): Promise<void> {
     await humanFill(this.optionalInputs.nth(index), value);
   }
@@ -379,19 +387,61 @@ export class CspSourcePage {
     ).toBeVisible({ timeout: 30_000 });
   }
 
-  /** 잠긴 버튼을 강제로 눌러도 import-infra·import-software 요청이 나가지 않아야 한다. */
-  async expectGroupCollectSendsNothing(): Promise<void> {
+  /**
+   * 버튼이 열려 있다 — 잠금 사유가 비어 있다. 미리내 버튼은 비활성을 class 로만 나타내
+   * toBeEnabled() 가 늘 참이므로(DESIGN-MIRINAE §1.6) 사유 속성으로 판정한다. 사유는 그룹을
+   * 다 읽기 전까지 "Reading…" 이라, 빈 값이 될 때까지 기다린다.
+   */
+  async expectCollectOpen(triggerTestId: string): Promise<void> {
+    await expect(this.page.getByTestId(triggerTestId)).toHaveAttribute(
+      'data-disabled-reason',
+      '',
+      { timeout: 60_000 },
+    );
+  }
+
+  /**
+   * 그룹 Collect Infra 로 수집하고, Convert 로 받은 정제 모델에 그 VM 이 노드로 들어 있는지
+   * 본다. SSH 가 없는 VM 은 cm-honeybee 가 클라우드 쪽 정보로 노드를 채운다. 결과는 화면의
+   * 트리가 아니라 정제 응답으로 판정한다(트리는 펼침 상태에 따라 글자가 안 보인다).
+   */
+  async collectGroupInfraAndExpectNode(machineId: string): Promise<void> {
+    await this.expectCollectOpen('source-group-collect-infra-trigger');
+    // 같은 이름의 refined 요청을 다른 화면 요소도 보낸다 — 이번 수집의 그룹 ID 로 좁힌다.
+    const imported = this.page.waitForRequest(
+      r => /import-infra-source-group/i.test(r.url()),
+      { timeout: 30_000 },
+    );
+    await humanClick(this.page.getByTestId('source-group-collect-infra'));
+    const sgId: string =
+      JSON.parse((await imported).postData() ?? '{}')?.pathParams?.sgId ?? '';
+    expect(sgId).not.toBe('');
+    const convert = this.page.getByTestId('source-refine-convert');
+    await expect(convert).toBeVisible({ timeout: 180_000 });
+    const refined = this.page.waitForResponse(
+      r =>
+        /get-infra-info-source-group-refined/i.test(r.url()) &&
+        (r.request().postData() ?? '').includes(sgId),
+      { timeout: 120_000 },
+    );
+    await humanClick(convert);
+    const body = await (await refined).json();
+    const nodes: { machineId?: string }[] =
+      body?.responseData?.onpremiseInfraModel?.nodes ?? [];
+    expect(nodes.map(n => n.machineId)).toContain(machineId);
+    // 다음 단계가 탭을 누를 수 있도록 결과 창을 닫는다.
+    await humanClick(this.page.getByTestId('source-refine-cancel'));
+    await expect(convert).toHaveCount(0, { timeout: 15_000 });
+  }
+
+  /** 잠긴 Collect SW 를 강제로 눌러도 import-software 요청이 나가지 않아야 한다. */
+  async expectGroupSoftwareCollectSendsNothing(): Promise<void> {
     const calls: string[] = [];
     const listener = (r: { url(): string; postData(): string | null }) => {
-      if (
-        /import-infra|import-software/i.test(`${r.url()} ${r.postData() ?? ''}`)
-      )
+      if (/import-software/i.test(`${r.url()} ${r.postData() ?? ''}`))
         calls.push(r.url());
     };
     this.page.on('request', listener);
-    await this.page
-      .getByTestId('source-group-collect-infra')
-      .click({ force: true });
     await this.page
       .getByTestId('source-group-collect-sw')
       .click({ force: true });

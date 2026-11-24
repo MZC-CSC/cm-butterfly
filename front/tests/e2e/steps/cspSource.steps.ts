@@ -121,16 +121,13 @@ Then('고른 VM 이 커넥션 목록에 보인다', async ({ page }) => {
 // 문구는 화면이 내보내는 사유 그대로가 아니라 핵심만 본다 — 문장을 다듬어도 깨지지 않게.
 const NO_SSH = /SSH access/;
 
+// SSH 없는 VM 은 에이전트로 읽을 수 없어 Collect SW 만 잠긴다. 인프라는 cm-honeybee 가 클라우드
+// 쪽 정보로 수집하므로 Collect Infra 는 열려 있다(그룹 capabilities 의 isCollectInfra).
 Then(
-  '그룹의 Collect Infra 와 Collect SW 에 마우스를 올리면 SSH 가 없다는 사유가 보인다',
+  '그룹의 Collect SW 에 마우스를 올리면 SSH 가 없다는 사유가 보인다',
   async ({ page }) => {
     const csp = new CspSourcePage(page);
     await csp.openGroupDetailTab();
-    await csp.expectCollectReasonOnHover(
-      'source-group-collect-infra-trigger',
-      'source-group-collect-infra',
-      NO_SSH,
-    );
     await csp.expectCollectReasonOnHover(
       'source-group-collect-sw-trigger',
       'source-group-collect-sw',
@@ -140,24 +137,24 @@ Then(
 );
 
 Then(
-  '잠긴 그룹 수집 버튼을 눌러도 수집 요청이 나가지 않는다',
+  '잠긴 Collect SW 를 눌러도 수집 요청이 나가지 않는다',
   async ({ page }) => {
-    await new CspSourcePage(page).expectGroupCollectSendsNothing();
+    await new CspSourcePage(page).expectGroupSoftwareCollectSendsNothing();
   },
 );
 
 Then(
-  '그 연결의 Collect Infra 에도 SSH 가 없다는 사유가 보인다',
+  '그룹의 Collect Infra 로 수집하면 클라우드 정보로 그 VM 이 노드로 들어온다',
   async ({ page }) => {
-    const csp = new CspSourcePage(page);
-    await csp.openConnectionInfraCollect(new RegExp(`vm-${testVm()}`));
-    await csp.expectCollectReasonOnHover(
-      'collect-infra-trigger',
-      'collect-infra',
-      NO_SSH,
-    );
+    await new CspSourcePage(page).collectGroupInfraAndExpectNode(testVm());
   },
 );
+
+Then('그 연결의 Collect Infra 도 열려 있다', async ({ page }) => {
+  const csp = new CspSourcePage(page);
+  await csp.openConnectionInfraCollect(new RegExp(`vm-${testVm()}`));
+  await csp.expectCollectOpen('collect-infra-trigger');
+});
 
 Then('만든 CSP 소스 서비스를 지운다', async ({ page }) => {
   const sources = new SourceServicesPage(page);
@@ -166,6 +163,11 @@ Then('만든 CSP 소스 서비스를 지운다', async ({ page }) => {
 });
 
 // 리전은 입력한 인증으로 그 계정에서 읽어 온다 — 인증이 없으면 읽을 수 없다.
+// aws 는 버킷도 기본 인증으로 읽으므로 cm-honeybee 가 선택 키를 주지 않는다 — 칸이 없어야 한다.
+Then('aws 에는 버킷용 선택 키 칸이 없다', async ({ page }) => {
+  await new CspSourcePage(page).expectNoOptionalFields();
+});
+
 Then('인증 값을 넣기 전에는 리전을 불러올 수 없다', async ({ page }) => {
   expect(await new CspSourcePage(page).isLoadRegionsEnabled()).toBe(false);
 });

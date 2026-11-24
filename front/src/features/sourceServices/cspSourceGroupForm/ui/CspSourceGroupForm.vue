@@ -25,8 +25,9 @@ import {
  * the migration reads from. The credential fields come from cm-honeybee
  * (GET /csp/{name}), so a CSP the console has never heard of still gets a form.
  *
- * Optional keys (the S3 keys some CSPs read buckets with) are asked for separately: they
- * are given both or neither, and without them only buckets cannot be collected. Regions
+ * Optional keys (the S3 keys some CSPs read buckets with) are asked for separately and
+ * only for the CSPs whose spec lists them: they are given both or neither, and they are
+ * required to collect buckets, though not to register the group. Regions
  * are read live from the CSP with the typed-in credential (POST /csp/{name}/region), so
  * the list is the account's own and needs the required keys first.
  */
@@ -261,9 +262,11 @@ watch(request, value => emit('update:value', value), { immediate: true });
 
       <template v-if="optionalFields.length">
         <p class="field-note" data-testid="csp-source-optional-note">
-          Optional. Needed only to collect
-          {{ optionalForText }}
-          from {{ state.provider }}. Enter both keys or leave both empty.
+          Required to collect {{ optionalForText }} from {{ state.provider }}.
+          {{ state.provider }} reads {{ optionalForText }} with these separate
+          keys, so without them {{ optionalForText }} cannot be added to this
+          source service; everything else is collected without them. Enter both
+          keys or leave both empty.
         </p>
         <p-field-group
           v-for="field in optionalFields"

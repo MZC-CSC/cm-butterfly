@@ -89,15 +89,16 @@ const infraModel = ref<any>(null);
   connections a group request covers is cm-honeybee's to decide (cm-honeybee#85), and an
   error it returns is shown as is.
 
-  Collect Infra / Collect SW reach servers through the cm-honeybee agent (SSH): on-premise
-  servers, and cloud VMs registered with SSH. Collect Object Storage covers the buckets of a
-  cloud source service. fs, db and minio groups hold data sources the console does not
-  collect yet.
+  Collect SW reaches servers through the cm-honeybee agent (SSH): on-premise servers, and
+  cloud VMs registered with SSH. Collect Infra also covers a cloud VM registered without SSH,
+  whose infra cm-honeybee builds from the cloud's own information. Collect Object Storage
+  covers the buckets of a cloud source service. fs, db and minio groups hold data sources the
+  console does not collect yet.
 
-  Collect SW and Collect Object Storage are unlocked by the group's `capabilities`, which
-  cm-honeybee works out with the rules its group imports pick their targets by, so the console
-  no longer keeps its own copy of those rules. The connection list still gives the counts shown
-  next to the buttons and the reason a button is locked.
+  The three buttons are unlocked by the group's `capabilities`, which cm-honeybee works out
+  with the rules its group imports pick their targets by, so the console keeps no copy of
+  those rules. The connection list still gives the counts shown next to the buttons and the
+  reason a button is locked.
 */
 const groupType = computed(() =>
   groupTypeOf(sourceServiceStore.getServiceById(props.selectedServiceId)?.type),
@@ -133,18 +134,14 @@ const unsupportedGroupHint = computed(
       SOURCE_GROUP_TYPE_LABEL[groupType.value] ?? groupType.value
     } source service. The console does not collect this type yet.`,
 );
-const agentCollectHint = computed(() => {
+const infraCollectHint = computed(() => {
   if (!isServerGroup.value) return unsupportedGroupHint.value;
-  const k = connectionKinds.value;
-  if (k.vms.length === 0) {
-    return 'No server (VM) connection in this source service.';
-  }
-  if (isCspService.value && k.sshVms.length === 0) {
-    return NO_SSH_VM_HINT;
-  }
-  return '';
+  const caps = groupCapabilities.value;
+  if (!caps) return READING_HINT;
+  return caps.isCollectInfra
+    ? ''
+    : 'No connection to collect the infra from in this source service.';
 });
-const agentCollectDisabled = computed(() => !!agentCollectHint.value);
 const softwareCollectHint = computed(() => {
   if (!isServerGroup.value) return unsupportedGroupHint.value;
   const caps = groupCapabilities.value;
@@ -154,8 +151,8 @@ const softwareCollectHint = computed(() => {
     ? NO_SSH_VM_HINT
     : 'No server (VM) connection in this source service.';
 });
-// The servers a group collect reaches: on-premise servers, and cloud VMs registered with SSH.
-const collectableServerCount = computed(() =>
+// The servers Collect SW reaches: on-premise servers, and cloud VMs registered with SSH.
+const softwareServerCount = computed(() =>
   isCspService.value
     ? connectionKinds.value.sshVms.length
     : connectionKinds.value.vms.length,
@@ -379,7 +376,7 @@ watchEffect(() => {
 });
 
 function getSourceGroupInfras() {
-  if (agentCollectDisabled.value) return;
+  if (infraCollectHint.value) return;
   // Collect the infra (import-infra-source-group), then show its structured
   // JSON form (get-infra-info-source-group) in the viewer's left "Meta" pane.
   resGetInfraSourceGroup
@@ -653,7 +650,9 @@ function handleSoftwareModal() {
 
       <template #data-viewInfra="{ data }">
         <span class="resource-count" data-testid="source-group-server-count">{{
-          collectableServerCount ? `${collectableServerCount} server(s)` : ''
+          connectionKinds.vms.length
+            ? `${connectionKinds.vms.length} server(s)`
+            : ''
         }}</span>
         <p
           v-if="data.isShow"
@@ -672,7 +671,7 @@ function handleSoftwareModal() {
           class="resource-count"
           data-testid="source-group-sw-server-count"
           >{{
-            collectableServerCount ? `${collectableServerCount} server(s)` : ''
+            softwareServerCount ? `${softwareServerCount} server(s)` : ''
           }}</span
         >
         <p
@@ -723,14 +722,14 @@ function handleSoftwareModal() {
         </div>
         <div v-else-if="name === 'viewInfra'" class="collect-actions">
           <disabled-reason
-            :reason="agentCollectDisabled ? agentCollectHint : ''"
+            :reason="infraCollectHint"
             testid="source-group-collect-infra-trigger"
           >
             <p-button
               data-testid="source-group-collect-infra"
               style-type="tertiary"
               size="sm"
-              :disabled="agentCollectDisabled"
+              :disabled="!!infraCollectHint"
               :loading="resGetInfraSourceGroup.isLoading.value"
               @click="getSourceGroupInfras"
             >

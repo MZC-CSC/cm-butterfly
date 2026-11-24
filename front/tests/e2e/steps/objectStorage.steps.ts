@@ -260,21 +260,19 @@ When('그 창에서 소스 모델로 저장하면', async ({ page }) => {
   await new ObjectStoragePage(page).saveFromCollectViewer(name);
 });
 
-// 버킷만 든 그룹에는 서버가 없으니 서버 수집 버튼은 잠기고, 왜 잠겼는지 사유가 붙는다.
+// 버킷만 든 그룹에는 서버가 없으니 Collect SW 는 사유와 함께 잠긴다. Collect Infra 는 그룹
+// capabilities(isCollectInfra)를 따라 열린다 — cm-honeybee 가 버킷 연결의 클라우드 정보도
+// 인프라 수집으로 다시 읽기 때문이다.
 Then(
-  '서버 연결이 없어 Collect Infra 와 Collect SW 는 사유와 함께 잠겨 있다',
+  '서버 연결이 없어 Collect SW 는 사유와 함께 잠기고 Collect Infra 는 열려 있다',
   async ({ page }) => {
     const csp = new CspSourcePage(page);
     await csp.openGroupDetailTab();
-    await csp.expectCollectReasonOnHover(
-      'source-group-collect-infra-trigger',
-      'source-group-collect-infra',
-      /No server \(VM\) connection/,
-    );
     await csp.expectCollectReasonOnHover(
       'source-group-collect-sw-trigger',
       'source-group-collect-sw',
       /No server \(VM\) connection/,
     );
+    await csp.expectCollectOpen('source-group-collect-infra-trigger');
   },
 );

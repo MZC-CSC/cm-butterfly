@@ -312,6 +312,7 @@ function handleConvertSoftwareSourceGroup(): (
       </template>
       <template #buttons>
         <p-button
+          data-testid="source-refine-cancel"
           style-type="tertiary"
           @click="emit('update:is-meta-viewer-opened')"
         >
