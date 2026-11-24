@@ -14,7 +14,10 @@ import {
   watch,
   watchEffect,
 } from 'vue';
-import type { ISourceConnectionOutcome } from '@/entities/sourceService/model/types';
+import type {
+  ISourceConnectionOutcome,
+  ISourceGroupCapabilities,
+} from '@/entities/sourceService/model/types';
 import {
   groupTypeOf,
   isCspSourceGroup,
@@ -22,7 +25,6 @@ import {
   SourceGroupType,
 } from '@/entities/sourceService/model/types';
 import {
-  bucketCollectFailureMessage,
   bucketUnreadItems,
   bucketUnreadItemsMessage,
   collectGroupBuckets,
@@ -74,6 +76,7 @@ const {
 const refreshSourceGroupConnectionInfoStatus =
   useRefreshSourceGroupConnectionInfoStatus(null);
 const getSourceService = useGetSourceService(null);
+const getGroupCapabilities = useGetSourceService(null);
 const getSourceConnectionList = useGetSourceConnectionList(null);
 const resGetInfraSourceGroup = useGetInfraSourceGroup(null);
 const resGetInfraInfoSourceGroup = useGetInfraInfoSourceGroup(null);
@@ -90,6 +93,11 @@ const infraModel = ref<any>(null);
   servers, and cloud VMs registered with SSH. Collect Object Storage covers the buckets of a
   cloud source service. fs, db and minio groups hold data sources the console does not
   collect yet.
+
+  Collect SW and Collect Object Storage are unlocked by the group's `capabilities`, which
+  cm-honeybee works out with the rules its group imports pick their targets by, so the console
+  no longer keeps its own copy of those rules. The connection list still gives the counts shown
+  next to the buttons and the reason a button is locked.
 */
 const groupType = computed(() =>
   groupTypeOf(sourceServiceStore.getServiceById(props.selectedServiceId)?.type),
@@ -104,6 +112,14 @@ const isServerGroup = computed(
     groupType.value === SourceGroupType.OnPremise ||
     groupType.value === SourceGroupType.Csp,
 );
+// Unknown until the group is read; every collect button stays locked until then.
+const groupCapabilities = ref<ISourceGroupCapabilities | null>(null);
+// The service the capabilities above belong to. Declared here, before the immediate watch
+// below runs loadGroupCapabilities, which reads it.
+let capabilitiesFor = '';
+const READING_HINT = 'Reading the connections of this source service.';
+const NO_SSH_VM_HINT =
+  'No VM connection with SSH access. A cloud VM is collected through the agent only when it is registered with SSH.';
 const connectionKinds = ref({
   vms: [] as string[],
   sshVms: [] as string[],
@@ -124,11 +140,20 @@ const agentCollectHint = computed(() => {
     return 'No server (VM) connection in this source service.';
   }
   if (isCspService.value && k.sshVms.length === 0) {
-    return 'No VM connection with SSH access. A cloud VM is collected through the agent only when it is registered with SSH.';
+    return NO_SSH_VM_HINT;
   }
   return '';
 });
 const agentCollectDisabled = computed(() => !!agentCollectHint.value);
+const softwareCollectHint = computed(() => {
+  if (!isServerGroup.value) return unsupportedGroupHint.value;
+  const caps = groupCapabilities.value;
+  if (!caps) return READING_HINT;
+  if (caps.isCollectSoftware) return '';
+  return isCspService.value && connectionKinds.value.vms.length > 0
+    ? NO_SSH_VM_HINT
+    : 'No server (VM) connection in this source service.';
+});
 // The servers a group collect reaches: on-premise servers, and cloud VMs registered with SSH.
 const collectableServerCount = computed(() =>
   isCspService.value
@@ -156,9 +181,11 @@ const objectStorageHint = computed(() => {
       ? 'Object storage is collected from a cloud source service.'
       : unsupportedGroupHint.value;
   }
-  return connectionKinds.value.buckets.length === 0
-    ? 'No object storage connection in this source service. Add buckets with Discover Buckets or from Connections.'
-    : '';
+  const caps = groupCapabilities.value;
+  if (!caps) return READING_HINT;
+  return caps.isCollectObjectStorage
+    ? ''
+    : 'No object storage connection in this source service. Add buckets with Discover Buckets or from Connections.';
 });
 
 /*
@@ -394,7 +421,7 @@ function getSourceGroupInfras() {
 }
 
 function getSourceGroupSoftware() {
-  if (agentCollectDisabled.value) return;
+  if (softwareCollectHint.value) return;
   // Collect the software (import-software-source-group), then show its
   // structured JSON form (get-software-info-source-group) in the pane.
   resCollectSWSourceGroup
@@ -444,7 +471,25 @@ function getSourceGroupSoftware() {
  * the agent is something else again. The server separates them and explains each; the
  * console was showing neither.
  */
+async function loadGroupCapabilities() {
+  const sgId = props.selectedServiceId;
+  if (capabilitiesFor !== sgId) groupCapabilities.value = null;
+  capabilitiesFor = sgId;
+  try {
+    const { data } = await getGroupCapabilities.execute({
+      pathParams: { sgId },
+    });
+    // An answer for a service the user has already left is dropped.
+    if (props.selectedServiceId !== sgId) return;
+    groupCapabilities.value = data.responseData?.capabilities ?? null;
+  } catch {
+    // Left unknown: the buttons stay locked and say the group is still being read.
+    if (props.selectedServiceId === sgId) groupCapabilities.value = null;
+  }
+}
+
 async function loadConnectionOutcomes() {
+  loadGroupCapabilities();
   try {
     const { data } = await getSourceConnectionList.execute({
       pathParams: { sgId: props.selectedServiceId },
@@ -740,14 +785,14 @@ function handleSoftwareModal() {
         </div>
         <div v-else-if="name === 'viewSoftware'" class="collect-actions">
           <disabled-reason
-            :reason="agentCollectDisabled ? agentCollectHint : ''"
+            :reason="softwareCollectHint"
             testid="source-group-collect-sw-trigger"
           >
             <p-button
               data-testid="source-group-collect-sw"
               style-type="tertiary"
               size="sm"
-              :disabled="agentCollectDisabled"
+              :disabled="!!softwareCollectHint"
               :loading="resCollectSWSourceGroup.isLoading.value"
               @click="getSourceGroupSoftware"
             >

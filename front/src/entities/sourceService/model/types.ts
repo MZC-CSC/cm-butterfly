@@ -254,6 +254,22 @@ export interface ISourceServiceResponseElement {
   type?: string;
   provider_name?: string;
   region_name?: string;
+  capabilities?: ISourceGroupCapabilities;
+  connection_count_by_type?: Record<string, number>;
+}
+
+/**
+ * What a group can collect with the connections it holds now, as cm-honeybee judges it with
+ * the same rules its group imports pick their targets by. An empty group answers false for all.
+ */
+export interface ISourceGroupCapabilities {
+  isCollectInfra: boolean;
+  isCollectSoftware: boolean;
+  isCollectKubernetes: boolean;
+  isCollectObjectStorage: boolean;
+  isCollectDb: boolean;
+  isCollectFs: boolean;
+  isCollectNlb: boolean;
 }
 
 export interface ISourceServiceResponse {
