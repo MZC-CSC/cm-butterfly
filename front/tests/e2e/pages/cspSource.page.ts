@@ -23,8 +23,21 @@ export class CspSourcePage {
     return this.page.getByTestId('csp-source-spec-status');
   }
 
+  /** 필수 인증 항목. 선택 키(버킷용 S3 키)는 data-optional 로 따로 그려진다. */
   private get credentialInputs(): Locator {
-    return this.page.locator('input[data-testid^="csp-source-credential-"]');
+    return this.page.locator(
+      'input[data-testid^="csp-source-credential-"]:not([data-optional="true"])',
+    );
+  }
+
+  private get optionalInputs(): Locator {
+    return this.page.locator(
+      'input[data-testid^="csp-source-credential-"][data-optional="true"]',
+    );
+  }
+
+  private get loadRegionsButton(): Locator {
+    return this.page.getByTestId('csp-source-load-regions');
   }
 
   private get addButton(): Locator {
@@ -79,6 +92,54 @@ export class CspSourcePage {
     return this.credentialInputs.count();
   }
 
+  async optionalFieldCount(): Promise<number> {
+    await expect(this.page.getByTestId('csp-source-optional-note')).toBeVisible(
+      { timeout: 15_000 },
+    );
+    return this.optionalInputs.count();
+  }
+
+  async fillOptional(index: number, value: string): Promise<void> {
+    await humanFill(this.optionalInputs.nth(index), value);
+  }
+
+  async expectOptionalPairError(): Promise<void> {
+    await expect(
+      this.page.getByTestId('csp-source-optional-error'),
+    ).toBeVisible({ timeout: 10_000 });
+  }
+
+  /** 미리내 버튼의 비활성은 클래스뿐이다(DESIGN-MIRINAE §1.6). */
+  async isLoadRegionsEnabled(): Promise<boolean> {
+    const cls = (await this.loadRegionsButton.getAttribute('class')) ?? '';
+    return !cls.split(/\s+/).includes('disabled');
+  }
+
+  async fillCredential(access: CspAccess): Promise<void> {
+    const count = await this.credentialInputs.count();
+    if (count !== 2) {
+      throw new Error(
+        `${access.provider} 의 인증 항목이 ${count}개다 — 이 테스트는 access/secret 2개인 CSP 만 다룬다`,
+      );
+    }
+    await humanFill(this.credentialInputs.nth(0), access.accessKey);
+    await humanFill(this.credentialInputs.nth(1), access.secretKey);
+  }
+
+  /**
+   * 리전은 입력한 인증으로 그 계정에서 읽어 온다(cm-honeybee POST /csp/{name}/region).
+   * 읽기가 끝나 오류가 없고 목록이 열렸을 때까지 기다린다.
+   */
+  async loadRegions(): Promise<void> {
+    await humanClick(this.loadRegionsButton);
+    await expect(this.loadRegionsButton).not.toHaveClass(/loading/, {
+      timeout: 60_000,
+    });
+    await expect(this.page.getByTestId('csp-source-region-error')).toHaveCount(
+      0,
+    );
+  }
+
   async isAddEnabled(): Promise<boolean> {
     const cls = (await this.addButton.getAttribute('class')) ?? '';
     return !cls.split(/\s+/).includes('disabled');
@@ -93,14 +154,8 @@ export class CspSourcePage {
       this.page.locator('input[data-testid="csp-source-service-name"]').first(),
       name,
     );
-    const count = await this.credentialInputs.count();
-    if (count !== 2) {
-      throw new Error(
-        `${access.provider} 의 인증 항목이 ${count}개다 — 이 테스트는 access/secret 2개인 CSP 만 다룬다`,
-      );
-    }
-    await humanFill(this.credentialInputs.nth(0), access.accessKey);
-    await humanFill(this.credentialInputs.nth(1), access.secretKey);
+    await this.fillCredential(access);
+    await this.loadRegions();
     await this.region.pick(access.region);
   }
 
@@ -220,6 +275,61 @@ export class CspSourcePage {
     await expect(
       this.page.getByTestId('source-connection-list-table'),
     ).toContainText(description, { timeout: 30_000 });
+  }
+
+  /** 목록에 없는 자원을 이름(ID)으로 직접 넣어 목록에 올리고 고른다. */
+  async enterResourceByHand(resourceId: string): Promise<void> {
+    await humanFill(
+      this.page
+        .locator('input[data-testid="csp-connection-manual-id"]')
+        .first(),
+      resourceId,
+    );
+    await humanClick(this.page.getByTestId('csp-connection-manual-add'));
+    await expect(
+      this.resourceList.getByTestId(`csp-connection-resource-${resourceId}`),
+    ).toHaveAttribute('data-selected', 'true', { timeout: 10_000 });
+  }
+
+  /** 추가를 눌러도 등록이 거부되면 창이 닫히지 않고 오류가 뜬다. */
+  async addPickedResourcesExpectingRefusal(): Promise<string> {
+    await humanClick(
+      this.page.locator('button', {
+        has: this.page.getByTestId('csp-connection-confirm'),
+      }),
+    );
+    // 미리내 PToastAlert: 오류 알림은 .alert-contents.alert, 본문은 .contents 다.
+    const toast = this.page
+      .locator('.p-toast-alert .alert-contents.alert')
+      .first();
+    await expect(toast).toBeVisible({ timeout: 60_000 });
+    await expect(
+      this.page.getByTestId('csp-connection-modal-body'),
+    ).toBeVisible();
+    return (await toast.innerText()).trim();
+  }
+
+  /** CSP VM 연결의 수정 창에 SSH 입력 칸이 있는지 본다(cm-honeybee 가 수정을 받는다). */
+  async expectVmEditOffersSsh(connectionName: RegExp): Promise<void> {
+    await humanClick(
+      this.page
+        .getByTestId('source-connection-list-table')
+        .getByRole('row', { name: connectionName })
+        .first(),
+    );
+    await humanClick(
+      this.page.getByTestId('source-connection-add-edit').first(),
+    );
+    await expect(this.page.getByTestId('csp-connection-edit-ssh')).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(
+      this.page.locator('input[data-testid="csp-connection-edit-ip"]'),
+    ).toHaveCount(1);
+    await humanClick(this.page.getByRole('button', { name: /Cancel/i }).last());
+    await expect(this.page.getByTestId('csp-connection-edit-body')).toBeHidden({
+      timeout: 15_000,
+    });
   }
 
   async addPickedResources(): Promise<void> {

@@ -164,3 +164,75 @@ Then('만든 CSP 소스 서비스를 지운다', async ({ page }) => {
   await sources.selectGroup(groupName);
   await sources.deleteSelectedGroup();
 });
+
+// 리전은 입력한 인증으로 그 계정에서 읽어 온다 — 인증이 없으면 읽을 수 없다.
+Then('인증 값을 넣기 전에는 리전을 불러올 수 없다', async ({ page }) => {
+  expect(await new CspSourcePage(page).isLoadRegionsEnabled()).toBe(false);
+});
+
+When('인증 값을 넣고 계정의 리전을 불러오면', async ({ page }) => {
+  const csp = new CspSourcePage(page);
+  await csp.fillCredential(cspAccess());
+  expect(await csp.isLoadRegionsEnabled()).toBe(true);
+  await csp.loadRegions();
+});
+
+When('{string} CSP 를 고르면', async ({ page }, provider: string) => {
+  await new CspSourcePage(page).selectProvider(provider);
+});
+
+Then(
+  '버킷용 선택 키 {int}개가 필수 항목과 따로 보인다',
+  async ({ page }, n: number) => {
+    expect(await new CspSourcePage(page).optionalFieldCount()).toBe(n);
+  },
+);
+
+When('선택 키를 하나만 넣으면', async ({ page }) => {
+  await new CspSourcePage(page).fillOptional(0, 'e2e-only-one-key');
+});
+
+Then(
+  '둘 다 넣거나 비우라는 안내가 보이고 등록 버튼이 잠겨 있다',
+  async ({ page }) => {
+    const csp = new CspSourcePage(page);
+    await csp.expectOptionalPairError();
+    expect(await csp.isAddEnabled()).toBe(false);
+  },
+);
+
+let manualBucket = '';
+
+When(
+  '그 서비스의 연결 추가에서 계정에 없는 버킷 이름을 직접 넣어 추가하면',
+  async ({ page }) => {
+    await new SourceServicesPage(page).selectGroup(groupName);
+    const csp = new CspSourcePage(page);
+    await page.getByRole('tab', { name: /Connections/i }).click();
+    await csp.openCspConnectionModal();
+    await csp.chooseResourceType('Object Storage');
+    manualBucket = uniqueName('e2e-no-such-bucket');
+    await csp.enterResourceByHand(manualBucket);
+    refusal = await csp.addPickedResourcesExpectingRefusal();
+  },
+);
+
+let refusal = '';
+
+Then('계정에 없는 자원이라 등록되지 않았다는 오류가 보인다', async () => {
+  expect(refusal).toContain(manualBucket);
+});
+
+Then('그 버킷은 커넥션 목록에 없다', async ({ page }) => {
+  const csp = new CspSourcePage(page);
+  await csp.closeConnectionModal();
+  await expect(
+    page.getByTestId('source-connection-list-table'),
+  ).not.toContainText(manualBucket);
+});
+
+Then('VM 연결의 수정 창에는 SSH 입력 칸이 있다', async ({ page }) => {
+  await new CspSourcePage(page).expectVmEditOffersSsh(
+    new RegExp(`vm-${testVm()}`),
+  );
+});
