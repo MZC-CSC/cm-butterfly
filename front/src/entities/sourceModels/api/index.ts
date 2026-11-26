@@ -9,15 +9,15 @@ const GET_MODELS = 'cm-damselfly/GetModels';
 
 /**
  * The Source Models list shows source and planning models together: a planning model is the plan
- * of a source model. cm-damselfly's GetModels takes one stage per call, so the list calls it once
- * per stage in SOURCE_LIST_STAGES and joins the results, with the category filter sent along.
+ * of a source model. GetModels takes several stages separated by commas, so the list asks for
+ * both in one call, with the category filter sent along.
  */
-export const SOURCE_LIST_STAGES = ['source', 'planning'] as const;
+export const SOURCE_LIST_STAGES = 'source,planning';
 
 export function useGetSourceModelList() {
   const requestWrapper: Required<Pick<RequestBodyWrapper<any>, 'queryParams'>> =
     {
-      queryParams: { modelStage: 'source' },
+      queryParams: { modelStage: SOURCE_LIST_STAGES },
     };
   return useAxiosPost<
     IAxiosResponse<ISourceModelResponse[]>,

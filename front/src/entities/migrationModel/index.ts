@@ -26,7 +26,9 @@ export interface IMigrationLineage {
 /** The stored-model fields this module relies on. */
 export interface IStoredMigrationModel {
   id: string;
-  modelType?: string; // OnPremiseModel | CloudModel | SoftwareModel | objectStorageModel
+  modelType?: string; // OnPremiseModel | CloudModel | SoftwareModel | RDBMSModel | ObjectStorageModel
+  /** cm-damselfly's classification of the model; the same values as GetModels' 'category' filter. */
+  category?: string; // infra | software | rdbms | objectStorage
   modelStage?: ModelStage;
   lineage?: IMigrationLineage;
 }
@@ -46,15 +48,10 @@ const CREATE_OBJECT_STORAGE_MODEL = 'cm-damselfly/CreateObjectStorageModel';
 const UPDATE_OBJECT_STORAGE_MODEL = 'cm-damselfly/UpdateObjectStorageModel';
 const DELETE_OBJECT_STORAGE_MODEL = 'cm-damselfly/DeleteObjectStorageModel';
 
-/**
- * cm-damselfly's modelType values. The object storage one starts in lowercase, unlike the
- * others; it is matched as cm-damselfly writes it.
- */
-const MODEL_TYPE = {
+/** cm-damselfly's modelType values of the infra models, which tell on-premise from cloud. */
+const INFRA_MODEL_TYPE = {
   ONPREM: 'OnPremiseModel',
   CLOUD: 'CloudModel',
-  SOFTWARE: 'SoftwareModel',
-  OBJECT_STORAGE: 'objectStorageModel',
 } as const;
 
 export const MODEL_STAGE_LABEL: Record<ModelStage, string> = {
@@ -63,19 +60,21 @@ export const MODEL_STAGE_LABEL: Record<ModelStage, string> = {
   target: 'Target',
 };
 
-/** Category from cm-damselfly's `modelType`. Anything else is an error, not a guess. */
+/**
+ * Category from cm-damselfly's `category`, which it derives from the stored model and returns with
+ * every model. It is read instead of `modelType`: `modelType` mixes the category with the on-premise
+ * or cloud kind of an infra model, and its spelling has changed between releases. Anything else is
+ * an error, not a guess.
+ */
 export function modelCategoryOf(model: IStoredMigrationModel): ModelCategory {
-  switch (model.modelType) {
-    case MODEL_TYPE.SOFTWARE:
-      return 'software';
-    case MODEL_TYPE.ONPREM:
-    case MODEL_TYPE.CLOUD:
-      return 'infra';
-    case MODEL_TYPE.OBJECT_STORAGE:
-      return 'objectStorage';
+  switch (model.category) {
+    case 'infra':
+    case 'software':
+    case 'objectStorage':
+      return model.category;
     default:
       throw new Error(
-        `Model ${model.id} has an unknown model type '${model.modelType ?? ''}'`,
+        `Model ${model.id} has a category the console does not handle ('${model.category ?? ''}')`,
       );
   }
 }
@@ -106,19 +105,18 @@ export const MODEL_CATEGORY_FILTER_ITEMS: {
 ];
 
 export function isObjectStorageModel(model: IStoredMigrationModel): boolean {
-  return model.modelType === MODEL_TYPE.OBJECT_STORAGE;
+  return model.category === 'objectStorage';
 }
 
-/** Shown in the Migration Type column; cm-damselfly's raw modelType for the others. */
+/** Shown in the Migration Type column: cm-damselfly's modelType as it returns it. */
 export function migrationTypeLabelOf(model: IStoredMigrationModel): string {
-  return isObjectStorageModel(model)
-    ? 'ObjectStorageModel'
-    : (model.modelType ?? '');
+  return model.modelType ?? '';
 }
 
+/** On-premise or cloud: the infra category does not tell them apart, so `modelType` does. */
 export function infraModelTypeOf(model: IStoredMigrationModel): InfraModelType {
-  if (model.modelType === 'OnPremiseModel') return 'onprem';
-  if (model.modelType === 'CloudModel') return 'cloud';
+  if (model.modelType === INFRA_MODEL_TYPE.ONPREM) return 'onprem';
+  if (model.modelType === INFRA_MODEL_TYPE.CLOUD) return 'cloud';
   throw new Error(
     `Model ${model.id} is not an infra model (model type '${model.modelType ?? ''}')`,
   );
@@ -162,33 +160,22 @@ export function planningLineageFrom(
 /**
  * Whether a target can be recommended from `model`. A source model is the read-only record of what
  * was collected: the user saves it as a planning model and recommends from that. cm-damselfly also
- * refuses a target whose lineage skips the planning stage.
- *
- * Software is the exception for now: cm-damselfly takes a software planning model in the target
- * structure, so an edited source software model cannot become one, and software is still
- * recommended from its source model.
+ * refuses a target whose lineage skips the planning stage. This holds for every category: software
+ * planning models are stored in the source structure as well.
  */
 export function canRecommendFrom(model: IStoredMigrationModel): boolean {
-  const stage = modelStageOf(model);
-  if (stage === 'planning') return true;
-  return stage === 'source' && modelCategoryOf(model) === 'software';
+  return modelStageOf(model) === 'planning';
 }
 
 /**
- * Lineage for a target model recommended from `model` (see canRecommendFrom).
- * From a planning model, the planning model is the parent and cm-damselfly fills the rest.
- * From a source software model only the source group is carried: naming the source model itself
- * would skip the planning stage, which cm-damselfly refuses.
+ * Lineage for a target model recommended from `model` (see canRecommendFrom): the planning model
+ * is the parent and cm-damselfly fills the rest.
  */
 export function targetLineageFrom(
   model: IStoredMigrationModel,
 ): ILineageRequest {
   const stage = modelStageOf(model);
   if (stage === 'planning') return { parentId: model.id };
-  if (stage === 'source' && modelCategoryOf(model) === 'software') {
-    const sourceGroupId = model.lineage?.sourceGroupId;
-    return sourceGroupId ? { lineage: { sourceGroupId } } : {};
-  }
   throw new Error(
     `A target model cannot be recommended from a ${stage} model (${model.id}). Save it as a planning model first.`,
   );
@@ -197,17 +184,18 @@ export function targetLineageFrom(
 /**
  * Lineage for a new target model saved from an edited target model: a sibling under the same
  * planning model. The parent is named by `parentId` and cm-damselfly derives the rest from it, as its
- * lineage guide recommends, rather than the upstream ids being copied by hand. A target without a
- * planning model (a software target) keeps only its source group - naming its source model alone
- * would skip the planning stage, which cm-damselfly refuses.
+ * lineage guide recommends, rather than the upstream ids being copied by hand. A target always has
+ * a planning model; one without it cannot get a sibling, as cm-damselfly refuses a target whose
+ * lineage skips the planning stage.
  */
 export function siblingTargetLineageOf(
   model: IStoredMigrationModel,
 ): ILineageRequest {
   const planningModelId = model.lineage?.planningModelId;
   if (planningModelId) return { parentId: planningModelId };
-  const sourceGroupId = model.lineage?.sourceGroupId;
-  return sourceGroupId ? { lineage: { sourceGroupId } } : {};
+  throw new Error(
+    `Target model ${model.id} has no planning model in its lineage, so a new target cannot be saved from it`,
+  );
 }
 
 /** Lineage for the request bodies sent to cm-beetle (recommendation, migration). */
@@ -374,9 +362,7 @@ export function createdModelIdOf(res: any): string {
  * saves - the shown model, edited or not, with the name and description they gave - becomes a
  * planning model derived from it.
  *
- * Software has no planning stage in the console (cm-damselfly takes a software planning model in
- * the target structure), so an edited software model is saved as a second source model instead.
- * Unedited, a single source model is saved under the user's name.
+ * This is the same for every category: infra, software and object storage.
  */
 export async function saveCollectedModels(params: {
   category: 'infra' | 'software' | 'objectStorage';
@@ -388,36 +374,34 @@ export async function saveCollectedModels(params: {
   original: Record<string, any>;
   /** The model as shown when the user saved it. */
   edited: Record<string, any>;
-}): Promise<{ source: string; derived?: string }> {
+}): Promise<{ source: string; derived: string }> {
   const { category, sourceGroupId, userId, name, description } = params;
   const sourceName = `${name}-source`;
   const sourceDescription = `Collected from source group ${sourceGroupId}`;
   const common = { userId, userModelVersion: INITIAL_MODEL_VERSION };
 
   if (category === 'software') {
+    // The collected software is the source model and the shown (possibly edited) one the planning
+    // model; the migration list is asked from the planning model.
     const softwareOf = (m: Record<string, any>) => m?.sourceSoftwareModel || m;
-    const edited =
-      JSON.stringify(softwareOf(params.original)) !==
-      JSON.stringify(softwareOf(params.edited));
     const source = createdModelIdOf(
       await createSoftwareModel('source', {
         ...common,
+        sourceSoftwareModel: softwareOf(params.original),
         lineage: { sourceGroupId },
         isInitUserModel: true,
-        userModelName: edited ? sourceName : name,
-        description: edited ? sourceDescription : description,
-        sourceSoftwareModel: softwareOf(params.original),
+        userModelName: sourceName,
+        description: sourceDescription,
       }),
     );
-    if (!edited) return { source };
     const derived = createdModelIdOf(
-      await createSoftwareModel('source', {
+      await createSoftwareModel('planning', {
         ...common,
-        lineage: { sourceGroupId },
+        sourceSoftwareModel: softwareOf(params.edited),
+        parentId: source,
         isInitUserModel: false,
         userModelName: name,
         description,
-        sourceSoftwareModel: softwareOf(params.edited),
       }),
     );
     return { source, derived };

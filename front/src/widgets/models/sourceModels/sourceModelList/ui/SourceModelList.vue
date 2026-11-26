@@ -104,21 +104,20 @@ function getTableList() {
   isDataLoaded.value = false;
   tableModel.tableState.selectIndex = [];
   const category = categoryFilter.value;
-  // One call per stage (source, planning), joined: GetModels takes a single stage.
-  Promise.all(
-    SOURCE_LIST_STAGES.map(modelStage =>
-      resSourceList.execute({
-        queryParams: { modelStage, ...(category ? { category } : {}) },
-      }),
-    ),
-  )
-    .then(responses => {
+  resSourceList
+    .execute({
+      queryParams: {
+        modelStage: SOURCE_LIST_STAGES,
+        ...(category ? { category } : {}),
+      },
+    })
+    .then(res => {
       // cm-damselfly returns 200 with a null body when there are no models, not an empty array,
-      // so each body is coerced to []. Categories without a console screen (RDBMS) are left out:
+      // so the body is coerced to []. Categories without a console screen (RDBMS) are left out:
       // their models cannot be opened, edited or deleted here.
-      const models = responses.flatMap(res =>
-        Array.isArray(res.data.responseData) ? res.data.responseData : [],
-      );
+      const models = Array.isArray(res.data.responseData)
+        ? res.data.responseData
+        : [];
       sourceModelStore.setSourceModel(models.filter(isConsoleModel));
       nextTick(() => {
         isDataLoaded.value = true;
