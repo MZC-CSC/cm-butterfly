@@ -507,12 +507,12 @@ async function recommend(
 }
 
 // ───────────────────────────────────────────────────────────────────────
-// SW (software) model recommendation — same process as infra (source SW model → recommend → save target SW model)
+// SW (software) model recommendation — same process as infra (planning SW model → recommend → save target SW model)
 // ───────────────────────────────────────────────────────────────────────
 
-/** "{string} 소프트웨어 소스 모델을 선택한다" */
+/** "{string} 소프트웨어 계획 모델을 선택한다" */
 Given(
-  '{string} 소프트웨어 소스 모델을 선택한다',
+  '{string} 소프트웨어 계획 모델을 선택한다',
   async ({ page }, name: string) => {
     const models = new ModelsPage(page);
     await models.gotoSourceModels();
@@ -522,7 +522,7 @@ Given(
 
 /**
  * "소프트웨어 마이그레이션을 추천받아 {string} 타깃 SW 모델로 저장하면"
- * — Same as infra recommendation: run the recommendation from the source SW model detail, then
+ * — Same as infra recommendation: run the recommendation from the planning SW model detail, then
  * save as a target SW model.
  */
 When(
@@ -554,8 +554,7 @@ Then(
  *
  * In the source model detail's "View & Save as Planning Model", review the collected on-prem info and
  * save it with only the name changed. An infra model saved this way is a planning model whose parent is
- * the selected source (cm-damselfly source -> planning). A software model stays a source model, since
- * cm-damselfly takes a software planning model in the target structure.
+ * the selected source (cm-damselfly source -> planning), for software as well as infra.
  * Subsequent recommendations run against this planning model, so record it in global state.
  */
 When(

@@ -39,7 +39,7 @@ const sourceModelStore = useSourceModelStore();
 const targetModel = ref<ISourceModelResponse | undefined>(undefined);
 const serverCode = ref<string>('');
 
-// cm-damselfly's modelType decides the category; the model name or migrationType is not used.
+// cm-damselfly's category decides it; the model name or migrationType is not used.
 const isSoftwareModel = computed(() => {
   if (!targetModel.value) return false;
   try {
@@ -66,11 +66,7 @@ const modalTitle = computed(() => {
     : `Custom & View Source Model - ${kind}`;
 });
 
-const saveFormTitle = computed(() =>
-  isSoftwareModel.value
-    ? 'Save new custom Source model'
-    : 'Save as a new Planning model',
-);
+const saveFormTitle = computed(() => 'Save as a new Planning model');
 
 watch(
   () => props.sourceModelId,
@@ -164,21 +160,21 @@ function handleSaveModal(e) {
       userModelVersion: INITIAL_MODEL_VERSION,
     };
 
-    console.log('Software request body:', softwareRequestBody);
-
-    // cm-damselfly takes a software planning model in the *target* structure (targetSoftwareModel),
-    // so an edited source software model cannot become one. Until that flow is settled it stays a
-    // source model that keeps the source group of the original.
-    const sourceGroupId = targetModel.value?.lineage?.sourceGroupId;
-    createSoftwareModel('source', {
+    // As for infra, an edited source model is saved as a planning model derived from it, in the
+    // same source structure; editing a planning model again gives another one under the same source.
+    let lineageReq;
+    try {
+      lineageReq = planningLineageFrom(targetModel.value);
+    } catch (err: any) {
+      showErrorMessage('error', err.message);
+      return;
+    }
+    createSoftwareModel('planning', {
       ...softwareRequestBody,
-      ...(sourceGroupId ? { lineage: { sourceGroupId } } : {}),
+      ...lineageReq,
     })
       .then(() => {
-        showSuccessMessage(
-          'success',
-          'Successfully created software source model',
-        );
+        showSuccessMessage('success', 'Successfully created planning model');
         emit('update:close-modal', false);
         emit('update:trigger');
         modalState.open = false;

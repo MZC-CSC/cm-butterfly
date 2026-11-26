@@ -177,21 +177,12 @@ const handleMetaViewer = async e => {
     original: originalData.value ?? convertedData.value,
     edited: convertedData.value,
   })
-    .then(({ derived }) => {
+    .then(() => {
       emit('update:is-meta-viewer-opened');
-      if (category !== 'software') {
-        showSuccessMessage(
-          'success',
-          `Saved the collected source model and the planning model "${e.name}"`,
-        );
-      } else {
-        showSuccessMessage(
-          'success',
-          derived
-            ? `Saved the collected source model and the edited model "${e.name}"`
-            : `Saved the source model "${e.name}"`,
-        );
-      }
+      showSuccessMessage(
+        'success',
+        `Saved the collected source model and the planning model "${e.name}"`,
+      );
     })
     .catch(err => {
       showErrorMessage('error', describeModelError(err).message);

@@ -33,9 +33,9 @@ Given('소스 소프트웨어를 수집한다', async ({ page }) => {
   await source.collectSoftware();
 });
 
-/** "그리고 수집된 소프트웨어를 {string} 소스 모델로 저장한다" — save the SW source model from the collection-result popup */
+/** "그리고 수집된 소프트웨어를 {string} 계획 모델로 저장한다" — save the collected SW as a source model and a planning model under the given name */
 Given(
-  '수집된 소프트웨어를 {string} 소스 모델로 저장한다',
+  '수집된 소프트웨어를 {string} 계획 모델로 저장한다',
   async ({ page }, name: string) => {
     const modelName = uniqueName(name);
     await new SourceServicesPage(page).saveCollectedSwAsSourceModel(modelName);

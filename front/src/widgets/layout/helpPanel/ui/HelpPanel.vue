@@ -408,7 +408,7 @@ const HELP: Array<{ path: string; help: Help }> = [
             {
               heading: 'Infrastructure',
               steps: [
-                'Select an infrastructure source model and run Recommend Model.',
+                'Select an infrastructure planning model and run Recommend Model.',
                 'Each candidate shows an estimated monthly cost, so you can choose by cost.',
                 'Choose one and save it as a target model.',
               ],
@@ -416,7 +416,7 @@ const HELP: Array<{ path: string; help: Help }> = [
             {
               heading: 'Software',
               steps: [
-                'Select a software source model and run Recommend Model.',
+                'Select a software planning model and run Recommend Model.',
                 'Press Get Migration List. The recommended migration fills the panel on the right.',
                 'Save it as a software target model.',
               ],

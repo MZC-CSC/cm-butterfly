@@ -48,28 +48,18 @@ const stage = computed<ModelStage | null>(() => {
 
 /**
  * A source model is read-only: opening it shows what was collected, and saving creates a planning
- * model. Recommendation starts from a planning model (canRecommendFrom has the software exception).
+ * model. Recommendation starts from a planning model, for every category (canRecommendFrom).
  */
 /** Shown on hover over the disabled recommend link; empty when it is enabled. */
 const recommendDisabledReason = computed(() =>
   selectedModel.value && !recommendable.value ? RECOMMEND_DISABLED_REASON : '',
 );
 
-const customViewLabel = computed(() => {
-  if (stage.value === 'planning') return 'Custom & View Planning Model';
-  let software = false;
-  try {
-    software =
-      !!selectedModel.value &&
-      modelCategoryOf(selectedModel.value) === 'software';
-  } catch {
-    software = false;
-  }
-  // A software model has no planning stage in the console yet (canRecommendFrom).
-  return software
-    ? 'Custom & View Source Model'
-    : 'View & Save as Planning Model';
-});
+const customViewLabel = computed(() =>
+  stage.value === 'planning'
+    ? 'Custom & View Planning Model'
+    : 'View & Save as Planning Model',
+);
 
 const RECOMMEND_DISABLED_REASON =
   'Recommendations are available only from a planning model. A source model keeps what was collected and is read-only.';
@@ -148,8 +138,7 @@ function handleRecommendedList() {
   );
 
   if (!sourceModel || !recommendable.value) return;
-  // cm-damselfly's modelType decides it (OnPremiseModel | CloudModel | SoftwareModel |
-  // objectStorageModel); the category names the recommendation window to open.
+  // cm-damselfly's category names the recommendation window to open.
   try {
     recommendedModelList.value = modelCategoryOf(sourceModel);
   } catch (e: any) {
