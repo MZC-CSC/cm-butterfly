@@ -937,7 +937,8 @@ function loadSequence() {
 /**
  * Injection specific to the target model flow — in the loaded template sequence:
  *  ① fill the lookup task (damselfly_task_get_cloud_infra_model / _get_target_software_model)'s
- *     path_params.id with the selected target model id, and
+ *     path_params.id with the selected target model id and its query_params with the kind of the
+ *     model the unified lookup needs, and
  *  ② overwrite the migration task (beetle_task_infra_migration / grasshopper_task_software_migration)'s
  *     body (model) with the target model's literal value, so the actual value is saved rather than a reference.
  * The remaining tasks (sleep/install_docker/email, etc.) are left as the template.
@@ -955,6 +956,9 @@ function injectTargetModelIntoSequence() {
   const lookupComponent = isInfra
     ? 'damselfly_task_get_cloud_infra_model'
     : 'damselfly_task_get_target_software_model';
+  const lookupQuery: Record<string, string> = isInfra
+    ? { modelType: 'cloud' }
+    : { modelStage: 'target' };
   const migrationComponent = isInfra
     ? 'beetle_task_infra_migration'
     : 'grasshopper_task_software_migration';
@@ -1000,6 +1004,12 @@ function injectTargetModelIntoSequence() {
         step.properties.fixedModel.path_params = {
           ...(step.properties.fixedModel.path_params ?? {}),
           id: tm.id,
+        };
+        // cm-damselfly's unified lookups need the kind of the model: GET /infra-model/{id} takes
+        // modelType and GET /software-model/{id} takes modelStage.
+        step.properties.fixedModel.query_params = {
+          ...(step.properties.fixedModel.query_params ?? {}),
+          ...lookupQuery,
         };
       } else if (component === migrationComponent && literalBody) {
         // Put in the target model's literal value instead of a reference body (the right-hand table is filled with this value too).

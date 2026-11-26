@@ -59,7 +59,6 @@ export interface IVm {
   status: string;
   targetStatus: string;
   targetAction: string;
-  monAgentStatus: string;
   networkAgentStatus: string;
   systemMessage: string;
   createdTime: string;
@@ -136,7 +135,6 @@ export interface IMci {
   statusCount: StatusCount;
   targetStatus: string;
   targetAction: string;
-  installMonAgent: string;
   configureCloudAdaptiveNetwork: string;
   label: Label;
   systemLabel: string;

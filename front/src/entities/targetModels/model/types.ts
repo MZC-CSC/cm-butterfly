@@ -38,7 +38,6 @@ interface Vm {
 
 interface CloudInfraModel {
   description: string;
-  installMonAgent: string;
   label: string | null;
   name: string;
   systemLabel: string;

@@ -4,8 +4,8 @@
  */
 
 export interface PropertyOrderRule {
-  path: string;  // path to apply to (e.g. 'body_params', 'body_params.servers[]')
-  order: string[];  // property names listed in the order to show them
+  path: string; // path to apply to (e.g. 'body_params', 'body_params.servers[]')
+  order: string[]; // property names listed in the order to show them
 }
 
 /**
@@ -17,10 +17,10 @@ export interface PropertyOrderRule {
  */
 export const TASK_PROPERTY_ORDER_CONFIG: Record<string, PropertyOrderRule[]> = {
   // Beetle Infra Migration Task
-  'beetle_task_infra_migration': [
+  beetle_task_infra_migration: [
     {
       path: 'body_params',
-      order: [  
+      order: [
         'description',
         'targetCloud',
         'targetInfra',
@@ -29,46 +29,42 @@ export const TASK_PROPERTY_ORDER_CONFIG: Record<string, PropertyOrderRule[]> = {
         'targetVNet',
         'targetSecurityGroupList',
         'targetSshKey',
-        'status'
-      ]
+        'status',
+      ],
     },
     {
       path: 'body_params.targetInfra',
       order: [
         'name',
-        'description',        
+        'description',
         'nodeGroups',
-        'installMonAgent',  
+        'policyOnPartialFailure',
         'label',
         'systemLabel',
-        'postCommand'
-      ]
-    }
+        'postScript',
+      ],
+    },
   ],
-  
+
   // Grasshopper Software Migration Task
-  'grasshopper_task_software_migration': [
+  grasshopper_task_software_migration: [
     {
       path: 'body_params.targetSoftwareModel.servers[]',
-      order: [
-        'source_connection_info_id',
-        'migration_list',
-        'errors'
-      ]
+      order: ['source_connection_info_id', 'migration_list', 'errors'],
     },
     {
-        path: 'body_params.targetSoftwareModel.servers[].migration_list.packages[]',
-        order: [
-          'name',
-          'version',
-          'order',
-          'repo_use_os_version_code',          
-          'repo_url',
-          'gpg_key_url',
-          'custom_configs'
-        ]
-      }
-  ]
+      path: 'body_params.targetSoftwareModel.servers[].migration_list.packages[]',
+      order: [
+        'name',
+        'version',
+        'order',
+        'repo_use_os_version_code',
+        'repo_url',
+        'gpg_key_url',
+        'custom_configs',
+      ],
+    },
+  ],
 };
 
 /**
@@ -80,7 +76,7 @@ export const TASK_PROPERTY_ORDER_CONFIG: Record<string, PropertyOrderRule[]> = {
  */
 export function getPropertyOrder(
   taskName: string,
-  currentPath: string
+  currentPath: string,
 ): string[] | null {
   const rules = TASK_PROPERTY_ORDER_CONFIG[taskName];
   if (!rules) return null;
@@ -100,14 +96,13 @@ export function getPropertyOrder(
  */
 export function sortPropertiesByOrder(
   properties: string[],
-  order: string[]
+  order: string[],
 ): string[] {
   // Place first only those in `order` that actually exist
   const ordered = order.filter(key => properties.includes(key));
 
   // The remaining properties not in `order` (keep original order)
   const remaining = properties.filter(key => !order.includes(key));
-  
+
   return [...ordered, ...remaining];
 }
-

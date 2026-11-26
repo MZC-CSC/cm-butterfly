@@ -38,7 +38,6 @@ export interface Vm {
 
 interface TargetVmInfra {
   description: string;
-  installMonAgent: string;
   label: string | null;
   name: string;
   systemLabel: string;
